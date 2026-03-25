@@ -1,0 +1,1953 @@
+:root {
+  --text-color: var(--vscode-editor-foreground, #1a1a1a);
+  --bg-color: var(--vscode-editor-background, #ffffff);
+  --border-color: var(--vscode-panel-border, #e0e0e0);
+  --toolbar-bg: var(--vscode-editorWidget-background, #f5f5f5);
+  --accent: var(--vscode-focusBorder, #0066cc);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  line-height: 1.7;
+}
+
+/* Layout */
+.vswrite-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--toolbar-bg);
+  flex-shrink: 0;
+}
+
+.toolbar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.toolbar button,
+.toolbar-buttons button {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.toolbar button:hover,
+.toolbar-buttons button:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.toolbar button.active,
+.toolbar-buttons button.active {
+  background: rgba(128, 128, 128, 0.25);
+  border-color: var(--border-color);
+}
+
+.toolbar button:disabled,
+.toolbar-buttons button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.toolbar .separator,
+.toolbar-buttons .separator {
+  width: 1px;
+  height: 20px;
+  background: var(--border-color);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+/* ─── Command Hub ────────────────────────────── */
+.command-hub {
+  position: relative;
+  margin-left: 8px;
+}
+
+.command-hub-trigger {
+  padding: 4px 8px !important;
+  font-size: 16px !important;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.command-hub-trigger:hover,
+.command-hub-trigger.open {
+  opacity: 1;
+}
+
+.command-hub-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.command-hub-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 9999;
+  min-width: 260px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 6px;
+  margin-top: 4px;
+}
+
+.command-hub-group-title {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(128, 128, 128, 0.65);
+  user-select: none;
+}
+
+.command-hub-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 6px;
+}
+
+.command-hub-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px !important;
+  border: none !important;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 13px !important;
+  text-align: left;
+}
+
+.command-hub-item:hover {
+  background: rgba(128, 128, 128, 0.15) !important;
+}
+
+.command-hub-item-icon {
+  width: 24px;
+  text-align: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.command-hub-item-label {
+  flex: 1;
+}
+
+.command-hub-item-shortcut {
+  font-size: 11px;
+  color: rgba(128, 128, 128, 0.6);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  white-space: nowrap;
+}
+
+/* ─── Command Hub Submenu ────────────────────── */
+.command-hub-submenu-wrapper {
+  position: relative;
+}
+
+.command-hub-item-has-submenu {
+  padding-right: 24px !important;
+}
+
+.command-hub-submenu-arrow {
+  margin-left: auto;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.command-hub-submenu {
+  position: fixed;
+  z-index: 10002;
+  min-width: 230px;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 6px;
+}
+
+/* ─── Shortcut Cheatsheet ────────────────────── */
+.shortcut-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shortcut-modal {
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.shortcut-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.shortcut-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.shortcut-close {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.shortcut-close:hover {
+  opacity: 1;
+}
+
+.shortcut-body {
+  padding: 12px 20px 20px;
+}
+
+.shortcut-group {
+  margin-bottom: 16px;
+}
+
+.shortcut-group:last-child {
+  margin-bottom: 0;
+}
+
+.shortcut-group h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(128, 128, 128, 0.65);
+  margin: 0 0 8px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.shortcut-action {
+  font-size: 13px;
+  color: var(--text-color);
+}
+
+.shortcut-keys {
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  color: rgba(128, 128, 128, 0.7);
+  background: rgba(128, 128, 128, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ─── Settings Panel ─────────────────────────── */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-modal {
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  width: 460px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.settings-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.settings-close {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.settings-close:hover {
+  opacity: 1;
+}
+
+.settings-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-section h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(128, 128, 128, 0.65);
+  margin: 0 0 10px;
+}
+
+.settings-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.settings-field span {
+  font-size: 13px;
+  color: var(--text-color);
+  flex-shrink: 0;
+}
+
+.settings-field select,
+.settings-field input {
+  width: 180px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.settings-field select:focus,
+.settings-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.settings-btn {
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+}
+
+.settings-btn-secondary {
+  background: transparent;
+  color: var(--text-color);
+}
+
+.settings-btn-secondary:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.settings-btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.settings-btn-primary:hover {
+  opacity: 0.9;
+}
+
+/* Editor area */
+.editor-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 40px 60px;
+}
+
+/* ProseMirror / TipTap styles */
+.ProseMirror {
+  outline: none;
+  min-height: 100%;
+  counter-reset: footnote;
+}
+
+.ProseMirror > * + * {
+  margin-top: 0.6em;
+}
+
+.ProseMirror p {
+  margin-bottom: 0;
+}
+
+.ProseMirror h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin-top: 1.4em;
+  margin-bottom: 0.4em;
+  line-height: 1.2;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 1.2em;
+  margin-bottom: 0.3em;
+  line-height: 1.3;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.2em;
+  line-height: 1.3;
+}
+
+.ProseMirror h4 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-top: 0.8em;
+  margin-bottom: 0.2em;
+}
+
+.ProseMirror h1:first-child,
+.ProseMirror h2:first-child,
+.ProseMirror h3:first-child {
+  margin-top: 0;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5em;
+}
+
+.ProseMirror li {
+  margin-bottom: 0.2em;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid var(--border-color);
+  padding-left: 1em;
+  margin-left: 0;
+  margin-right: 0;
+  color: rgba(128, 128, 128, 0.85);
+  font-style: italic;
+}
+
+.ProseMirror code {
+  background: rgba(128, 128, 128, 0.12);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.88em;
+}
+
+.ProseMirror pre {
+  background: rgba(128, 128, 128, 0.08);
+  padding: 0.8em 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.9em;
+}
+
+.ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 1.5em 0;
+}
+
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* ─── Typst Image Block ──────────────────────── */
+.typst-image-block {
+  position: relative;
+  margin: 0.6em 0;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.typst-image-block img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.typst-image-block.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.typst-image-path {
+  padding: 3px 8px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.72em;
+  color: rgba(128, 128, 128, 0.5);
+  text-align: center;
+  user-select: none;
+}
+
+.typst-image-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  background: rgba(128, 128, 128, 0.06);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.85em;
+  color: rgba(128, 128, 128, 0.6);
+}
+
+/* ─── Image Dialog (click-to-edit overlay) ───── */
+.typst-image-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.typst-image-dialog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 10px 12px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.typst-image-dialog-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.typst-image-dialog-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(128, 128, 128, 0.7);
+  min-width: 52px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.typst-image-dialog-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.typst-image-dialog-preset {
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.typst-image-dialog-preset:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.typst-image-dialog-preset.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.typst-image-dialog-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  outline: none;
+}
+
+.typst-image-dialog-input:focus {
+  border-color: var(--accent);
+}
+
+.typst-image-dialog-input::placeholder {
+  color: rgba(128, 128, 128, 0.4);
+  font-family: inherit;
+}
+
+/* ─── Typst Raw Block ─────────────────────────── */
+.typst-raw-block {
+  position: relative;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.06);
+  overflow: hidden;
+}
+
+.typst-raw-block.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.typst-raw-label {
+  padding: 4px 10px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: rgba(128, 128, 128, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(128, 128, 128, 0.06);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+}
+
+.typst-raw-textarea {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.88em;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  overflow: hidden;
+}
+
+.typst-raw-textarea:focus {
+  background: rgba(128, 128, 128, 0.03);
+}
+
+.typst-raw-done {
+  display: block;
+  width: 100%;
+  padding: 3px 10px;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  background: rgba(128, 128, 128, 0.06);
+  color: rgba(128, 128, 128, 0.6);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.72em;
+  font-weight: 600;
+  text-align: right;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+
+.typst-raw-done:hover {
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--text-color);
+}
+
+/* Block type accent colors */
+.typst-raw-math .typst-raw-label {
+  color: rgba(130, 80, 180, 0.8);
+}
+
+.typst-raw-config .typst-raw-label {
+  color: rgba(50, 130, 180, 0.8);
+}
+
+.typst-raw-code .typst-raw-label {
+  color: rgba(180, 120, 50, 0.8);
+}
+
+.typst-raw-comment .typst-raw-label {
+  color: rgba(100, 160, 80, 0.8);
+}
+
+/* ─── Citations ────────────────────────────── */
+.typst-citation {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  background: rgba(40, 120, 180, 0.08);
+  border: 1px solid rgba(40, 120, 180, 0.2);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin: 0 1px;
+  font-size: 0.88em;
+  cursor: default;
+  white-space: nowrap;
+  vertical-align: baseline;
+  transition: background 0.15s;
+}
+
+.typst-citation:hover {
+  background: rgba(40, 120, 180, 0.15);
+}
+
+.typst-citation-icon {
+  color: rgba(40, 120, 180, 0.7);
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.typst-citation-text {
+  color: var(--text-color);
+  font-size: 0.95em;
+}
+
+/* ─── Citation Autocomplete Menu ───────────── */
+.citation-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 300px;
+  max-width: 420px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+}
+
+.citation-menu-item {
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.citation-menu-item:hover,
+.citation-menu-item.selected {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.citation-menu-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.citation-menu-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.citation-menu-year {
+  font-size: 12px;
+  color: rgba(128, 128, 128, 0.7);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  flex-shrink: 0;
+}
+
+.citation-menu-title {
+  font-size: 12px;
+  color: rgba(128, 128, 128, 0.8);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+.citation-menu-key {
+  font-size: 11px;
+  color: rgba(40, 120, 180, 0.6);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  margin-top: 1px;
+}
+
+/* ─── Bibliography Preview ─────────────────── */
+.typst-bibliography {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.04);
+  margin: 1em 0;
+  overflow: hidden;
+}
+
+.typst-bibliography.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.typst-bibliography-header {
+  padding: 8px 14px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-color);
+  background: rgba(128, 128, 128, 0.06);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+}
+
+.typst-bibliography-source {
+  padding: 2px 14px 4px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.72em;
+  color: rgba(128, 128, 128, 0.55);
+  background: rgba(128, 128, 128, 0.06);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+}
+
+.typst-bibliography-source:empty {
+  display: none;
+}
+
+.typst-bibliography-list {
+  padding: 10px 14px;
+}
+
+.typst-bibliography-entry {
+  padding: 4px 0;
+  font-size: 0.9em;
+  line-height: 1.5;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+}
+
+.typst-bibliography-entry:last-child {
+  border-bottom: none;
+}
+
+.typst-bibliography-author {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.typst-bibliography-title {
+  color: rgba(128, 128, 128, 0.8);
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.typst-bibliography-empty {
+  font-size: 0.88em;
+  color: rgba(128, 128, 128, 0.5);
+  font-style: italic;
+  padding: 8px 0;
+}
+
+/* ─── Page Break ───────────────────────────── */
+.typst-pagebreak {
+  margin: 1.5em 0;
+  user-select: none;
+}
+
+.typst-pagebreak-line {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+}
+
+.typst-pagebreak-line::before,
+.typst-pagebreak-line::after {
+  content: '';
+  flex: 1;
+  border-top: 2px dashed var(--vscode-editorWidget-border, #555);
+  opacity: 0.5;
+}
+
+.typst-pagebreak-label {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--vscode-descriptionForeground, #888);
+  white-space: nowrap;
+}
+
+/* ─── Footnotes ─────────────────────────────── */
+.typst-footnote {
+  display: inline;
+  cursor: pointer;
+  vertical-align: baseline;
+  background: rgba(130, 80, 180, 0.08);
+  border: 1px solid rgba(130, 80, 180, 0.2);
+  border-radius: 3px;
+  padding: 0 3px;
+  margin: 0 1px;
+  font-size: 0.85em;
+  transition: background 0.15s;
+  counter-increment: footnote;
+}
+
+.typst-footnote:hover {
+  background: rgba(130, 80, 180, 0.15);
+}
+
+.typst-footnote-marker {
+  color: rgba(130, 80, 180, 0.9);
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.typst-footnote-marker::before {
+  content: counter(footnote);
+}
+
+.typst-footnote-preview {
+  color: rgba(128, 128, 128, 0.8);
+  font-size: 0.9em;
+}
+
+.typst-footnote-preview.typst-footnote-empty {
+  font-style: italic;
+  color: rgba(128, 128, 128, 0.5);
+}
+
+/* ─── Footnote Popup Editor ────────────────── */
+.footnote-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.footnote-popup {
+  position: fixed;
+  z-index: 9999;
+  width: 300px;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.footnote-popup-label {
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(130, 80, 180, 0.8);
+  background: rgba(128, 128, 128, 0.06);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+}
+
+.footnote-popup-textarea {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  min-height: 60px;
+}
+
+.footnote-popup-textarea:focus {
+  background: rgba(128, 128, 128, 0.03);
+}
+
+.footnote-popup-textarea::placeholder {
+  color: rgba(128, 128, 128, 0.4);
+}
+
+.footnote-popup-hint {
+  padding: 4px 12px;
+  font-size: 10px;
+  color: rgba(128, 128, 128, 0.5);
+  background: rgba(128, 128, 128, 0.06);
+  border-top: 1px solid var(--border-color);
+  text-align: right;
+  user-select: none;
+}
+
+/* ─── Slash Command Menu ─────────────────────── */
+.slash-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+}
+
+.slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.slash-menu-item:hover,
+.slash-menu-item.selected {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.slash-menu-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+  flex-shrink: 0;
+}
+
+.slash-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.slash-menu-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.slash-menu-desc {
+  font-size: 11px;
+  color: rgba(128, 128, 128, 0.7);
+}
+
+/* Placeholder for empty editor */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: 'Type / for commands...';
+  color: rgba(128, 128, 128, 0.5);
+  float: left;
+  pointer-events: none;
+  height: 0;
+}
+
+/* ─── Toolbar Right Section ─────────────────── */
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.toolbar-icon-btn {
+  padding: 4px 8px !important;
+  font-size: 15px !important;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.toolbar-icon-btn:hover {
+  opacity: 1;
+}
+
+/* ─── Focus Mode ────────────────────────────── */
+.focus-mode .editor-container {
+  padding: 80px 120px;
+}
+
+.focus-mode .ProseMirror > *:not(.ProseMirror-selectednode) {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.focus-mode .ProseMirror > .has-focus,
+.focus-mode .ProseMirror > *:focus-within,
+.focus-mode .ProseMirror > *:hover {
+  opacity: 1;
+}
+
+.focus-exit-btn {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  background: var(--toolbar-bg);
+  color: var(--text-color);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  z-index: 100;
+}
+
+.focus-exit-btn:hover {
+  opacity: 1;
+}
+
+/* ─── Typewriter Mode ────────────────────────── */
+.typewriter-mode .editor-container {
+  padding-bottom: 50vh;
+}
+
+.toolbar-icon-btn.active {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 4px;
+}
+
+/* ─── Search & Replace Bar ──────────────────── */
+.search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 16px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+}
+
+.search-count {
+  font-size: 12px;
+  color: rgba(128, 128, 128, 0.7);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  min-width: 48px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.search-nav-btn {
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.search-nav-btn:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.search-nav-btn.active {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.search-close-btn {
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 16px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-close-btn:hover {
+  opacity: 1;
+}
+
+.search-action-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.search-action-btn:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+/* Search highlights */
+mark.search-highlight {
+  background: rgba(255, 210, 0, 0.3);
+  border-radius: 2px;
+  padding: 0;
+}
+
+mark.search-current {
+  background: rgba(255, 160, 0, 0.5);
+  outline: 1px solid rgba(255, 160, 0, 0.8);
+}
+
+/* ─── Quick Settings Dropdown ───────────────── */
+.quick-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.quick-settings-dropdown {
+  position: fixed;
+  top: 42px;
+  right: 16px;
+  z-index: 9999;
+  min-width: 280px;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 12px;
+}
+
+.quick-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.quick-settings-row:last-child {
+  margin-bottom: 0;
+}
+
+.quick-settings-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(128, 128, 128, 0.7);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.quick-settings-options {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.quick-settings-chip {
+  padding: 3px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.quick-settings-chip:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.quick-settings-chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.quick-settings-select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 12px;
+}
+
+.quick-settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.quick-settings-apply {
+  padding: 4px 14px;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.quick-settings-apply:hover {
+  opacity: 0.9;
+}
+
+/* ─── Table Styles ─────────────────────────── */
+.ProseMirror .typst-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  table-layout: fixed;
+}
+
+.ProseMirror .typst-table td,
+.ProseMirror .typst-table th {
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  vertical-align: top;
+  position: relative;
+  min-width: 60px;
+}
+
+.ProseMirror .typst-table th {
+  background: rgba(128, 128, 128, 0.08);
+  font-weight: 600;
+}
+
+.ProseMirror .typst-table td > p,
+.ProseMirror .typst-table th > p {
+  margin: 0;
+}
+
+/* Selected cell */
+.ProseMirror .typst-table .selectedCell {
+  background: rgba(var(--vscode-focusBorder-rgb, 0, 102, 204), 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* Table selected node outline */
+.ProseMirror table.typst-table.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ─── Color Picker ─────────────────────────── */
+.color-btn-label {
+  font-weight: 700;
+}
+
+.highlight-btn-label {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.color-btn-bar {
+  display: block;
+  height: 3px;
+  width: 100%;
+  border-radius: 1px;
+  margin-top: 1px;
+}
+
+.color-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.color-picker-dropdown {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 160px;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.color-swatch:hover {
+  transform: scale(1.2);
+  border-color: var(--text-color);
+}
+
+.color-remove {
+  width: 100%;
+  padding: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.color-remove:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+/* ─── Text Alignment Icons ─────────────────── */
+.align-icon {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 14px;
+  height: 12px;
+  vertical-align: middle;
+  justify-content: center;
+}
+
+.align-icon::before,
+.align-icon::after {
+  content: '';
+  display: block;
+  height: 1.5px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+/* Extra lines via box-shadow trick — 4 lines total */
+.align-left::before {
+  width: 100%;
+  box-shadow: 0 4px 0 currentColor;
+}
+.align-left::after {
+  width: 70%;
+  box-shadow: 0 4px 0 currentColor;
+  margin-top: 0.5px;
+}
+
+.align-center::before {
+  width: 100%;
+  margin: 0 auto;
+  box-shadow: 0 4px 0 currentColor;
+}
+.align-center::after {
+  width: 70%;
+  margin: 0.5px auto 0;
+  box-shadow: 0 4px 0 currentColor;
+}
+
+.align-right::before {
+  width: 100%;
+  margin-left: auto;
+  box-shadow: 0 4px 0 currentColor;
+}
+.align-right::after {
+  width: 70%;
+  margin-top: 0.5px;
+  margin-left: auto;
+  box-shadow: 0 4px 0 currentColor;
+}
+
+.align-justify::before {
+  width: 100%;
+  box-shadow: 0 4px 0 currentColor;
+}
+.align-justify::after {
+  width: 100%;
+  margin-top: 0.5px;
+  box-shadow: 0 4px 0 currentColor;
+}
+
+/* ─── Table Grid Picker ────────────────────── */
+.table-btn-group {
+  position: relative;
+  display: inline-flex;
+}
+
+.table-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.table-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 9999;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  margin-top: 4px;
+}
+
+.table-picker-label {
+  text-align: center;
+  font-size: 11px;
+  color: rgba(128, 128, 128, 0.7);
+  margin-bottom: 6px;
+  font-weight: 500;
+  min-height: 16px;
+}
+
+.table-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 20px);
+  grid-template-rows: repeat(6, 20px);
+  gap: 2px;
+}
+
+.table-picker-cell {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.table-picker-cell:hover {
+  border-color: var(--accent);
+}
+
+.table-picker-cell.active {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border-color: var(--accent);
+}
+
+/* ─── Table Edit Buttons ───────────────────── */
+.table-edit-btn {
+  font-size: 11px !important;
+  padding: 2px 6px !important;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  letter-spacing: -0.02em;
+}
+
+.table-edit-btn.danger {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.table-edit-btn.danger:hover {
+  background: rgba(255, 0, 0, 0.1) !important;
+}
+
+/* ─── Table Control Bar (below each table) ── */
+.table-controls {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  background: rgba(128, 128, 128, 0.06);
+  margin-top: -1px;
+}
+
+.table-gear-btn {
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: rgba(128, 128, 128, 0.6);
+  font-size: 0.82em;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.table-gear-btn:hover {
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--text-color);
+}
+
+.table-done-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  background: transparent;
+  color: rgba(128, 128, 128, 0.6);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.72em;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+
+.table-done-btn:hover {
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--text-color);
+}
+
+/* ─── Table Settings Dropdown ─────────────── */
+.table-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.table-settings-dropdown {
+  z-index: 9999;
+  min-width: 180px;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 8px;
+}
+
+.table-settings-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(128, 128, 128, 0.65);
+  padding: 2px 4px 4px;
+  user-select: none;
+}
+
+.table-settings-dims {
+  font-size: 12px;
+  color: rgba(128, 128, 128, 0.8);
+  padding: 2px 4px 6px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.table-settings-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+.table-settings-actions button {
+  padding: 5px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.table-settings-actions button:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.table-settings-actions button.danger {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.table-settings-actions button.danger:hover {
+  background: rgba(255, 0, 0, 0.1);
+}
+
+.table-settings-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 6px 0;
+}
+
+.table-settings-delete {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-errorForeground, #f48771);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+}
+
+.table-settings-delete:hover {
+  background: rgba(255, 0, 0, 0.1);
+  border-color: rgba(255, 0, 0, 0.2);
+}
+
+/* --- Welcome Screen --- */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-modal {
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  width: 480px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.welcome-header {
+  padding: 24px 28px 12px;
+}
+
+.welcome-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-color);
+  margin: 0 0 6px;
+}
+
+.welcome-tagline {
+  font-size: 13px;
+  color: rgba(128, 128, 128, 0.85);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.welcome-body {
+  padding: 16px 28px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.welcome-features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.welcome-feature {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.welcome-feature-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.1);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.welcome-feature strong {
+  font-size: 13px;
+  display: block;
+  margin-bottom: 1px;
+}
+
+.welcome-feature p {
+  font-size: 12px;
+  color: rgba(128, 128, 128, 0.75);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.welcome-warning {
+  background: rgba(255, 180, 0, 0.08);
+  border: 1px solid rgba(255, 180, 0, 0.25);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+
+.welcome-warning strong {
+  font-size: 13px;
+  color: var(--text-color);
+}
+
+.welcome-warning p {
+  font-size: 12px;
+  margin: 4px 0 8px;
+  color: rgba(128, 128, 128, 0.8);
+}
+
+.welcome-hint {
+  font-size: 11px !important;
+  color: rgba(128, 128, 128, 0.6) !important;
+  margin-top: 6px !important;
+}
+
+.welcome-install-cmd {
+  display: block;
+  background: rgba(128, 128, 128, 0.08);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--text-color);
+  user-select: all;
+}
+
+.welcome-success {
+  background: rgba(0, 180, 80, 0.08);
+  border: 1px solid rgba(0, 180, 80, 0.25);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text-color);
+  margin-bottom: 14px;
+}
+
+.welcome-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(128, 128, 128, 0.7);
+  cursor: pointer;
+}
+
+.welcome-checkbox input {
+  cursor: pointer;
+}
+
+.welcome-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 28px;
+  border-top: 1px solid var(--border-color);
+}
+
+.welcome-btn {
+  padding: 8px 24px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.welcome-btn:hover {
+  opacity: 0.9;
+}
