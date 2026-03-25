@@ -39,15 +39,19 @@ export class TypstCompiler extends EventEmitter {
           return;
         }
 
-        // Collect SVG pages
+        // Collect SVG pages — typst zero-pads page numbers for multi-page docs
+        // (e.g. preview-1.svg for single page, preview-01.svg for multi-page)
         const pages: string[] = [];
-        for (let i = 1; ; i++) {
-          const svgPath = path.join(dir, `.vswrite-preview-${i}.svg`);
-          if (!fs.existsSync(svgPath)) break;
-          pages.push(fs.readFileSync(svgPath, 'utf-8'));
-          // Clean up temp file
-          try { fs.unlinkSync(svgPath); } catch {}
-        }
+        try {
+          const files = fs.readdirSync(dir)
+            .filter(f => f.startsWith('.vswrite-preview-') && f.endsWith('.svg'))
+            .sort();
+          for (const file of files) {
+            const svgPath = path.join(dir, file);
+            pages.push(fs.readFileSync(svgPath, 'utf-8'));
+            try { fs.unlinkSync(svgPath); } catch {}
+          }
+        } catch {}
 
         if (pages.length > 0) {
           this.emit('compiled', pages);

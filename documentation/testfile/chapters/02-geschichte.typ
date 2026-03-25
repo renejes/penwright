@@ -1,6 +1,6 @@
 = Geschichte pädagogischen Denkens
 
-Die Geschichte pädagogischen Denkens bildet das Fundament für ein vertieftes Verständnis der Erziehungs- und Bildungswissenschaft. Wie @fuchs2013 betont, konstituierte sich die Pädagogik als Wissenschaft zu einem erheblichen Teil durch ihre eigene Geschichtsschreibung. Der folgende Überblick zeichnet die zentralen Entwicklungslinien von der griechischen Antike bis ins 20. Jahrhundert nach.
+Die Geschichte pädagogischen  Denkens bildet das Fundament für ein vertieftes Verständnis der Erziehungs- und Bildungswissenschaft. Wie @fuchs2013 betont, konstituierte sich die Pädagogik als Wissenschaft zu einem erheblichen Teil durch ihre eigene Geschichtsschreibung. Der folgende Überblick zeichnet die zentralen Entwicklungslinien von der griechischen Antike bis ins 20. Jahrhundert nach.
 
 == Die griechische Antike als Ursprung
 
@@ -85,3 +85,4 @@ Das letzte Kapitel der Kurseinheit von @fuchs2013 thematisiert die Pädagogik de
 Die Erziehung im Nationalsozialismus war geprägt von Rassenideologie und Sozialdarwinismus. Hitlers Vorstellungen von Erziehung, wie er sie in _Mein Kampf_ formulierte, zielten auf die Heranzüchtung eines "körperlich kerngesunden" Volksgenossen, der "felsenfest" an die Überlegenheit der eigenen "Rasse" glaubte. Die ideologische Umgestaltung des öffentlichen Bildungswesens -- von der Volksschule über die höhere Schulbildung bis zur Neuordnung der Lehrerbildung -- diente der Durchsetzung dieser menschenverachtenden Ziele. Die Hitlerjugend als außerschulische Formationserziehung ergänzte das schulische System und diente der totalen Erfassung der Jugend.
 
 #pagebreak()
+

@@ -1,450 +1,397 @@
-# vswrite Standalone — Electron Architecture Plan
+# vswrite Desktop — Electron Architecture
 
-> **Stand:** 2026-03-25
-> Architekturplan für die Portierung von vswrite (VS Code Extension) zu einer eigenständigen Electron Desktop-App.
+> **Stand:** 2026-03-25 (nach Refactoring)
+> Dokumentation der tatsächlichen Architektur der eigenständigen Electron Desktop-App (vswrite-desktop).
 
 ---
 
-## Strategie: Monorepo mit zwei Targets
-
-**Kein Fork, kein separates Repo.** Stattdessen ein Monorepo mit zwei Build-Targets:
+## Projekt-Struktur (Ist-Stand nach Refactoring)
 
 ```
-vswrite/
+vswrite-desktop/
 ├── src/
-│   ├── shared/          ← Unverändert (2.065 Zeilen, 0 Änderungen)
-│   ├── webview/         ← 95% identisch, nur IPC-Bridge getauscht
-│   ├── cli/             ← Unverändert (801 Zeilen, 0 Änderungen)
-│   ├── extension/       ← Bleibt für VS Code Extension
-│   └── electron/        ← NEU: Electron Main Process (~1.500 Zeilen)
-├── package.json         ← Erweitert um Electron-Scripts
-├── electron-builder.yml ← NEU: Packaging-Konfiguration
-└── forge.config.ts      ← NEU: Electron Forge Config
+│   ├── shared/                ← 1:1 Kopie aus Extension (unverändert)
+│   │   ├── settingsParser.ts    Parst/appliziert #set Blöcke
+│   │   ├── bibParser.ts         Parst .bib Dateien
+│   │   ├── docxSerializer.ts    TipTap JSON → Word .docx
+│   │   ├── styleTemplates.ts    Vordefinierte Typst Style-Templates
+│   │   ├── mergeDocument.ts     Löst #include rekursiv auf
+│   │   ├── splitDocument.ts     Splittet Dokument in chapters/
+│   │   ├── rootFinder.ts        Findet Projekt-Root
+│   │   ├── sourceImporter.ts    Auto-Import aus sources/
+│   │   ├── markdownImporter.ts  Markdown → Typst Converter
+│   │   └── projectTemplates.ts  Projekt-Vorlagen
+│   ├── editor/                ← Kopie von webview/ (minimal angepasst)
+│   │   ├── lib/
+│   │   │   ├── serializer.ts      TipTap JSON → Typst
+│   │   │   ├── deserializer.ts    Typst → TipTap JSON
+│   │   │   ├── reconciler.ts      Inkrementelle Editor-Updates
+│   │   │   ├── editor.ts          TipTap Editor Setup
+│   │   │   ├── messages.ts        IPC Message Types (erweitert)
+│   │   │   ├── ipcAdapter.ts      VS Code / Electron Auto-Detect
+│   │   │   ├── citationSuggestion.ts
+│   │   │   ├── slashCommands.ts
+│   │   │   └── typst*.ts         Custom TipTap Nodes
+│   │   ├── components/
+│   │   │   ├── Toolbar.svelte
+│   │   │   ├── CommandHub.svelte
+│   │   │   ├── SettingsPanel.svelte
+│   │   │   ├── SearchReplace.svelte
+│   │   │   ├── QuickSettings.svelte
+│   │   │   ├── ShortcutCheatsheet.svelte
+│   │   │   └── WelcomeScreen.svelte
+│   │   └── style.css           Globales Editor-Stylesheet
+│   ├── cli/                   ← 1:1 Kopie (unverändert)
+│   ├── main/                  ← Electron Main Process (~1.977 Zeilen, 12 Dateien)
+│   │   ├── index.ts             Entry Point: Window, Terminal, Lifecycle (154 Z.)
+│   │   ├── appState.ts          Zentrales State-Objekt (48 Z.)
+│   │   ├── ipcHandlers.ts       Message Router: Switch + Dialog/Filetree/Includes (412 Z.)
+│   │   ├── fileManager.ts       File I/O, Auto-Save, Compiler, Watcher, Preamble (309 Z.)
+│   │   ├── importExport.ts      PDF, DOCX, Markdown, Zotero, Style Templates (310 Z.)
+│   │   ├── projectManager.ts    New Project, File Tree, Skills, Images, Settings (296 Z.)
+│   │   ├── menuBuilder.ts       Application Menu (macOS/Windows) (131 Z.)
+│   │   ├── gitManager.ts        Git IPC Handler (84 Z.)
+│   │   ├── preload-entry.ts     contextBridge (send/on/invoke, 25 Channels)
+│   │   ├── typstCompiler.ts     typst compile → SVG Pages
+│   │   ├── terminalManager.ts   node-pty Wrapper
+│   │   └── deserializer-bridge.ts  Re-Export für Main Process
+│   └── renderer/              ← Electron Renderer (~3.124 Zeilen)
+│       ├── main.ts              Svelte Mount + globaler CSS Import (9 Z.)
+│       ├── App.svelte           App Shell, Layout, Template + CSS (834 Z.)
+│       ├── appState.svelte.ts   Svelte 5 reaktiver State + Tab/Resize (132 Z.)
+│       ├── messageHandler.ts    ExtensionMessage Handler (166 Z.)
+│       └── components/
+│           ├── Sidebar.svelte         File Tree (rekursiv, Drag-Images, Rechtsklick)
+│           ├── OutlinePanel.svelte    Heading-Hierarchie (live aus Editor)
+│           ├── IncludesPanel.svelte   #include Manager (Live-Update bei Reorder)
+│           ├── PreviewPanel.svelte    SVG Preview (Scroll-Erhaltung)
+│           ├── TerminalPanel.svelte   xterm.js Terminal
+│           ├── TextFileViewer.svelte  Editor für .bib, .txt, .md, .yaml
+│           ├── NewProjectDialog.svelte Modal für Projekt-Templates
+│           ├── GitPanel.svelte        Git Status/Commit/Push
+│           ├── ResizeHandle.svelte    Drag-to-Resize Handle
+│           └── StartScreen.svelte    Start Screen mit Onboarding + AI Info
+├── index.html                 Renderer HTML Entry
+├── package.json
+├── electron.vite.config.mts   Build-Config (Main, Preload, Renderer)
+├── tsconfig.json
+├── svelte.config.js
+└── documentation/
 ```
-
-**Warum Monorepo statt Fork?**
-- Shared/Webview/CLI Code wird nur einmal gepflegt
-- Bugfixes in Serializer/Deserializer wirken sofort auf beide Targets
-- `npm run build:extension` baut die VS Code Extension
-- `npm run build:electron` baut die Standalone-App
-- Git Branch `electron` für die Entwicklung, Merge in `main` wenn stabil
-
----
-
-## Was sich ändert, was bleibt
-
-### Unverändert (9.211 Zeilen = 73%)
-
-| Modul | Zeilen | Änderungen |
-|-------|--------|-----------|
-| `src/shared/` (settingsParser, bibParser, docxSerializer, styleTemplates, projectTemplates, mergeDocument, splitDocument, rootFinder, sourceImporter) | 2.065 | Keine |
-| `src/webview/components/` (Toolbar, CommandHub, SettingsPanel, SearchReplace, QuickSettings, ShortcutCheatsheet, WelcomeScreen) | 1.497 | Keine |
-| `src/webview/lib/` (serializer, deserializer, reconciler, editor, slashCommands, citationSuggestion, alle TipTap Nodes) | 4.824 | Keine (außer messages.ts) |
-| `src/cli/` | 801 | Keine |
-| `src/webview/style.css` | ~300 | Minimale Ergänzungen (App-Shell Styling) |
-
-### Angepasst (~236 Zeilen)
-
-| Datei | Änderung |
-|-------|---------|
-| `src/webview/lib/messages.ts` | IPC-Adapter: `acquireVsCodeApi().postMessage()` → `window.electronAPI.send()`. Gleiche Message-Typen, nur der Transport wechselt. |
-| `src/webview/App.svelte` | Statt `window.addEventListener('message')` → `window.electronAPI.on()`. ~20 Zeilen. |
-| `src/webview/main.ts` | Conditional: `if (window.electronAPI)` vs `if (acquireVsCodeApi)`. |
-
-### Neu zu schreiben (~2.500–3.000 Zeilen)
-
-| Datei | Zeilen (ca.) | Beschreibung |
-|-------|-------------|-------------|
-| `src/electron/main.ts` | 200 | App-Lifecycle, Window-Management, Menü, Auto-Update |
-| `src/electron/fileManager.ts` | 400 | Datei öffnen/speichern/watcher, Recent Files, Dirty State |
-| `src/electron/ipcBridge.ts` | 300 | IPC Handler — Mapping der 32 Message-Typen auf Electron IPC |
-| `src/electron/typstCompiler.ts` | 100 | Portierung von extension/typstCompiler.ts (child_process bleibt gleich) |
-| `src/electron/previewManager.ts` | 120 | SVG Preview in eigenem BrowserWindow oder Panel |
-| `src/electron/terminalManager.ts` | 250 | node-pty + xterm.js Terminal-Integration |
-| `src/electron/fileTree.svelte` | 500 | Dateibaum-Sidebar (rekursiv, Icons, Kontextmenü) |
-| `src/electron/gitIntegration.ts` | 150 | simple-git Wrapper (Status, Commit, Push, Pull) |
-| `src/electron/appShell.svelte` | 300 | Äußere App-Shell (Sidebar, Tabs, Status Bar, Layout) |
-| `src/electron/preload.ts` | 80 | Electron Preload Script (contextBridge für sichere IPC) |
-| `electron-builder.yml` | 50 | macOS, Windows, Linux Packaging |
 
 ---
 
 ## Architektur-Diagramm
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Electron App                       │
-│                                                     │
-│  ┌──────────────┐    IPC (contextBridge)    ┌──────────────────┐
-│  │  Main Process │◄─────────────────────────►│  Renderer Process │
-│  │  (Node.js)    │                           │  (Chromium)        │
-│  │               │                           │                    │
-│  │  fileManager  │    ┌──────────────────┐   │  ┌──────────┐     │
-│  │  typstCompiler│    │  preload.ts       │   │  │ App Shell│     │
-│  │  ipcBridge    │    │  contextBridge    │   │  │ ┌──────┐│     │
-│  │  terminalMgr  │    │  electronAPI      │   │  │ │Editor││     │
-│  │  gitIntegr.   │    └──────────────────┘   │  │ │TipTap││     │
-│  │               │                           │  │ └──────┘│     │
-│  │  ┌──────────┐ │                           │  │ Toolbar  │     │
-│  │  │ shared/  │ │                           │  │ Sidebar  │     │
-│  │  │ bibParser│ │                           │  │ Terminal │     │
-│  │  │ settings │ │                           │  │ Preview  │     │
-│  │  │ docx     │ │                           │  └──────────┘     │
-│  │  │ merge    │ │                           │                    │
-│  │  └──────────┘ │                           │  ┌──────────┐     │
-│  └──────────────┘                           │  │ webview/  │     │
-│                                              │  │ (identisch│     │
-│                                              │  │  zu Ext.) │     │
-│                                              │  └──────────┘     │
-│                                              └──────────────────┘
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                     Electron App (v41.0.4)                        │
+│                                                                  │
+│  ┌───────────────────┐     contextBridge      ┌─────────────────┐│
+│  │   Main Process     │◄─────────────────────►│ Renderer Process ││
+│  │   (Node.js v24)    │    preload-entry.ts    │ (Chromium)       ││
+│  │                    │                        │                  ││
+│  │  index.ts (Entry)  │    Channels:           │  App.svelte      ││
+│  │  ipcHandlers.ts    │    ├─ vswrite (bidi)   │  ├─ Toolbar      ││
+│  │  fileManager.ts    │    ├─ terminal:*       │  ├─ Editor       ││
+│  │  menuBuilder.ts    │    ├─ filetree:*       │  ├─ Sidebar      ││
+│  │  importExport.ts   │    └─ includes:*       │  │  ├─ Files     ││
+│  │  projectManager.ts │                        │  │  ├─ Outline   ││
+│  │  gitManager.ts     │                        │  │  └─ Chapters  ││
+│  │  appState.ts       │                        │  ├─ Preview      ││
+│  │                    │                        │  ├─ Terminal     ││
+│  │  typstCompiler.ts  │                        │  └─ Status Bar   ││
+│  │  ├─ execFile typst │                        │                  ││
+│  │  └─ SVG Pages ────────────────────────────► │  PreviewPanel    ││
+│  │                    │                        │                  ││
+│  │  terminalManager.ts│                        │                  ││
+│  │  ├─ node-pty  ────────── terminal:data ───► │  TerminalPanel   ││
+│  │  └─ write() ◄────────── terminal:input ──── │  (xterm.js)      ││
+│  │                    │                        │                  ││
+│  │  ┌──────────────┐  │                        │  ┌────────────┐  ││
+│  │  │   shared/    │  │                        │  │  editor/   │  ││
+│  │  │  settings    │  │                        │  │  TipTap    │  ││
+│  │  │  bibParser   │  │                        │  │  Svelte 5  │  ││
+│  │  │  docx        │  │                        │  │  Serializer│  ││
+│  │  │  merge/split │  │                        │  └────────────┘  ││
+│  │  └──────────────┘  │                        │                  ││
+│  └───────────────────┘                        └─────────────────┘│
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## IPC-Bridge: Der zentrale Swap
+## Modul-Abhängigkeiten (Main Process)
 
-Die VS Code Extension kommuniziert über `postMessage`. In Electron wird das zu `ipcRenderer`/`ipcMain` via `contextBridge`:
-
-### Aktuell (VS Code)
-
-```typescript
-// Webview → Extension
-const vscode = acquireVsCodeApi();
-vscode.postMessage({ type: 'edit', content: typstText });
-
-// Extension → Webview
-panel.webview.postMessage({ type: 'update', content: newContent });
-
-// Webview empfängt
-window.addEventListener('message', (e) => {
-  const msg = e.data;
-  if (msg.type === 'update') { ... }
-});
+```
+index.ts (Entry Point)
+├── appState.ts          ← Zentrales State-Objekt (Leaf, keine Imports)
+├── menuBuilder.ts       ← Liest appState, ruft Callbacks
+├── ipcHandlers.ts       ← Message Router
+│   ├── fileManager.ts     ← File I/O, Auto-Save, Compiler, Watcher
+│   ├── importExport.ts    ← PDF, DOCX, Markdown, Zotero, Citations
+│   ├── projectManager.ts  ← Projects, File Tree, Images, Settings, Skills
+│   └── gitManager.ts      ← Git IPC Handler
+├── typstCompiler.ts     ← (unverändert)
+├── terminalManager.ts   ← (unverändert)
+└── preload-entry.ts     ← (unverändert, eigener Build-Target)
 ```
 
-### Neu (Electron)
-
-```typescript
-// preload.ts — sicherer Bridge
-contextBridge.exposeInMainWorld('electronAPI', {
-  send: (channel: string, data: unknown) => ipcRenderer.send(channel, data),
-  on: (channel: string, callback: Function) =>
-    ipcRenderer.on(channel, (_event, data) => callback(data)),
-});
-
-// Renderer → Main
-window.electronAPI.send('vswrite', { type: 'edit', content: typstText });
-
-// Main → Renderer
-mainWindow.webContents.send('vswrite', { type: 'update', content: newContent });
-
-// Renderer empfängt
-window.electronAPI.on('vswrite', (msg) => {
-  if (msg.type === 'update') { ... }
-});
-```
-
-### Adapter-Pattern für messages.ts
-
-```typescript
-// src/webview/lib/ipcAdapter.ts — NEU, ~40 Zeilen
-interface IPCAdapter {
-  send(msg: WebviewMessage): void;
-  onMessage(handler: (msg: ExtensionMessage) => void): void;
-}
-
-// VS Code Adapter
-function createVSCodeAdapter(): IPCAdapter {
-  const vscode = acquireVsCodeApi();
-  return {
-    send: (msg) => vscode.postMessage(msg),
-    onMessage: (handler) =>
-      window.addEventListener('message', (e) => handler(e.data)),
-  };
-}
-
-// Electron Adapter
-function createElectronAdapter(): IPCAdapter {
-  return {
-    send: (msg) => window.electronAPI.send('vswrite', msg),
-    onMessage: (handler) => window.electronAPI.on('vswrite', handler),
-  };
-}
-
-// Auto-detect
-export const ipc: IPCAdapter =
-  typeof acquireVsCodeApi !== 'undefined'
-    ? createVSCodeAdapter()
-    : createElectronAdapter();
-```
-
-Damit ändert sich in `App.svelte` nur eine Zeile:
-```diff
-- const vscode = acquireVsCodeApi();
-+ import { ipc } from './lib/ipcAdapter';
-```
+**Circular Dependencies** werden vermieden durch:
+- `appState.ts` als Leaf-Modul (importiert nichts aus dem Projekt)
+- Lazy `import()` wo Module sich gegenseitig brauchen (z.B. fileManager ↔ importExport)
+- Callbacks im appState-Objekt (z.B. für Menu-Klicks)
 
 ---
 
-## IPC Message-Map: Extension → Electron
+## Das ELECTRON_RUN_AS_NODE Problem
 
-Alle 32 Message-Typen bleiben identisch. Nur die Handler-Seite wechselt:
+### Das Problem
 
-### Extension → Webview (9 Typen)
+Der erste Build-Versuch schlug fehl mit:
 
-| Message | VS Code Handler | Electron Handler |
-|---------|----------------|-----------------|
-| `update` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
-| `settingsData` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
-| `documentBaseUri` | `panel.webview.postMessage()` | Nicht nötig (lokale Pfade direkt) |
-| `insertImage` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
-| `wordGoal` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
-| `scrollToHeading` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
-| `citationData` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
-| `documentLang` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
-| `welcomeData` | `panel.webview.postMessage()` | `mainWindow.webContents.send()` |
+```
+TypeError: Cannot read properties of undefined (reading 'whenReady')
+```
 
-### Webview → Extension (23 Typen)
+`require('electron')` gab einen **String** (Pfad zur Electron Binary) zurück statt dem Electron API-Objekt. `electron.app` war `undefined`.
 
-| Message | VS Code Handler | Electron Handler |
-|---------|----------------|-----------------|
-| `ready` | Lade Dokument aus TextDocument | Lade Datei von Disk |
-| `edit` | WorkspaceEdit → auto-save | `fs.writeFile()` → auto-save |
-| `exportPdf` | typst compile | typst compile (identisch) |
-| `exportDocx` | serializeDocx → showSaveDialog | serializeDocx → dialog.showSaveDialog |
-| `openSource` | vscode.open() | shell.openPath() oder internes Tab |
-| `newProject` | vscode.window.showQuickPick | Eigener Dialog |
-| `newFile` | vscode.window.showSaveDialog | dialog.showSaveDialog |
-| `mergeDocument` | shared/mergeDocument | shared/mergeDocument (identisch) |
-| `pickImage` | vscode.window.showOpenDialog | dialog.showOpenDialog |
-| `dropImage` | Base64 → assets/ speichern | Base64 → assets/ speichern (identisch) |
-| `requestSettings` | parseSettings() | parseSettings() (identisch) |
-| `updateSettings` | applySettings() | applySettings() (identisch) |
-| `splitDocument` | shared/splitDocument | shared/splitDocument (identisch) |
-| `applyStyle` | shared/styleTemplates | shared/styleTemplates (identisch) |
-| `requestCitations` | bibWatcher | chokidar + bibParser (ähnlich) |
-| `undoLastAiEdit` | Snapshot restore | Snapshot restore (identisch) |
-| `dismissWelcome` | globalState.update() | electron-store |
-| `openUserGuide` | vscode.env.openExternal | shell.openExternal |
-| `deserializeError` | vscode.window.showErrorMessage | dialog.showErrorBox |
+### Ursache
 
-**Fazit:** ~70% der Handler sind 1:1 Portierungen (gleiche Node.js APIs). ~30% ersetzen VS Code UI-APIs durch Electron-Äquivalente.
+**`ELECTRON_RUN_AS_NODE=1`** — Diese Umgebungsvariable wird von VS Code und Cursor in ihrem integrierten Terminal gesetzt. Wenn sie gesetzt ist, läuft die Electron-Binary als **reines Node.js** — ohne Chromium, ohne Browser-Prozess, ohne das built-in `'electron'` Modul.
 
----
+Node.js' Modul-Resolution findet dann `node_modules/electron/index.js` (den npm Wrapper), der nur den Pfad zur Binary als String exportiert.
 
-## Neue Abhängigkeiten
+### Fehlgeschlagene Lösungsversuche
+
+1. **`esbuild --external:electron`** — Korrekt, aber löst nicht das Runtime-Problem
+2. **`Module._resolveFilename` Override** — Node versucht `'electron'` als Datei zu lesen → ENOENT
+3. **ESM `import { app } from 'electron'`** — Gleicher Fehler
+4. **`process._linkedBinding`** — SIGSEGV Crash
+5. **`electron-vite externalizeDepsPlugin()`** — Gleiches Ergebnis
+6. **npm Wrapper patchen** (`scripts/patch-electron.mjs`) — Kann nicht funktionieren, da es kein built-in Modul zum Re-Exportieren gibt wenn `ELECTRON_RUN_AS_NODE=1` gesetzt ist
+
+### Lösung
 
 ```json
-{
-  "dependencies": {
-    "electron-store": "^10.0.0",
-    "node-pty": "^1.0.0",
-    "@xterm/xterm": "^5.5.0",
-    "@xterm/addon-fit": "^0.10.0",
-    "simple-git": "^3.27.0",
-    "chokidar": "^4.0.0"
-  },
-  "devDependencies": {
-    "electron": "^35.0.0",
-    "electron-builder": "^26.0.0"
-  }
+// package.json
+"scripts": {
+  "dev": "unset ELECTRON_RUN_AS_NODE && electron-vite dev",
+  "build": "unset ELECTRON_RUN_AS_NODE && electron-vite build",
+  "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview"
 }
 ```
 
-| Paket | Zweck | Größe |
-|-------|-------|-------|
-| `electron` | App-Framework | ~150MB (gebundelt) |
-| `node-pty` | Terminal PTY | ~2MB (native C++ binding) |
-| `@xterm/xterm` | Terminal UI | ~1MB |
-| `simple-git` | Git Operationen | ~200KB |
-| `chokidar` | File Watching | ~300KB |
-| `electron-store` | Persistenter State (statt globalState) | ~50KB |
-| `electron-builder` | Packaging + Code Signing | Dev only |
+Alternativ: Terminal **außerhalb** von VS Code/Cursor verwenden (z.B. iTerm2, Terminal.app).
+
+**Referenzen:**
+- [Electron Issue #49034](https://github.com/electron/electron/issues/49034)
+- [electron-forge: wipe ELECTRON_RUN_AS_NODE](https://github.com/electron/forge/commit/c702fe4a)
+- [VS Code Issue #113687](https://github.com/microsoft/vscode/issues/113687)
+
+---
+
+## IPC-Architektur
+
+### Preload Script (preload-entry.ts)
+
+Sicherheitsschicht zwischen Main und Renderer. Whitelist-basiert:
+
+```typescript
+const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create'];
+const ON_CHANNELS = ['vswrite', 'terminal:data'];
+const INVOKE_CHANNELS = [
+  'dialog:openFile', 'dialog:saveFile', 'dialog:saveFileAs',
+  'app:getPlatform',
+  'filetree:list', 'filetree:open', 'filetree:navigateUp', 'filetree:openFolder',
+  'includes:validate', 'includes:open', 'includes:add',
+];
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  send(channel, data) { ... },      // Fire-and-forget
+  on(channel, callback) { ... },    // Push-Events vom Main Process
+  invoke(channel, ...args) { ... }, // Request/Response (Promise)
+});
+```
+
+### IPC Adapter (ipcAdapter.ts)
+
+Auto-Detection ob VS Code oder Electron läuft:
+
+```typescript
+export function createIPCAdapter(): IPCAdapter {
+  if (window.electronAPI) return createElectronAdapter();
+  if (window.acquireVsCodeApi) return createVSCodeAdapter();
+  return createNoopAdapter();
+}
+```
+
+### Message Types (26 Renderer → Main)
+
+Alle implementiert mit Handlern in `ipcHandlers.ts` (delegiert an spezialisierte Module):
+
+| Kategorie | Messages |
+|-----------|----------|
+| **Lifecycle** | `ready`, `edit`, `deserializeError` |
+| **Export** | `exportPdf`, `exportDocx` |
+| **Settings** | `requestSettings`, `updateSettings`, `quickSettings`, `applyStyle` |
+| **Dateien** | `newFile`, `newProject`, `openSource`, `mergeDocument`, `splitDocument` |
+| **Bilder** | `pickImage`, `dropImage`, `dropImagePath` |
+| **Zitationen** | `requestCitations`, `ensureBibliography`, `importSources`, `addCitationManually` |
+| **UI** | `dismissWelcome`, `openUserGuide`, `setWordGoal`, `undoLastAiEdit`, `importStyleTemplate` |
+
+### Message Types (Main → Renderer)
+
+| Message | Beschreibung |
+|---------|-------------|
+| `update` | Typst-Content an Editor senden |
+| `settingsData` | Geparste Settings für Settings-Panel |
+| `documentBaseUri` | Basis-Pfad für Bild-Auflösung |
+| `insertImage` | Bild programmatisch einfügen |
+| `previewUpdate` | SVG Pages nach Kompilierung |
+| `compileError` | Typst Compile-Fehler |
+| `saveStatus` | Gespeichert/Ungespeichert + Zeitstempel |
+| `currentFile` | Aktuelle Datei (für Sidebar Highlighting) |
+| `filetreeChanged` | File Tree neu laden |
+| `togglePanel` | Panel ein-/ausblenden (vom Menü) |
+| `citationData` | Geparste .bib Einträge |
 
 ---
 
 ## App-Shell Layout
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  ◉ ◉ ◉   vswrite — main.typ                    ─ □ ✕  │  ← Title Bar (nativ oder custom)
-├─────────┬───────────────────────────────────────────────┤
-│ 📁 Files │  B I U S  │ H1 ▾│ • — │ 🔗 📷 │ ☰      │  ← Toolbar (bestehend)
-├─────────┤───────────────────────────────────────────────┤
-│         │                                               │
-│ ▼ Kapitel│           TipTap WYSIWYG Editor              │  ← Editor (bestehend)
-│   01-ein│           (identisch zur Extension)           │
-│   02-met│                                               │
-│   03-erg│                                               │
-│         │                                               │
-│─────────│                                               │
-│ Outline │                                               │
-│  = Einl.│                                               │
-│   = Frag│                                               │
-│   = Ziel│                                               │
-│─────────│───────────────────────────────────────────────│
-│ 🔧 Git  │  $ ▌                                         │  ← Terminal (xterm.js)
-│  M main │  claude ▌                                     │  ← Claude Code läuft hier
-│         │                                               │
-├─────────┴───────────────────────────────────────────────┤
-│  Wörter: 1.234 / 5.000  │  ✓ Compiled  │  § 2.1 Meth. │  ← Status Bar
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  ◉ ◉ ◉                    (Drag Region)                      │
+├──────────────────────────────────────────────────────────────┤
+│  B I U S  │ H1 ▾│ • — │ 🔗 📷 │  ⚙ … ◎ ☰                  │  ← Toolbar
+├──────┬──────────────────────────────┬────────────────────────┤
+│[Files│Outline│Chapters]             │                        │
+│      │                              │                        │
+│ ▸ chapters/│     TipTap WYSIWYG     │   Preview Panel        │
+│ ▸ assets/  │     Editor             │   (SVG Pages)          │
+│   main.typ │     max-width: 700px   │                        │
+│   refs.bib │     padding: 48px      │                        │
+│            │                        │                        │
+├──────┴──────────────────────────────┴────────────────────────┤
+│  Terminal / AI  (xterm.js + node-pty)                        │
+│  $ claude ▌                                                  │
+├──────────────────────────────────────────────────────────────┤
+│ [Project] [Terminal/AI] [Preview]     Saved 14:35  main.typ  │  ← Status Bar
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**Sidebar-Panels (umschaltbar):**
-1. **Files** — Dateibaum des Projektordners
-2. **Outline** — Heading-Hierarchie (bestehender HeadingTreeProvider, portiert zu Svelte)
-3. **Git** — Status, Staged/Unstaged, Commit-Button
-4. **Includes** — Kapitel-Manager (bestehender IncludeTreeProvider, portiert zu Svelte)
+**Sidebar Tabs:**
+1. **Files** — Rekursiver Dateibaum, ← Button für Parent, + Button für Open Folder
+2. **Outline** — Live Heading-Hierarchie aus TipTap Editor, Click-to-Navigate
+3. **Chapters** — #include Manager: Umsortieren (↑↓), Entfernen (×), + Add Chapter
+
+**Panel Toggles (Status Bar + Keyboard):**
+- `Cmd+B` → Sidebar
+- `Cmd+Shift+P` → Preview
+- `` Cmd+` `` → Terminal
 
 ---
 
-## Terminal-Integration
+## Build Pipeline
 
-```typescript
-// src/electron/terminalManager.ts
-import * as pty from 'node-pty';
+**Tool:** `electron-vite` v5.0.0
 
-const shell = process.platform === 'win32' ? 'powershell.exe' : 'zsh';
+Drei Build-Targets in `electron.vite.config.mts`:
 
-const ptyProcess = pty.spawn(shell, [], {
-  name: 'xterm-256color',
-  cols: 80,
-  rows: 24,
-  cwd: projectDir,
-  env: { ...process.env, TERM_PROGRAM: 'vswrite' },
-});
-
-// pty → xterm.js (Renderer)
-ptyProcess.onData((data) => {
-  mainWindow.webContents.send('terminal-data', data);
-});
-
-// xterm.js → pty (User Input)
-ipcMain.on('terminal-input', (_event, data: string) => {
-  ptyProcess.write(data);
-});
-```
-
-**Claude Code funktioniert hier vollständig** — es ist ein echtes PTY-Terminal, kein simuliertes. Claude Code erkennt `TERM_PROGRAM` und kann interaktiv arbeiten. Der `vswrite-cli` ist automatisch im PATH verfügbar.
-
----
-
-## Build-Pipeline
+| Target | Eingang | Ausgang | Plugins |
+|--------|---------|---------|---------|
+| **Main** | `src/main/index.ts` | `dist/main/index.js` | `externalizeDepsPlugin()` |
+| **Preload** | `src/main/preload-entry.ts` | `dist/preload/preload-entry.js` | `externalizeDepsPlugin()` |
+| **Renderer** | `index.html` + `src/renderer/main.ts` | `dist/renderer/` | `svelte()` |
 
 ```json
 {
   "scripts": {
-    "build:extension": "node esbuild.config.mjs --production",
-    "build:webview": "vite build",
-    "build:cli": "node esbuild.cli.mjs",
-    "build": "npm run build:extension && npm run build:webview && npm run build:cli",
-
-    "build:electron-main": "esbuild src/electron/main.ts --bundle --platform=node --outfile=dist-electron/main.js --external:electron --external:node-pty",
-    "build:electron-preload": "esbuild src/electron/preload.ts --bundle --platform=node --outfile=dist-electron/preload.js --external:electron",
-    "build:electron-renderer": "vite build --config vite.electron.config.ts",
-    "build:electron": "npm run build:electron-main && npm run build:electron-preload && npm run build:electron-renderer",
-
-    "dev:electron": "concurrently \"vite --config vite.electron.config.ts\" \"electron .\"",
-    "package:mac": "electron-builder --mac",
-    "package:win": "electron-builder --win",
-    "package:linux": "electron-builder --linux"
+    "dev": "unset ELECTRON_RUN_AS_NODE && electron-vite dev",
+    "build": "unset ELECTRON_RUN_AS_NODE && electron-vite build",
+    "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview"
   }
 }
 ```
 
-**Webview Vite Config** wird minimal angepasst:
-- Extension: Output als IIFE (single file für VS Code Webview)
-- Electron: Output als normaler ES Module (Chromium Renderer)
-- Gleiche Svelte Components, gleiche TipTap Extensions
+**Wichtig:** `unset ELECTRON_RUN_AS_NODE` ist nötig wenn aus VS Code/Cursor Terminal gestartet wird.
 
 ---
 
-## Implementierungs-Phasen
+## Dependencies
 
-### Phase E1: Skeleton (3–4 Tage)
-- [ ] Electron Main Process mit BrowserWindow
-- [ ] Preload Script mit contextBridge
-- [ ] IPC-Adapter in messages.ts (VSCode/Electron auto-detect)
-- [ ] Webview lädt in Electron (TipTap Editor sichtbar)
-- [ ] Datei öffnen/speichern über File Menü
-- **Ergebnis:** Editor öffnet .typ Dateien, Formatierung funktioniert
+```json
+{
+  "dependencies": {
+    "@tiptap/*": "^3.0.0",        // Rich-Text Editor
+    "@xterm/xterm": "^6.0.0",     // Terminal UI
+    "@xterm/addon-fit": "^0.11.0", // Terminal Auto-Resize
+    "chokidar": "^4.0.0",         // File Watching
+    "docx": "^9.6.1",             // Word Export
+    "electron-store": "^10.0.0",  // Persistenter State
+    "node-pty": "^1.0.0",          // Terminal PTY (native)
+    "simple-git": "^3.27.0"       // Git Operations
+  },
+  "devDependencies": {
+    "electron": "^41.0.4",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^5.0.0",
+    "svelte": "^5.0.0",
+    "vite": "^6.0.0",
+    "typescript": "^5.7.0"
+  }
+}
+```
 
-### Phase E2: Core Features (4–5 Tage)
-- [ ] Auto-Save nach Edits (wie in Extension)
-- [ ] Typst Compiler Integration (SVG Preview)
-- [ ] Preview Panel (rechts oder unten)
-- [ ] File Watcher für externe Edits (chokidar)
-- [ ] Conflict Guard (AI Agent Kompatibilität)
-- [ ] Settings Panel, Quick Settings
-- [ ] PDF Export, DOCX Export
-- **Ergebnis:** Vollständiger Editor mit Preview und Export
+**node-pty** erfordert `electron-rebuild`: `npx electron-rebuild -f -w node-pty`
 
-### Phase E3: Sidebar & Navigation (3–4 Tage)
-- [ ] File Tree Sidebar (Svelte Component)
-- [ ] Heading Outline Sidebar
-- [ ] Include Manager Sidebar
-- [ ] Tab-System (mehrere Dateien gleichzeitig)
-- [ ] Recent Files
-- [ ] Status Bar (Wörter, Compile-Status, aktuelles Heading)
-- **Ergebnis:** Navigierbare App mit Projekt-Support
+---
 
-### Phase E4: Terminal & Git (3–4 Tage)
-- [ ] Terminal Panel (node-pty + xterm.js)
-- [ ] Multiple Terminal Tabs
-- [ ] Git Status Sidebar (simple-git)
-- [ ] Git Commit/Push/Pull Buttons
-- [ ] vswrite-cli im Terminal PATH
-- **Ergebnis:** Claude Code und Git nutzbar
+## Implementierungsstatus
 
-### Phase E5: Polish & Packaging (3–4 Tage)
-- [ ] Native Menüs (macOS, Windows, Linux)
-- [ ] Keyboard Shortcuts (Cmd+S, Cmd+N, Cmd+O, etc.)
+### Fertig (Phase E1–E4 + Refactoring)
+
+- [x] Electron Main Process mit BrowserWindow
+- [x] Preload Script mit contextBridge (send/on/invoke)
+- [x] IPC-Adapter mit VS Code/Electron Auto-Detect
+- [x] TipTap Editor lädt in Electron
+- [x] Datei öffnen/speichern/Save As
+- [x] Auto-Save (1s Debounce nach Edit)
+- [x] Unsaved-Changes Warnung beim Schließen
+- [x] Typst Compiler Integration (SVG Preview)
+- [x] Preview Panel mit SVG Rendering + Root-File Kompilierung
+- [x] PDF Export, DOCX Export
+- [x] Document Settings Panel
+- [x] Quick Settings
+- [x] Style Templates (mit korrekter Multi-Line Preamble Ersetzung)
+- [x] File Tree Sidebar (rekursiv, Expand/Collapse, Navigate Up)
+- [x] Heading Outline Sidebar (live)
+- [x] Include Manager Sidebar (Reorder, Add, Remove)
+- [x] Terminal (node-pty + xterm.js)
+- [x] Git Integration (simple-git: Status, Stage, Commit, Push/Pull, Init)
+- [x] Multi-Tab Editor (Tabs, Rechtsklick "Open in New Tab")
+- [x] Text-Editor für .bib, .txt, .md, .yaml etc.
+- [x] Bild einfügen (Pick, Drop, Drop Path → assets/)
+- [x] Merge/Split Document
+- [x] Citations (Bib Parser, Request Citations)
+- [x] Status Bar mit Panel-Toggles und Save-Indikator
+- [x] Native macOS Menü (File, Edit, View, Help)
+- [x] Keyboard Shortcuts (Cmd+S, Cmd+B, Cmd+Shift+P, Cmd+`)
+- [x] Alle 26 Webview→Main Message Handler
+- [x] Claude Code Skills (auto-erstellt bei neuen Projekten)
+- [x] .claude/ Ordner im File Tree sichtbar
+- [x] Drag & Drop Bilder in den Editor (Finder + Sidebar)
+- [x] File Watcher (chokidar) für externe Edits
+- [x] **Refactoring:** Main Process modularisiert (index.ts 1.699 → 154 Z., aufgeteilt in 8 Module)
+- [x] **Refactoring:** Renderer modularisiert (App.svelte 1.067 → 834 Z., State + MessageHandler extrahiert)
+- [x] Start Screen mit Onboarding (Typst-Check, New Project/Open File/Open Folder, AI Terminal Info, 3 Skills)
+
+### Offen (Phase E5: Polish & Packaging)
+
+- [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
+- [ ] Lizenz-Management (Lemon Squeezy Integration)
 - [ ] Auto-Update (electron-updater)
 - [ ] App Icon & Branding
 - [ ] macOS Notarization, Windows Code Signing
 - [ ] DMG/EXE/AppImage Packaging
-- [ ] Welcome Screen & Onboarding
-- **Ergebnis:** Auslieferbare App
-
-### Gesamt: ~16–21 Tage Entwicklungszeit
-
----
-
-## Risiken & Mitigations
-
-| Risiko | Wahrscheinlichkeit | Mitigation |
-|--------|-------------------|-----------|
-| node-pty Build-Probleme (native C++) | Mittel | electron-rebuild, prebuild-install, Fallback: shell-only ohne PTY |
-| TipTap Rendering-Unterschiede (Electron Chromium vs. VS Code Webview) | Niedrig | Beide nutzen Chromium, gleiche Engine |
-| Performance bei großen Docs (Full Re-Serialize) | Niedrig-Mittel | Debouncing (bereits vorhanden), ggf. incremental updates später |
-| macOS Code Signing Kosten | Sicher | Apple Developer Account: 99$/Jahr |
-| Windows Code Signing Kosten | Sicher | EV Certificate: ~200-400€/Jahr, oder Azure Trusted Signing |
-| Auto-Update Server | Niedrig | GitHub Releases als Update-Server (kostenlos) |
-| Electron Security (nodeIntegration) | Niedrig | contextBridge + Preload Pattern (Best Practice) |
-
----
-
-## Kosten
-
-| Posten | Jährlich |
-|--------|---------|
-| Apple Developer Account | 99$ (~90€) |
-| Windows Code Signing (EV) | ~300€ |
-| GitHub (Releases als Update-Server) | Kostenlos |
-| **Gesamt** | ~400€/Jahr |
-
----
-
-## Fazit
-
-Die Electron-Portierung ist **realistisch und machbar** weil:
-
-1. **73% des Codes ist bereits plattformunabhängig** — Shared + Webview + CLI
-2. **Die IPC-Grenze ist sauber definiert** — 32 Message-Typen, Adapter-Pattern macht den Swap trivial
-3. **Alle Node.js Dependencies funktionieren** — docx, pdf-parse, child_process (Typst), node-pty
-4. **Der TipTap/Svelte/Vite Stack ist Electron-nativ** — kein Framework-Wechsel nötig
-5. **Terminal + Git sind gelöste Probleme** — node-pty, xterm.js, simple-git sind ausgereift
-
-Die VS Code Extension bleibt als kostenloses Produkt bestehen. Die Electron-App wird das Premium-Produkt mit eigener Marke.

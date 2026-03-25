@@ -5,21 +5,54 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create'];
+const ON_CHANNELS = ['vswrite', 'terminal:data'];
+const INVOKE_CHANNELS = [
+  'dialog:openFile',
+  'dialog:saveFile',
+  'dialog:saveFileAs',
+  'app:getPlatform',
+  'app:checkTypst',
+  'filetree:list',
+  'filetree:open',
+  'filetree:navigateUp',
+  'filetree:openFolder',
+  'includes:validate',
+  'includes:open',
+  'includes:add',
+  'textfile:read',
+  'textfile:write',
+  'git:status',
+  'git:stage',
+  'git:unstage',
+  'git:stageAll',
+  'git:commit',
+  'git:push',
+  'git:pull',
+  'git:init',
+];
+
 contextBridge.exposeInMainWorld('electronAPI', {
   send(channel: string, data: unknown) {
-    // Only allow our channel
-    if (channel === 'vswrite') {
+    if (SEND_CHANNELS.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
 
   on(channel: string, callback: (data: unknown) => void) {
-    if (channel === 'vswrite') {
+    if (ON_CHANNELS.includes(channel)) {
       ipcRenderer.on(channel, (_event, data) => callback(data));
     }
   },
 
-  // File dialogs
+  invoke(channel: string, ...args: unknown[]): Promise<unknown> {
+    if (INVOKE_CHANNELS.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    return Promise.reject(new Error(`Channel not allowed: ${channel}`));
+  },
+
+  // Convenience wrappers for dialogs
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
   saveFile: (defaultName: string) => ipcRenderer.invoke('dialog:saveFile', defaultName),
   saveFileAs: (defaultName: string, filters: unknown) =>

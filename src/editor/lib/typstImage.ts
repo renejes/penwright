@@ -8,6 +8,18 @@ let documentBaseUri = '';
 
 export function setDocumentBaseUri(uri: string) {
   documentBaseUri = uri;
+  // Refresh all existing images in the DOM
+  refreshAllImages();
+}
+
+function refreshAllImages() {
+  document.querySelectorAll('.typst-image-block img').forEach((img) => {
+    const el = img as HTMLImageElement;
+    const rawSrc = el.closest('.typst-image-block')?.querySelector('.typst-image-path')?.textContent || '';
+    if (rawSrc && documentBaseUri) {
+      el.src = resolveImageSrc(rawSrc);
+    }
+  });
 }
 
 export function getDocumentBaseUri(): string {
@@ -24,7 +36,13 @@ function resolveImageSrc(src: string): string {
     return src;
   }
   if (documentBaseUri) {
-    return `${documentBaseUri}/${src}`;
+    const fullPath = `${documentBaseUri}/${src}`;
+    // Use custom protocol for Electron (avoids CORS/security issues with file://)
+    if (typeof window !== 'undefined' && (window as unknown as { electronAPI?: unknown }).electronAPI) {
+      return `vswrite-asset://${encodeURIComponent(fullPath)}`;
+    }
+    // VS Code webview: use the base URI directly
+    return fullPath;
   }
   return src;
 }

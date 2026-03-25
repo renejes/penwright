@@ -53,6 +53,16 @@ export interface WelcomeDataMessage {
   platform: string;
 }
 
+export interface PreviewUpdateMessage {
+  type: 'previewUpdate';
+  pages: string[]; // SVG strings
+}
+
+export interface CompileErrorMessage {
+  type: 'compileError';
+  error: string;
+}
+
 export type ExtensionMessage =
   | UpdateMessage
   | SettingsDataMessage
@@ -62,7 +72,9 @@ export type ExtensionMessage =
   | ScrollToHeadingMessage
   | CitationDataMessage
   | DocumentLangMessage
-  | WelcomeDataMessage;
+  | WelcomeDataMessage
+  | PreviewUpdateMessage
+  | CompileErrorMessage;
 
 // Shared settings interface
 export interface DocumentSettings {

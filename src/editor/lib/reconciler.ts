@@ -15,8 +15,12 @@ import { Node as PMNode } from '@tiptap/pm/model';
 
 interface TipTapDoc {
   type: 'doc';
+  // Accept both the deserializer's TipTapNode[] and generic Record arrays
   content: Record<string, unknown>[];
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyTipTapDoc = { type: 'doc'; content: any[] };
 
 /**
  * Applies newDocJSON to the editor using an incremental transaction
@@ -26,7 +30,7 @@ interface TipTapDoc {
  */
 export function reconcileContent(
   editor: Editor,
-  newDocJSON: TipTapDoc,
+  newDocJSON: TipTapDoc | AnyTipTapDoc,
 ): boolean {
   const { state, view } = editor;
   const oldDoc = state.doc;

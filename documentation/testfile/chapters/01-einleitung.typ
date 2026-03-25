@@ -2,6 +2,10 @@
 
 Die Erziehungs- und Bildungswissenschaft gehört zu den zentralen Disziplinen der Geistes- und Sozialwissenschaften. Sie befasst sich mit den Grundfragen menschlicher Entwicklung, Sozialisation und Bildung in institutionellen wie nicht-institutionellen Kontexten. Die vorliegende Hausarbeit unternimmt den Versuch, einen umfassenden Überblick über die historischen Grundlagen, die Adressaten und Handlungsfelder sowie die aktuellen Forschungsperspektiven dieser Disziplin zu geben.
 
+#image("../assets/FOTO LEBENSLAUF KLEINER-1-1.jpg", width: 50%)
+
+
+
 == Ausgangslage und Relevanz
 
 Die wissenschaftliche Auseinandersetzung mit Erziehung und Bildung hat eine lange Tradition, die bis in die griechische Antike zurückreicht. Wie @fuchs2013 ausführlich darlegt, konstituierte sich die Pädagogik als eigenständige Wissenschaft erst durch die systematische Aufarbeitung ihrer Geschichte. Von den sophistischen Bildungskonzepten des fünften Jahrhunderts v.Chr. über die Aufklärungspädagogik eines Jean-Jacques Rousseau und Immanuel Kant bis hin zu den Reformbewegungen des 20. Jahrhunderts lassen sich grundlegende Entwicklungslinien pädagogischen Denkens nachzeichnen, die bis heute das Verständnis von Erziehung und Bildung prägen.
@@ -26,5 +30,9 @@ Die Arbeit gliedert sich in sechs Kapitel. Nach dieser Einleitung widmet sich da
 
 Die Darstellung stützt sich maßgeblich auf drei Studienbriefe der FernUniversität in Hagen, die gemeinsam eine Einführung in die Erziehungs- und Bildungswissenschaft bilden: den historischen Überblick von @fuchs2013, die systematische Darstellung von @nohl2020 sowie die forschungsorientierten Beiträge von @berner2020. Ergänzt werden diese durch weiterführende Literatur, die an den jeweiligen Stellen ausgewiesen wird.
 
-#pagebreak()
+== Methodisches Vorgehen
+
+Die vorliegende Arbeit folgt einem hermeneutisch-rekonstruktiven Ansatz. Die Analyse der Studienbriefe erfolgt durch systematische Textarbeit, bei der zentrale Argumentationslinien identifiziert, miteinander verglichen und in den Kontext aktueller Fachdiskurse eingeordnet werden. Dabei wird besonderer Wert auf die Verknüpfung der drei Perspektiven gelegt, um Querverbindungen zwischen historischer Entwicklung, gegenwärtiger Praxis und zukünftiger Forschung sichtbar zu machen.
+
+#image("../assets/FOTO LEBENSLAUF KLEINER-1-1.jpg")
 

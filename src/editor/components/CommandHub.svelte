@@ -397,6 +397,22 @@
             } as unknown as WebviewMessage),
         },
         {
+          label: 'Import Markdown…',
+          icon: '\uD83D\uDCDD',
+          action: () =>
+            vscode.postMessage({
+              type: 'importMarkdown',
+            } as unknown as WebviewMessage),
+        },
+        {
+          label: 'Link Zotero Library…',
+          icon: '\uD83D\uDCD6',
+          action: () =>
+            vscode.postMessage({
+              type: 'linkZotero',
+            } as unknown as WebviewMessage),
+        },
+        {
           label: 'Import Sources',
           icon: '\uD83D\uDCDA',
           action: () =>

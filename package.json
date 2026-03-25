@@ -6,9 +6,9 @@
   "license": "MIT",
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "start": "electron-vite preview",
+    "dev": "unset ELECTRON_RUN_AS_NODE && electron-vite dev",
+    "build": "unset ELECTRON_RUN_AS_NODE && electron-vite build",
+    "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview",
     "package:mac": "electron-builder --mac",
     "package:win": "electron-builder --win",
     "package:linux": "electron-builder --linux"
@@ -23,14 +23,18 @@
     "@tiptap/pm": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
     "@tiptap/suggestion": "^3.0.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "chokidar": "^4.0.0",
     "docx": "^9.6.1",
-    "electron-store": "^10.0.0"
+    "electron-store": "^10.0.0",
+    "node-pty": "^1.1.0",
+    "simple-git": "^3.33.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "concurrently": "^9.0.0",
-    "electron": "^35.7.5",
+    "electron": "^41.0.4",
     "electron-builder": "^26.0.0",
     "electron-vite": "^5.0.0",
     "esbuild": "^0.25.0",

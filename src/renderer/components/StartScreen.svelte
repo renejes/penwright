@@ -1,0 +1,414 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+
+  let {
+    onNewProject,
+    onOpenFile,
+    onOpenFolder,
+  }: {
+    onNewProject: () => void;
+    onOpenFile: () => void;
+    onOpenFolder: () => void;
+  } = $props();
+
+  let typstInstalled = $state<boolean | null>(null);
+  let platform = $state('');
+
+  const api = (window as unknown as { electronAPI: {
+    invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+  } }).electronAPI;
+
+  onMount(async () => {
+    platform = await api.invoke('app:getPlatform') as string;
+    try {
+      const result = await api.invoke('app:checkTypst') as boolean;
+      typstInstalled = result;
+    } catch {
+      typstInstalled = false;
+    }
+  });
+</script>
+
+<div class="start-screen">
+  <div class="start-content">
+    <!-- Logo & Title -->
+    <div class="start-header">
+      <div class="logo">vs<span class="logo-accent">write</span></div>
+      <p class="subtitle">WYSIWYG Editor for Typst</p>
+    </div>
+
+    <!-- Typst Status -->
+    {#if typstInstalled === false}
+      <div class="typst-warning">
+        <span class="warning-icon">!</span>
+        <div>
+          <strong>Typst not found</strong>
+          <p>
+            Live preview and PDF export require the Typst CLI.
+            {#if platform === 'darwin'}
+              Install with: <code>brew install typst</code>
+            {:else if platform === 'win32'}
+              Install with: <code>winget install typst</code>
+            {:else}
+              Install from <code>https://typst.app</code>
+            {/if}
+          </p>
+        </div>
+      </div>
+    {:else if typstInstalled === true}
+      <div class="typst-ok">
+        <span class="ok-icon">&#10003;</span>
+        Typst CLI installed
+      </div>
+    {/if}
+
+    <!-- Actions -->
+    <div class="start-actions">
+      <button class="action-card action-primary" onclick={onNewProject}>
+        <span class="action-icon">&#43;</span>
+        <div>
+          <strong>New Project</strong>
+          <span class="action-desc">Document, Thesis, Paper, Letter, or Book</span>
+        </div>
+      </button>
+
+      <button class="action-card" onclick={onOpenFile}>
+        <span class="action-icon">&#9634;</span>
+        <div>
+          <strong>Open File</strong>
+          <span class="action-desc">Open an existing .typ file</span>
+        </div>
+      </button>
+
+      <button class="action-card" onclick={onOpenFolder}>
+        <span class="action-icon">&#9776;</span>
+        <div>
+          <strong>Open Folder</strong>
+          <span class="action-desc">Open a project directory</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Terminal / AI Info -->
+    <div class="info-section">
+      <h3>Built-in Terminal with AI Integration</h3>
+      <p>
+        vswrite includes a full terminal (<code>Cmd+`</code>) where you can run
+        <strong>Claude Code</strong>, <strong>OpenAI Codex</strong>, or <strong>Gemini CLI</strong>
+        directly in your project.
+      </p>
+      <p>
+        Every new project automatically gets 3 Claude Code Skills deployed to
+        <code>.claude/skills/</code>:
+      </p>
+      <div class="skills-grid">
+        <div class="skill-badge">
+          <span class="skill-icon">T</span>
+          <div>
+            <strong>typst</strong>
+            <span>Typst language reference</span>
+          </div>
+        </div>
+        <div class="skill-badge">
+          <span class="skill-icon">V</span>
+          <div>
+            <strong>vswrite</strong>
+            <span>Project conventions</span>
+          </div>
+        </div>
+        <div class="skill-badge">
+          <span class="skill-icon">R</span>
+          <div>
+            <strong>research</strong>
+            <span>Deep web research</span>
+          </div>
+        </div>
+      </div>
+      <p class="info-hint">
+        AI agents can edit your .typ files directly — the editor updates live.
+      </p>
+    </div>
+
+    <!-- Keyboard shortcuts hint -->
+    <div class="shortcuts-hint">
+      <span><kbd>Cmd+N</kbd> New</span>
+      <span><kbd>Cmd+O</kbd> Open</span>
+      <span><kbd>Cmd+B</kbd> Sidebar</span>
+      <span><kbd>Cmd+`</kbd> Terminal</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .start-screen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fafafa;
+    overflow-y: auto;
+    padding: 40px 20px;
+  }
+
+  .start-content {
+    max-width: 520px;
+    width: 100%;
+  }
+
+  /* Header */
+  .start-header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .logo {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: -1px;
+  }
+
+  .logo-accent {
+    color: #4f7df9;
+  }
+
+  .subtitle {
+    margin: 6px 0 0;
+    font-size: 15px;
+    color: #999;
+  }
+
+  /* Typst Status */
+  .typst-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 18px;
+    background: #fff8f0;
+    border: 1px solid #f5dcc0;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: #7a5a2e;
+    line-height: 1.5;
+  }
+
+  .typst-warning p {
+    margin: 4px 0 0;
+  }
+
+  .typst-warning code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .warning-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #e88a3a;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .typst-ok {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #f0faf0;
+    border: 1px solid #c8e8c8;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: #3a7a3a;
+  }
+
+  .ok-icon {
+    color: #3a9a3a;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  /* Action Cards */
+  .start-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 32px;
+  }
+
+  .action-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border: 1px solid #e8e8e8;
+    border-radius: 12px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    font-family: inherit;
+  }
+
+  .action-card:hover {
+    border-color: #d0d0d0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .action-card.action-primary {
+    border-color: #4f7df9;
+    background: #f8faff;
+  }
+
+  .action-card.action-primary:hover {
+    background: #eef4ff;
+    box-shadow: 0 2px 12px rgba(79, 125, 249, 0.12);
+  }
+
+  .action-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #f5f5f5;
+    color: #888;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .action-primary .action-icon {
+    background: #eef4ff;
+    color: #4f7df9;
+  }
+
+  .action-card strong {
+    font-size: 14px;
+    color: #1a1a1a;
+    display: block;
+  }
+
+  .action-desc {
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+    display: block;
+  }
+
+  /* Info Section */
+  .info-section {
+    padding: 20px 24px;
+    background: #ffffff;
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    margin-bottom: 24px;
+  }
+
+  .info-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 8px;
+  }
+
+  .info-section p {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.6;
+    margin: 0 0 12px;
+  }
+
+  .info-section code {
+    background: #f5f5f5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #555;
+  }
+
+  .info-section strong {
+    color: #333;
+  }
+
+  .skills-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .skill-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #fafafa;
+    border-radius: 8px;
+    border: 1px solid #f0f0f0;
+  }
+
+  .skill-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: #eef4ff;
+    color: #4f7df9;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .skill-badge strong {
+    font-size: 12px;
+    color: #333;
+    display: block;
+  }
+
+  .skill-badge span {
+    font-size: 10px;
+    color: #999;
+    line-height: 1.3;
+  }
+
+  .info-hint {
+    font-size: 12px !important;
+    color: #999 !important;
+    font-style: italic;
+    margin-bottom: 0 !important;
+  }
+
+  /* Shortcuts */
+  .shortcuts-hint {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    font-size: 12px;
+    color: #bbb;
+  }
+
+  .shortcuts-hint kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    background: #f0f0f0;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: inherit;
+    color: #888;
+    margin-right: 4px;
+  }
+</style>

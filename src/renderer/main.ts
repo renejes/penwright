@@ -1,3 +1,4 @@
+import '../editor/style.css';
 import App from './App.svelte';
 import { mount } from 'svelte';
 
