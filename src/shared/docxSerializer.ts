@@ -575,7 +575,8 @@ function convertInlineContent(
       const text = node.text ?? '';
       const marks = node.marks ?? [];
 
-      const runOptions: IRunOptions = { text };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const runOptions: any = { text } as IRunOptions;
 
       // Apply marks
       let isLink = false;
@@ -815,7 +816,7 @@ const headingLevelMap: Record<number, (typeof HeadingLevel)[keyof typeof Heading
   6: HeadingLevel.HEADING_6,
 };
 
-function mapAlignment(align: string | undefined | null): AlignmentType | undefined {
+function mapAlignment(align: string | undefined | null): (typeof AlignmentType)[keyof typeof AlignmentType] | undefined {
   switch (align) {
     case 'center':
       return AlignmentType.CENTER;

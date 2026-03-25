@@ -94,14 +94,14 @@ export const CitationSuggestion = Extension.create({
           let popup: CitationPopup | null = null;
 
           return {
-            onStart(props: Record<string, unknown>) {
-              popup = new CitationPopup(props);
+            onStart(props: unknown) {
+              popup = new CitationPopup(props as Record<string, unknown>);
             },
-            onUpdate(props: Record<string, unknown>) {
-              popup?.update(props);
+            onUpdate(props: unknown) {
+              popup?.update(props as Record<string, unknown>);
             },
-            onKeyDown(props: Record<string, unknown>) {
-              return popup?.onKeyDown(props) ?? false;
+            onKeyDown(props: unknown) {
+              return popup?.onKeyDown(props as Record<string, unknown>) ?? false;
             },
             onExit() {
               popup?.destroy();

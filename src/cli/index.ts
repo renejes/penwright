@@ -16,7 +16,7 @@ import { splitIntoChapters, slugify } from '../shared/splitDocument';
 import { styleTemplates } from '../shared/styleTemplates';
 import { templates } from '../shared/projectTemplates';
 import { SourceImporter } from '../shared/sourceImporter';
-import { deserializeTypst } from '../webview/lib/deserializer';
+import { deserializeTypst } from '../editor/lib/deserializer';
 import { serializeDocx } from '../shared/docxSerializer';
 
 // ─── Argument Parsing ────────────────────────────────────────

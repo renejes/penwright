@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { TextSelection } from '@tiptap/pm/state';
 import { getCitationEntries, onCitationEntriesUpdate, type CitationEntry } from './citationSuggestion';
 
 /**
@@ -80,7 +81,7 @@ export const TypstBibliography = Node.create({
               editor.view.state.schema.nodes.paragraph.create(),
             );
             tr.setSelection(
-              editor.view.state.selection.constructor.near(
+              TextSelection.near(
                 tr.doc.resolve(endPos),
               ),
             );

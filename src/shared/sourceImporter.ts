@@ -233,7 +233,7 @@ export class SourceImporter {
         `https://api.crossref.org/works/${encodeURIComponent(doi)}`,
       );
       if (!data?.message) return null;
-      return this.crossRefToEntry(data.message);
+      return this.crossRefToEntry(data.message as Record<string, unknown>);
     } catch {
       return null;
     }
@@ -345,7 +345,7 @@ export class SourceImporter {
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
           try {
-            resolve(JSON.parse(data));
+            resolve(JSON.parse(data) as Record<string, unknown>);
           } catch (err) {
             reject(err);
           }

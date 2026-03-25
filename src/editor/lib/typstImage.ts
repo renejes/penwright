@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { TextSelection } from '@tiptap/pm/state';
 
 /**
  * Document base URI for resolving relative image paths in the webview.
@@ -60,7 +61,7 @@ function showImageDialog(
   dom: HTMLElement,
   img: HTMLImageElement,
   node: { attrs: Record<string, any>; type: { name: string } },
-  getPos: (() => number) | boolean,
+  getPos: (() => number | undefined) | boolean,
   editor: any
 ) {
   // Close any existing dialog first
@@ -404,7 +405,7 @@ export const TypstImage = Node.create({
               editor.view.state.schema.nodes.paragraph.create(),
             );
             tr.setSelection(
-              editor.view.state.selection.constructor.near(
+              TextSelection.near(
                 tr.doc.resolve(endPos),
               ),
             );

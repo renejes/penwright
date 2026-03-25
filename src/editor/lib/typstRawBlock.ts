@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { TextSelection } from '@tiptap/pm/state';
 
 /**
  * Custom TipTap node for Typst code that can't be rendered as WYSIWYG.
@@ -97,7 +98,7 @@ export const TypstRawBlock = Node.create({
               editor.view.state.schema.nodes.paragraph.create()
             );
             tr.setSelection(
-              editor.view.state.selection.constructor.near(
+              TextSelection.near(
                 tr.doc.resolve(endPos)
               )
             );
