@@ -23,6 +23,11 @@ export let uiState = $state({
   welcomeTypstInstalled: true,
   welcomePlatform: '',
   currentSettings: null as DocumentSettings | null,
+  showLicense: false,
+  licenseStatus: 'none' as string,
+  licenseTier: null as string | null,
+  licenseKey: null as string | null,
+  licenseMessage: '',
 });
 
 // ─── Panel State ────────────────────────────────

@@ -31,6 +31,14 @@ export interface PanelState {
   terminalHeight: number;
 }
 
+export interface LicenseData {
+  licenseKey: string | null;
+  activationId: string | null;
+  licenseTier: 'basic' | 'pro' | null;
+  licenseStatus: 'active' | 'expired' | null;
+  lastValidation: number;
+}
+
 interface StoreSchema {
   windowBounds: WindowBounds;
   panelState: PanelState;
@@ -38,6 +46,11 @@ interface StoreSchema {
   lastProjectPath: string | null;
   onboardingSeen: boolean;
   zoteroBibPath: string | null;
+  licenseKey: string | null;
+  activationId: string | null;
+  licenseTier: 'basic' | 'pro' | null;
+  licenseStatus: 'active' | 'expired' | null;
+  lastValidation: number;
 }
 
 const store = new Store<StoreSchema>({
@@ -61,6 +74,11 @@ const store = new Store<StoreSchema>({
     lastProjectPath: null,
     onboardingSeen: false,
     zoteroBibPath: null,
+    licenseKey: null,
+    activationId: null,
+    licenseTier: null,
+    licenseStatus: null,
+    lastValidation: 0,
   },
 });
 
@@ -142,4 +160,32 @@ export function getZoteroBibPath(): string | null {
 
 export function saveZoteroBibPath(bibPath: string | null): void {
   store.set('zoteroBibPath', bibPath);
+}
+
+// ─── License ────────────────────────────────────
+
+export function getLicenseData(): LicenseData {
+  return {
+    licenseKey: store.get('licenseKey'),
+    activationId: store.get('activationId'),
+    licenseTier: store.get('licenseTier'),
+    licenseStatus: store.get('licenseStatus'),
+    lastValidation: store.get('lastValidation'),
+  };
+}
+
+export function saveLicenseData(data: LicenseData): void {
+  store.set('licenseKey', data.licenseKey);
+  store.set('activationId', data.activationId);
+  store.set('licenseTier', data.licenseTier);
+  store.set('licenseStatus', data.licenseStatus);
+  store.set('lastValidation', data.lastValidation);
+}
+
+export function clearLicenseData(): void {
+  store.set('licenseKey', null);
+  store.set('activationId', null);
+  store.set('licenseTier', null);
+  store.set('licenseStatus', null);
+  store.set('lastValidation', 0);
 }

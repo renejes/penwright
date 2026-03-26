@@ -37,6 +37,11 @@ const INVOKE_CHANNELS = [
   'persist:getRecentProjects',
   'persist:isOnboardingSeen',
   'persist:getZoteroBibPath',
+  'license:activate',
+  'license:validate',
+  'license:deactivate',
+  'license:getStatus',
+  'license:openCheckout',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {

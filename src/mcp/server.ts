@@ -33,14 +33,20 @@ const execFileAsync = promisify(execFile);
 
 // ─── State ───────────────────────────────────────────
 
+const POLAR_ORG_ID = 'a5a6573b-aacf-4501-a6c1-ebc15ef67b04';
+
 interface ServerState {
   projectDir: string;
   currentFile: string | null;
+  licenseKey: string | null;
+  licenseValidated: boolean;
 }
 
 const state: ServerState = {
   projectDir: '',
   currentFile: null,
+  licenseKey: null,
+  licenseValidated: false,
 };
 
 // ─── Parse CLI args ──────────────────────────────────
@@ -50,6 +56,8 @@ function parseArgs(): void {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--project' && args[i + 1]) {
       state.projectDir = path.resolve(args[++i]);
+    } else if (args[i] === '--license-key' && args[i + 1]) {
+      state.licenseKey = args[++i];
     } else if (args[i] === '--file' && args[i + 1]) {
       const filePath = path.resolve(args[++i]);
       state.currentFile = filePath;
@@ -57,6 +65,11 @@ function parseArgs(): void {
         state.projectDir = path.dirname(filePath);
       }
     }
+  }
+
+  // License key from env var
+  if (!state.licenseKey && process.env.VSWRITE_LICENSE_KEY) {
+    state.licenseKey = process.env.VSWRITE_LICENSE_KEY;
   }
 
   // Fallback: env var
@@ -1034,10 +1047,45 @@ server.tool(
   },
 );
 
+// ─── License Validation ─────────────────────────────
+
+async function validateProLicense(): Promise<boolean> {
+  if (!state.licenseKey) return false;
+  if (!state.licenseKey.startsWith('VSWRITE_PRO')) return false;
+
+  try {
+    const response = await fetch('https://api.polar.sh/v1/customer-portal/license-keys/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: state.licenseKey,
+        organization_id: POLAR_ORG_ID,
+      }),
+    });
+    if (!response.ok) return false;
+    const data = await response.json() as { status: string };
+    return data.status === 'granted';
+  } catch {
+    // Offline — allow if key has Pro prefix (trust locally)
+    return true;
+  }
+}
+
 // ─── Start Server ────────────────────────────────────
 
 async function main() {
   parseArgs();
+
+  // Validate Pro license for MCP access
+  state.licenseValidated = await validateProLicense();
+  if (!state.licenseValidated) {
+    console.error(
+      'vswrite MCP Server requires a Pro license.\n' +
+      'Provide your key via --license-key VSWRITE_PRO_xxx or VSWRITE_LICENSE_KEY env var.\n' +
+      'Get a Pro license at https://vswrite.com/pricing'
+    );
+    process.exit(1);
+  }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

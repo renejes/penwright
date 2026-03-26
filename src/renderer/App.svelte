@@ -16,6 +16,7 @@
   import TextFileViewer from './components/TextFileViewer.svelte';
   import PdfFileViewer from './components/PdfFileViewer.svelte';
   import NewProjectDialog from './components/NewProjectDialog.svelte';
+  import LicenseDialog from './components/LicenseDialog.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
@@ -148,6 +149,17 @@
           if (typeof s.sidebarWidth === 'number') panelState.sidebarWidth = s.sidebarWidth;
           if (typeof s.previewWidth === 'number') panelState.previewWidth = s.previewWidth;
           if (typeof s.terminalHeight === 'number') panelState.terminalHeight = s.terminalHeight;
+        }
+      });
+
+      // Validate license on startup
+      electronAPI.invoke('license:validate').then((result) => {
+        if (result && typeof result === 'object') {
+          const r = result as { status: string; tier: string | null; key: string | null; message?: string };
+          uiState.licenseStatus = r.status;
+          uiState.licenseTier = r.tier;
+          uiState.licenseKey = r.key;
+          uiState.licenseMessage = r.message || '';
         }
       });
     }
@@ -538,6 +550,11 @@
         onClose={() => { newProjectState.show = false; }}
       />
     {/if}
+    {#if uiState.showLicense}
+      <LicenseDialog
+        onClose={() => { uiState.showLicense = false; }}
+      />
+    {/if}
   </div>
 
   <!-- Status Bar with Panel Toggles -->
@@ -577,6 +594,18 @@
       {#if tabState.currentFile}
         <span class="status-info">{tabState.currentFile.split('/').pop()}</span>
       {/if}
+      <button
+        class="status-toggle"
+        class:licensed={uiState.licenseStatus === 'active'}
+        onclick={() => (uiState.showLicense = true)}
+        title="License"
+      >
+        {#if uiState.licenseStatus === 'active'}
+          {uiState.licenseTier === 'pro' ? 'Pro' : 'Licensed'}
+        {:else}
+          Unlicensed
+        {/if}
+      </button>
     </div>
   </div>
 </div>
@@ -937,5 +966,9 @@
   .status-unsaved {
     color: #e88a3a;
     font-weight: 500;
+  }
+
+  .status-toggle.licensed {
+    color: #2e7d32;
   }
 </style>

@@ -15,6 +15,8 @@ import { openFile, saveFile, saveFileAs, newFile, autoSave, updateTitle } from '
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate } from './importExport';
 import { handleCreateProject, handleNewFile, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree } from './projectManager';
 import { getPanelState, savePanelState, getRecentProjects, isOnboardingSeen, setOnboardingSeen, getZoteroBibPath, type PanelState } from './persistenceManager';
+import { activateLicense, validateLicense, deactivateLicense } from './licenseManager';
+import { getLicenseData } from './persistenceManager';
 
 export function setupIPC(): void {
   // Renderer sends edited content
@@ -249,17 +251,7 @@ export function setupIPC(): void {
       }
 
       case 'openUserGuide': {
-        const handbuchPath = path.join(__dirname, '../../documentation/from-vswrite-extension/handbuch.md');
-        if (fs.existsSync(handbuchPath)) {
-          appState.mainWindow?.webContents.send('vswrite', { type: 'openTextFile', path: handbuchPath });
-        } else {
-          const projectHandbuch = appState.projectDir ? path.join(appState.projectDir, 'documentation', 'handbuch.md') : null;
-          if (projectHandbuch && fs.existsSync(projectHandbuch)) {
-            appState.mainWindow?.webContents.send('vswrite', { type: 'openTextFile', path: projectHandbuch });
-          } else {
-            shell.openExternal('https://github.com/renejesser/vswrite');
-          }
-        }
+        shell.openExternal('https://vswrite.com/handbuch');
         break;
       }
 
@@ -457,4 +449,44 @@ export function setupIPC(): void {
   ipcMain.handle('persist:getRecentProjects', () => getRecentProjects());
   ipcMain.handle('persist:isOnboardingSeen', () => isOnboardingSeen());
   ipcMain.handle('persist:getZoteroBibPath', () => getZoteroBibPath());
+
+  // ─── License Handlers ──────────────────────────
+  ipcMain.handle('license:activate', async (_event, key: string) => {
+    try {
+      return await activateLicense(key);
+    } catch (err) {
+      const msg = String(err);
+      let userMessage = 'Activation failed. Please check your license key.';
+      if (msg.includes('ResourceNotFound') || msg.includes('Not found')) {
+        userMessage = 'Invalid license key. Please check and try again.';
+      } else if (msg.includes('activation limit') || msg.includes('LimitExceeded')) {
+        userMessage = 'Device limit reached. Deactivate another device first or contact support.';
+      } else if (msg.includes('fetch') || msg.includes('ENOTFOUND')) {
+        userMessage = 'No internet connection. Please check your network and try again.';
+      }
+      return { status: 'none', tier: null, key: null, error: userMessage };
+    }
+  });
+
+  ipcMain.handle('license:validate', async () => {
+    return await validateLicense();
+  });
+
+  ipcMain.handle('license:deactivate', async () => {
+    await deactivateLicense();
+    return { status: 'none', tier: null, key: null };
+  });
+
+  ipcMain.handle('license:getStatus', () => {
+    const data = getLicenseData();
+    return {
+      status: data.licenseStatus || 'none',
+      tier: data.licenseTier,
+      key: data.licenseKey,
+    };
+  });
+
+  ipcMain.handle('license:openCheckout', () => {
+    shell.openExternal('https://vswrite.com/pricing');
+  });
 }
