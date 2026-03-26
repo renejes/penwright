@@ -1,7 +1,7 @@
 # vswrite Desktop — Handbuch
 
-> **Version:** 0.2.0
-> **Letzte Aktualisierung:** 2026-03-25
+> **Version:** 0.4.0
+> **Letzte Aktualisierung:** 2026-03-26
 
 ---
 
@@ -122,8 +122,10 @@ Tippe `/` an einer leeren Stelle im Editor:
 - Tab-Leiste über dem Editor mit Dateinamen
 - × Button zum Schließen einzelner Tabs
 - **Rechtsklick** auf Dateien in der Sidebar → "Open in New Tab"
+- **Rechtsklick** auf `.typ` Dateien → "Open as Text" (öffnet im Code-Editor statt WYSIWYG)
 - `.typ` Dateien öffnen im WYSIWYG Editor
-- `.bib`, `.txt`, `.md`, `.yaml` etc. öffnen im eingebauten Text-Editor
+- `.bib`, `.txt`, `.md`, `.yaml` etc. öffnen im Code-Editor (CodeMirror 6 mit Syntax Highlighting, Zeilennummern)
+- `.pdf` Dateien öffnen im eingebauten PDF-Viewer (Text markierbar + kopierbar)
 
 ### Bilder
 
@@ -203,6 +205,7 @@ Die Sidebar hat vier Tabs:
 - **Chapter-Navigation:** Preview scrollt zum aktiven Kapitel
 - **Scroll-Erhaltung:** Position bleibt bei Recompile erhalten
 - **Fehleranzeige:** Typst-Fehler im Preview Panel
+- **SVG/PDF Modus:** Toggle im Preview-Header — SVG (schnell, Standard) oder PDF (via pdf.js mit Textauswahl)
 
 ---
 
@@ -265,6 +268,26 @@ Echtes PTY-Terminal (xterm.js + node-pty):
 - Claude Code: `claude` direkt starten
 - Claude Code Skills automatisch in `.claude/skills/`
 - Auto-Resize, Auto-Respawn
+
+---
+
+## Rechtschreibprüfung
+
+- **Automatisch aktiv:** Nutzt Electron's eingebauten Spellchecker (Hunspell)
+- **Sprachsynchronisation:** Sprache wird aus `#set text(lang: "de")` im Typst-Dokument gelesen
+- **Dynamischer Wechsel:** Ändert sich bei Quick Settings oder Settings Panel
+- **Rechtsklick auf Fehler:** Kontextmenü mit bis zu 5 Korrekturvorschlägen + "Add to Dictionary"
+- **Unterstützte Sprachen:** en, de, fr, es, it, pt, nl, sv, da, nb, fi, pl, ru
+
+---
+
+## PDF-Viewer
+
+- `.pdf` Dateien aus der Sidebar per Klick im integrierten Viewer öffnen
+- **Virtualisiertes Rendering:** Nur sichtbare Seiten werden gerendert (performant auch bei großen PDFs)
+- **Text markieren & kopieren:** TextLayer über dem Canvas ermöglicht Cmd+C
+- Header mit Dateiname, Seitenzahl und Close-Button
+- Ideal zum Lesen von PDFs in `sources/`
 
 ---
 

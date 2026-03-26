@@ -14,6 +14,7 @@
   import PreviewPanel from './components/PreviewPanel.svelte';
   import TerminalPanel from './components/TerminalPanel.svelte';
   import TextFileViewer from './components/TextFileViewer.svelte';
+  import PdfFileViewer from './components/PdfFileViewer.svelte';
   import NewProjectDialog from './components/NewProjectDialog.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
@@ -50,7 +51,8 @@
   let debounceTimer: ReturnType<typeof setTimeout>;
 
   let activeTab = $derived(tabState.activeTabIndex >= 0 ? tabState.openTabs[tabState.activeTabIndex] : null);
-  let textViewerFile = $derived(activeTab?.type === 'text' ? activeTab.path : '');
+  let textViewerFile = $derived(activeTab?.type === 'text' || activeTab?.type === 'rawtyp' ? activeTab.path : '');
+  let pdfViewerFile = $derived(activeTab?.type === 'pdf' ? activeTab.path : '');
   let hasFileOpen = $derived(tabState.openTabs.length > 0 || !!tabState.currentFile);
 
   // IPC adapter for CommandHub/QuickSettings compatibility
@@ -194,6 +196,12 @@
   }
 
   // ─── Start Screen Handlers ─────────────────────
+  function handlePreviewModeChange(mode: 'svg' | 'pdf') {
+    previewState.previewMode = mode;
+    const api = (window as unknown as { electronAPI: { send(channel: string, data: unknown): void } }).electronAPI;
+    api.send('preview:setMode', mode);
+  }
+
   function handleStartNewProject() {
     ipc.send({ type: 'newProject' });
   }
@@ -221,6 +229,8 @@
         openTab(filePath, 'typ');
       } else if (result === 'textviewer') {
         openTab(filePath, 'text');
+      } else if (result === 'pdfviewer') {
+        openTab(filePath, 'pdf');
       }
     });
   }
@@ -312,9 +322,10 @@
         onOpenFile={handleStartOpenFile}
         onOpenFolder={handleStartOpenFolder}
       />
-    {:else}
-    <!-- Main content area with panels -->
-    <div class="app-body">
+    {/if}
+
+    <!-- Main content area with panels (always in DOM so TipTap editor element is available at onMount) -->
+    <div class="app-body" class:hidden={!hasFileOpen}>
       <!-- Sidebar -->
       {#if panelState.showSidebar}
         <div class="panel-sidebar" style="width: {panelState.sidebarWidth}px">
@@ -376,7 +387,14 @@
         {/if}
 
         <!-- Active content -->
-        {#if textViewerFile}
+        {#if pdfViewerFile}
+          <PdfFileViewer
+            filePath={pdfViewerFile}
+            onClose={() => {
+              if (tabState.activeTabIndex >= 0) closeTab(tabState.activeTabIndex);
+            }}
+          />
+        {:else if textViewerFile}
           <TextFileViewer
             filePath={textViewerFile}
             onClose={() => {
@@ -384,7 +402,7 @@
             }}
           />
         {/if}
-        <div class="editor-container" class:hidden={!!textViewerFile}>
+        <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile}>
           <div class="editor" bind:this={editorElement}></div>
         </div>
       </div>
@@ -397,6 +415,11 @@
             <button class="context-item" onclick={() => { handleFileOpenInNewTab(contextMenu.path); closeContextMenu(); }}>
               Open in New Tab
             </button>
+            {#if contextMenu.path.endsWith('.typ')}
+              <button class="context-item" onclick={() => { openTab(contextMenu.path, 'rawtyp'); closeContextMenu(); }}>
+                Open as Text
+              </button>
+            {/if}
           </div>
         </div>
       {/if}
@@ -413,9 +436,12 @@
         <div class="panel-preview" style="width: {panelState.previewWidth}px">
           <PreviewPanel
             pages={previewState.pages}
+            pdfData={previewState.pdfData}
+            previewMode={previewState.previewMode}
             error={previewState.error}
             compiling={previewState.compiling}
             scrollToPage={previewState.scrollToPage}
+            onModeChange={handlePreviewModeChange}
           />
         </div>
       {/if}
@@ -433,7 +459,6 @@
       <div class="panel-terminal" style="height: {panelState.terminalHeight}px">
         <TerminalPanel />
       </div>
-    {/if}
     {/if}
 
     <!-- Modals (always available, also from Start Screen) -->
@@ -583,6 +608,10 @@
     display: flex;
     overflow: hidden;
     background: #ffffff;
+  }
+
+  .app-body.hidden {
+    display: none;
   }
 
   /* ─── Sidebar ─── */

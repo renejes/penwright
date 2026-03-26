@@ -39,6 +39,8 @@ export let panelState = $state({
 // ─── Preview State ──────────────────────────────
 export let previewState = $state({
   pages: [] as string[],
+  pdfData: null as Uint8Array | null,
+  previewMode: 'svg' as 'svg' | 'pdf',
   error: '',
   compiling: false,
   scrollToPage: 0,
@@ -47,7 +49,7 @@ export let previewState = $state({
 // ─── Tab / File State ───────────────────────────
 export interface EditorTab {
   path: string;
-  type: 'typ' | 'text';
+  type: 'typ' | 'text' | 'rawtyp' | 'pdf';
 }
 
 export let tabState = $state({
@@ -70,8 +72,8 @@ export let newProjectState = $state({
 
 // ─── Tab Operations ──────────────────────────────
 
-export function openTab(filePath: string, type: 'typ' | 'text' = 'typ') {
-  const existingIndex = tabState.openTabs.findIndex(t => t.path === filePath);
+export function openTab(filePath: string, type: 'typ' | 'text' | 'rawtyp' | 'pdf' = 'typ') {
+  const existingIndex = tabState.openTabs.findIndex(t => t.path === filePath && t.type === type);
   if (existingIndex >= 0) {
     tabState.activeTabIndex = existingIndex;
     return;
@@ -88,7 +90,8 @@ export function closeTab(index: number) {
 }
 
 export function tabName(tab: EditorTab): string {
-  return tab.path.split('/').pop() || '';
+  const name = tab.path.split('/').pop() || '';
+  return tab.type === 'rawtyp' ? `${name} [Text]` : name;
 }
 
 export function switchToTab(index: number) {

@@ -1,6 +1,6 @@
 # vswrite Desktop — Electron Architecture
 
-> **Stand:** 2026-03-25 (nach Refactoring)
+> **Stand:** 2026-03-26 (nach Session 3: Spellcheck, Code-Editor, PDF-Viewer)
 > Dokumentation der tatsächlichen Architektur der eigenständigen Electron Desktop-App (vswrite-desktop).
 
 ---
@@ -70,7 +70,10 @@ vswrite-desktop/
 │           ├── NewProjectDialog.svelte Modal für Projekt-Templates
 │           ├── GitPanel.svelte        Git Status/Commit/Push
 │           ├── ResizeHandle.svelte    Drag-to-Resize Handle
-│           └── StartScreen.svelte    Start Screen mit Onboarding + AI Info
+│           ├── StartScreen.svelte    Start Screen mit Onboarding + AI Info
+│           ├── CodeEditor.svelte     CodeMirror 6 Wrapper (Syntax HL, Zeilennummern)
+│           ├── PdfFileViewer.svelte  PDF In-App Viewer (pdf.js + TextLayer)
+│           └── PdfPreviewPanel.svelte PDF Preview Rendering (für SVG/PDF Toggle)
 ├── index.html                 Renderer HTML Entry
 ├── package.json
 ├── electron.vite.config.mts   Build-Config (Main, Preload, Renderer)
@@ -198,13 +201,17 @@ Alternativ: Terminal **außerhalb** von VS Code/Cursor verwenden (z.B. iTerm2, T
 Sicherheitsschicht zwischen Main und Renderer. Whitelist-basiert:
 
 ```typescript
-const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create'];
+const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create', 'preview:setMode'];
 const ON_CHANNELS = ['vswrite', 'terminal:data'];
 const INVOKE_CHANNELS = [
   'dialog:openFile', 'dialog:saveFile', 'dialog:saveFileAs',
-  'app:getPlatform',
+  'app:getPlatform', 'app:checkTypst',
   'filetree:list', 'filetree:open', 'filetree:navigateUp', 'filetree:openFolder',
   'includes:validate', 'includes:open', 'includes:add',
+  'textfile:read', 'textfile:readBinary', 'textfile:write',
+  'git:status', 'git:stage', 'git:unstage', 'git:stageAll',
+  'git:commit', 'git:push', 'git:pull', 'git:init',
+  'spellcheck:setLanguage',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -239,6 +246,7 @@ Alle implementiert mit Handlern in `ipcHandlers.ts` (delegiert an spezialisierte
 | **Bilder** | `pickImage`, `dropImage`, `dropImagePath` |
 | **Zitationen** | `requestCitations`, `ensureBibliography`, `importSources`, `addCitationManually` |
 | **UI** | `dismissWelcome`, `openUserGuide`, `setWordGoal`, `undoLastAiEdit`, `importStyleTemplate` |
+| **Preview** | `preview:setMode` (svg/pdf) |
 
 ### Message Types (Main → Renderer)
 
@@ -249,7 +257,9 @@ Alle implementiert mit Handlern in `ipcHandlers.ts` (delegiert an spezialisierte
 | `documentBaseUri` | Basis-Pfad für Bild-Auflösung |
 | `insertImage` | Bild programmatisch einfügen |
 | `previewUpdate` | SVG Pages nach Kompilierung |
+| `previewPdfUpdate` | PDF-Daten (base64) nach Kompilierung |
 | `compileError` | Typst Compile-Fehler |
+| `openPdfFile` | PDF-Datei im In-App Viewer öffnen |
 | `saveStatus` | Gespeichert/Ungespeichert + Zeitstempel |
 | `currentFile` | Aktuelle Datei (für Sidebar Highlighting) |
 | `filetreeChanged` | File Tree neu laden |
@@ -325,12 +335,14 @@ Drei Build-Targets in `electron.vite.config.mts`:
 {
   "dependencies": {
     "@tiptap/*": "^3.0.0",        // Rich-Text Editor
+    "@codemirror/*": "^6.0.0",    // Code-Editor (Syntax HL, Zeilennummern)
     "@xterm/xterm": "^6.0.0",     // Terminal UI
     "@xterm/addon-fit": "^0.11.0", // Terminal Auto-Resize
     "chokidar": "^4.0.0",         // File Watching
     "docx": "^9.6.1",             // Word Export
     "electron-store": "^10.0.0",  // Persistenter State
     "node-pty": "^1.0.0",          // Terminal PTY (native)
+    "pdfjs-dist": "^5.5.0",       // PDF In-App Viewer
     "simple-git": "^3.27.0"       // Git Operations
   },
   "devDependencies": {
@@ -386,6 +398,18 @@ Drei Build-Targets in `electron.vite.config.mts`:
 - [x] **Refactoring:** Main Process modularisiert (index.ts 1.699 → 154 Z., aufgeteilt in 8 Module)
 - [x] **Refactoring:** Renderer modularisiert (App.svelte 1.067 → 834 Z., State + MessageHandler extrahiert)
 - [x] Start Screen mit Onboarding (Typst-Check, New Project/Open File/Open Folder, AI Terminal Info, 3 Skills)
+
+### Session 3 — Spellcheck, Code-Editor, PDF-Viewer
+
+- [x] Electron Spellchecker mit Sprach-Sync aus Typst-Settings
+- [x] Natives Kontextmenü mit Rechtschreibvorschlägen + "Add to Dictionary"
+- [x] CodeMirror 6 Code-Editor (ersetzt textarea in TextFileViewer)
+- [x] Typst Syntax-Highlighting (Custom StreamLanguage)
+- [x] "Open as Text" für .typ Dateien (Rechtsklick in Sidebar)
+- [x] PDF In-App Viewer mit pdf.js (Text markierbar via TextLayer)
+- [x] SVG/PDF Preview Toggle im Preview-Panel
+- [x] Binary File Read IPC (textfile:readBinary)
+- [x] TipTap Editor Mount-Fix (Element immer im DOM)
 
 ### Offen (Phase E5: Polish & Packaging)
 

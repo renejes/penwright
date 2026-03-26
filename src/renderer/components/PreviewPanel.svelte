@@ -1,16 +1,23 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import PdfPreviewPanel from './PdfPreviewPanel.svelte';
 
   let {
     pages = [],
+    pdfData = null,
+    previewMode = 'svg',
     error = '',
     compiling = false,
     scrollToPage = 0,
+    onModeChange,
   }: {
     pages: string[];
+    pdfData: Uint8Array | null;
+    previewMode: 'svg' | 'pdf';
     error: string;
     compiling: boolean;
     scrollToPage: number;
+    onModeChange: (mode: 'svg' | 'pdf') => void;
   } = $props();
 
   let scrollContainer: HTMLDivElement;
@@ -53,33 +60,44 @@
 <div class="preview">
   <div class="preview-header">
     <span class="preview-label">Preview</span>
-    {#if compiling}
-      <span class="badge compiling">Compiling...</span>
-    {:else if error}
-      <span class="badge error">Error</span>
-    {:else if pages.length > 0}
-      <span class="badge">{pages.length} {pages.length === 1 ? 'page' : 'pages'}</span>
-    {/if}
+    <div class="preview-header-right">
+      {#if compiling}
+        <span class="badge compiling">Compiling...</span>
+      {:else if error}
+        <span class="badge error">Error</span>
+      {:else if previewMode === 'svg' && pages.length > 0}
+        <span class="badge">{pages.length} {pages.length === 1 ? 'page' : 'pages'}</span>
+      {/if}
+      <div class="mode-toggle">
+        <button class="mode-btn" class:active={previewMode === 'svg'} onclick={() => onModeChange('svg')}>SVG</button>
+        <button class="mode-btn" class:active={previewMode === 'pdf'} onclick={() => onModeChange('pdf')}>PDF</button>
+      </div>
+    </div>
   </div>
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="preview-scroll" bind:this={scrollContainer} onscroll={onScroll}>
-    {#if error}
-      <div class="preview-error">
-        <pre>{error}</pre>
-      </div>
-    {:else if pages.length === 0}
-      <div class="preview-empty">
-        <p>No preview</p>
-        <p class="hint">Save a .typ file to see the preview</p>
-      </div>
-    {:else}
-      {#each pages as page}
-        <div class="page">
-          {@html page}
+
+  {#if previewMode === 'pdf'}
+    <PdfPreviewPanel {pdfData} {error} {compiling} />
+  {:else}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="preview-scroll" bind:this={scrollContainer} onscroll={onScroll}>
+      {#if error}
+        <div class="preview-error">
+          <pre>{error}</pre>
         </div>
-      {/each}
-    {/if}
-  </div>
+      {:else if pages.length === 0}
+        <div class="preview-empty">
+          <p>No preview</p>
+          <p class="hint">Save a .typ file to see the preview</p>
+        </div>
+      {:else}
+        {#each pages as page}
+          <div class="page">
+            {@html page}
+          </div>
+        {/each}
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -97,6 +115,42 @@
     padding: 8px 14px;
     border-bottom: 1px solid #eee;
     flex-shrink: 0;
+  }
+
+  .preview-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mode-toggle {
+    display: flex;
+    background: #f0f0f0;
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .mode-btn {
+    padding: 2px 10px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #999;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+
+  .mode-btn:hover {
+    color: #666;
+  }
+
+  .mode-btn.active {
+    background: #fff;
+    color: #333;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
 
   .preview-label {

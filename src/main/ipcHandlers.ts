@@ -334,7 +334,15 @@ export function setupIPC(): void {
       return 'textviewer';
     }
 
-    if (filePath.match(/\.(pdf|png|jpg|jpeg|svg|gif|bmp|webp|docx|doc)$/i)) {
+    if (filePath.match(/\.pdf$/i)) {
+      appState.mainWindow?.webContents.send('vswrite', {
+        type: 'openPdfFile',
+        path: filePath,
+      });
+      return 'pdfviewer';
+    }
+
+    if (filePath.match(/\.(png|jpg|jpeg|svg|gif|bmp|webp|docx|doc)$/i)) {
       shell.openPath(filePath);
       return 'external';
     }
@@ -372,6 +380,10 @@ export function setupIPC(): void {
     return fs.readFileSync(filePath, 'utf-8');
   });
 
+  ipcMain.handle('textfile:readBinary', (_event, filePath: string) => {
+    return fs.readFileSync(filePath).toString('base64');
+  });
+
   ipcMain.handle('textfile:write', (_event, filePath: string, content: string) => {
     fs.writeFileSync(filePath, content, 'utf-8');
     appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
@@ -389,6 +401,21 @@ export function setupIPC(): void {
     const absPath = path.join(path.dirname(appState.currentFilePath), relPath);
     if (fs.existsSync(absPath) && absPath.endsWith('.typ')) {
       openFile(absPath);
+    }
+  });
+
+  // ─── Spellcheck Handler ─────────────────────────
+  ipcMain.handle('spellcheck:setLanguage', (_event, lang: string) => {
+    const bcp47Map: Record<string, string> = {
+      en: 'en-US', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT',
+      pt: 'pt-BR', nl: 'nl-NL', sv: 'sv-SE', da: 'da-DK', nb: 'nb-NO',
+      fi: 'fi-FI', pl: 'pl-PL', ru: 'ru-RU',
+    };
+    const resolved = bcp47Map[lang] || lang;
+    try {
+      appState.mainWindow?.webContents.session.setSpellCheckerLanguages([resolved]);
+    } catch (err) {
+      console.warn('[vswrite] Spellcheck language not available:', resolved, err);
     }
   });
 

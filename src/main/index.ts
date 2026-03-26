@@ -5,14 +5,14 @@
  * All logic is delegated to extracted modules.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, Menu } from 'electron';
 import * as path from 'path';
 import { appState } from './appState';
 import { TerminalManager } from './terminalManager';
 import { buildMenu } from './menuBuilder';
 import { setupIPC } from './ipcHandlers';
 import { setupGitIPC } from './gitManager';
-import { openFile, saveFile, saveFileAs, newFile, stopFileWatcher, disposeCompiler } from './fileManager';
+import { openFile, saveFile, saveFileAs, newFile, stopFileWatcher, disposeCompiler, setupPreviewModeIPC } from './fileManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 
 // ─── Window Creation ──────────────────────────────────
@@ -72,6 +72,43 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
+  // ─── Spellcheck Setup ───────────────────────────
+  appState.mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
+
+  appState.mainWindow.webContents.on('context-menu', (_event, params) => {
+    const menuItems: Electron.MenuItemConstructorOptions[] = [];
+
+    // Spelling suggestions
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+        menuItems.push({
+          label: suggestion,
+          click: () => appState.mainWindow?.webContents.replaceMisspelling(suggestion),
+        });
+      }
+      if (params.dictionarySuggestions.length === 0) {
+        menuItems.push({ label: 'No suggestions', enabled: false });
+      }
+      menuItems.push({ type: 'separator' });
+      menuItems.push({
+        label: 'Add to Dictionary',
+        click: () => appState.mainWindow?.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+      });
+      menuItems.push({ type: 'separator' });
+    }
+
+    // Standard edit actions
+    menuItems.push(
+      { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut },
+      { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy },
+      { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste },
+    );
+
+    if (menuItems.length > 0) {
+      Menu.buildFromTemplate(menuItems).popup();
+    }
+  });
+
   // Set initial title
   const fileName = appState.currentFilePath ? path.basename(appState.currentFilePath) : 'Untitled';
   appState.mainWindow.setTitle(`${fileName} — vswrite`);
@@ -120,6 +157,7 @@ app.whenReady().then(() => {
 
   buildMenu(appState);
   setupIPC();
+  setupPreviewModeIPC();
   createWindow();
   setupTerminal();
   setupGitIPC();

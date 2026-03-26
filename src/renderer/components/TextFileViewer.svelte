@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import CodeEditor from './CodeEditor.svelte';
 
   let {
     filePath = '',
@@ -15,7 +16,6 @@
   let saving = $state(false);
   let fileName = $derived(filePath.split('/').pop() || '');
   let fileExt = $derived(fileName.split('.').pop()?.toLowerCase() || '');
-  let textareaEl: HTMLTextAreaElement;
 
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -41,7 +41,8 @@
     }
   }
 
-  function onInput() {
+  function handleChange(newContent: string) {
+    content = newContent;
     isDirty = content !== originalContent;
   }
 
@@ -62,19 +63,6 @@
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault();
       save();
-    }
-  }
-
-  // Tab key inserts spaces instead of changing focus
-  function handleTab(e: KeyboardEvent) {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = textareaEl.selectionStart;
-      const end = textareaEl.selectionEnd;
-      content = content.substring(0, start) + '  ' + content.substring(end);
-      requestAnimationFrame(() => {
-        textareaEl.selectionStart = textareaEl.selectionEnd = start + 2;
-      });
     }
   }
 </script>
@@ -100,16 +88,11 @@
       </button>
     </div>
   </div>
-  <textarea
-    class="viewer-content"
-    bind:this={textareaEl}
-    bind:value={content}
-    oninput={onInput}
-    onkeydown={handleTab}
-    spellcheck="false"
-    autocomplete="off"
-    autocorrect="off"
-  ></textarea>
+  <CodeEditor
+    {content}
+    {fileExt}
+    onChange={handleChange}
+  />
 </div>
 
 <style>
@@ -214,22 +197,4 @@
     color: #555;
   }
 
-  .viewer-content {
-    flex: 1;
-    width: 100%;
-    padding: 16px 20px;
-    border: none;
-    outline: none;
-    resize: none;
-    font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Menlo', monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    color: #333;
-    background: #ffffff;
-    tab-size: 2;
-  }
-
-  .viewer-content::placeholder {
-    color: #ccc;
-  }
 </style>

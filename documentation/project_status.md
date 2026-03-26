@@ -1,7 +1,7 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-03-25 (nach Refactoring)
-> **Version:** 0.3.0
+> **Stand:** 2026-03-26 (nach Session 3: Spellcheck, Code-Editor, PDF-Viewer)
+> **Version:** 0.4.0
 
 ---
 
@@ -57,6 +57,10 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [x] Raw Blocks für Typst-Code, Slash Commands, Citation Autocomplete (@)
 - [x] Suchen & Ersetzen, Focus Mode, Typewriter Mode
 - [x] Guard: Bilder nicht in Code-Blöcke einfügbar
+- [x] Rechtschreibprüfung (Electron Spellchecker, Sprache aus Typst-Settings, Kontextmenü mit Vorschlägen)
+- [x] Code-Editor (CodeMirror 6) für .bib, .md, .yaml, .json etc. — Syntax Highlighting, Zeilennummern, Bracket Matching
+- [x] "Open as Text" für .typ Dateien (Rechtsklick → Raw-Editing im Code-Editor)
+- [x] Typst Syntax-Highlighting im Code-Editor (#set, #show, Kommentare, Strings, Headings)
 
 **Sidebar (4 Tabs):**
 - [x] Files: Dateibaum, Navigate Up, Open Folder, Drag-Bilder
@@ -67,10 +71,12 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 **Preview:**
 - [x] Typst → SVG Kompilierung (Root-File für Chapters)
 - [x] Auto-Scroll zu Chapter-Position, Scroll-Erhaltung bei Recompile
+- [x] SVG/PDF Preview Toggle (pdf.js mit TextLayer für Textauswahl)
 
 **Import/Export:**
 - [x] PDF Export (typst compile)
 - [x] DOCX Export (docx-Library)
+- [x] PDF In-App Viewer (pdf.js, Text markieren & kopieren, virtualisiertes Rendering)
 - [x] Markdown → Typst Import (eigener Converter)
 - [x] Zotero Better BibTeX Integration (File Watcher, Auto-Sync)
 - [x] Eigene Style Templates importieren (.typ Datei → nur Preamble extrahiert)
@@ -99,6 +105,7 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [ ] Lizenz-Management (Lemon Squeezy)
 - [ ] Auto-Update (electron-updater)
 - [ ] Dark Mode
+- [ ] Multiple Terminals (Tab-System)
 
 ---
 

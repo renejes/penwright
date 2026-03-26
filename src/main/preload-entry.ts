@@ -5,7 +5,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
-const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create'];
+const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create', 'preview:setMode'];
 const ON_CHANNELS = ['vswrite', 'terminal:data'];
 const INVOKE_CHANNELS = [
   'dialog:openFile',
@@ -21,6 +21,7 @@ const INVOKE_CHANNELS = [
   'includes:open',
   'includes:add',
   'textfile:read',
+  'textfile:readBinary',
   'textfile:write',
   'git:status',
   'git:stage',
@@ -30,6 +31,7 @@ const INVOKE_CHANNELS = [
   'git:push',
   'git:pull',
   'git:init',
+  'spellcheck:setLanguage',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {

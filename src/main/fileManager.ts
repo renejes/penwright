@@ -3,17 +3,19 @@
  * File I/O, Auto-Save, Compiler Setup, File Watcher, Preamble Stripper
  */
 
-import { dialog } from 'electron';
+import { dialog, ipcMain } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { watch, type FSWatcher } from 'chokidar';
 import { findRootFile } from '../shared/rootFinder';
+import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
 
 let compiler: TypstCompiler | null = null;
 let fileWatcher: FSWatcher | null = null;
 let autoSaveTimer: NodeJS.Timeout | null = null;
+let previewMode: 'svg' | 'pdf' = 'svg';
 
 // ─── File Operations ──────────────────────────────────
 
@@ -45,6 +47,22 @@ export async function openFile(filePath?: string): Promise<void> {
       type: 'update',
       content: appState.currentContent,
     });
+
+    // Sync spellcheck language from document settings
+    const settings = parseSettings(appState.currentContent);
+    if (settings.lang) {
+      const bcp47Map: Record<string, string> = {
+        en: 'en-US', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT',
+        pt: 'pt-BR', nl: 'nl-NL', sv: 'sv-SE', da: 'da-DK', nb: 'nb-NO',
+        fi: 'fi-FI', pl: 'pl-PL', ru: 'ru-RU',
+      };
+      const resolved = bcp47Map[settings.lang] || settings.lang;
+      try {
+        appState.mainWindow?.webContents.session.setSpellCheckerLanguages([resolved]);
+      } catch (err) {
+        console.warn('[vswrite] Spellcheck language not available:', resolved, err);
+      }
+    }
 
     setupCompiler();
 
@@ -78,7 +96,11 @@ export async function saveFile(): Promise<boolean> {
     fs.writeFileSync(appState.currentFilePath, appState.currentContent, 'utf-8');
     appState.isDirty = false;
     updateTitle();
-    compiler?.compile();
+    if (previewMode === 'pdf') {
+      compiler?.compilePdf();
+    } else {
+      compiler?.compile();
+    }
     appState.mainWindow?.webContents.send('vswrite', {
       type: 'saveStatus',
       saved: true,
@@ -167,6 +189,13 @@ function setupCompiler(): void {
     });
   });
 
+  compiler.on('compiledPdf', (pdfBuffer: Buffer) => {
+    appState.mainWindow?.webContents.send('vswrite', {
+      type: 'previewPdfUpdate',
+      pdfData: pdfBuffer.toString('base64'),
+    });
+  });
+
   compiler.on('error', (diagnostics: { message: string }[]) => {
     const errorText = diagnostics.map(d => d.message).join('\n') || 'Compilation failed';
     appState.mainWindow?.webContents.send('vswrite', {
@@ -175,11 +204,33 @@ function setupCompiler(): void {
     });
   });
 
-  compiler.compile();
+  if (previewMode === 'pdf') {
+    compiler.compilePdf();
+  } else {
+    compiler.compile();
+  }
 }
 
 export function getCompiler(): TypstCompiler | null {
   return compiler;
+}
+
+// ─── Preview Mode ─────────────────────────────────────
+
+export function setupPreviewModeIPC(): void {
+  ipcMain.on('preview:setMode', (_event, mode: 'svg' | 'pdf') => {
+    previewMode = mode;
+    if (!compiler) return;
+    if (mode === 'pdf') {
+      compiler.compilePdf();
+    } else {
+      compiler.compile();
+    }
+  });
+}
+
+export function getPreviewMode(): 'svg' | 'pdf' {
+  return previewMode;
 }
 
 // ─── Auto-Save ────────────────────────────────────────
@@ -209,7 +260,7 @@ function setupFileWatcher(): void {
       '**/node_modules/**',
       '**/.git/**',
       '**/.DS_Store',
-      '**/.vswrite-preview-*',
+      '**/.vswrite-preview*',
     ],
   });
 
@@ -231,7 +282,11 @@ function setupFileWatcher(): void {
             type: 'saveStatus',
             saved: true,
           });
-          compiler?.compile();
+          if (previewMode === 'pdf') {
+            compiler?.compilePdf();
+          } else {
+            compiler?.compile();
+          }
         }
       } catch {}
     }

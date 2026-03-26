@@ -11,6 +11,7 @@ import { EventEmitter } from 'events';
 export class TypstCompiler extends EventEmitter {
   private filePath: string;
   private compileTimer: NodeJS.Timeout | null = null;
+  private pdfCompileTimer: NodeJS.Timeout | null = null;
   private compileDelay = 400;
 
   constructor(filePath: string) {
@@ -60,6 +61,35 @@ export class TypstCompiler extends EventEmitter {
     );
   }
 
+  compilePdf(): void {
+    if (this.pdfCompileTimer) clearTimeout(this.pdfCompileTimer);
+    this.pdfCompileTimer = setTimeout(() => this.doCompilePdf(), this.compileDelay);
+  }
+
+  private doCompilePdf(): void {
+    const dir = path.dirname(this.filePath);
+    const outPath = path.join(dir, '.vswrite-preview.pdf');
+
+    execFile(
+      'typst',
+      ['compile', this.filePath, outPath],
+      { cwd: dir, timeout: 30000 },
+      (error, _stdout, stderr) => {
+        if (error) {
+          const diagnostics = this.parseErrors(stderr);
+          this.emit('error', diagnostics);
+          return;
+        }
+
+        try {
+          const pdfBuffer = fs.readFileSync(outPath);
+          this.emit('compiledPdf', pdfBuffer);
+          try { fs.unlinkSync(outPath); } catch {}
+        } catch {}
+      },
+    );
+  }
+
   private parseErrors(stderr: string): { message: string; line?: number }[] {
     const diagnostics: { message: string; line?: number }[] = [];
     const lines = stderr.split('\n');
@@ -82,6 +112,10 @@ export class TypstCompiler extends EventEmitter {
     if (this.compileTimer) {
       clearTimeout(this.compileTimer);
       this.compileTimer = null;
+    }
+    if (this.pdfCompileTimer) {
+      clearTimeout(this.pdfCompileTimer);
+      this.pdfCompileTimer = null;
     }
   }
 }

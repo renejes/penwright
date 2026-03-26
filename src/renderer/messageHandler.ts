@@ -48,6 +48,7 @@ export function handleMessage(message: ExtensionMessage): void {
     uiState.showSettings = true;
     if (editor && message.settings.lang) {
       setEditorLanguage(editor, message.settings.lang);
+      syncSpellcheckLanguage(message.settings.lang);
     }
   } else if (message.type === 'documentBaseUri') {
     const uri = (message as unknown as { uri?: string }).uri || (message as unknown as { baseUri?: string }).baseUri || '';
@@ -86,6 +87,7 @@ export function handleMessage(message: ExtensionMessage): void {
     updateCitationEntries(message.entries);
   } else if (message.type === 'documentLang' && editor) {
     setEditorLanguage(editor, message.lang);
+    syncSpellcheckLanguage(message.lang);
   } else if (message.type === 'welcomeData') {
     uiState.showWelcome = message.showWelcome;
     uiState.welcomeTypstInstalled = message.typstInstalled;
@@ -99,6 +101,19 @@ export function handleMessage(message: ExtensionMessage): void {
       previewState.scrollToPage = msg2.scrollToPage;
     }
     if (!panelState.showPreview && previewState.pages.length > 0) {
+      panelState.showPreview = true;
+    }
+  } else if (message.type === 'previewPdfUpdate') {
+    const pdfMsg = message as unknown as { pdfData: string };
+    const binaryStr = atob(pdfMsg.pdfData);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    previewState.pdfData = bytes;
+    previewState.error = '';
+    previewState.compiling = false;
+    if (!panelState.showPreview) {
       panelState.showPreview = true;
     }
   } else if (message.type === 'compileError') {
@@ -141,6 +156,17 @@ export function handleMessage(message: ExtensionMessage): void {
     const textPath = (msg as unknown as { path: string }).path || '';
     openTab(textPath, 'text');
   }
+
+  // Open PDF file in built-in viewer
+  if (msg.type === 'openPdfFile') {
+    const pdfPath = (msg as unknown as { path: string }).path || '';
+    openTab(pdfPath, 'pdf');
+  }
+}
+
+function syncSpellcheckLanguage(lang: string): void {
+  const api = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+  api?.invoke('spellcheck:setLanguage', lang);
 }
 
 function scrollToHeading(editor: import('@tiptap/core').Editor, title: string) {

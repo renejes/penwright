@@ -1,6 +1,6 @@
 # vswrite Desktop — Roadmap & Offene Aufgaben
 
-> **Stand:** 2026-03-25 (nach Session 2: Refactoring + Start Screen)
+> **Stand:** 2026-03-26 (nach Session 3: Spellcheck, Code-Editor, PDF-Viewer)
 > Was noch fehlt, um die Anwendung vollständig und auslieferbar zu machen.
 
 ---
@@ -31,6 +31,16 @@
 - [x] **Start Screen:** Zeigt sich wenn keine Datei offen ist, mit New Project / Open File / Open Folder Buttons
 - [x] **Typst-Check:** Automatische Erkennung ob `typst` im PATH ist, plattformspezifische Installationsanleitung
 - [x] **Terminal/AI Info:** Onboarding erwähnt Claude Code, OpenAI Codex, Gemini CLI + 3 auto-deployierte Skills
+
+### Session 3 — Spellcheck, Code-Editor, PDF-Viewer
+
+- [x] **Spellcheck:** Electron's eingebauter Hunspell-Spellchecker, Sprache aus Typst-Settings (`#set text(lang: "de")`), natives Kontextmenü mit Vorschlägen + "Add to Dictionary"
+- [x] **Code-Editor (CodeMirror 6):** Ersetzt textarea in TextFileViewer — Syntax Highlighting, Zeilennummern, Bracket Matching, History, Search. Sprachen: Typst, Markdown, JSON, YAML
+- [x] **Typst Syntax-Highlighting:** Custom StreamLanguage für `#set`, `#show`, `#let`, Kommentare, Strings, Headings, Emphasis, Labels, Math, Zahlen mit Units
+- [x] **"Open as Text" für .typ:** Rechtsklick in Sidebar → "Open as Text" öffnet .typ im Code-Editor statt WYSIWYG. Tab zeigt `[Text]` Suffix
+- [x] **PDF In-App Viewer:** PDFs aus dem Projekt (z.B. sources/) öffnen als Tab mit pdf.js, virtualisiertes Rendering, Text markierbar & kopierbar (TextLayer)
+- [x] **PDF Preview Modus:** SVG/PDF Toggle im Preview-Header, kompiliert zu PDF statt SVG, ebenfalls mit TextLayer
+- [x] **TipTap Mount Fix:** Editor-Element immer im DOM (statt in `{:else}` Block), behebt leeren Editor nach StartScreen
 
 ---
 
@@ -90,19 +100,19 @@
 - Dunkles Theme für Editor, Sidebar, Toolbar
 - Toggle in Settings
 
-### Spell Check
-- Electron's eingebauter Spellchecker
-- Sprache aus Document Settings
+### ~~Spell Check~~ (erledigt Session 3)
+- ~~Electron's eingebauter Spellchecker~~
+- ~~Sprache aus Document Settings~~
 
-### Verbesserter Text-Editor
-- Syntax Highlighting (CodeMirror oder Monaco)
-- Zeilennummern
+### ~~Verbesserter Text-Editor~~ (erledigt Session 3)
+- ~~Syntax Highlighting (CodeMirror 6)~~
+- ~~Zeilennummern~~
 
 ### Multiple Terminals
 - Tab-System, mehrere Shells
 
-### PDF-in-App Viewer
-- pdf.js Integration statt externe App
+### ~~PDF-in-App Viewer~~ (erledigt Session 3)
+- ~~pdf.js Integration statt externe App~~
 
 ---
 
@@ -111,6 +121,9 @@
 ### Muss (Blocker)
 - [x] ~~Start Screen mit Onboarding~~ (erledigt)
 - [x] ~~Refactoring (index.ts + App.svelte aufteilen)~~ (erledigt)
+- [x] ~~Spellcheck~~ (erledigt)
+- [x] ~~Code-Editor mit Syntax Highlighting~~ (erledigt)
+- [x] ~~PDF In-App Viewer~~ (erledigt)
 - [ ] electron-store Persistenz (Recent Projects, Panel State)
 - [ ] Handbuch im Build gebundelt
 - [ ] App Icon & Branding
