@@ -124,8 +124,45 @@ function wordCount(text: string): number {
 
 const server = new McpServer({
   name: 'vswrite',
-  version: '0.4.0',
+  version: '0.5.0',
 });
+
+// ─── Prompts: Project Skills ─────────────────────────
+
+const SKILL_PROMPTS: Array<{ name: string; description: string; skillDir: string }> = [
+  {
+    name: 'typst-reference',
+    description: 'Comprehensive Typst language reference — syntax, formatting, math, layout, functions. Load this when working with Typst documents.',
+    skillDir: 'typst',
+  },
+  {
+    name: 'vswrite-conventions',
+    description: 'vswrite project conventions — file structure, #include chapters, settings, image handling, bibliography setup.',
+    skillDir: 'vswrite',
+  },
+  {
+    name: 'research-workflow',
+    description: 'Deep web research workflow — search for academic sources, synthesize findings, manage citations and bibliography.',
+    skillDir: 'research',
+  },
+];
+
+for (const prompt of SKILL_PROMPTS) {
+  server.prompt(
+    prompt.name,
+    prompt.description,
+    () => {
+      const skillPath = path.join(state.projectDir, '.claude', 'skills', prompt.skillDir, 'SKILL.md');
+      let content: string;
+      try {
+        content = fs.readFileSync(skillPath, 'utf-8');
+      } catch {
+        content = `Skill "${prompt.name}" not found in this project. Create a new project with vswrite_create_project to get skills auto-deployed.`;
+      }
+      return { messages: [{ role: 'user', content: { type: 'text', text: content } }] };
+    },
+  );
+}
 
 // ─── Tool: vswrite_set_project ───────────────────────
 
