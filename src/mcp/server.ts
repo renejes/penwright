@@ -108,6 +108,48 @@ const server = new McpServer({
   version: '0.4.0',
 });
 
+// ─── Tool: vswrite_set_project ───────────────────────
+
+server.tool(
+  'vswrite_set_project',
+  'Sets the active project directory. Call this first to tell vswrite which Typst project to work with. Automatically detects the main .typ file (main.typ, document.typ, or first .typ found).',
+  { projectDir: z.string().describe('Absolute path to the Typst project directory') },
+  async ({ projectDir }) => {
+    const absDir = path.resolve(projectDir);
+    if (!fs.existsSync(absDir)) {
+      return { content: [{ type: 'text' as const, text: `Error: Directory not found: ${absDir}` }], isError: true };
+    }
+    state.projectDir = absDir;
+    state.currentFile = null;
+
+    // Auto-detect main .typ file
+    const candidates = ['main.typ', 'document.typ', 'index.typ'];
+    for (const name of candidates) {
+      const p = path.join(absDir, name);
+      if (fs.existsSync(p)) {
+        state.currentFile = p;
+        break;
+      }
+    }
+    if (!state.currentFile) {
+      try {
+        const typFiles = fs.readdirSync(absDir).filter(f => f.endsWith('.typ'));
+        if (typFiles.length > 0) {
+          state.currentFile = path.join(absDir, typFiles[0]);
+        }
+      } catch {}
+    }
+
+    const mainFile = state.currentFile ? path.basename(state.currentFile) : '(no .typ file found)';
+    return {
+      content: [{
+        type: 'text' as const,
+        text: `Project set to ${absDir}\nMain file: ${mainFile}`,
+      }],
+    };
+  },
+);
+
 // ─── Tool: vswrite_get_document ──────────────────────
 
 server.tool(
