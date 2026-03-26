@@ -299,6 +299,94 @@ Echtes PTY-Terminal (xterm.js + node-pty):
 
 ---
 
+## MCP Server — KI-Integration mit Claude Desktop & Co.
+
+vswrite enthält einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten können — ohne das Terminal zu benutzen.
+
+### Was kann der MCP-Server?
+
+Die KI kann über den MCP-Server:
+- Typst-Dokumente öffnen, lesen und bearbeiten
+- Dokument-Einstellungen ändern (Schriftart, Größe, Sprache, Ränder, etc.)
+- Typst kompilieren und Fehler analysieren
+- PDFs exportieren
+- Projektdateien verwalten (lesen, schreiben, auflisten)
+- Zwischen Projekten wechseln
+
+### Einrichtung: Claude Desktop (Cowork)
+
+**Schritt 1:** MCP-Server bauen (einmalig, im vswrite-Verzeichnis):
+
+```bash
+npm run build:mcp
+```
+
+**Schritt 2:** Konfigurationsdatei öffnen:
+
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+Falls die Datei noch nicht existiert, erstelle sie.
+
+**Schritt 3:** vswrite als MCP-Server eintragen:
+
+```json
+{
+  "mcpServers": {
+    "vswrite": {
+      "command": "node",
+      "args": [
+        "/PFAD/ZU/vswrite-desktop/dist/mcp/server.mjs"
+      ]
+    }
+  }
+}
+```
+
+Ersetze `/PFAD/ZU/vswrite-desktop` durch den tatsächlichen Installationspfad von vswrite auf deinem Rechner.
+
+> **Tipp:** Falls in der Datei bereits andere Einträge stehen (z.B. `"preferences": {...}`), füge den `"mcpServers"` Block mit einem Komma nach dem bestehenden Block ein.
+
+**Schritt 4:** Claude Desktop neu starten.
+
+### Benutzung
+
+Nach dem Neustart sieht Claude die vswrite-Tools. Du kannst direkt in Claude Desktop sagen:
+
+- *"Öffne mein Thesis-Projekt in /Users/.../my-thesis"*
+- *"Zeig mir den Inhalt meines Typst-Dokuments"*
+- *"Ändere die Schriftgröße auf 12pt und die Sprache auf Englisch"*
+- *"Kompiliere mein Dokument und zeig mir die Fehler"*
+- *"Exportiere das Dokument als PDF nach ~/Desktop/thesis.pdf"*
+
+Claude nutzt dafür automatisch die vswrite-Tools im Hintergrund.
+
+### Projekt wechseln
+
+Du musst die Config **nicht** jedes Mal ändern wenn du das Projekt wechselst. Sag Claude einfach:
+
+*"Wechsle zum Projekt /Users/.../anderes-projekt"*
+
+Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
+
+### Verfügbare Tools
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_set_project` | Projekt-Verzeichnis setzen/wechseln |
+| `vswrite_get_document` | Aktuelles Dokument lesen |
+| `vswrite_open_file` | .typ Datei öffnen |
+| `vswrite_update_document` | Dokument bearbeiten und speichern |
+| `vswrite_compile` | Typst kompilieren (SVG/PDF) |
+| `vswrite_get_settings` | Dokument-Einstellungen lesen |
+| `vswrite_update_settings` | Einstellungen ändern |
+| `vswrite_list_files` | Dateibaum anzeigen |
+| `vswrite_read_file` | Datei lesen |
+| `vswrite_write_file` | Datei schreiben |
+| `vswrite_export_pdf` | PDF exportieren |
+
+---
+
 ## Keyboard Shortcuts
 
 | Aktion | Shortcut |
