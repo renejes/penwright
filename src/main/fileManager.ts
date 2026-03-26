@@ -12,6 +12,7 @@ import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
 import { checkLock, acquireLock, releaseLock } from './lockManager';
+import { addRecentProject, saveLastProjectPath } from './persistenceManager';
 
 let compiler: TypstCompiler | null = null;
 let fileWatcher: FSWatcher | null = null;
@@ -103,6 +104,10 @@ export async function openFile(filePath?: string): Promise<void> {
     handleRequestCitations();
 
     setupFileWatcher();
+
+    // Persist for recent projects + auto-reopen
+    addRecentProject(appState.currentFilePath, path.basename(appState.currentFilePath));
+    saveLastProjectPath(appState.currentFilePath);
   } catch (err) {
     dialog.showErrorBox(
       'Could not open file',

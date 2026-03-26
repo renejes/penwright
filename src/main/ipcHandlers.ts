@@ -14,6 +14,7 @@ import { appState } from './appState';
 import { openFile, saveFile, saveFileAs, newFile, autoSave, updateTitle } from './fileManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate } from './importExport';
 import { handleCreateProject, handleNewFile, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree } from './projectManager';
+import { getPanelState, savePanelState, getRecentProjects, isOnboardingSeen, setOnboardingSeen, getZoteroBibPath, type PanelState } from './persistenceManager';
 
 export function setupIPC(): void {
   // Renderer sends edited content
@@ -263,6 +264,10 @@ export function setupIPC(): void {
       }
 
       case 'dismissWelcome': {
+        const dontShowAgain = msg.dontShowAgain as boolean;
+        if (dontShowAgain) {
+          setOnboardingSeen(true);
+        }
         break;
       }
 
@@ -445,4 +450,11 @@ export function setupIPC(): void {
     appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
     appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
   });
+
+  // ─── Persistence Handlers ─────────────────────
+  ipcMain.handle('persist:getPanelState', () => getPanelState());
+  ipcMain.handle('persist:savePanelState', (_event, state: PanelState) => savePanelState(state));
+  ipcMain.handle('persist:getRecentProjects', () => getRecentProjects());
+  ipcMain.handle('persist:isOnboardingSeen', () => isOnboardingSeen());
+  ipcMain.handle('persist:getZoteroBibPath', () => getZoteroBibPath());
 }

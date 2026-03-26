@@ -5,14 +5,17 @@
     onNewProject,
     onOpenFile,
     onOpenFolder,
+    onOpenRecent,
   }: {
     onNewProject: () => void;
     onOpenFile: () => void;
     onOpenFolder: () => void;
+    onOpenRecent: (path: string) => void;
   } = $props();
 
   let typstInstalled = $state<boolean | null>(null);
   let platform = $state('');
+  let recentProjects = $state<Array<{ path: string; name: string; timestamp: number }>>([]);
 
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -26,6 +29,10 @@
     } catch {
       typstInstalled = false;
     }
+    try {
+      const recent = await api.invoke('persist:getRecentProjects') as typeof recentProjects;
+      if (Array.isArray(recent)) recentProjects = recent;
+    } catch {}
   });
 </script>
 
@@ -88,6 +95,22 @@
         </div>
       </button>
     </div>
+
+    <!-- Recent Projects -->
+    {#if recentProjects.length > 0}
+      <div class="recent-section">
+        <h3 class="recent-title">Recent Projects</h3>
+        {#each recentProjects.slice(0, 5) as project}
+          <button class="recent-item" onclick={() => onOpenRecent(project.path)} title={project.path}>
+            <span class="recent-icon">&#9634;</span>
+            <div class="recent-info">
+              <span class="recent-name">{project.name}</span>
+              <span class="recent-path">{project.path.replace(/\/Users\/[^/]+/, '~')}</span>
+            </div>
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <!-- Terminal / AI Info -->
     <div class="info-section">
@@ -304,6 +327,65 @@
     color: #999;
     margin-top: 2px;
     display: block;
+  }
+
+  /* Recent Projects */
+  .recent-section {
+    margin-bottom: 24px;
+  }
+
+  .recent-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 8px 4px;
+  }
+
+  .recent-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    font-family: inherit;
+  }
+
+  .recent-item:hover {
+    background: #f5f5f5;
+  }
+
+  .recent-icon {
+    color: #bbb;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .recent-info {
+    min-width: 0;
+  }
+
+  .recent-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+  }
+
+  .recent-path {
+    display: block;
+    font-size: 11px;
+    color: #aaa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Info Section */

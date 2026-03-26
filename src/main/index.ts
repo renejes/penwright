@@ -14,14 +14,18 @@ import { setupIPC } from './ipcHandlers';
 import { setupGitIPC } from './gitManager';
 import { openFile, saveFile, saveFileAs, newFile, stopFileWatcher, disposeCompiler, setupPreviewModeIPC } from './fileManager';
 import { releaseLock } from './lockManager';
+import { getWindowBounds, saveWindowBounds, getLastProjectPath, saveLastProjectPath, addRecentProject } from './persistenceManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 
 // ─── Window Creation ──────────────────────────────────
 
 function createWindow(): void {
+  const bounds = getWindowBounds();
   appState.mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
     minWidth: 800,
     minHeight: 500,
     title: 'vswrite',
@@ -41,7 +45,23 @@ function createWindow(): void {
     appState.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
+  if (bounds.isMaximized) {
+    appState.mainWindow.maximize();
+  }
+
   appState.mainWindow.on('close', async (e) => {
+    // Save window bounds before closing
+    if (appState.mainWindow) {
+      const isMaximized = appState.mainWindow.isMaximized();
+      const windowBounds = appState.mainWindow.getBounds();
+      saveWindowBounds({
+        x: windowBounds.x,
+        y: windowBounds.y,
+        width: windowBounds.width,
+        height: windowBounds.height,
+        isMaximized,
+      });
+    }
     if (appState.isDirty) {
       e.preventDefault();
       const result = await dialog.showMessageBox(appState.mainWindow!, {
@@ -164,10 +184,15 @@ app.whenReady().then(() => {
   setupTerminal();
   setupGitIPC();
 
-  // Open file from command line args
+  // Open file from command line args, or auto-reopen last project
   const fileArg = process.argv.find((arg) => arg.endsWith('.typ'));
   if (fileArg) {
     openFile(path.resolve(fileArg));
+  } else {
+    const lastProject = getLastProjectPath();
+    if (lastProject && require('fs').existsSync(lastProject)) {
+      openFile(lastProject);
+    }
   }
 
   app.on('activate', () => {

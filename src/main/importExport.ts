@@ -17,6 +17,7 @@ import { parseBibFile } from '../shared/bibParser';
 import { appState } from './appState';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
+import { saveZoteroBibPath } from './persistenceManager';
 
 let zoteroWatcher: FSWatcher | null = null;
 
@@ -228,6 +229,8 @@ export async function handleLinkZotero(): Promise<void> {
         fs.writeFileSync(rootFile, rootContent, 'utf-8');
       }
     }
+
+    saveZoteroBibPath(zoteroBibPath);
 
     if (zoteroWatcher) {
       zoteroWatcher.close();

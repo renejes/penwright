@@ -49,6 +49,26 @@
   // ─── Local State ───────────────────────────────
   let editorElement: HTMLDivElement;
   let debounceTimer: ReturnType<typeof setTimeout>;
+  let panelSaveTimer: ReturnType<typeof setTimeout>;
+
+  // Debounced panel state persistence
+  $effect(() => {
+    // Access all reactive fields to track them
+    const snapshot = {
+      showSidebar: panelState.showSidebar,
+      showPreview: panelState.showPreview,
+      showTerminal: panelState.showTerminal,
+      sidebarTab: panelState.sidebarTab,
+      sidebarWidth: panelState.sidebarWidth,
+      previewWidth: panelState.previewWidth,
+      terminalHeight: panelState.terminalHeight,
+    };
+    clearTimeout(panelSaveTimer);
+    panelSaveTimer = setTimeout(() => {
+      const api = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+      api?.invoke('persist:savePanelState', snapshot);
+    }, 500);
+  });
 
   let activeTab = $derived(tabState.activeTabIndex >= 0 ? tabState.openTabs[tabState.activeTabIndex] : null);
   let textViewerFile = $derived(activeTab?.type === 'text' || activeTab?.type === 'rawtyp' ? activeTab.path : '');
@@ -114,6 +134,23 @@
         }
       }
     });
+
+    // Restore persisted panel state
+    const electronAPI = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+    if (electronAPI) {
+      electronAPI.invoke('persist:getPanelState').then((stored) => {
+        if (stored && typeof stored === 'object') {
+          const s = stored as Record<string, unknown>;
+          if (typeof s.showSidebar === 'boolean') panelState.showSidebar = s.showSidebar;
+          if (typeof s.showPreview === 'boolean') panelState.showPreview = s.showPreview;
+          if (typeof s.showTerminal === 'boolean') panelState.showTerminal = s.showTerminal;
+          if (typeof s.sidebarTab === 'string') panelState.sidebarTab = s.sidebarTab as typeof panelState.sidebarTab;
+          if (typeof s.sidebarWidth === 'number') panelState.sidebarWidth = s.sidebarWidth;
+          if (typeof s.previewWidth === 'number') panelState.previewWidth = s.previewWidth;
+          if (typeof s.terminalHeight === 'number') panelState.terminalHeight = s.terminalHeight;
+        }
+      });
+    }
 
     ipc.send({ type: 'ready' });
   });
@@ -214,6 +251,13 @@
           if (result === 'editor') openTab(filePath as string, 'typ');
         });
       }
+    });
+  }
+
+  function handleStartOpenRecent(filePath: string) {
+    const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+    api.invoke('filetree:open', filePath).then((result) => {
+      if (result === 'editor') openTab(filePath, 'typ');
     });
   }
 
@@ -321,6 +365,7 @@
         onNewProject={handleStartNewProject}
         onOpenFile={handleStartOpenFile}
         onOpenFolder={handleStartOpenFolder}
+        onOpenRecent={handleStartOpenRecent}
       />
     {/if}
 

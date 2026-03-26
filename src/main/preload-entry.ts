@@ -32,6 +32,11 @@ const INVOKE_CHANNELS = [
   'git:pull',
   'git:init',
   'spellcheck:setLanguage',
+  'persist:getPanelState',
+  'persist:savePanelState',
+  'persist:getRecentProjects',
+  'persist:isOnboardingSeen',
+  'persist:getZoteroBibPath',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {
