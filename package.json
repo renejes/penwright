@@ -55,6 +55,7 @@
     "concurrently": "^9.0.0",
     "electron": "^41.0.4",
     "electron-builder": "^26.0.0",
+    "electron-builder-notarize": "^1.5.2",
     "electron-vite": "^5.0.0",
     "esbuild": "^0.25.0",
     "svelte": "^5.0.0",
@@ -79,16 +80,31 @@
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "build/icons/icon.png",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true,
+      "identity": "Developer ID Application: Rene Jesser (3LAHNFWNT3)"
     },
+    "afterSign": "electron-builder-notarize",
     "win": {
       "icon": "build/icons/icon.png",
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
       "icon": "build/icons",
       "category": "Office",
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     }
   }
 }
