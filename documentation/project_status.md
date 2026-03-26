@@ -1,7 +1,7 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-03-26 (nach Session 3: Spellcheck, Code-Editor, PDF-Viewer)
-> **Version:** 0.4.0
+> **Stand:** 2026-03-26 (nach Session 4: MCP Server + Persistenz)
+> **Version:** 0.5.0
 
 ---
 
@@ -39,6 +39,10 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 | Git | simple-git | 3.x |
 | File Watching | chokidar | 4.x |
 | Word Export | docx | 9.x |
+| Code-Editor | CodeMirror 6 | 6.x |
+| PDF Viewer | pdfjs-dist | 5.x |
+| MCP Server | @modelcontextprotocol/sdk | 1.28 |
+| Persistenz | electron-store | 10.x |
 | Asset Protocol | vswrite-asset:// | Custom Electron Protocol |
 
 ---
@@ -103,23 +107,31 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [x] Modularer Renderer (State + MessageHandler extrahiert)
 - [x] Start Screen mit Onboarding (Typst-Check, AI/Terminal Info, 3 Skills)
 
-**MCP Server (Model Context Protocol):**
-- [x] MCP Server als eigenständiges CLI-Tool (`src/mcp/server.ts`, ~300 Zeilen)
-- [x] 11 Tools implementiert: set_project, get/update_document, open_file, compile, get/update_settings, list/read/write_files, export_pdf
+**MCP Server (Model Context Protocol) — 26 Tools:**
+- [x] MCP Server als eigenständiges CLI-Tool (`src/mcp/server.ts`, ~800 Zeilen)
+- [x] Phase 1+2: set_project, get/update_document, open_file, compile, get/update_settings, list/read/write_files, export_pdf
+- [x] Phase 3: list/apply_style, get/reorder/add/remove_chapters, merge/split_document, get/add_citations, ensure_bibliography, create_project, git_status/commit/push
 - [x] @modelcontextprotocol/sdk + StdioServerTransport
-- [x] Dynamischer Projektwechsel (kein hardcoded Pfad in Config nötig)
+- [x] Dynamischer Projektwechsel (kein hardcoded Pfad in Config)
 - [x] Getestet mit Claude Desktop (Cowork)
 - [x] Setup-Anleitung im Handbuch dokumentiert
 
+**Persistenz (electron-store):**
+- [x] Window-Bounds (Position, Größe, Maximized) — speichert bei Close, stellt bei Start wieder her
+- [x] Panel-States (Sidebar/Preview/Terminal offen/zu, Größen, aktiver Tab) — debounced
+- [x] Recent Projects (max 10) — im StartScreen als klickbare Liste
+- [x] Auto-Reopen letztes Projekt beim App-Start
+- [x] Onboarding "gesehen" Flag
+- [x] Zotero .bib Pfad
+
 ### Offen
 
-- [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
-- [ ] MCP Server Phase 3 (Style Templates, Chapters, Citations, Git, DOCX Export)
 - [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge)
 - [ ] App Packaging (DMG, EXE, AppImage)
 - [ ] Lizenz-Management (Polar)
 - [ ] Auto-Update (electron-updater)
 - [ ] Dark Mode
+- [ ] Handbuch im Build gebundelt
 
 ---
 

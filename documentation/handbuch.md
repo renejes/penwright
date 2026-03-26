@@ -1,6 +1,6 @@
 # vswrite Desktop — Handbuch
 
-> **Version:** 0.4.0
+> **Version:** 0.5.0
 > **Letzte Aktualisierung:** 2026-03-26
 
 ---
@@ -299,18 +299,36 @@ Echtes PTY-Terminal (xterm.js + node-pty):
 
 ---
 
+## Persistenz
+
+vswrite merkt sich deinen App-Zustand zwischen Neustarts:
+
+- **Window-Position & -Größe** — Fenster öffnet sich wo du es zuletzt hattest
+- **Panel-Zustände** — Sidebar, Preview, Terminal bleiben offen/zu wie zuletzt
+- **Panel-Größen** — Sidebar-Breite, Preview-Breite, Terminal-Höhe werden gespeichert
+- **Recent Projects** — Die letzten 10 Projekte erscheinen auf dem Start Screen
+- **Auto-Reopen** — Beim App-Start wird automatisch das letzte Projekt geöffnet
+- **Onboarding** — Welcome-Screen wird nicht erneut angezeigt wenn du "Don't show again" aktiviert hast
+
+---
+
 ## MCP Server — KI-Integration mit Claude Desktop & Co.
 
 vswrite enthält einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten können — ohne das Terminal zu benutzen.
 
 ### Was kann der MCP-Server?
 
-Die KI kann über den MCP-Server:
+Die KI kann über den MCP-Server (26 Tools):
 - Typst-Dokumente öffnen, lesen und bearbeiten
 - Dokument-Einstellungen ändern (Schriftart, Größe, Sprache, Ränder, etc.)
+- Style Templates anwenden (7 vordefinierte Stile)
 - Typst kompilieren und Fehler analysieren
 - PDFs exportieren
+- Kapitel verwalten (lesen, umordnen, hinzufügen, entfernen, zusammenführen, aufteilen)
+- Bibliographie und Citations verwalten (BibTeX-Einträge hinzufügen)
 - Projektdateien verwalten (lesen, schreiben, auflisten)
+- Neue Projekte aus Templates erstellen
+- Git-Operationen (Status, Commit, Push)
 - Zwischen Projekten wechseln
 
 ### Einrichtung: Claude Desktop (Cowork)
@@ -369,7 +387,9 @@ Du musst die Config **nicht** jedes Mal ändern wenn du das Projekt wechselst. S
 
 Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
-### Verfügbare Tools
+### Verfügbare Tools (26)
+
+**Dokument & Projekt:**
 
 | Tool | Beschreibung |
 |------|-------------|
@@ -378,12 +398,47 @@ Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen 
 | `vswrite_open_file` | .typ Datei öffnen |
 | `vswrite_update_document` | Dokument bearbeiten und speichern |
 | `vswrite_compile` | Typst kompilieren (SVG/PDF) |
-| `vswrite_get_settings` | Dokument-Einstellungen lesen |
-| `vswrite_update_settings` | Einstellungen ändern |
+| `vswrite_export_pdf` | PDF exportieren |
+| `vswrite_create_project` | Neues Projekt aus Template erstellen |
 | `vswrite_list_files` | Dateibaum anzeigen |
 | `vswrite_read_file` | Datei lesen |
 | `vswrite_write_file` | Datei schreiben |
-| `vswrite_export_pdf` | PDF exportieren |
+
+**Settings & Styling:**
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_get_settings` | Dokument-Einstellungen lesen |
+| `vswrite_update_settings` | Einstellungen ändern |
+| `vswrite_list_styles` | Verfügbare Style-Templates auflisten |
+| `vswrite_apply_style` | Style-Template anwenden |
+
+**Kapitel:**
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_get_chapters` | Kapitel-Struktur lesen |
+| `vswrite_reorder_chapters` | Kapitel-Reihenfolge ändern |
+| `vswrite_add_chapter` | Neues Kapitel erstellen |
+| `vswrite_remove_chapter` | Kapitel entfernen |
+| `vswrite_merge_document` | Alle Kapitel zusammenführen |
+| `vswrite_split_document` | Dokument in Kapitel aufteilen |
+
+**Bibliographie:**
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_get_citations` | Alle Citations aus .bib lesen |
+| `vswrite_add_citation` | BibTeX-Eintrag hinzufügen |
+| `vswrite_ensure_bibliography` | Bibliographie-Setup sicherstellen |
+
+**Git:**
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_git_status` | Git-Status anzeigen |
+| `vswrite_git_commit` | Änderungen committen |
+| `vswrite_git_push` | Zum Remote pushen |
 
 ---
 

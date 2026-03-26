@@ -1,6 +1,6 @@
 # vswrite Desktop — Roadmap & Offene Aufgaben
 
-> **Stand:** 2026-03-26 (nach Session 3: Spellcheck, Code-Editor, PDF-Viewer)
+> **Stand:** 2026-03-26 (nach Session 4: MCP Server + Persistenz)
 > Was noch fehlt, um die Anwendung vollständig und auslieferbar zu machen.
 
 ---
@@ -42,22 +42,17 @@
 - [x] **PDF Preview Modus:** SVG/PDF Toggle im Preview-Header, kompiliert zu PDF statt SVG, ebenfalls mit TextLayer
 - [x] **TipTap Mount Fix:** Editor-Element immer im DOM (statt in `{:else}` Block), behebt leeren Editor nach StartScreen
 
+### Session 4 — MCP Server + Persistenz
+
+- [x] **MCP Server Phase 1+2 (11 Tools):** set_project, get/update_document, open_file, compile, get/update_settings, list/read/write_files, export_pdf. Eigenständiges CLI-Tool, getestet mit Claude Desktop
+- [x] **MCP Server Phase 3 (15 Tools):** list/apply_style, get/reorder/add/remove_chapters, merge/split_document, get/add_citations, ensure_bibliography, create_project, git_status/commit/push. Total: 26 Tools
+- [x] **File Locking:** lockManager.ts für Shared Folders (Dropbox, iCloud), Heartbeat, Stale-Detection, Dialog
+- [x] **electron-store Persistenz:** Window-Bounds, Panel-States, Recent Projects (max 10 mit StartScreen-Liste), Auto-Reopen, Onboarding-Flag, Zotero-Pfad
+- [x] **Lizenzierung:** Lemon Squeezy → Polar gewechselt (besseres Onboarding, günstigere Gebühren, Desktop-App-freundliche API)
+
 ---
 
 ## Priorität 1: Nächste Schritte
-
-### electron-store Persistenz
-
-**Problem:** App-State geht beim Neustart verloren.
-
-**Was speichern:**
-- Recent Projects Liste
-- Zuletzt geöffnetes Projekt (auto-reopen)
-- Panel-Zustände (Sidebar/Preview/Terminal offen/zu)
-- Panel-Größen (sidebarWidth, previewWidth, terminalHeight)
-- Window-Position und -Größe
-- Onboarding "gesehen"
-- Zotero .bib Pfad (für auto-reconnect)
 
 ### Handbuch in den Build integrieren
 
@@ -99,23 +94,10 @@
 
 ## Priorität 3: MCP Server & Zusätzliche Features
 
-### MCP Server (Model Context Protocol) — Phase 1+2 erledigt
+### ~~MCP Server (Model Context Protocol)~~ — Phase 1-3 erledigt (26 Tools)
 > Detaillierter Plan: [mcp-server-plan.md](mcp-server-plan.md)
 
-vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop/Cowork, Codex Desktop, Clawdbot) Typst-Dokumente fernsteuern können.
-
-**Phase 1+2 (erledigt, 11 Tools):**
-- [x] `vswrite_set_project` — Projekt dynamisch wechseln
-- [x] `vswrite_get_document` / `vswrite_update_document` / `vswrite_open_file`
-- [x] `vswrite_compile` — SVG/PDF + Fehler
-- [x] `vswrite_get_settings` / `vswrite_update_settings`
-- [x] `vswrite_list_files` / `vswrite_read_file` / `vswrite_write_file`
-- [x] `vswrite_export_pdf`
-- [x] Getestet mit Claude Desktop, Setup-Anleitung im Handbuch
-
-**Phase 3 (offen):** Style Templates, Chapters, Citations, Git, DOCX Export
-
-**Phase 4 (offen):** MCP Resources, Electron IPC-Bridge, Live-Updates
+**Phase 4 (offen):** MCP Resources, Electron IPC-Bridge, Live-Updates, DOCX Export
 
 ### Dark Mode
 - `nativeTheme.shouldUseDarkColors` erkennen
@@ -143,7 +125,8 @@ vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop
 - [x] ~~Spellcheck~~ (erledigt)
 - [x] ~~Code-Editor mit Syntax Highlighting~~ (erledigt)
 - [x] ~~PDF In-App Viewer~~ (erledigt)
-- [ ] electron-store Persistenz (Recent Projects, Panel State)
+- [x] ~~electron-store Persistenz~~ (erledigt)
+- [x] ~~MCP Server Phase 1-3~~ (erledigt, 26 Tools)
 - [ ] Handbuch im Build gebundelt
 - [ ] App Icon & Branding
 - [ ] Lizenz-Management (Polar)
@@ -151,7 +134,7 @@ vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop
 - [ ] Auto-Update
 
 ### Sollte (v1.0 oder kurz danach)
-- [x] ~~MCP Server Phase 1+2~~ (erledigt, 11 Tools)
+- [x] ~~MCP Server Phase 1-3~~ (erledigt, 26 Tools)
 - [ ] Windows Installer + Code Signing
 - [ ] Linux AppImage
 - [ ] Dark Mode

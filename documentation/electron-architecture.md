@@ -54,7 +54,8 @@ vswrite-desktop/
 │   │   ├── menuBuilder.ts       Application Menu (macOS/Windows) (131 Z.)
 │   │   ├── gitManager.ts        Git IPC Handler (84 Z.)
 │   │   ├── lockManager.ts       File Locking für Shared Folders (Dropbox etc.)
-│   │   ├── preload-entry.ts     contextBridge (send/on/invoke, 25 Channels)
+│   │   ├── persistenceManager.ts electron-store Wrapper (Window, Panels, Recent, etc.)
+│   │   ├── preload-entry.ts     contextBridge (send/on/invoke, 25+ Channels)
 │   │   ├── typstCompiler.ts     typst compile → SVG/PDF Pages
 │   │   ├── terminalManager.ts   node-pty Wrapper
 │   │   └── deserializer-bridge.ts  Re-Export für Main Process
@@ -135,6 +136,7 @@ vswrite-desktop/
 index.ts (Entry Point)
 ├── appState.ts          ← Zentrales State-Objekt (Leaf, keine Imports)
 ├── lockManager.ts       ← File Locking (Shared Folders, Heartbeat)
+├── persistenceManager.ts ← electron-store (Window, Panels, Recent Projects, etc.)
 ├── menuBuilder.ts       ← Liest appState, ruft Callbacks
 ├── ipcHandlers.ts       ← Message Router
 │   ├── fileManager.ts     ← File I/O, Auto-Save, Compiler, Watcher, Lock-Integration
@@ -419,16 +421,22 @@ Drei Build-Targets in `electron.vite.config.mts`:
 - [x] Binary File Read IPC (textfile:readBinary)
 - [x] TipTap Editor Mount-Fix (Element immer im DOM)
 - [x] File Locking für Shared Folders (lockManager.ts, Heartbeat, Stale-Detection)
-- [x] MCP Server (11 Tools, Phase 1+2, getestet mit Claude Desktop)
+- [x] MCP Server Phase 1-3 (26 Tools, getestet mit Claude Desktop)
   - Eigenständiges CLI-Tool (`npm run build:mcp` → `dist/mcp/server.mjs`)
   - @modelcontextprotocol/sdk + StdioServerTransport
-  - Tools: set_project, get/update_document, compile, get/update_settings, list/read/write_files, export_pdf
+  - Phase 1+2: set_project, get/update_document, compile, get/update_settings, list/read/write_files, export_pdf
+  - Phase 3: list/apply_style, get/reorder/add/remove_chapters, merge/split_document, get/add_citations, ensure_bibliography, create_project, git_status/commit/push
   - Dynamischer Projektwechsel (kein hardcoded Pfad in Config)
+- [x] electron-store Persistenz (persistenceManager.ts)
+  - Window-Bounds (Position, Größe, Maximized)
+  - Panel-States (Sidebar/Preview/Terminal, Größen, Tab) — debounced
+  - Recent Projects (max 10, StartScreen-Liste)
+  - Auto-Reopen letztes Projekt
+  - Onboarding "gesehen" Flag
+  - Zotero .bib Pfad
 
 ### Offen (Phase E5: Polish & Packaging)
 
-- [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
-- [ ] MCP Server Phase 3 (Style Templates, Chapters, Citations, Git, DOCX Export)
 - [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge, Live-Updates)
 - [ ] Lizenz-Management (Polar — License Keys + Device Activation)
 - [ ] Auto-Update (electron-updater)
