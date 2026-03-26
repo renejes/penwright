@@ -139,13 +139,33 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [x] Benutzerfreundliche Fehlermeldungen (ungültige Keys, Gerätelimits, Offline)
 - [x] electron-store und @polar-sh/sdk gebundelt statt externalisiert (ESM/CJS Interop-Fix)
 
-### Offen
+**Code Signing & Packaging (konfiguriert, noch nicht gebaut):**
+- [x] Apple Developer ID Application Certificate im Keychain
+- [x] Hardened Runtime Entitlements (JIT, Network, File Access)
+- [x] electron-builder-notarize konfiguriert
+- [x] electron-builder Config in package.json (appId: com.vswrite.desktop, mac/linux Targets)
+- [ ] DMG bauen und testen (Session 6)
 
-- [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge)
-- [ ] App Packaging (DMG, EXE, AppImage)
-- [ ] Auto-Update (electron-updater)
+**MCP Server Prompts:**
+- [x] 3 Skill-Dateien als MCP Prompts exponiert (typst-reference, vswrite-conventions, research-workflow)
+- [x] Claude Desktop kann Skills über `/` Menü in Kontext laden
+
+### Nächste Schritte (Session 6)
+
+- [ ] **DMG bauen:** `npm run build && npm run package:mac` mit Apple Notarization
+- [ ] **Ausführliches Testing:** Alle Features, Edge Cases (Offline, große Dokumente, File Locking)
+- [ ] **GitHub Release Repo:** `renejes/vswrite-releases` (public) erstellen
+- [ ] **Ersten Release hochladen:** `gh release create v1.0.0 release/*.dmg --repo renejes/vswrite-releases`
+- [ ] **Download-Link auf Homepage:** vswrite.netlify.app → GitHub Release verlinken
+
+### Offen (nach v1.0)
+
+- [ ] Auto-Update (electron-updater + GitHub Releases)
+- [ ] Linux AppImage (`npm run package:linux`)
 - [ ] Dark Mode
-- [ ] Handbuch im Build gebundelt (aktuell: Link auf vswrite.netlify.app/de/docs)
+- [ ] About Dialog
+- [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge)
+- [ ] Windows Installer + Code Signing (wenn Nachfrage)
 
 ---
 
