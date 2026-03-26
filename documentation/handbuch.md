@@ -306,15 +306,50 @@ vswrite merkt sich deinen App-Zustand zwischen Neustarts:
 - **Window-Position & -Größe** — Fenster öffnet sich wo du es zuletzt hattest
 - **Panel-Zustände** — Sidebar, Preview, Terminal bleiben offen/zu wie zuletzt
 - **Panel-Größen** — Sidebar-Breite, Preview-Breite, Terminal-Höhe werden gespeichert
-- **Recent Projects** — Die letzten 10 Projekte erscheinen auf dem Start Screen
+- **Recent Projects** — Die letzten 10 Projekte erscheinen auf dem Start Screen (mit vswrite-Logo/Pen-Icon)
 - **Auto-Reopen** — Beim App-Start wird automatisch das letzte Projekt geöffnet
 - **Onboarding** — Welcome-Screen wird nicht erneut angezeigt wenn du "Don't show again" aktiviert hast
+
+---
+
+## Lizenz-Management
+
+vswrite verwendet ein Lizenzmodell mit zwei Stufen:
+
+| Lizenz | Umfang |
+|--------|--------|
+| **Basic** | Alle Editor-Features (WYSIWYG, Preview, Terminal, Git, Import/Export) |
+| **Pro** | Alles aus Basic + MCP Server Zugang für KI-Integration |
+
+### Lizenzstatus in der Status Bar
+
+In der Status Bar (unten rechts) wird der aktuelle Lizenzstatus angezeigt:
+- **Unlicensed** — Keine Lizenz hinterlegt
+- **Licensed** — Gültige Basic-Lizenz aktiv
+- **Pro** — Gültige Pro-Lizenz aktiv
+
+**Klick auf den Lizenzstatus** öffnet den Lizenz-Dialog.
+
+### Lizenz aktivieren
+
+1. Lizenz-Dialog öffnen (Klick auf Lizenzstatus in der Status Bar)
+2. **License Key** eingeben (z.B. `VSWRITE_PRO_xxxx...`)
+3. Der Key wird gegen **Polar** validiert und lokal gespeichert
+4. Nach erfolgreicher Validierung ist die Lizenz sofort aktiv
+
+**Lizenz kaufen:** Über [vswrite.com/pricing](https://vswrite.com/pricing) oder direkt über den **"Buy License"** Button im Lizenz-Dialog.
+
+### Offline-Nutzung
+
+Wurde die Lizenz einmal validiert, funktioniert vswrite auch ohne Internetverbindung. Es gilt eine **30-Tage Grace Period** — nach 30 Tagen ohne erneute Online-Validierung wird die Lizenz deaktiviert.
 
 ---
 
 ## MCP Server — KI-Integration mit Claude Desktop & Co.
 
 vswrite enthält einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten können — ohne das Terminal zu benutzen.
+
+> **Hinweis:** Der MCP Server erfordert eine **Pro-Lizenz**. Siehe [Lizenz-Management](#lizenz-management) für Details.
 
 ### Was kann der MCP-Server?
 
@@ -354,14 +389,33 @@ Falls die Datei noch nicht existiert, erstelle sie.
     "vswrite": {
       "command": "node",
       "args": [
-        "/PFAD/ZU/vswrite-desktop/dist/mcp/server.mjs"
+        "/PFAD/ZU/vswrite-desktop/dist/mcp/server.mjs",
+        "--license-key", "VSWRITE_PRO_xxxx..."
       ]
     }
   }
 }
 ```
 
-Ersetze `/PFAD/ZU/vswrite-desktop` durch den tatsächlichen Installationspfad von vswrite auf deinem Rechner.
+Ersetze `/PFAD/ZU/vswrite-desktop` durch den tatsächlichen Installationspfad von vswrite auf deinem Rechner und `VSWRITE_PRO_xxxx...` durch deinen Pro-Lizenzschlüssel.
+
+**Alternativ:** Statt `--license-key` in der Config kannst du die Umgebungsvariable `VSWRITE_LICENSE_KEY` setzen:
+
+```json
+{
+  "mcpServers": {
+    "vswrite": {
+      "command": "node",
+      "args": [
+        "/PFAD/ZU/vswrite-desktop/dist/mcp/server.mjs"
+      ],
+      "env": {
+        "VSWRITE_LICENSE_KEY": "VSWRITE_PRO_xxxx..."
+      }
+    }
+  }
+}
+```
 
 > **Tipp:** Falls in der Datei bereits andere Einträge stehen (z.B. `"preferences": {...}`), füge den `"mcpServers"` Block mit einem Komma nach dem bestehenden Block ein.
 

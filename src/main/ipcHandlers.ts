@@ -251,7 +251,7 @@ export function setupIPC(): void {
       }
 
       case 'openUserGuide': {
-        shell.openExternal('https://vswrite.com/handbuch');
+        shell.openExternal('https://vswrite.netlify.app/de/docs');
         break;
       }
 

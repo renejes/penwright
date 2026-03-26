@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount } from "svelte";
+  import logoSvg from "../assets/vswrite-logo.svg";
 
   let {
     onNewProject,
@@ -14,23 +15,31 @@
   } = $props();
 
   let typstInstalled = $state<boolean | null>(null);
-  let platform = $state('');
-  let recentProjects = $state<Array<{ path: string; name: string; timestamp: number }>>([]);
+  let platform = $state("");
+  let recentProjects = $state<
+    Array<{ path: string; name: string; timestamp: number }>
+  >([]);
 
-  const api = (window as unknown as { electronAPI: {
-    invoke(channel: string, ...args: unknown[]): Promise<unknown>;
-  } }).electronAPI;
+  const api = (
+    window as unknown as {
+      electronAPI: {
+        invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+      };
+    }
+  ).electronAPI;
 
   onMount(async () => {
-    platform = await api.invoke('app:getPlatform') as string;
+    platform = (await api.invoke("app:getPlatform")) as string;
     try {
-      const result = await api.invoke('app:checkTypst') as boolean;
+      const result = (await api.invoke("app:checkTypst")) as boolean;
       typstInstalled = result;
     } catch {
       typstInstalled = false;
     }
     try {
-      const recent = await api.invoke('persist:getRecentProjects') as typeof recentProjects;
+      const recent = (await api.invoke(
+        "persist:getRecentProjects",
+      )) as typeof recentProjects;
       if (Array.isArray(recent)) recentProjects = recent;
     } catch {}
   });
@@ -40,7 +49,7 @@
   <div class="start-content">
     <!-- Logo & Title -->
     <div class="start-header">
-      <div class="logo">vs<span class="logo-accent">write</span></div>
+      <img class="start-logo" src={logoSvg} alt="vswrite logo" />
       <p class="subtitle">WYSIWYG Editor for Typst</p>
     </div>
 
@@ -52,9 +61,9 @@
           <strong>Typst not found</strong>
           <p>
             Live preview and PDF export require the Typst CLI.
-            {#if platform === 'darwin'}
+            {#if platform === "darwin"}
               Install with: <code>brew install typst</code>
-            {:else if platform === 'win32'}
+            {:else if platform === "win32"}
               Install with: <code>winget install typst</code>
             {:else}
               Install from <code>https://typst.app</code>
@@ -75,7 +84,9 @@
         <span class="action-icon">&#43;</span>
         <div>
           <strong>New Project</strong>
-          <span class="action-desc">Document, Thesis, Paper, Letter, or Book</span>
+          <span class="action-desc"
+            >Document, Thesis, Paper, Letter, or Book</span
+          >
         </div>
       </button>
 
@@ -101,11 +112,17 @@
       <div class="recent-section">
         <h3 class="recent-title">Recent Projects</h3>
         {#each recentProjects.slice(0, 5) as project}
-          <button class="recent-item" onclick={() => onOpenRecent(project.path)} title={project.path}>
+          <button
+            class="recent-item"
+            onclick={() => onOpenRecent(project.path)}
+            title={project.path}
+          >
             <span class="recent-icon">&#9634;</span>
             <div class="recent-info">
               <span class="recent-name">{project.name}</span>
-              <span class="recent-path">{project.path.replace(/\/Users\/[^/]+/, '~')}</span>
+              <span class="recent-path"
+                >{project.path.replace(/\/Users\/[^/]+/, "~")}</span
+              >
             </div>
           </button>
         {/each}
@@ -117,7 +134,8 @@
       <h3>Built-in Terminal with AI Integration</h3>
       <p>
         vswrite includes a full terminal (<code>Cmd+`</code>) where you can run
-        <strong>Claude Code</strong>, <strong>OpenAI Codex</strong>, or <strong>Gemini CLI</strong>
+        <strong>Claude Code</strong>, <strong>OpenAI Codex</strong>, or
+        <strong>Gemini CLI</strong>
         directly in your project.
       </p>
       <p>
@@ -170,7 +188,7 @@
     justify-content: center;
     background: #fafafa;
     overflow-y: auto;
-    padding: 40px 20px;
+    padding: 20px 20px;
   }
 
   .start-content {
@@ -181,22 +199,17 @@
   /* Header */
   .start-header {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 8px;
   }
 
-  .logo {
-    font-size: 36px;
-    font-weight: 700;
-    color: #1a1a1a;
-    letter-spacing: -1px;
-  }
-
-  .logo-accent {
-    color: #4f7df9;
+  .start-logo {
+    width: 512px;
+    height: 512px;
+    margin-bottom: -140px;
   }
 
   .subtitle {
-    margin: 6px 0 0;
+    margin: -4px 0 0;
     font-size: 15px;
     color: #999;
   }
@@ -250,7 +263,7 @@
     background: #f0faf0;
     border: 1px solid #c8e8c8;
     border-radius: 10px;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
     font-size: 13px;
     color: #3a7a3a;
   }
@@ -266,7 +279,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
 
   .action-card {

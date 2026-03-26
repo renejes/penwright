@@ -1,6 +1,6 @@
 # vswrite Desktop — Roadmap & Offene Aufgaben
 
-> **Stand:** 2026-03-26 (nach Session 4: MCP Server + Persistenz)
+> **Stand:** 2026-03-26 (nach Session 5: Licensing, Branding)
 > Was noch fehlt, um die Anwendung vollständig und auslieferbar zu machen.
 
 ---
@@ -50,34 +50,40 @@
 - [x] **electron-store Persistenz:** Window-Bounds, Panel-States, Recent Projects (max 10 mit StartScreen-Liste), Auto-Reopen, Onboarding-Flag, Zotero-Pfad
 - [x] **Lizenzierung:** Lemon Squeezy → Polar gewechselt (besseres Onboarding, günstigere Gebühren, Desktop-App-freundliche API)
 
+### Session 5 — Licensing, Branding
+
+- [x] **Lizenz-Management (Polar SDK):** licenseManager.ts mit Polar SDK Integration, LicenseDialog.svelte (Key-Eingabe, Validierung, Deaktivierung), Persistenz in electron-store, Status Bar Badge (Unlicensed/Licensed/Pro), MCP Server feature-gated für Pro-User, benutzerfreundliche Fehlermeldungen
+- [x] **App Icon & Branding:** Logo SVG designed (Pen-V + S in Rounded Rectangle), build/icons/ mit allen Größen für electron-builder, StartScreen mit großem 512px Logo, electron-builder Config in package.json
+- [x] **Handbuch:** Verlinkt jetzt auf vswrite.netlify.app/de/docs (externe Website), nicht mehr im Build gebundelt
+
 ---
 
 ## Priorität 1: Nächste Schritte
 
-### Handbuch in den Build integrieren
+### ~~Handbuch in den Build integrieren~~ (erledigt — externe Website)
 
-**Problem:** Handbuch-Pfad ist relativ zum Source — funktioniert nur im Dev-Modus.
+~~**Problem:** Handbuch-Pfad ist relativ zum Source — funktioniert nur im Dev-Modus.~~
 
-**Lösung:** `electron-builder extraResources` → `handbuch.md` wird in `app.getPath('userData')` oder `process.resourcesPath` gebundelt.
+**Lösung:** Handbuch wird nicht mehr gebundelt, sondern verlinkt auf [vswrite.netlify.app/de/docs](https://vswrite.netlify.app/de/docs).
 
 ---
 
 ## Priorität 2: Polish
 
-### App Icon & Branding
-- Icon 1024x1024 (macOS), ICO (Windows)
+### ~~App Icon & Branding~~ (erledigt Session 5)
+- ~~Icon 1024x1024 (macOS), ICO (Windows)~~
 - About Dialog
-- Splash Screen
+- ~~Splash Screen~~ → StartScreen mit Logo
 
-### Lizenz-Management (Polar)
-- License Key Eingabe beim ersten Start (Settings-Dialog)
-- Polar API Validierung (keine serverseitige Auth nötig, direkt aus Electron)
-- Geräte-Aktivierung mit `polar.customerPortal.licenseKeys.activate()` (max N Geräte pro Lizenz)
-- Validierung bei jedem App-Start mit `polar.customerPortal.licenseKeys.validate()`
-- Brandable Key-Prefix: `VSWRITE_xxxx-xxxx-xxxx`
-- Auto-Revoke bei Abo-Kündigung
-- Offline Grace Period (30 Tage, lokal in electron-store)
-- electron-store für Key + Activation-ID Persistenz
+### ~~Lizenz-Management (Polar)~~ (erledigt Session 5)
+- ~~License Key Eingabe beim ersten Start (Settings-Dialog)~~
+- ~~Polar API Validierung (keine serverseitige Auth nötig, direkt aus Electron)~~
+- ~~Geräte-Aktivierung mit `polar.customerPortal.licenseKeys.activate()` (max N Geräte pro Lizenz)~~
+- ~~Validierung bei jedem App-Start mit `polar.customerPortal.licenseKeys.validate()`~~
+- ~~Brandable Key-Prefix: `VSWRITE_xxxx-xxxx-xxxx`~~
+- ~~Auto-Revoke bei Abo-Kündigung~~
+- ~~Offline Grace Period (30 Tage, lokal in electron-store)~~
+- ~~electron-store für Key + Activation-ID Persistenz~~
 
 ### Auto-Update
 - `electron-updater` + GitHub Releases
@@ -127,9 +133,9 @@
 - [x] ~~PDF In-App Viewer~~ (erledigt)
 - [x] ~~electron-store Persistenz~~ (erledigt)
 - [x] ~~MCP Server Phase 1-3~~ (erledigt, 26 Tools)
-- [ ] Handbuch im Build gebundelt
-- [ ] App Icon & Branding
-- [ ] Lizenz-Management (Polar)
+- [x] ~~Handbuch~~ (erledigt — verlinkt auf externe Website)
+- [x] ~~App Icon & Branding~~ (erledigt)
+- [x] ~~Lizenz-Management (Polar)~~ (erledigt)
 - [ ] macOS DMG Packaging + Notarization
 - [ ] Auto-Update
 

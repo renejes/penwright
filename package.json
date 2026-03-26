@@ -60,5 +60,35 @@
     "svelte": "^5.0.0",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
+  },
+  "build": {
+    "appId": "com.vswrite.desktop",
+    "productName": "vswrite",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "documentation/vswrite-logo.svg",
+        "to": "logo.svg"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icons/icon.png",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "build/icons/icon.png",
+      "target": ["nsis"]
+    },
+    "linux": {
+      "icon": "build/icons",
+      "category": "Office",
+      "target": ["AppImage", "deb"]
+    }
   }
 }

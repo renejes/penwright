@@ -1,6 +1,6 @@
 # vswrite Desktop — Electron Architecture
 
-> **Stand:** 2026-03-26 (nach Session 3: Spellcheck, Code-Editor, PDF-Viewer)
+> **Stand:** 2026-03-26 (nach Session 5: Lizenz-Management, App Icon & Branding)
 > Dokumentation der tatsächlichen Architektur der eigenständigen Electron Desktop-App (vswrite-desktop).
 
 ---
@@ -42,7 +42,7 @@ vswrite-desktop/
 │   │   │   └── WelcomeScreen.svelte
 │   │   └── style.css           Globales Editor-Stylesheet
 │   ├── mcp/                   ← MCP Server (eigenständiges CLI-Tool)
-│   │   └── server.ts            11 Tools, stdio JSON-RPC, ~300 Zeilen
+│   │   └── server.ts            26 Tools, stdio JSON-RPC, Pro-Lizenzprüfung
 │   ├── cli/                   ← 1:1 Kopie (unverändert)
 │   ├── main/                  ← Electron Main Process (~1.977 Zeilen, 12 Dateien)
 │   │   ├── index.ts             Entry Point: Window, Terminal, Lifecycle (154 Z.)
@@ -53,17 +53,21 @@ vswrite-desktop/
 │   │   ├── projectManager.ts    New Project, File Tree, Skills, Images, Settings (296 Z.)
 │   │   ├── menuBuilder.ts       Application Menu (macOS/Windows) (131 Z.)
 │   │   ├── gitManager.ts        Git IPC Handler (84 Z.)
+│   │   ├── licenseManager.ts    Polar SDK: activate, validate, deactivate, Offline-Grace
 │   │   ├── lockManager.ts       File Locking für Shared Folders (Dropbox etc.)
-│   │   ├── persistenceManager.ts electron-store Wrapper (Window, Panels, Recent, etc.)
-│   │   ├── preload-entry.ts     contextBridge (send/on/invoke, 25+ Channels)
+│   │   ├── persistenceManager.ts electron-store Wrapper (Window, Panels, Recent, License, etc.)
+│   │   ├── preload-entry.ts     contextBridge (send/on/invoke, 30+ Channels)
 │   │   ├── typstCompiler.ts     typst compile → SVG/PDF Pages
 │   │   ├── terminalManager.ts   node-pty Wrapper
 │   │   └── deserializer-bridge.ts  Re-Export für Main Process
 │   └── renderer/              ← Electron Renderer (~3.124 Zeilen)
 │       ├── main.ts              Svelte Mount + globaler CSS Import (9 Z.)
-│       ├── App.svelte           App Shell, Layout, Template + CSS (834 Z.)
-│       ├── appState.svelte.ts   Svelte 5 reaktiver State + Tab/Resize (132 Z.)
+│       ├── App.svelte           App Shell, Layout, LicenseDialog + CSS (834 Z.)
+│       ├── appState.svelte.ts   Svelte 5 reaktiver State + Tab/Resize/License (132 Z.)
 │       ├── messageHandler.ts    ExtensionMessage Handler (166 Z.)
+│       ├── assets.d.ts          TypeScript Deklarationen für SVG/PNG Imports
+│       ├── assets/
+│       │   └── vswrite-logo.svg  Logo für Renderer
 │       └── components/
 │           ├── Sidebar.svelte         File Tree (rekursiv, Drag-Images, Rechtsklick)
 │           ├── OutlinePanel.svelte    Heading-Hierarchie (live aus Editor)
@@ -74,12 +78,23 @@ vswrite-desktop/
 │           ├── NewProjectDialog.svelte Modal für Projekt-Templates
 │           ├── GitPanel.svelte        Git Status/Commit/Push
 │           ├── ResizeHandle.svelte    Drag-to-Resize Handle
-│           ├── StartScreen.svelte    Start Screen mit Onboarding + AI Info
+│           ├── StartScreen.svelte    Start Screen mit Logo + Onboarding + AI Info
+│           ├── LicenseDialog.svelte  Lizenz-Key Eingabe, Status, Deaktivierung, Upgrade
 │           ├── CodeEditor.svelte     CodeMirror 6 Wrapper (Syntax HL, Zeilennummern)
 │           ├── PdfFileViewer.svelte  PDF In-App Viewer (pdf.js + TextLayer)
 │           └── PdfPreviewPanel.svelte PDF Preview Rendering (für SVG/PDF Toggle)
 ├── index.html                 Renderer HTML Entry
-├── package.json
+├── build/                    ← App Icons & Branding
+│   ├── icon.svg                Cropped Square Logo
+│   └── icons/
+│       ├── icon.png            1024px App Icon
+│       ├── 512x512.png
+│       ├── 256x256.png
+│       ├── 128x128.png
+│       ├── 64x64.png
+│       ├── 32x32.png
+│       └── 16x16.png
+├── package.json               + electron-builder Config (appId, Icons)
 ├── electron.vite.config.mts   Build-Config (Main, Preload, Renderer)
 ├── esbuild.mcp.mjs            Build-Config MCP Server (eigenständig)
 ├── tsconfig.json
@@ -108,8 +123,10 @@ vswrite-desktop/
 │  │  projectManager.ts │                        │  │  ├─ Outline   ││
 │  │  gitManager.ts     │                        │  │  └─ Chapters  ││
 │  │  appState.ts       │                        │  ├─ Preview      ││
-│  │                    │                        │  ├─ Terminal     ││
+│  │  licenseManager.ts │                        │  ├─ Terminal     ││
+│  │                    │                        │  ├─ LicenseDialog││
 │  │  typstCompiler.ts  │                        │  └─ Status Bar   ││
+│  │                    │                        │     [License ⬤]  ││
 │  │  ├─ execFile typst │                        │                  ││
 │  │  └─ SVG Pages ────────────────────────────► │  PreviewPanel    ││
 │  │                    │                        │                  ││
@@ -142,7 +159,8 @@ index.ts (Entry Point)
 │   ├── fileManager.ts     ← File I/O, Auto-Save, Compiler, Watcher, Lock-Integration
 │   ├── importExport.ts    ← PDF, DOCX, Markdown, Zotero, Citations
 │   ├── projectManager.ts  ← Projects, File Tree, Images, Settings, Skills
-│   └── gitManager.ts      ← Git IPC Handler
+│   ├── gitManager.ts      ← Git IPC Handler
+│   └── licenseManager.ts  ← Polar SDK: activate, validate, deactivate, 30-day Offline Grace
 ├── typstCompiler.ts     ← (unverändert)
 ├── terminalManager.ts   ← (unverändert)
 └── preload-entry.ts     ← (unverändert, eigener Build-Target)
@@ -220,6 +238,8 @@ const INVOKE_CHANNELS = [
   'git:status', 'git:stage', 'git:unstage', 'git:stageAll',
   'git:commit', 'git:push', 'git:pull', 'git:init',
   'spellcheck:setLanguage',
+  'license:activate', 'license:validate', 'license:deactivate',
+  'license:getStatus', 'license:openCheckout',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -295,7 +315,7 @@ Alle implementiert mit Handlern in `ipcHandlers.ts` (delegiert an spezialisierte
 │  Terminal / AI  (xterm.js + node-pty)                        │
 │  $ claude ▌                                                  │
 ├──────────────────────────────────────────────────────────────┤
-│ [Project] [Terminal/AI] [Preview]     Saved 14:35  main.typ  │  ← Status Bar
+│ [Project] [Terminal/AI] [Preview]  Saved 14:35  main.typ [Pro]│  ← Status Bar + License Badge
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -319,7 +339,7 @@ Drei Build-Targets in `electron.vite.config.mts`:
 
 | Target | Eingang | Ausgang | Plugins |
 |--------|---------|---------|---------|
-| **Main** | `src/main/index.ts` | `dist/main/index.js` | `externalizeDepsPlugin()` |
+| **Main** | `src/main/index.ts` | `dist/main/index.js` | `externalizeDepsPlugin({ exclude: ['electron-store', '@polar-sh/sdk'] })` |
 | **Preload** | `src/main/preload-entry.ts` | `dist/preload/preload-entry.js` | `externalizeDepsPlugin()` |
 | **Renderer** | `index.html` + `src/renderer/main.ts` | `dist/renderer/` | `svelte()` |
 
@@ -345,6 +365,7 @@ Drei Build-Targets in `electron.vite.config.mts`:
     "@tiptap/*": "^3.0.0",        // Rich-Text Editor
     "@codemirror/*": "^6.0.0",    // Code-Editor (Syntax HL, Zeilennummern)
     "@modelcontextprotocol/sdk": "^1.28.0", // MCP Server
+    "@polar-sh/sdk": "^0.x.x",    // Lizenz-Management (Polar)
     "@xterm/xterm": "^6.0.0",     // Terminal UI
     "@xterm/addon-fit": "^0.11.0", // Terminal Auto-Resize
     "chokidar": "^4.0.0",         // File Watching
@@ -435,11 +456,28 @@ Drei Build-Targets in `electron.vite.config.mts`:
   - Onboarding "gesehen" Flag
   - Zotero .bib Pfad
 
+### Session 5 — Lizenz-Management, App Icon & Branding
+
+- [x] Lizenz-Management mit Polar SDK (licenseManager.ts)
+  - License Key Aktivierung, Validierung, Deaktivierung
+  - 30-Tage Offline Grace Period
+  - Persistenz via electron-store (licenseKey, activationId, licenseTier, licenseStatus, lastValidation)
+  - 5 neue IPC Channels (license:activate, license:validate, license:deactivate, license:getStatus, license:openCheckout)
+  - LicenseDialog.svelte (Key-Eingabe, Status, Deaktivierung, Upgrade)
+  - License Status Badge in Status Bar ("Unlicensed" / "Licensed" / "Pro")
+  - MCP Server Pro-Lizenzprüfung (--license-key oder VSWRITE_LICENSE_KEY env var)
+- [x] App Icon & Branding
+  - build/icons/ mit icon.png (1024px) + alle Größen (512, 256, 128, 64, 32, 16)
+  - build/icon.svg (Cropped Square Logo)
+  - src/renderer/assets/vswrite-logo.svg (Logo für Renderer)
+  - StartScreen.svelte: Großes Logo (512px) ersetzt Text-Logo, Subtitle "WYSIWYG Editor for Typst"
+  - electron-builder Config in package.json (appId: com.vswrite.desktop, mac/win/linux Icons)
+- [x] Build-Config: externalizeDepsPlugin exclude für electron-store + @polar-sh/sdk (ESM/CJS Interop Fix)
+- [x] TypeScript Deklarationen für SVG/PNG Imports (assets.d.ts)
+
 ### Offen (Phase E5: Polish & Packaging)
 
 - [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge, Live-Updates)
-- [ ] Lizenz-Management (Polar — License Keys + Device Activation)
 - [ ] Auto-Update (electron-updater)
-- [ ] App Icon & Branding
 - [ ] macOS Notarization, Windows Code Signing
 - [ ] DMG/EXE/AppImage Packaging
