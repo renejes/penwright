@@ -22,6 +22,12 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { parseSettings, applySettings, generateSetBlocks, type DocumentSettings } from '../shared/settingsParser.js';
 import { findRootFile } from '../shared/rootFinder.js';
+import { styleTemplates } from '../shared/styleTemplates.js';
+import { parseBibFile } from '../shared/bibParser.js';
+import { resolveIncludes } from '../shared/mergeDocument.js';
+import { splitIntoChapters, slugify } from '../shared/splitDocument.js';
+import { templates as projectTemplates } from '../shared/projectTemplates.js';
+import simpleGit from 'simple-git';
 
 const execFileAsync = promisify(execFile);
 
@@ -475,6 +481,555 @@ server.tool(
     } catch (err: unknown) {
       const stderr = (err as { stderr?: string }).stderr || String(err);
       return { content: [{ type: 'text' as const, text: `Export failed:\n${stderr}` }], isError: true };
+    }
+  },
+);
+
+// ═══════════════════════════════════════════════════════
+// Phase 3 Tools
+// ═══════════════════════════════════════════════════════
+
+// ─── Tool: vswrite_list_styles ───────────────────────
+
+server.tool(
+  'vswrite_list_styles',
+  'Returns all available style templates with id, label, and description.',
+  async () => {
+    const styles = styleTemplates.map(t => ({ id: t.id, label: t.label, description: t.description }));
+    return { content: [{ type: 'text' as const, text: JSON.stringify(styles, null, 2) }] };
+  },
+);
+
+// ─── Tool: vswrite_apply_style ───────────────────────
+
+server.tool(
+  'vswrite_apply_style',
+  'Applies a predefined style template to the current document. Replaces the existing #set/#show preamble. Use vswrite_list_styles to see available styles.',
+  { styleId: z.string().describe('Style template ID (e.g. "classic", "modern", "minimal")') },
+  async ({ styleId }) => {
+    try {
+      const template = styleTemplates.find(t => t.id === styleId);
+      if (!template) {
+        const ids = styleTemplates.map(t => t.id).join(', ');
+        return { content: [{ type: 'text' as const, text: `Error: Unknown style "${styleId}". Available: ${ids}` }], isError: true };
+      }
+      const { content, filePath } = readCurrentDocument();
+
+      // Remove existing preamble (#set, #show, #import, #let lines at the top)
+      const lines = content.split('\n');
+      let bodyStart = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (trimmed === '' || trimmed.startsWith('//') || trimmed.startsWith('#set ') ||
+            trimmed.startsWith('#show ') || trimmed.startsWith('#import ') || trimmed.startsWith('#let ')) {
+          bodyStart = i + 1;
+        } else {
+          break;
+        }
+      }
+      const body = lines.slice(bodyStart).join('\n').trimStart();
+      const updated = template.preamble + '\n\n' + body;
+      fs.writeFileSync(filePath, updated, 'utf-8');
+
+      return {
+        content: [{ type: 'text' as const, text: `Applied style "${template.label}" to ${path.basename(filePath)}` }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_get_chapters ──────────────────────
+
+server.tool(
+  'vswrite_get_chapters',
+  'Returns the #include chapter structure of the current document. Shows which files are included, in what order, and whether they exist on disk.',
+  async () => {
+    try {
+      const { content, filePath } = readCurrentDocument();
+      const dir = path.dirname(filePath);
+      const includes: { index: number; path: string; exists: boolean; title: string }[] = [];
+
+      const lines = content.split('\n');
+      let idx = 0;
+      for (const line of lines) {
+        const match = line.match(/^#include\s+"([^"]+)"/);
+        if (match) {
+          const relPath = match[1];
+          const absPath = path.join(dir, relPath);
+          let title = relPath;
+          if (fs.existsSync(absPath)) {
+            const chContent = fs.readFileSync(absPath, 'utf-8');
+            const headingMatch = chContent.match(/^=\s+(.+)$/m);
+            if (headingMatch) title = headingMatch[1].trim();
+          }
+          includes.push({ index: idx, path: relPath, exists: fs.existsSync(absPath), title });
+          idx++;
+        }
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ rootFile: filePath, chapters: includes }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_reorder_chapters ──────────────────
+
+server.tool(
+  'vswrite_reorder_chapters',
+  'Reorders the #include statements in the current document. Provide the new order as an array of chapter paths (relative to project). The #include lines will be rearranged to match.',
+  { order: z.array(z.string()).describe('Array of chapter paths in the desired order, e.g. ["chapters/intro.typ", "chapters/methods.typ"]') },
+  async ({ order }) => {
+    try {
+      const { content, filePath } = readCurrentDocument();
+      const lines = content.split('\n');
+      const includeLines: string[] = [];
+      const otherLines: string[] = [];
+
+      for (const line of lines) {
+        if (line.match(/^#include\s+"/)) {
+          includeLines.push(line);
+        } else {
+          otherLines.push(line);
+        }
+      }
+
+      // Rebuild include lines in new order
+      const newIncludes: string[] = [];
+      for (const chPath of order) {
+        const found = includeLines.find(l => l.includes(`"${chPath}"`));
+        if (found) {
+          newIncludes.push(found);
+        } else {
+          newIncludes.push(`#include "${chPath}"`);
+        }
+      }
+
+      // Find where includes were and replace them
+      const result: string[] = [];
+      let includesInserted = false;
+      for (const line of lines) {
+        if (line.match(/^#include\s+"/)) {
+          if (!includesInserted) {
+            result.push(...newIncludes);
+            includesInserted = true;
+          }
+        } else {
+          result.push(line);
+        }
+      }
+
+      const updated = result.join('\n');
+      fs.writeFileSync(filePath, updated, 'utf-8');
+
+      return {
+        content: [{ type: 'text' as const, text: `Reordered ${newIncludes.length} chapters in ${path.basename(filePath)}` }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_add_chapter ───────────────────────
+
+server.tool(
+  'vswrite_add_chapter',
+  'Creates a new chapter file and adds an #include statement to the current document. The chapter file is created in chapters/ with a heading.',
+  {
+    title: z.string().describe('Chapter title (e.g. "Methodology")'),
+    position: z.number().optional().describe('Position in include list (0-based). Omit to append at end.'),
+  },
+  async ({ title, position }) => {
+    try {
+      const { content, filePath } = readCurrentDocument();
+      const dir = path.dirname(filePath);
+      const chaptersDir = path.join(dir, 'chapters');
+      if (!fs.existsSync(chaptersDir)) {
+        fs.mkdirSync(chaptersDir, { recursive: true });
+      }
+
+      // Generate filename
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'chapter';
+      const chapterPath = path.join(chaptersDir, `${slug}.typ`);
+      const relPath = `chapters/${slug}.typ`;
+
+      // Create chapter file
+      if (!fs.existsSync(chapterPath)) {
+        fs.writeFileSync(chapterPath, `= ${title}\n\n`, 'utf-8');
+      }
+
+      // Add #include to document
+      const lines = content.split('\n');
+      const includeLine = `#include "${relPath}"`;
+
+      if (position !== undefined) {
+        // Insert at specific position among includes
+        let includeCount = 0;
+        let insertIdx = lines.length;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^#include\s+"/)) {
+            if (includeCount === position) {
+              insertIdx = i;
+              break;
+            }
+            includeCount++;
+          }
+        }
+        lines.splice(insertIdx, 0, includeLine);
+      } else {
+        // Append after last include, or at end
+        let lastIncludeIdx = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^#include\s+"/)) lastIncludeIdx = i;
+        }
+        if (lastIncludeIdx >= 0) {
+          lines.splice(lastIncludeIdx + 1, 0, includeLine);
+        } else {
+          lines.push(includeLine);
+        }
+      }
+
+      fs.writeFileSync(filePath, lines.join('\n'), 'utf-8');
+
+      return {
+        content: [{ type: 'text' as const, text: `Created chapter "${title}" → ${relPath}` }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_remove_chapter ────────────────────
+
+server.tool(
+  'vswrite_remove_chapter',
+  'Removes an #include statement from the current document. Does NOT delete the chapter file itself.',
+  { chapterPath: z.string().describe('Relative path of the chapter to remove (e.g. "chapters/intro.typ")') },
+  async ({ chapterPath }) => {
+    try {
+      const { content, filePath } = readCurrentDocument();
+      const lines = content.split('\n');
+      const filtered = lines.filter(l => !l.includes(`"${chapterPath}"`));
+
+      if (filtered.length === lines.length) {
+        return { content: [{ type: 'text' as const, text: `No #include found for "${chapterPath}"` }], isError: true };
+      }
+
+      fs.writeFileSync(filePath, filtered.join('\n'), 'utf-8');
+
+      return {
+        content: [{ type: 'text' as const, text: `Removed #include "${chapterPath}" from ${path.basename(filePath)}` }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_merge_document ────────────────────
+
+server.tool(
+  'vswrite_merge_document',
+  'Resolves all #include statements recursively and returns the complete merged document as a single string. Does NOT modify files — read-only operation.',
+  async () => {
+    try {
+      const { filePath } = readCurrentDocument();
+      const merged = resolveIncludes(filePath);
+      return {
+        content: [{ type: 'text' as const, text: merged }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_split_document ────────────────────
+
+server.tool(
+  'vswrite_split_document',
+  'Splits the current document at = Heading 1 boundaries into separate chapter files. Creates chapters/ directory, writes individual .typ files, and replaces document body with #include statements.',
+  async () => {
+    try {
+      const { content, filePath } = readCurrentDocument();
+      const { config, chapters } = splitIntoChapters(content);
+
+      if (chapters.length === 0) {
+        return { content: [{ type: 'text' as const, text: 'No = Heading 1 boundaries found to split.' }] };
+      }
+
+      const dir = path.dirname(filePath);
+      const chaptersDir = path.join(dir, 'chapters');
+      if (!fs.existsSync(chaptersDir)) fs.mkdirSync(chaptersDir, { recursive: true });
+
+      const includeLines: string[] = [];
+      for (let i = 0; i < chapters.length; i++) {
+        const ch = chapters[i];
+        const slug = slugify(ch.title, i);
+        const chapterPath = path.join(chaptersDir, `${slug}.typ`);
+        fs.writeFileSync(chapterPath, ch.content, 'utf-8');
+        includeLines.push(`#include "chapters/${slug}.typ"`);
+      }
+
+      const updated = config + '\n\n' + includeLines.join('\n') + '\n';
+      fs.writeFileSync(filePath, updated, 'utf-8');
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Split into ${chapters.length} chapters:\n${includeLines.join('\n')}`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_get_citations ─────────────────────
+
+server.tool(
+  'vswrite_get_citations',
+  'Returns all citation entries from .bib files in the project. Each entry includes citekey, type, title, author, year, and all BibTeX fields.',
+  async () => {
+    try {
+      const dir = state.projectDir;
+      const bibFiles = fs.readdirSync(dir).filter(f => f.endsWith('.bib'));
+      const allEntries: { file: string; entries: ReturnType<typeof parseBibFile> }[] = [];
+
+      for (const bibFile of bibFiles) {
+        const content = fs.readFileSync(path.join(dir, bibFile), 'utf-8');
+        const entries = parseBibFile(content);
+        allEntries.push({ file: bibFile, entries });
+      }
+
+      if (allEntries.length === 0) {
+        return { content: [{ type: 'text' as const, text: 'No .bib files found in project directory.' }] };
+      }
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(allEntries, null, 2) }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_add_citation ──────────────────────
+
+server.tool(
+  'vswrite_add_citation',
+  'Adds a new BibTeX entry to the project bibliography. Creates references.bib if it does not exist. Also ensures the document has a #bibliography statement.',
+  {
+    bibtex: z.string().describe('Complete BibTeX entry (e.g. @article{key, author={...}, title={...}, year={2024}})'),
+    bibFile: z.string().optional().describe('Target .bib file (default: "references.bib")'),
+  },
+  async ({ bibtex, bibFile }) => {
+    try {
+      const dir = state.projectDir;
+      const targetFile = bibFile || 'references.bib';
+      const bibPath = path.join(dir, targetFile);
+
+      // Create .bib file if needed
+      if (!fs.existsSync(bibPath)) {
+        fs.writeFileSync(bibPath, '// Bibliography\n\n', 'utf-8');
+      }
+
+      // Append the entry
+      let existing = fs.readFileSync(bibPath, 'utf-8');
+      if (!existing.endsWith('\n')) existing += '\n';
+      existing += '\n' + bibtex.trim() + '\n';
+      fs.writeFileSync(bibPath, existing, 'utf-8');
+
+      // Ensure #bibliography in document
+      if (state.currentFile) {
+        const docContent = fs.readFileSync(state.currentFile, 'utf-8');
+        if (!docContent.includes('#bibliography')) {
+          const updated = docContent.trimEnd() + `\n\n#bibliography("${targetFile}")\n`;
+          fs.writeFileSync(state.currentFile, updated, 'utf-8');
+        }
+      }
+
+      // Parse to get the citekey for confirmation
+      const entries = parseBibFile(bibtex);
+      const key = entries.length > 0 ? entries[0].citekey : '(unknown)';
+
+      return {
+        content: [{ type: 'text' as const, text: `Added citation @${key} to ${targetFile}` }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_ensure_bibliography ───────────────
+
+server.tool(
+  'vswrite_ensure_bibliography',
+  'Ensures the project has a references.bib file and the current document contains a #bibliography statement. Creates both if missing.',
+  async () => {
+    try {
+      const dir = state.projectDir;
+      const bibPath = path.join(dir, 'references.bib');
+      const created: string[] = [];
+
+      if (!fs.existsSync(bibPath)) {
+        fs.writeFileSync(bibPath, '// Bibliography\n\n', 'utf-8');
+        created.push('references.bib');
+      }
+
+      if (state.currentFile) {
+        const content = fs.readFileSync(state.currentFile, 'utf-8');
+        if (!content.includes('#bibliography')) {
+          const updated = content.trimEnd() + '\n\n#bibliography("references.bib")\n';
+          fs.writeFileSync(state.currentFile, updated, 'utf-8');
+          created.push('#bibliography statement');
+        }
+      }
+
+      if (created.length === 0) {
+        return { content: [{ type: 'text' as const, text: 'Bibliography already set up.' }] };
+      }
+      return {
+        content: [{ type: 'text' as const, text: `Created: ${created.join(', ')}` }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_create_project ────────────────────
+
+server.tool(
+  'vswrite_create_project',
+  'Creates a new Typst project from a template. Available templates: document, thesis, paper, letter, book. Creates the project directory with all template files.',
+  {
+    templateId: z.enum(['document', 'thesis', 'paper', 'letter', 'book']).describe('Template ID'),
+    projectName: z.string().describe('Project name (becomes the folder name)'),
+    parentDir: z.string().describe('Parent directory where the project folder will be created'),
+  },
+  async ({ templateId, projectName, parentDir }) => {
+    try {
+      const template = projectTemplates.find(t => t.id === templateId);
+      if (!template) {
+        return { content: [{ type: 'text' as const, text: `Error: Unknown template "${templateId}"` }], isError: true };
+      }
+
+      const absParent = path.isAbsolute(parentDir) ? parentDir : path.join(state.projectDir, parentDir);
+      const projectDir = path.join(absParent, projectName);
+
+      if (fs.existsSync(projectDir)) {
+        return { content: [{ type: 'text' as const, text: `Error: Directory already exists: ${projectDir}` }], isError: true };
+      }
+
+      fs.mkdirSync(projectDir, { recursive: true });
+      fs.mkdirSync(path.join(projectDir, 'assets'), { recursive: true });
+
+      for (const [relPath, content] of Object.entries(template.files)) {
+        const filePath = path.join(projectDir, relPath);
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, content, 'utf-8');
+      }
+
+      // Switch to new project
+      state.projectDir = projectDir;
+      state.currentFile = path.join(projectDir, 'main.typ');
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Created project "${projectName}" (${template.label}) at ${projectDir}\nFiles: ${Object.keys(template.files).join(', ')}`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_git_status ────────────────────────
+
+server.tool(
+  'vswrite_git_status',
+  'Returns git status of the project: branch name, ahead/behind counts, and list of changed files.',
+  async () => {
+    try {
+      const git = simpleGit(state.projectDir);
+      const status = await git.status();
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            branch: status.current,
+            ahead: status.ahead,
+            behind: status.behind,
+            isClean: status.isClean(),
+            files: status.files.map(f => ({ path: f.path, status: f.working_dir + f.index })),
+          }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_git_commit ────────────────────────
+
+server.tool(
+  'vswrite_git_commit',
+  'Stages all changes and creates a git commit with the given message.',
+  {
+    message: z.string().describe('Commit message'),
+    stageAll: z.boolean().default(true).describe('Stage all changes before committing'),
+  },
+  async ({ message, stageAll }) => {
+    try {
+      const git = simpleGit(state.projectDir);
+      if (stageAll) {
+        await git.add('-A');
+      }
+      const result = await git.commit(message);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Committed: ${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions\nHash: ${result.commit}`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_git_push ──────────────────────────
+
+server.tool(
+  'vswrite_git_push',
+  'Pushes committed changes to the remote repository.',
+  async () => {
+    try {
+      const git = simpleGit(state.projectDir);
+      await git.push();
+      return {
+        content: [{ type: 'text' as const, text: 'Pushed to remote.' }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
     }
   },
 );

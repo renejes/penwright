@@ -1,6 +1,6 @@
 # vswrite Desktop — MCP Server
 
-> **Stand:** 2026-03-26 (Phase 1+2 implementiert, 11 Tools, getestet mit Claude Desktop)
+> **Stand:** 2026-03-26 (Phase 1-3 implementiert, 26 Tools, getestet mit Claude Desktop)
 > **Ziel:** vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop/Cowork, Codex Desktop, Clawdbot, etc.) Typst-Dokumente in vswrite fernsteuern können.
 
 ---
@@ -702,14 +702,20 @@ Detaillierte Anleitung: siehe `handbuch.md` → "MCP Server — KI-Integration".
 - [x] `vswrite_read_file` / `vswrite_write_file` — Dateien lesen/schreiben
 - [x] `vswrite_export_pdf` — PDF exportieren
 
-### Phase 3: Erweiterte Tools — OFFEN
-- [ ] `vswrite_export_docx` — DOCX Export
-- [ ] `vswrite_apply_style` / `vswrite_list_styles` — Style Templates
-- [ ] `vswrite_create_project` — Projekt aus Template erstellen
-- [ ] `vswrite_get_chapters` — Kapitel-Struktur (#include) lesen
-- [ ] `vswrite_merge_document` / `vswrite_split_document` — Kapitel-Management
-- [ ] `vswrite_get_citations` / `vswrite_ensure_bibliography` — Bibliographie
-- [ ] `vswrite_git_status` / `vswrite_git_commit` / `vswrite_git_push` — Git
+### Phase 3: Erweiterte Tools — ERLEDIGT
+- [x] `vswrite_list_styles` / `vswrite_apply_style` — Style Templates auflisten/anwenden
+- [x] `vswrite_get_chapters` — Kapitel-Struktur (#include) lesen mit Titel-Extraktion
+- [x] `vswrite_reorder_chapters` — #include-Reihenfolge ändern
+- [x] `vswrite_add_chapter` — Neue Kapitel-Datei erstellen + #include einfügen (mit Position)
+- [x] `vswrite_remove_chapter` — #include-Zeile entfernen (Datei bleibt erhalten)
+- [x] `vswrite_merge_document` — Alle #includes auflösen (read-only)
+- [x] `vswrite_split_document` — An Heading-1-Grenzen in Kapitel aufteilen
+- [x] `vswrite_get_citations` — Alle .bib Dateien im Projekt parsen
+- [x] `vswrite_add_citation` — BibTeX-Eintrag hinzufügen + #bibliography sicherstellen
+- [x] `vswrite_ensure_bibliography` — references.bib + #bibliography erstellen
+- [x] `vswrite_create_project` — Projekt aus Template (5 Templates, auto-switch)
+- [x] `vswrite_git_status` / `vswrite_git_commit` / `vswrite_git_push` — Git-Operationen
+- ~~`vswrite_export_docx`~~ — Benötigt TipTap Deserializer (nur in Electron, verschoben auf Phase 4)
 
 ### Phase 4: Resources + Electron-Integration — OFFEN
 - [ ] MCP Resources (document, project structure, settings)
