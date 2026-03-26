@@ -417,7 +417,7 @@ Drei Build-Targets in `electron.vite.config.mts`:
 ### Offen (Phase E5: Polish & Packaging)
 
 - [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
-- [ ] Lizenz-Management (Lemon Squeezy Integration)
+- [ ] Lizenz-Management (Polar — License Keys + Device Activation)
 - [ ] Auto-Update (electron-updater)
 - [ ] App Icon & Branding
 - [ ] macOS Notarization, Windows Code Signing

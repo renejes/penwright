@@ -74,11 +74,15 @@
 - About Dialog
 - Splash Screen
 
-### Lizenz-Management (Lemon Squeezy)
-- License Key Eingabe beim ersten Start
-- Lemon Squeezy API Validierung
-- Offline Grace Period (30 Tage)
-- electron-store für Key Persistenz
+### Lizenz-Management (Polar)
+- License Key Eingabe beim ersten Start (Settings-Dialog)
+- Polar API Validierung (keine serverseitige Auth nötig, direkt aus Electron)
+- Geräte-Aktivierung mit `polar.customerPortal.licenseKeys.activate()` (max N Geräte pro Lizenz)
+- Validierung bei jedem App-Start mit `polar.customerPortal.licenseKeys.validate()`
+- Brandable Key-Prefix: `VSWRITE_xxxx-xxxx-xxxx`
+- Auto-Revoke bei Abo-Kündigung
+- Offline Grace Period (30 Tage, lokal in electron-store)
+- electron-store für Key + Activation-ID Persistenz
 
 ### Auto-Update
 - `electron-updater` + GitHub Releases
@@ -141,7 +145,7 @@ vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop
 - [ ] electron-store Persistenz (Recent Projects, Panel State)
 - [ ] Handbuch im Build gebundelt
 - [ ] App Icon & Branding
-- [ ] Lizenz-Management (Lemon Squeezy)
+- [ ] Lizenz-Management (Polar)
 - [ ] macOS DMG Packaging + Notarization
 - [ ] Auto-Update
 

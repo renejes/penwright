@@ -108,7 +108,7 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
 - [ ] MCP Server (Claude Desktop/Cowork, Codex Desktop Anbindung)
 - [ ] App Packaging (DMG, EXE, AppImage)
-- [ ] Lizenz-Management (Lemon Squeezy)
+- [ ] Lizenz-Management (Polar)
 - [ ] Auto-Update (electron-updater)
 - [ ] Dark Mode
 
