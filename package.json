@@ -11,7 +11,12 @@
     "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview",
     "package:mac": "electron-builder --mac",
     "package:win": "electron-builder --win",
-    "package:linux": "electron-builder --linux"
+    "package:linux": "electron-builder --linux",
+    "build:mcp": "node esbuild.mcp.mjs",
+    "mcp": "node dist/mcp/server.mjs"
+  },
+  "bin": {
+    "vswrite-mcp": "./dist/mcp/server.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
@@ -24,6 +29,7 @@
     "@codemirror/state": "^6.6.0",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.40.0",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "@tiptap/core": "^3.0.0",
     "@tiptap/extension-link": "^3.0.0",
     "@tiptap/extension-table": "^3.0.0",
@@ -40,7 +46,8 @@
     "electron-store": "^10.0.0",
     "node-pty": "^1.1.0",
     "pdfjs-dist": "^5.5.207",
-    "simple-git": "^3.33.0"
+    "simple-git": "^3.33.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",

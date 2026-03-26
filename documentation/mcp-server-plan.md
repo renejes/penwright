@@ -1,13 +1,62 @@
-# vswrite Desktop — MCP Server Integration Plan
+# vswrite Desktop — MCP Server
 
-> **Stand:** 2026-03-26
+> **Stand:** 2026-03-26 (Phase 1+2 implementiert, 10 Tools)
 > **Ziel:** vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop/Cowork, Codex Desktop, Clawdbot, etc.) Typst-Dokumente in vswrite fernsteuern können.
+
+---
+
+## Quick Setup (Claude Desktop)
+
+### 1. MCP Server bauen
+
+```bash
+npm run build:mcp
+```
+
+### 2. Claude Desktop konfigurieren
+
+Datei: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "vswrite": {
+      "command": "node",
+      "args": [
+        "/ABSOLUTE/PATH/TO/vswrite-desktop/dist/mcp/server.mjs",
+        "--project", "/PATH/TO/YOUR/TYPST/PROJECT"
+      ]
+    }
+  }
+}
+```
+
+### 3. Claude Desktop neustarten
+
+Claude sieht jetzt die vswrite-Tools und kann Typst-Dokumente lesen, bearbeiten, kompilieren und exportieren.
+
+---
+
+## Implementierte Tools (Phase 1+2)
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_get_document` | Dokument lesen (Content, Pfad, Word Count) |
+| `vswrite_open_file` | .typ Datei als aktuelles Dokument öffnen |
+| `vswrite_update_document` | Dokumentinhalt ersetzen und speichern |
+| `vswrite_compile` | Typst kompilieren (SVG/PDF), Fehler zurückgeben |
+| `vswrite_get_settings` | Document Settings lesen (#set Blöcke) |
+| `vswrite_update_settings` | Settings ändern (Font, Size, Lang, Margins, etc.) |
+| `vswrite_list_files` | Projekt-Dateibaum anzeigen |
+| `vswrite_read_file` | Beliebige Projektdatei lesen |
+| `vswrite_write_file` | Datei schreiben (mit auto-mkdir) |
+| `vswrite_export_pdf` | PDF exportieren an bestimmten Pfad |
 
 ---
 
 ## Konzept
 
-Der MCP-Server (Model Context Protocol) läuft im Electron Main Process und exponiert vswrite-spezifische Tools über das standardisierte JSON-RPC-Protokoll. Externe AI-Apps verbinden sich über stdio und können dann:
+Der MCP-Server läuft als eigenständiges CLI-Tool (`vswrite-mcp`), unabhängig von der Electron-App. Er nutzt die gleichen Shared-Module (settingsParser, rootFinder) und ruft `typst` CLI direkt auf. Kommunikation über stdio (JSON-RPC). Externe AI-Apps verbinden sich und können dann:
 
 - Dokumente öffnen, lesen, bearbeiten, speichern
 - Typst kompilieren und Fehler analysieren
