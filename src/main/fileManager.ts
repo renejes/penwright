@@ -11,6 +11,7 @@ import { findRootFile } from '../shared/rootFinder';
 import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
+import { checkLock, acquireLock, releaseLock } from './lockManager';
 
 let compiler: TypstCompiler | null = null;
 let fileWatcher: FSWatcher | null = null;
@@ -27,6 +28,30 @@ export async function openFile(filePath?: string): Promise<void> {
     });
     if (result.canceled || result.filePaths.length === 0) return;
     filePath = result.filePaths[0];
+  }
+
+  // Check for file lock (shared folder collaboration)
+  if (filePath.endsWith('.typ')) {
+    const existingLock = checkLock(filePath);
+    if (existingLock) {
+      const result = await dialog.showMessageBox(appState.mainWindow!, {
+        type: 'warning',
+        buttons: ['Open Read-Only', 'Open Anyway', 'Cancel'],
+        defaultId: 0,
+        title: 'File is locked',
+        message: `This file is being edited by ${existingLock.user} on ${existingLock.machine}.`,
+        detail: 'Opening it simultaneously may cause conflicts if your project is in a shared folder (Dropbox, iCloud, etc.).',
+      });
+      if (result.response === 2) return; // Cancel
+      if (result.response === 0) {
+        // Read-only: open but don't acquire lock
+      } else {
+        // Open Anyway: acquire lock (override)
+        acquireLock(filePath);
+      }
+    } else {
+      acquireLock(filePath);
+    }
   }
 
   try {
@@ -129,6 +154,7 @@ export async function saveFileAs(): Promise<boolean> {
 }
 
 export function newFile(): void {
+  releaseLock();
   appState.currentFilePath = null;
   appState.currentContent = '';
   appState.isDirty = false;
@@ -261,6 +287,7 @@ function setupFileWatcher(): void {
       '**/.git/**',
       '**/.DS_Store',
       '**/.vswrite-preview*',
+      '**/*.lock',
     ],
   });
 

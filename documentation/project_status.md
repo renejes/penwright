@@ -87,6 +87,11 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [x] Merge/Split Document, Citation Management
 - [x] Claude Code Skills auto-erstellt (.claude/skills/)
 - [x] File Watcher für externe Änderungen (chokidar)
+- [x] File Locking für Shared Folders (Dropbox, iCloud, OneDrive)
+  - Lock-Datei (.filename.typ.lock) mit User, Machine, Timestamp
+  - Heartbeat alle 30s, Stale-Detection nach 2 Min
+  - Dialog: Read-Only / Open Anyway / Cancel
+  - Automatisches Release bei Close/Quit/Crash
 
 **App Shell:**
 - [x] macOS Titlebar (hiddenInset), native Menüs
@@ -101,11 +106,11 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 ### Offen
 
 - [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
+- [ ] MCP Server (Claude Desktop/Cowork, Codex Desktop Anbindung)
 - [ ] App Packaging (DMG, EXE, AppImage)
 - [ ] Lizenz-Management (Lemon Squeezy)
 - [ ] Auto-Update (electron-updater)
 - [ ] Dark Mode
-- [ ] Multiple Terminals (Tab-System)
 
 ---
 

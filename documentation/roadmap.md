@@ -93,7 +93,24 @@
 
 ---
 
-## Priorität 3: Zusätzliche Features
+## Priorität 3: MCP Server & Zusätzliche Features
+
+### MCP Server (Model Context Protocol)
+> Detaillierter Plan: [mcp-server-plan.md](mcp-server-plan.md)
+
+vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop/Cowork, Codex Desktop, Clawdbot) Typst-Dokumente fernsteuern können.
+
+**Phase 1 (MVP):** 5 Kern-Tools
+- `vswrite_get_document` — Dokument lesen
+- `vswrite_update_document` — Dokument schreiben
+- `vswrite_compile` — Typst kompilieren + Fehler zurückgeben
+- `vswrite_get_settings` / `vswrite_update_settings` — Settings lesen/ändern
+
+**Phase 2:** Projekt-Tools (Dateibaum, Dateien lesen/schreiben, Kapitel, Citations)
+
+**Phase 3:** Erweiterte Tools (Export, Styling, Git, Projektvorlagen)
+
+**Phase 4:** Resources + Live-Integration mit laufender Electron-App
 
 ### Dark Mode
 - `nativeTheme.shouldUseDarkColors` erkennen
@@ -107,9 +124,6 @@
 ### ~~Verbesserter Text-Editor~~ (erledigt Session 3)
 - ~~Syntax Highlighting (CodeMirror 6)~~
 - ~~Zeilennummern~~
-
-### Multiple Terminals
-- Tab-System, mehrere Shells
 
 ### ~~PDF-in-App Viewer~~ (erledigt Session 3)
 - ~~pdf.js Integration statt externe App~~
@@ -132,10 +146,10 @@
 - [ ] Auto-Update
 
 ### Sollte (v1.0 oder kurz danach)
+- [ ] MCP Server (Phase 1: 5 Kern-Tools)
 - [ ] Windows Installer + Code Signing
 - [ ] Linux AppImage
 - [ ] Dark Mode
-- [ ] Spell Check
 - [ ] About Dialog
 
 ### Testing

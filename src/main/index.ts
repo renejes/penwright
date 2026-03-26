@@ -13,6 +13,7 @@ import { buildMenu } from './menuBuilder';
 import { setupIPC } from './ipcHandlers';
 import { setupGitIPC } from './gitManager';
 import { openFile, saveFile, saveFileAs, newFile, stopFileWatcher, disposeCompiler, setupPreviewModeIPC } from './fileManager';
+import { releaseLock } from './lockManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 
 // ─── Window Creation ──────────────────────────────────
@@ -61,6 +62,7 @@ function createWindow(): void {
 
   appState.mainWindow.on('closed', () => {
     appState.mainWindow = null;
+    releaseLock();
     disposeCompiler();
   });
 
@@ -176,6 +178,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  releaseLock();
   appState.terminal?.dispose();
   stopFileWatcher();
   getZoteroWatcher()?.close();

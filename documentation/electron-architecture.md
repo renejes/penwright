@@ -51,8 +51,9 @@ vswrite-desktop/
 │   │   ├── projectManager.ts    New Project, File Tree, Skills, Images, Settings (296 Z.)
 │   │   ├── menuBuilder.ts       Application Menu (macOS/Windows) (131 Z.)
 │   │   ├── gitManager.ts        Git IPC Handler (84 Z.)
+│   │   ├── lockManager.ts       File Locking für Shared Folders (Dropbox etc.)
 │   │   ├── preload-entry.ts     contextBridge (send/on/invoke, 25 Channels)
-│   │   ├── typstCompiler.ts     typst compile → SVG Pages
+│   │   ├── typstCompiler.ts     typst compile → SVG/PDF Pages
 │   │   ├── terminalManager.ts   node-pty Wrapper
 │   │   └── deserializer-bridge.ts  Re-Export für Main Process
 │   └── renderer/              ← Electron Renderer (~3.124 Zeilen)
@@ -129,9 +130,10 @@ vswrite-desktop/
 ```
 index.ts (Entry Point)
 ├── appState.ts          ← Zentrales State-Objekt (Leaf, keine Imports)
+├── lockManager.ts       ← File Locking (Shared Folders, Heartbeat)
 ├── menuBuilder.ts       ← Liest appState, ruft Callbacks
 ├── ipcHandlers.ts       ← Message Router
-│   ├── fileManager.ts     ← File I/O, Auto-Save, Compiler, Watcher
+│   ├── fileManager.ts     ← File I/O, Auto-Save, Compiler, Watcher, Lock-Integration
 │   ├── importExport.ts    ← PDF, DOCX, Markdown, Zotero, Citations
 │   ├── projectManager.ts  ← Projects, File Tree, Images, Settings, Skills
 │   └── gitManager.ts      ← Git IPC Handler
@@ -410,6 +412,7 @@ Drei Build-Targets in `electron.vite.config.mts`:
 - [x] SVG/PDF Preview Toggle im Preview-Panel
 - [x] Binary File Read IPC (textfile:readBinary)
 - [x] TipTap Editor Mount-Fix (Element immer im DOM)
+- [x] File Locking für Shared Folders (lockManager.ts, Heartbeat, Stale-Detection)
 
 ### Offen (Phase E5: Polish & Packaging)
 
