@@ -1,6 +1,6 @@
 # vswrite Desktop — MCP Server
 
-> **Stand:** 2026-03-26 (Phase 1+2 implementiert, 10 Tools)
+> **Stand:** 2026-03-26 (Phase 1+2 implementiert, 11 Tools, getestet mit Claude Desktop)
 > **Ziel:** vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop/Cowork, Codex Desktop, Clawdbot, etc.) Typst-Dokumente in vswrite fernsteuern können.
 
 ---
@@ -23,13 +23,14 @@ Datei: `~/Library/Application Support/Claude/claude_desktop_config.json`
     "vswrite": {
       "command": "node",
       "args": [
-        "/ABSOLUTE/PATH/TO/vswrite-desktop/dist/mcp/server.mjs",
-        "--project", "/PATH/TO/YOUR/TYPST/PROJECT"
+        "/ABSOLUTE/PATH/TO/vswrite-desktop/dist/mcp/server.mjs"
       ]
     }
   }
 }
 ```
+
+Kein `--project` Pfad nötig. Claude kann das Projekt dynamisch via `vswrite_set_project` wechseln.
 
 ### 3. Claude Desktop neustarten
 
@@ -37,20 +38,21 @@ Claude sieht jetzt die vswrite-Tools und kann Typst-Dokumente lesen, bearbeiten,
 
 ---
 
-## Implementierte Tools (Phase 1+2)
+## Implementierte Tools (Phase 1+2) — 11 Tools
 
-| Tool | Beschreibung |
-|------|-------------|
-| `vswrite_get_document` | Dokument lesen (Content, Pfad, Word Count) |
-| `vswrite_open_file` | .typ Datei als aktuelles Dokument öffnen |
-| `vswrite_update_document` | Dokumentinhalt ersetzen und speichern |
-| `vswrite_compile` | Typst kompilieren (SVG/PDF), Fehler zurückgeben |
-| `vswrite_get_settings` | Document Settings lesen (#set Blöcke) |
-| `vswrite_update_settings` | Settings ändern (Font, Size, Lang, Margins, etc.) |
-| `vswrite_list_files` | Projekt-Dateibaum anzeigen |
-| `vswrite_read_file` | Beliebige Projektdatei lesen |
-| `vswrite_write_file` | Datei schreiben (mit auto-mkdir) |
-| `vswrite_export_pdf` | PDF exportieren an bestimmten Pfad |
+| Tool | Beschreibung | Status |
+|------|-------------|--------|
+| `vswrite_set_project` | Projekt-Verzeichnis setzen/wechseln (auto-detect main.typ) | **erledigt** |
+| `vswrite_get_document` | Dokument lesen (Content, Pfad, Word Count) | **erledigt** |
+| `vswrite_open_file` | .typ Datei als aktuelles Dokument öffnen | **erledigt** |
+| `vswrite_update_document` | Dokumentinhalt ersetzen und speichern | **erledigt** |
+| `vswrite_compile` | Typst kompilieren (SVG/PDF), Fehler zurückgeben | **erledigt** |
+| `vswrite_get_settings` | Document Settings lesen (#set Blöcke) | **erledigt** |
+| `vswrite_update_settings` | Settings ändern (Font, Size, Lang, Margins, etc.) | **erledigt** |
+| `vswrite_list_files` | Projekt-Dateibaum anzeigen | **erledigt** |
+| `vswrite_read_file` | Beliebige Projektdatei lesen | **erledigt** |
+| `vswrite_write_file` | Datei schreiben (mit auto-mkdir) | **erledigt** |
+| `vswrite_export_pdf` | PDF exportieren an bestimmten Pfad | **erledigt** |
 
 ---
 
@@ -89,41 +91,34 @@ Der MCP-Server läuft als eigenständiges CLI-Tool (`vswrite-mcp`), unabhängig 
                                                                └─────────────────────┘
 ```
 
-### Prozess-Modell
+### Prozess-Modell (Ist-Stand)
 
-Der MCP-Server läuft als **separater Node.js-Prozess** (nicht im Electron Main Process selbst), wird aber von der Electron-App gestartet und gestoppt. Er kommuniziert mit dem Main Process über eine interne IPC-Brücke (z.B. Unix Socket oder Named Pipe), um auf appState und die Module zuzugreifen.
+Der MCP-Server läuft als **eigenständiges CLI-Tool** (`vswrite-mcp`), unabhängig von der Electron-App. Er importiert die Shared-Module (`settingsParser`, `rootFinder`) direkt und ruft `typst` CLI für Kompilierung auf. Claude Desktop startet ihn als Hintergrundprozess über stdio.
 
-**Alternative (einfacher für V1):** Der MCP-Server läuft als eigenständiges CLI-Tool (`vswrite-mcp`), das die gleichen Shared-Module importiert und direkt auf das Dateisystem zugreift — ohne laufende Electron-App. Für Compiler-Operationen ruft er `typst` CLI direkt auf.
-
-**Empfehlung für V1:** Eigenständiges CLI-Tool. Das entkoppelt den MCP-Server von der Electron-App und macht ihn einfacher zu testen, deployen und konfigurieren.
+**Spätere Option (Phase 4):** IPC-Bridge zum laufenden Electron-Process für Zugriff auf unsaved Editor-State.
 
 ---
 
-## Dependency
+## Dependencies
 
 ```bash
-npm install @modelcontextprotocol/sdk
+npm install @modelcontextprotocol/sdk zod@3
 ```
+
+**Wichtig:** `zod@3` (nicht v4) wegen Kompatibilität mit `zod-to-json-schema` das die MCP SDK intern nutzt.
 
 ---
 
-## Dateistruktur
+## Dateistruktur (Ist-Stand)
 
 ```
 src/
 ├── mcp/
-│   ├── server.ts              MCP Server Entry Point
-│   ├── tools/
-│   │   ├── document.ts        Dokument-Tools (open, read, write, save)
-│   │   ├── compile.ts         Kompilierungs-Tools
-│   │   ├── settings.ts        Settings & Style-Tools
-│   │   ├── project.ts         Projekt-Tools (Dateien, Templates)
-│   │   ├── bibliography.ts    Citation-Tools
-│   │   ├── chapters.ts        Kapitel-Management
-│   │   ├── export.ts          Export-Tools (PDF, DOCX)
-│   │   └── git.ts             Git-Tools
-│   └── resources/
-│       └── document.ts        MCP Resources (aktuelles Dokument als Resource)
+│   └── server.ts              MCP Server — alle 11 Tools in einer Datei (~300 Zeilen)
+esbuild.mcp.mjs                Build-Script (esbuild, ESM, externals)
+dist/
+└── mcp/
+    └── server.mjs             Gebundelte Ausgabe (von Claude Desktop gestartet)
 ```
 
 ---
@@ -648,125 +643,78 @@ Die aktuellen Document Settings.
 
 ---
 
-## Server-Implementierung
+## Server-Implementierung (Ist-Stand)
 
 ### Entry Point (`src/mcp/server.ts`)
 
-```typescript
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+- `McpServer` aus `@modelcontextprotocol/sdk` mit `StdioServerTransport`
+- CLI-Argumente: `--project <dir>` und `--file <path>` (beide optional)
+- Fallback: `VSWRITE_PROJECT_DIR` Env-Var → cwd
+- Auto-Detection: sucht `main.typ`, `document.typ`, `index.typ`, oder erstes `.typ`
+- Interner State: `projectDir` + `currentFile` (dynamisch wechselbar via `vswrite_set_project`)
 
-const server = new McpServer({
-  name: 'vswrite',
-  version: '0.4.0',
-  description: 'MCP server for vswrite — a WYSIWYG editor for Typst documents',
-});
+### Build
 
-// Tools registrieren
-server.tool('vswrite_get_document', ...);
-server.tool('vswrite_update_document', ...);
-server.tool('vswrite_compile', ...);
-// ... etc.
-
-// Server starten
-const transport = new StdioServerTransport();
-await server.connect(transport);
+```bash
+npm run build:mcp          # → dist/mcp/server.mjs
 ```
 
-### Zugriff auf App-State
+Build-Script: `esbuild.mcp.mjs` (ESM, Node 20, externals: `@modelcontextprotocol/sdk`, `zod`, `zod-to-json-schema`)
 
-**V1 (eigenständiges CLI-Tool):** Der MCP-Server arbeitet direkt mit dem Dateisystem. Er liest `.typ`-Dateien von der Platte, ruft `typst` CLI für Kompilierung auf, und nutzt die Shared-Module (`settingsParser`, `bibParser`, `mergeDocument`, etc.) direkt.
+### Nutzer-Setup (Claude Desktop)
 
-**V2 (mit Electron-Integration):** Der MCP-Server kommuniziert mit dem laufenden Electron Main Process über IPC (Unix Socket), um auch auf den Editor-State (aktueller unsaved Content, Cursor-Position) zugreifen zu können.
-
-### Build-Konfiguration
-
-Separater Build-Target in `package.json`:
-
-```json
-{
-  "bin": {
-    "vswrite-mcp": "./dist/mcp/server.js"
-  },
-  "scripts": {
-    "build:mcp": "esbuild src/mcp/server.ts --bundle --platform=node --outfile=dist/mcp/server.js --external:@modelcontextprotocol/sdk"
-  }
-}
-```
-
----
-
-## Nutzer-Setup
-
-### Claude Desktop / Cowork
-
-Nutzer fügt in `~/Library/Application Support/Claude/claude_desktop_config.json` hinzu:
+Einmalig in `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "vswrite": {
       "command": "node",
-      "args": ["/Applications/vswrite.app/Contents/Resources/mcp/server.js"],
-      "env": {
-        "VSWRITE_PROJECT_DIR": "/Users/.../my-thesis"
-      }
+      "args": ["/path/to/vswrite-desktop/dist/mcp/server.mjs"]
     }
   }
 }
 ```
 
-Oder falls als npm-Package installiert:
-```json
-{
-  "mcpServers": {
-    "vswrite": {
-      "command": "npx",
-      "args": ["vswrite-mcp", "--project", "/Users/.../my-thesis"]
-    }
-  }
-}
-```
+Kein `--project` nötig — Claude wechselt Projekte dynamisch via `vswrite_set_project`.
 
-### Codex Desktop / Clawdbot
-
-Analoges Setup über deren MCP-Konfiguration (falls sie MCP unterstützen — derzeit vor allem Claude Desktop).
+Detaillierte Anleitung: siehe `handbuch.md` → "MCP Server — KI-Integration".
 
 ---
 
 ## Implementierungsreihenfolge
 
-### Phase 1: Kern-Tools (MVP)
-1. `@modelcontextprotocol/sdk` installieren
-2. `src/mcp/server.ts` Entry Point erstellen
-3. **5 essentielle Tools:**
-   - `vswrite_get_document` — Dokument lesen
-   - `vswrite_update_document` — Dokument schreiben
-   - `vswrite_compile` — Kompilieren + Fehler
-   - `vswrite_get_settings` — Settings lesen
-   - `vswrite_update_settings` — Settings ändern
-4. Build-Konfiguration + Testlauf mit Claude Desktop
-5. Dokumentation: Setup-Anleitung für Nutzer
+### Phase 1: Kern-Tools (MVP) — ERLEDIGT
+- [x] `@modelcontextprotocol/sdk` + `zod@3` installiert
+- [x] `src/mcp/server.ts` Entry Point + `esbuild.mcp.mjs` Build-Script
+- [x] `vswrite_get_document` — Dokument lesen
+- [x] `vswrite_open_file` — Datei öffnen
+- [x] `vswrite_update_document` — Dokument schreiben
+- [x] `vswrite_compile` — Kompilieren + Fehler (SVG/PDF)
+- [x] `vswrite_get_settings` — Settings lesen
+- [x] `vswrite_update_settings` — Settings ändern
+- [x] Build-Konfiguration + Testlauf mit Claude Desktop
+- [x] Dokumentation: Setup-Anleitung in handbuch.md
 
-### Phase 2: Projekt-Tools
-6. `vswrite_list_files` — Dateibaum
-7. `vswrite_read_file` / `vswrite_write_file` — Dateien lesen/schreiben
-8. `vswrite_create_file` — Neue Dateien
-9. `vswrite_get_chapters` — Kapitel-Struktur
-10. `vswrite_get_citations` — Bibliographie
+### Phase 2: Projekt-Tools — ERLEDIGT
+- [x] `vswrite_set_project` — Projekt dynamisch wechseln (auto-detect main.typ)
+- [x] `vswrite_list_files` — Dateibaum
+- [x] `vswrite_read_file` / `vswrite_write_file` — Dateien lesen/schreiben
+- [x] `vswrite_export_pdf` — PDF exportieren
 
-### Phase 3: Erweiterte Tools
-11. `vswrite_export_pdf` / `vswrite_export_docx` — Export
-12. `vswrite_apply_style` / `vswrite_list_styles` — Styling
-13. `vswrite_create_project` — Projektvorlagen
-14. `vswrite_merge_document` / `vswrite_split_document` — Struktur
-15. `vswrite_ensure_bibliography` — Bibliographie-Setup
-16. `vswrite_git_status` / `vswrite_git_commit` / `vswrite_git_push` — Git
+### Phase 3: Erweiterte Tools — OFFEN
+- [ ] `vswrite_export_docx` — DOCX Export
+- [ ] `vswrite_apply_style` / `vswrite_list_styles` — Style Templates
+- [ ] `vswrite_create_project` — Projekt aus Template erstellen
+- [ ] `vswrite_get_chapters` — Kapitel-Struktur (#include) lesen
+- [ ] `vswrite_merge_document` / `vswrite_split_document` — Kapitel-Management
+- [ ] `vswrite_get_citations` / `vswrite_ensure_bibliography` — Bibliographie
+- [ ] `vswrite_git_status` / `vswrite_git_commit` / `vswrite_git_push` — Git
 
-### Phase 4: Resources + Electron-Integration
-17. MCP Resources (document, project structure, settings)
-18. IPC-Bridge zum laufenden Electron Process
-19. Live-Updates (Resource Subscriptions)
+### Phase 4: Resources + Electron-Integration — OFFEN
+- [ ] MCP Resources (document, project structure, settings)
+- [ ] IPC-Bridge zum laufenden Electron Process (Live-Editor-State)
+- [ ] Live-Updates (Resource Subscriptions)
 
 ---
 

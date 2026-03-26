@@ -99,22 +99,23 @@
 
 ## Priorität 3: MCP Server & Zusätzliche Features
 
-### MCP Server (Model Context Protocol)
+### MCP Server (Model Context Protocol) — Phase 1+2 erledigt
 > Detaillierter Plan: [mcp-server-plan.md](mcp-server-plan.md)
 
 vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop/Cowork, Codex Desktop, Clawdbot) Typst-Dokumente fernsteuern können.
 
-**Phase 1 (MVP):** 5 Kern-Tools
-- `vswrite_get_document` — Dokument lesen
-- `vswrite_update_document` — Dokument schreiben
-- `vswrite_compile` — Typst kompilieren + Fehler zurückgeben
-- `vswrite_get_settings` / `vswrite_update_settings` — Settings lesen/ändern
+**Phase 1+2 (erledigt, 11 Tools):**
+- [x] `vswrite_set_project` — Projekt dynamisch wechseln
+- [x] `vswrite_get_document` / `vswrite_update_document` / `vswrite_open_file`
+- [x] `vswrite_compile` — SVG/PDF + Fehler
+- [x] `vswrite_get_settings` / `vswrite_update_settings`
+- [x] `vswrite_list_files` / `vswrite_read_file` / `vswrite_write_file`
+- [x] `vswrite_export_pdf`
+- [x] Getestet mit Claude Desktop, Setup-Anleitung im Handbuch
 
-**Phase 2:** Projekt-Tools (Dateibaum, Dateien lesen/schreiben, Kapitel, Citations)
+**Phase 3 (offen):** Style Templates, Chapters, Citations, Git, DOCX Export
 
-**Phase 3:** Erweiterte Tools (Export, Styling, Git, Projektvorlagen)
-
-**Phase 4:** Resources + Live-Integration mit laufender Electron-App
+**Phase 4 (offen):** MCP Resources, Electron IPC-Bridge, Live-Updates
 
 ### Dark Mode
 - `nativeTheme.shouldUseDarkColors` erkennen
@@ -150,7 +151,7 @@ vswrite als MCP-Server exponieren, damit externe KI-Desktop-Apps (Claude Desktop
 - [ ] Auto-Update
 
 ### Sollte (v1.0 oder kurz danach)
-- [ ] MCP Server (Phase 1: 5 Kern-Tools)
+- [x] ~~MCP Server Phase 1+2~~ (erledigt, 11 Tools)
 - [ ] Windows Installer + Code Signing
 - [ ] Linux AppImage
 - [ ] Dark Mode

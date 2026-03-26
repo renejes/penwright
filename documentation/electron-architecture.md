@@ -41,6 +41,8 @@ vswrite-desktop/
 │   │   │   ├── ShortcutCheatsheet.svelte
 │   │   │   └── WelcomeScreen.svelte
 │   │   └── style.css           Globales Editor-Stylesheet
+│   ├── mcp/                   ← MCP Server (eigenständiges CLI-Tool)
+│   │   └── server.ts            11 Tools, stdio JSON-RPC, ~300 Zeilen
 │   ├── cli/                   ← 1:1 Kopie (unverändert)
 │   ├── main/                  ← Electron Main Process (~1.977 Zeilen, 12 Dateien)
 │   │   ├── index.ts             Entry Point: Window, Terminal, Lifecycle (154 Z.)
@@ -78,9 +80,11 @@ vswrite-desktop/
 ├── index.html                 Renderer HTML Entry
 ├── package.json
 ├── electron.vite.config.mts   Build-Config (Main, Preload, Renderer)
+├── esbuild.mcp.mjs            Build-Config MCP Server (eigenständig)
 ├── tsconfig.json
 ├── svelte.config.js
 └── documentation/
+    └── mcp-server-plan.md     MCP Server Dokumentation + offene Phasen
 ```
 
 ---
@@ -338,6 +342,7 @@ Drei Build-Targets in `electron.vite.config.mts`:
   "dependencies": {
     "@tiptap/*": "^3.0.0",        // Rich-Text Editor
     "@codemirror/*": "^6.0.0",    // Code-Editor (Syntax HL, Zeilennummern)
+    "@modelcontextprotocol/sdk": "^1.28.0", // MCP Server
     "@xterm/xterm": "^6.0.0",     // Terminal UI
     "@xterm/addon-fit": "^0.11.0", // Terminal Auto-Resize
     "chokidar": "^4.0.0",         // File Watching
@@ -345,7 +350,8 @@ Drei Build-Targets in `electron.vite.config.mts`:
     "electron-store": "^10.0.0",  // Persistenter State
     "node-pty": "^1.0.0",          // Terminal PTY (native)
     "pdfjs-dist": "^5.5.0",       // PDF In-App Viewer
-    "simple-git": "^3.27.0"       // Git Operations
+    "simple-git": "^3.27.0",      // Git Operations
+    "zod": "^3.25.0"              // Schema-Validierung (MCP Server)
   },
   "devDependencies": {
     "electron": "^41.0.4",
@@ -413,10 +419,17 @@ Drei Build-Targets in `electron.vite.config.mts`:
 - [x] Binary File Read IPC (textfile:readBinary)
 - [x] TipTap Editor Mount-Fix (Element immer im DOM)
 - [x] File Locking für Shared Folders (lockManager.ts, Heartbeat, Stale-Detection)
+- [x] MCP Server (11 Tools, Phase 1+2, getestet mit Claude Desktop)
+  - Eigenständiges CLI-Tool (`npm run build:mcp` → `dist/mcp/server.mjs`)
+  - @modelcontextprotocol/sdk + StdioServerTransport
+  - Tools: set_project, get/update_document, compile, get/update_settings, list/read/write_files, export_pdf
+  - Dynamischer Projektwechsel (kein hardcoded Pfad in Config)
 
 ### Offen (Phase E5: Polish & Packaging)
 
 - [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
+- [ ] MCP Server Phase 3 (Style Templates, Chapters, Citations, Git, DOCX Export)
+- [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge, Live-Updates)
 - [ ] Lizenz-Management (Polar — License Keys + Device Activation)
 - [ ] Auto-Update (electron-updater)
 - [ ] App Icon & Branding

@@ -103,10 +103,19 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [x] Modularer Renderer (State + MessageHandler extrahiert)
 - [x] Start Screen mit Onboarding (Typst-Check, AI/Terminal Info, 3 Skills)
 
+**MCP Server (Model Context Protocol):**
+- [x] MCP Server als eigenständiges CLI-Tool (`src/mcp/server.ts`, ~300 Zeilen)
+- [x] 11 Tools implementiert: set_project, get/update_document, open_file, compile, get/update_settings, list/read/write_files, export_pdf
+- [x] @modelcontextprotocol/sdk + StdioServerTransport
+- [x] Dynamischer Projektwechsel (kein hardcoded Pfad in Config nötig)
+- [x] Getestet mit Claude Desktop (Cowork)
+- [x] Setup-Anleitung im Handbuch dokumentiert
+
 ### Offen
 
 - [ ] electron-store Persistenz (Recent Projects, Panel State, Window Position)
-- [ ] MCP Server (Claude Desktop/Cowork, Codex Desktop Anbindung)
+- [ ] MCP Server Phase 3 (Style Templates, Chapters, Citations, Git, DOCX Export)
+- [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge)
 - [ ] App Packaging (DMG, EXE, AppImage)
 - [ ] Lizenz-Management (Polar)
 - [ ] Auto-Update (electron-updater)
