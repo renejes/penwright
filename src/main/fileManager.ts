@@ -12,12 +12,60 @@ import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
 import { checkLock, acquireLock, releaseLock } from './lockManager';
-import { addRecentProject, saveLastProjectPath } from './persistenceManager';
+import { addRecentProject, saveLastProjectPath, saveBackup, clearBackup, checkForRecovery, readBackup } from './persistenceManager';
 
 let compiler: TypstCompiler | null = null;
 let fileWatcher: FSWatcher | null = null;
 let autoSaveTimer: NodeJS.Timeout | null = null;
 let previewMode: 'svg' | 'pdf' = 'svg';
+
+// ─── AI Edit Snapshots ───────────────────────────────
+// Ring buffer that captures editor state before each external file change,
+// so the user can undo AI-driven edits (terminal / MCP).
+
+const MAX_AI_SNAPSHOTS = 20;
+const aiSnapshots: Array<{ filePath: string; content: string; timestamp: number }> = [];
+
+function pushAiSnapshot(filePath: string, content: string): void {
+  aiSnapshots.push({ filePath, content, timestamp: Date.now() });
+  if (aiSnapshots.length > MAX_AI_SNAPSHOTS) aiSnapshots.shift();
+  appState.mainWindow?.webContents.send('vswrite', {
+    type: 'aiSnapshotCount',
+    count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
+  });
+}
+
+export function popAiSnapshot(): boolean {
+  // Find the most recent snapshot for the current file
+  for (let i = aiSnapshots.length - 1; i >= 0; i--) {
+    if (aiSnapshots[i].filePath === appState.currentFilePath) {
+      const snapshot = aiSnapshots.splice(i, 1)[0];
+      appState.currentContent = snapshot.content;
+      appState.isDirty = true;
+      updateTitle();
+      // Write back to disk so the file watcher doesn't re-trigger
+      if (appState.currentFilePath) {
+        appState.lastSaveTimestamp = Date.now();
+        fs.writeFileSync(appState.currentFilePath, snapshot.content, 'utf-8');
+      }
+      appState.mainWindow?.webContents.send('vswrite', {
+        type: 'update',
+        content: appState.currentContent,
+      });
+      appState.mainWindow?.webContents.send('vswrite', {
+        type: 'aiSnapshotCount',
+        count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
+      });
+      if (previewMode === 'pdf') {
+        compiler?.compilePdf();
+      } else {
+        compiler?.compile();
+      }
+      return true;
+    }
+  }
+  return false;
+}
 
 // ─── File Operations ──────────────────────────────────
 
@@ -61,7 +109,29 @@ export async function openFile(filePath?: string): Promise<void> {
     if (!appState.projectDir) {
       appState.projectDir = path.dirname(filePath);
     }
-    appState.isDirty = false;
+
+    // Check for crash recovery backup
+    const recovery = checkForRecovery(filePath);
+    if (recovery) {
+      const result = await dialog.showMessageBox(appState.mainWindow!, {
+        type: 'question',
+        buttons: ['Recover', 'Discard Backup'],
+        defaultId: 0,
+        title: 'Unsaved changes found',
+        message: 'A backup with unsaved changes was found for this file.',
+        detail: `Last backup: ${new Date(recovery.timestamp).toLocaleString()}\n\nWould you like to recover the backup?`,
+      });
+      if (result.response === 0) {
+        appState.currentContent = readBackup(recovery.backupPath);
+        appState.isDirty = true;
+      } else {
+        clearBackup(filePath);
+      }
+    }
+
+    if (!appState.isDirty) {
+      appState.isDirty = false;
+    }
     updateTitle();
 
     appState.mainWindow?.webContents.send('vswrite', {
@@ -124,6 +194,7 @@ export async function saveFile(): Promise<boolean> {
   try {
     appState.lastSaveTimestamp = Date.now();
     fs.writeFileSync(appState.currentFilePath, appState.currentContent, 'utf-8');
+    clearBackup(appState.currentFilePath);
     appState.isDirty = false;
     updateTitle();
     if (previewMode === 'pdf') {
@@ -266,6 +337,8 @@ export function getPreviewMode(): 'svg' | 'pdf' {
 
 // ─── Auto-Save ────────────────────────────────────────
 
+let backupTimer: NodeJS.Timeout | null = null;
+
 export function autoSave(): void {
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
@@ -273,6 +346,16 @@ export function autoSave(): void {
       saveFile();
     }
   }, 1000);
+
+  // Save backup snapshot every 30 seconds (independent of auto-save)
+  if (!backupTimer && appState.currentFilePath) {
+    backupTimer = setTimeout(() => {
+      backupTimer = null;
+      if (appState.currentFilePath && appState.currentContent) {
+        saveBackup(appState.currentFilePath, appState.currentContent);
+      }
+    }, 30000);
+  }
 }
 
 // ─── File Watcher ─────────────────────────────────────
@@ -303,6 +386,9 @@ function setupFileWatcher(): void {
       try {
         const diskContent = fs.readFileSync(changedPath, 'utf-8');
         if (diskContent !== appState.currentContent) {
+          // Snapshot current content before applying external change (AI edit)
+          pushAiSnapshot(changedPath, appState.currentContent);
+
           appState.currentContent = diskContent;
           appState.isDirty = false;
           updateTitle();

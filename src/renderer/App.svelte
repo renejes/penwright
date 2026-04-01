@@ -386,11 +386,11 @@
       <!-- Sidebar -->
       {#if panelState.showSidebar}
         <div class="panel-sidebar" style="width: {panelState.sidebarWidth}px">
-          <div class="sidebar-tabs">
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'files'} onclick={() => panelState.sidebarTab = 'files'}>Files</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'outline'} onclick={() => panelState.sidebarTab = 'outline'}>Outline</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'includes'} onclick={() => panelState.sidebarTab = 'includes'}>Chapters</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'git'} onclick={() => panelState.sidebarTab = 'git'}>Git</button>
+          <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
+            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'files'} onclick={() => panelState.sidebarTab = 'files'} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label="Files panel">Files</button>
+            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'outline'} onclick={() => panelState.sidebarTab = 'outline'} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label="Outline panel">Outline</button>
+            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'includes'} onclick={() => panelState.sidebarTab = 'includes'} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label="Chapters panel">Chapters</button>
+            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'git'} onclick={() => panelState.sidebarTab = 'git'} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Git panel">Git</button>
           </div>
           <div class="sidebar-body">
             {#if panelState.sidebarTab === 'files'}
@@ -417,24 +417,28 @@
       <div class="panel-editor">
         <!-- Tab Bar -->
         {#if tabState.openTabs.length > 0}
-          <div class="tab-bar">
+          <div class="tab-bar" role="tablist" aria-label="Open files">
             {#each tabState.openTabs as tab, i}
-              <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
               <div
                 class="editor-tab"
                 class:active={i === tabState.activeTabIndex}
                 onclick={() => switchToTab(i)}
+                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchToTab(i); } }}
                 title={tab.path}
                 role="tab"
+                tabindex="0"
+                aria-selected={i === tabState.activeTabIndex}
+                aria-label={tabName(tab)}
               >
                 <span class="tab-label">{tabName(tab)}</span>
-                <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
                 <span
                   class="tab-close"
                   onclick={(e) => { e.stopPropagation(); closeTab(i); }}
+                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); closeTab(i); } }}
                   title="Close"
                   role="button"
                   tabindex="0"
+                  aria-label="Close {tabName(tab)}"
                 >
                   <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </span>
@@ -565,6 +569,8 @@
         class:active={panelState.showSidebar}
         onclick={() => (panelState.showSidebar = !panelState.showSidebar)}
         title="Cmd+B"
+        aria-label="Toggle project sidebar"
+        aria-pressed={panelState.showSidebar}
       >
         Project
       </button>
@@ -573,6 +579,8 @@
         class:active={panelState.showTerminal}
         onclick={() => (panelState.showTerminal = !panelState.showTerminal)}
         title="Cmd+`"
+        aria-label="Toggle terminal panel"
+        aria-pressed={panelState.showTerminal}
       >
         Terminal / AI
       </button>
@@ -581,12 +589,16 @@
         class:active={panelState.showPreview}
         onclick={() => (panelState.showPreview = !panelState.showPreview)}
         title="Cmd+Shift+P"
+        aria-label="Toggle preview panel"
+        aria-pressed={panelState.showPreview}
       >
         Preview
       </button>
     </div>
     <div class="status-right">
-      {#if !tabState.isSaved}
+      {#if uiState.exporting}
+        <span class="status-info status-exporting" aria-live="polite">Exporting {uiState.exportFormat.toUpperCase()}...</span>
+      {:else if !tabState.isSaved}
         <span class="status-info status-unsaved">Unsaved</span>
       {:else if tabState.lastSaveTime}
         <span class="status-info">Saved {tabState.lastSaveTime}</span>
@@ -966,6 +978,17 @@
   .status-unsaved {
     color: #e88a3a;
     font-weight: 500;
+  }
+
+  .status-exporting {
+    color: #4f7df9;
+    font-weight: 500;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 
   .status-toggle.licensed {

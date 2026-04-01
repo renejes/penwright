@@ -11,6 +11,13 @@ function getGitDir(): string {
   return appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : process.cwd());
 }
 
+/** Validates that a file path is within the git working directory. */
+function isPathWithinGitDir(filePath: string): boolean {
+  const gitDir = getGitDir();
+  const normalized = path.normalize(path.resolve(gitDir, filePath));
+  return normalized.startsWith(path.normalize(path.resolve(gitDir)) + path.sep) || normalized === path.normalize(path.resolve(gitDir));
+}
+
 export function setupGitIPC(): void {
   ipcMain.handle('git:status', async () => {
     const dir = getGitDir();
@@ -48,11 +55,13 @@ export function setupGitIPC(): void {
   });
 
   ipcMain.handle('git:stage', async (_event, filePath: string) => {
+    if (!isPathWithinGitDir(filePath)) throw new Error('Access denied: path is outside the project.');
     const git = simpleGit(getGitDir());
     await git.add(filePath);
   });
 
   ipcMain.handle('git:unstage', async (_event, filePath: string) => {
+    if (!isPathWithinGitDir(filePath)) throw new Error('Access denied: path is outside the project.');
     const git = simpleGit(getGitDir());
     await git.reset(['HEAD', '--', filePath]);
   });

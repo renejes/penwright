@@ -6,7 +6,7 @@
 import { dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { watch, type FSWatcher } from 'chokidar';
 import { deserializeTypst } from './deserializer-bridge';
 import { serializeDocx } from '../shared/docxSerializer';
@@ -42,8 +42,10 @@ export async function handleExportPdf(): Promise<void> {
 
   if (result.canceled || !result.filePath) return;
 
+  appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: true, format: 'pdf' });
   try {
-    execSync(`typst compile "${appState.currentFilePath}" "${result.filePath}"`);
+    execFileSync('typst', ['compile', appState.currentFilePath, result.filePath]);
+    appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: 'pdf' });
     const choice = await dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
       buttons: ['Open PDF', 'OK'],
@@ -53,6 +55,7 @@ export async function handleExportPdf(): Promise<void> {
       shell.openPath(result.filePath);
     }
   } catch (err) {
+    appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: 'pdf' });
     dialog.showErrorBox(
       'PDF export failed',
       `${err instanceof Error ? err.message : String(err)}`,
@@ -77,12 +80,14 @@ export async function handleExportDocx(): Promise<void> {
 
   if (result.canceled || !result.filePath) return;
 
+  appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: true, format: 'docx' });
   try {
     const doc = deserializeTypst(appState.currentContent);
     const docDir = path.dirname(appState.currentFilePath);
     const buffer = await serializeDocx(doc, docDir, appState.currentContent);
     fs.writeFileSync(result.filePath, buffer);
 
+    appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: 'docx' });
     const choice = await dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
       buttons: ['Open DOCX', 'OK'],
@@ -92,6 +97,7 @@ export async function handleExportDocx(): Promise<void> {
       shell.openPath(result.filePath);
     }
   } catch (err) {
+    appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: 'docx' });
     dialog.showErrorBox(
       'DOCX export failed',
       `${err instanceof Error ? err.message : String(err)}`,

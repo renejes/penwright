@@ -97,11 +97,13 @@
   }
 </script>
 
-<div class="toolbar-buttons">
+<div class="toolbar-buttons" role="toolbar" aria-label="Formatting toolbar">
   <button
     class:active={editor.isActive('bold')}
     onclick={() => editor.chain().focus().toggleBold().run()}
     title="Bold (Cmd+B)"
+    aria-label="Bold"
+    aria-pressed={editor.isActive('bold')}
   >
     <strong>B</strong>
   </button>
@@ -110,6 +112,8 @@
     class:active={editor.isActive('italic')}
     onclick={() => editor.chain().focus().toggleItalic().run()}
     title="Italic (Cmd+I)"
+    aria-label="Italic"
+    aria-pressed={editor.isActive('italic')}
   >
     <em>I</em>
   </button>
@@ -118,6 +122,8 @@
     class:active={editor.isActive('strike')}
     onclick={() => editor.chain().focus().toggleStrike().run()}
     title="Strikethrough (Cmd+Shift+X)"
+    aria-label="Strikethrough"
+    aria-pressed={editor.isActive('strike')}
   >
     <s>S</s>
   </button>
@@ -126,6 +132,8 @@
     class:active={editor.isActive('code')}
     onclick={() => editor.chain().focus().toggleCode().run()}
     title="Inline Code (Cmd+E)"
+    aria-label="Inline code"
+    aria-pressed={editor.isActive('code')}
   >
     &lt;/&gt;
   </button>
@@ -134,6 +142,8 @@
     class:active={editor.isActive('link')}
     onclick={setLink}
     title="Link (Cmd+K)"
+    aria-label="Insert link"
+    aria-pressed={editor.isActive('link')}
   >
     &#128279;
   </button>
@@ -142,6 +152,8 @@
     class:active={editor.isActive('underline')}
     onclick={() => editor.chain().focus().toggleMark('underline').run()}
     title="Underline (Cmd+U)"
+    aria-label="Underline"
+    aria-pressed={editor.isActive('underline')}
   >
     <u>U</u>
   </button>
@@ -152,6 +164,9 @@
     class:active={editor.isActive('textColor')}
     onclick={openTextColorPicker}
     title="Text Color"
+    aria-label="Text color"
+    aria-expanded={showTextColorPicker}
+    aria-haspopup="true"
   >
     <span class="color-btn-label">A</span>
     <span class="color-btn-bar" style="background: {editor.getAttributes('textColor').color ? editor.getAttributes('textColor').color : '#e74c3c'}"></span>
@@ -163,17 +178,22 @@
     class:active={editor.isActive('highlight')}
     onclick={openHighlightPicker}
     title="Highlight"
+    aria-label="Highlight text"
+    aria-expanded={showHighlightPicker}
+    aria-haspopup="true"
   >
     <span class="highlight-btn-label">H</span>
     <span class="color-btn-bar" style="background: #f1c40f"></span>
   </button>
 
-  <div class="separator"></div>
+  <div class="separator" role="separator"></div>
 
   <button
     class:active={editor.isActive('heading', { level: 1 })}
     onclick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
     title="Heading 1 (Cmd+Alt+1)"
+    aria-label="Heading 1"
+    aria-pressed={editor.isActive('heading', { level: 1 })}
   >
     H1
   </button>
@@ -182,6 +202,8 @@
     class:active={editor.isActive('heading', { level: 2 })}
     onclick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
     title="Heading 2 (Cmd+Alt+2)"
+    aria-label="Heading 2"
+    aria-pressed={editor.isActive('heading', { level: 2 })}
   >
     H2
   </button>
@@ -190,16 +212,20 @@
     class:active={editor.isActive('heading', { level: 3 })}
     onclick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
     title="Heading 3 (Cmd+Alt+3)"
+    aria-label="Heading 3"
+    aria-pressed={editor.isActive('heading', { level: 3 })}
   >
     H3
   </button>
 
-  <div class="separator"></div>
+  <div class="separator" role="separator"></div>
 
   <button
     class:active={editor.isActive('bulletList')}
     onclick={() => editor.chain().focus().toggleBulletList().run()}
     title="Bullet List (Cmd+Shift+8)"
+    aria-label="Bullet list"
+    aria-pressed={editor.isActive('bulletList')}
   >
     &bull;
   </button>
@@ -208,6 +234,8 @@
     class:active={editor.isActive('orderedList')}
     onclick={() => editor.chain().focus().toggleOrderedList().run()}
     title="Ordered List (Cmd+Shift+7)"
+    aria-label="Ordered list"
+    aria-pressed={editor.isActive('orderedList')}
   >
     1.
   </button>
@@ -216,6 +244,8 @@
     class:active={editor.isActive('blockquote')}
     onclick={() => editor.chain().focus().toggleBlockquote().run()}
     title="Quote (Cmd+Shift+B)"
+    aria-label="Block quote"
+    aria-pressed={editor.isActive('blockquote')}
   >
     &ldquo;
   </button>
@@ -224,6 +254,8 @@
     class:active={editor.isActive('codeBlock')}
     onclick={() => editor.chain().focus().toggleCodeBlock().run()}
     title="Code Block (Cmd+Alt+C)"
+    aria-label="Code block"
+    aria-pressed={editor.isActive('codeBlock')}
   >
     &#123; &#125;
   </button>
@@ -232,6 +264,8 @@
     class:active={editor.isActive('superscript')}
     onclick={() => editor.chain().focus().toggleMark('superscript').run()}
     title="Superscript"
+    aria-label="Superscript"
+    aria-pressed={editor.isActive('superscript')}
   >
     x<sup>2</sup>
   </button>
@@ -240,6 +274,8 @@
     class:active={editor.isActive('subscript')}
     onclick={() => editor.chain().focus().toggleMark('subscript').run()}
     title="Subscript"
+    aria-label="Subscript"
+    aria-pressed={editor.isActive('subscript')}
   >
     x<sub>2</sub>
   </button>
@@ -248,16 +284,20 @@
     class:active={editor.isActive('smallcaps')}
     onclick={() => editor.chain().focus().toggleMark('smallcaps').run()}
     title="Small Caps"
+    aria-label="Small caps"
+    aria-pressed={editor.isActive('smallcaps')}
   >
     <span style="font-variant: small-caps; font-size: 0.85em">Sc</span>
   </button>
 
-  <div class="separator"></div>
+  <div class="separator" role="separator"></div>
 
   <button
     class:active={editor.isActive({ textAlign: 'left' })}
     onclick={() => editor.chain().focus().setTextAlign('left').run()}
     title="Align Left (Cmd+Shift+L)"
+    aria-label="Align left"
+    aria-pressed={editor.isActive({ textAlign: 'left' })}
   >
     <span class="align-icon align-left"></span>
   </button>
@@ -266,6 +306,8 @@
     class:active={editor.isActive({ textAlign: 'center' })}
     onclick={() => editor.chain().focus().setTextAlign('center').run()}
     title="Align Center (Cmd+Shift+E)"
+    aria-label="Align center"
+    aria-pressed={editor.isActive({ textAlign: 'center' })}
   >
     <span class="align-icon align-center"></span>
   </button>
@@ -274,6 +316,8 @@
     class:active={editor.isActive({ textAlign: 'right' })}
     onclick={() => editor.chain().focus().setTextAlign('right').run()}
     title="Align Right (Cmd+Shift+R)"
+    aria-label="Align right"
+    aria-pressed={editor.isActive({ textAlign: 'right' })}
   >
     <span class="align-icon align-right"></span>
   </button>
@@ -282,11 +326,13 @@
     class:active={editor.isActive({ textAlign: 'justify' })}
     onclick={() => editor.chain().focus().setTextAlign('justify').run()}
     title="Justify (Cmd+Shift+J)"
+    aria-label="Justify"
+    aria-pressed={editor.isActive({ textAlign: 'justify' })}
   >
     <span class="align-icon align-justify"></span>
   </button>
 
-  <div class="separator"></div>
+  <div class="separator" role="separator"></div>
 
   <!-- Table insert -->
   <div class="table-btn-group">
@@ -300,6 +346,9 @@
         }
       }}
       title="Insert Table"
+      aria-label="Insert table"
+      aria-expanded={showTablePicker}
+      aria-haspopup="true"
     >
       &#9638;
     </button>
@@ -333,16 +382,18 @@
   <button
     onclick={() => editor.chain().focus().setHorizontalRule().run()}
     title="Horizontal Rule"
+    aria-label="Insert horizontal rule"
   >
     &mdash;
   </button>
 
-  <div class="separator"></div>
+  <div class="separator" role="separator"></div>
 
   <button
     onclick={() => editor.chain().focus().undo().run()}
     disabled={!editor.can().undo()}
     title="Undo (Cmd+Z)"
+    aria-label="Undo"
   >
     &#8617;
   </button>
@@ -351,6 +402,7 @@
     onclick={() => editor.chain().focus().redo().run()}
     disabled={!editor.can().redo()}
     title="Redo (Cmd+Shift+Z)"
+    aria-label="Redo"
   >
     &#8618;
   </button>

@@ -150,18 +150,36 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [x] 3 Skill-Dateien als MCP Prompts exponiert (typst-reference, vswrite-conventions, research-workflow)
 - [x] Claude Desktop kann Skills über `/` Menü in Kontext laden
 
-### Nächste Schritte (Session 6)
+**Security (Session 6 — erledigt):**
+- [x] Path Traversal Fix: `isPathWithinProject()` fuer textfile:read/write/readBinary + filetree:open
+- [x] Command Injection Fix: `execSync` → `execFileSync` mit Array-Argumenten
+- [x] SVG Injection Fix: DOMPurify-Sanitisierung im PreviewPanel
+- [x] OS-Level Sandbox aktiviert (`sandbox: true`)
+- [x] Protocol-Handler `vswrite-asset://` mit Pfad-Validierung
+- [x] CSP-Header in index.html
+- [x] Terminal-Respawn-Limit (max 5)
+- [x] Git-Pfad-Validierung fuer stage/unstage
+- [x] `@xmldom/xmldom` Vulnerability gefixt (npm audit fix → 0 vulnerabilities)
 
+**Features (Session 6 — erledigt):**
+- [x] Crash Recovery: Backup-Snapshots alle 30s, Recovery-Dialog beim Oeffnen
+- [x] Undo AI Edit: Snapshot-Ring-Buffer (max 20) bei externen Datei-Aenderungen, Wiederherstellung via Menu
+- [x] Accessibility: ARIA-Labels auf Toolbar (25+ Buttons), Sidebar, Tabs, Status-Bar
+- [x] Export Loading-State: Pulsierende Status-Anzeige bei PDF/DOCX-Export
+- [x] CommandHub Redesign: 7 fokussierte Gruppen statt 5 ueberladene, Format-Redundanz entfernt
+
+### Naechste Schritte (Session 7)
+
+- [ ] **Distribution-Server:** Nginx-Container auf Hetzner VPS fuer `releases.vswrite.com`
+- [ ] **Auto-Updater:** `electron-updater` mit `generic` Provider → `latest-mac.yml` auf VPS
 - [ ] **DMG bauen:** `npm run build && npm run package:mac` mit Apple Notarization
-- [ ] **Ausführliches Testing:** Alle Features, Edge Cases (Offline, große Dokumente, File Locking)
-- [ ] **GitHub Release Repo:** `renejes/vswrite-releases` (public) erstellen
-- [ ] **Ersten Release hochladen:** `gh release create v1.0.0 release/*.dmg --repo renejes/vswrite-releases`
-- [ ] **Download-Link auf Homepage:** vswrite.netlify.app → GitHub Release verlinken
+- [ ] **Ersten Release hochladen:** DMG + ZIP + latest-mac.yml via scp auf VPS
+- [ ] **Download-Link auf Homepage:** vswrite.com → `releases.vswrite.com/vswrite-*.dmg`
+- [ ] **Ausfuehrliches Testing:** Alle Features, Edge Cases (Offline, grosse Dokumente, File Locking)
 
 ### Offen (nach v1.0)
 
-- [ ] Auto-Update (electron-updater + GitHub Releases)
-- [ ] Linux AppImage (`npm run package:linux`)
+- [ ] Linux AppImage (`npm run package:linux`) + auf VPS hochladen
 - [ ] Dark Mode
 - [ ] About Dialog
 - [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge)

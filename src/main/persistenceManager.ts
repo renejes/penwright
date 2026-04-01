@@ -6,6 +6,9 @@
  */
 
 import Store from 'electron-store';
+import * as path from 'path';
+import * as fs from 'fs';
+import { app } from 'electron';
 
 export interface RecentProject {
   path: string;
@@ -188,4 +191,64 @@ export function clearLicenseData(): void {
   store.set('licenseTier', null);
   store.set('licenseStatus', null);
   store.set('lastValidation', 0);
+}
+
+// ─── Crash Recovery / Backup ───────────────────
+
+const BACKUP_DIR = path.join(app.getPath('userData'), 'backups');
+
+export interface BackupInfo {
+  filePath: string;
+  backupPath: string;
+  timestamp: number;
+}
+
+function ensureBackupDir(): void {
+  if (!fs.existsSync(BACKUP_DIR)) {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  }
+}
+
+/** Saves a backup snapshot of the current file content. */
+export function saveBackup(filePath: string, content: string): void {
+  ensureBackupDir();
+  const fileName = path.basename(filePath, '.typ');
+  const backupPath = path.join(BACKUP_DIR, `${fileName}.backup.typ`);
+  const meta = { filePath, timestamp: Date.now() };
+  fs.writeFileSync(backupPath, content, 'utf-8');
+  fs.writeFileSync(backupPath + '.meta.json', JSON.stringify(meta), 'utf-8');
+}
+
+/** Checks if a recovery backup exists that is newer than the file on disk. */
+export function checkForRecovery(filePath: string): BackupInfo | null {
+  ensureBackupDir();
+  const fileName = path.basename(filePath, '.typ');
+  const backupPath = path.join(BACKUP_DIR, `${fileName}.backup.typ`);
+  const metaPath = backupPath + '.meta.json';
+
+  if (!fs.existsSync(backupPath) || !fs.existsSync(metaPath)) return null;
+
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+    if (meta.filePath !== filePath) return null;
+
+    const diskStat = fs.statSync(filePath);
+    if (meta.timestamp > diskStat.mtimeMs) {
+      return { filePath, backupPath, timestamp: meta.timestamp };
+    }
+  } catch {}
+  return null;
+}
+
+/** Reads the backup content. */
+export function readBackup(backupPath: string): string {
+  return fs.readFileSync(backupPath, 'utf-8');
+}
+
+/** Clears the backup for a given file (call after successful save). */
+export function clearBackup(filePath: string): void {
+  const fileName = path.basename(filePath, '.typ');
+  const backupPath = path.join(BACKUP_DIR, `${fileName}.backup.typ`);
+  try { fs.unlinkSync(backupPath); } catch {}
+  try { fs.unlinkSync(backupPath + '.meta.json'); } catch {}
 }

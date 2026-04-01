@@ -11,7 +11,16 @@ import { resolveIncludes } from '../shared/mergeDocument';
 import { splitIntoChapters, slugify } from '../shared/splitDocument';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { appState } from './appState';
-import { openFile, saveFile, saveFileAs, newFile, autoSave, updateTitle } from './fileManager';
+import { openFile, saveFile, saveFileAs, newFile, autoSave, updateTitle, popAiSnapshot } from './fileManager';
+
+/** Validates that a file path is within the current project directory. */
+function isPathWithinProject(filePath: string): boolean {
+  const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
+  if (!projectRoot) return false;
+  const normalized = path.normalize(path.resolve(filePath));
+  const normalizedRoot = path.normalize(path.resolve(projectRoot));
+  return normalized.startsWith(normalizedRoot + path.sep) || normalized === normalizedRoot;
+}
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate } from './importExport';
 import { handleCreateProject, handleNewFile, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree } from './projectManager';
 import { getPanelState, savePanelState, getRecentProjects, isOnboardingSeen, setOnboardingSeen, getZoteroBibPath, type PanelState } from './persistenceManager';
@@ -247,6 +256,13 @@ export function setupIPC(): void {
       }
 
       case 'undoLastAiEdit': {
+        const undone = popAiSnapshot();
+        if (!undone) {
+          appState.mainWindow?.webContents.send('vswrite', {
+            type: 'notification',
+            message: 'No AI edits to undo.',
+          });
+        }
         break;
       }
 
@@ -300,7 +316,7 @@ export function setupIPC(): void {
 
   ipcMain.handle('app:checkTypst', () => {
     try {
-      require('child_process').execSync('typst --version', { stdio: 'ignore' });
+      require('child_process').execFileSync('typst', ['--version'], { stdio: 'ignore' });
       return true;
     } catch {
       return false;
@@ -317,6 +333,7 @@ export function setupIPC(): void {
 
   ipcMain.handle('filetree:open', (_event, filePath: string) => {
     if (!filePath) return;
+    if (!isPathWithinProject(filePath)) return;
 
     if (filePath.endsWith('.typ')) {
       openFile(filePath);
@@ -374,14 +391,23 @@ export function setupIPC(): void {
 
   // ─── Text File Handlers ─────────────────────────
   ipcMain.handle('textfile:read', (_event, filePath: string) => {
+    if (!isPathWithinProject(filePath)) {
+      throw new Error('Access denied: path is outside the project directory.');
+    }
     return fs.readFileSync(filePath, 'utf-8');
   });
 
   ipcMain.handle('textfile:readBinary', (_event, filePath: string) => {
+    if (!isPathWithinProject(filePath)) {
+      throw new Error('Access denied: path is outside the project directory.');
+    }
     return fs.readFileSync(filePath).toString('base64');
   });
 
   ipcMain.handle('textfile:write', (_event, filePath: string, content: string) => {
+    if (!isPathWithinProject(filePath)) {
+      throw new Error('Access denied: path is outside the project directory.');
+    }
     fs.writeFileSync(filePath, content, 'utf-8');
     appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
   });

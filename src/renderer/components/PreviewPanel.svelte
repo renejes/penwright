@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import DOMPurify from 'dompurify';
   import PdfPreviewPanel from './PdfPreviewPanel.svelte';
 
   let {
@@ -92,7 +93,7 @@
       {:else}
         {#each pages as page}
           <div class="page">
-            {@html page}
+            {@html DOMPurify.sanitize(page, { USE_PROFILES: { svg: true, svgFilters: true }, ADD_TAGS: ['use', 'clipPath', 'mask'], ADD_ATTR: ['xlink:href', 'clip-path', 'mask'] })}
           </div>
         {/each}
       {/if}

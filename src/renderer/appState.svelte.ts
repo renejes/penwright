@@ -28,6 +28,8 @@ export let uiState = $state({
   licenseTier: null as string | null,
   licenseKey: null as string | null,
   licenseMessage: '',
+  exporting: false,
+  exportFormat: '' as string,
 });
 
 // ─── Panel State ────────────────────────────────

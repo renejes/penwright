@@ -44,6 +44,7 @@
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^4.0.0",
     "docx": "^9.6.1",
+    "dompurify": "^3.3.3",
     "electron-store": "^10.0.0",
     "node-pty": "^1.1.0",
     "pdfjs-dist": "^5.5.207",
@@ -52,6 +53,7 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@types/dompurify": "^3.0.5",
     "concurrently": "^9.0.0",
     "electron": "^41.0.4",
     "electron-builder": "^26.0.0",

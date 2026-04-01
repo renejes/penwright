@@ -121,6 +121,13 @@ export function handleMessage(message: ExtensionMessage): void {
     previewState.compiling = false;
   }
 
+  // Handle export status
+  if (message.type === 'exportStatus') {
+    const exportMsg = message as unknown as { exporting: boolean; format: string };
+    uiState.exporting = exportMsg.exporting;
+    uiState.exportFormat = exportMsg.format;
+  }
+
   // Handle save status
   const msg = message as unknown as { type: string; panel?: string; saved?: boolean; file?: string };
   if (msg.type === 'saveStatus') {

@@ -41,109 +41,146 @@
 
   const groups: MenuGroup[] = [
     {
+      title: 'Document',
+      items: [
+        {
+          label: 'New Project',
+          icon: '\uD83D\uDCC1',
+          action: () =>
+            vscode.postMessage({ type: 'newProject' } as unknown as WebviewMessage),
+        },
+        {
+          label: 'New File',
+          icon: '\uD83D\uDCC4',
+          action: () =>
+            vscode.postMessage({ type: 'newFile' } as unknown as WebviewMessage),
+        },
+        {
+          label: 'Import Markdown\u2026',
+          icon: '\uD83D\uDCDD',
+          action: () =>
+            vscode.postMessage({ type: 'importMarkdown' } as unknown as WebviewMessage),
+        },
+        {
+          label: 'Open as Typst Source',
+          icon: '#',
+          action: () =>
+            vscode.postMessage({ type: 'openSource' } as unknown as WebviewMessage),
+        },
+        {
+          label: 'Undo AI Edit',
+          icon: '\u21B6',
+          action: () =>
+            vscode.postMessage({ type: 'undoLastAiEdit' } as unknown as WebviewMessage),
+          dividerBefore: true,
+        },
+        {
+          label: 'Document Settings',
+          icon: '\u2699',
+          action: () => onShowSettings(),
+        },
+        {
+          label: 'Style Templates',
+          icon: '\uD83C\uDFA8',
+          submenu: [
+            {
+              label: 'Classic Academic',
+              icon: '\uD83C\uDFDB',
+              action: () =>
+                vscode.postMessage({ type: 'applyStyle', styleId: 'classic' } as unknown as WebviewMessage),
+            },
+            {
+              label: 'Modern Clean',
+              icon: '\u2B2C',
+              action: () =>
+                vscode.postMessage({ type: 'applyStyle', styleId: 'modern' } as unknown as WebviewMessage),
+            },
+            {
+              label: 'Minimal',
+              icon: '\u25FB',
+              action: () =>
+                vscode.postMessage({ type: 'applyStyle', styleId: 'minimal' } as unknown as WebviewMessage),
+            },
+            {
+              label: 'Vibrant',
+              icon: '\u2B50',
+              action: () =>
+                vscode.postMessage({ type: 'applyStyle', styleId: 'vibrant' } as unknown as WebviewMessage),
+            },
+            {
+              label: 'Elegant',
+              icon: '\u2766',
+              action: () =>
+                vscode.postMessage({ type: 'applyStyle', styleId: 'elegant' } as unknown as WebviewMessage),
+            },
+            {
+              label: 'Professional Report',
+              icon: '\u25A0',
+              action: () =>
+                vscode.postMessage({ type: 'applyStyle', styleId: 'professional' } as unknown as WebviewMessage),
+            },
+            {
+              label: 'Artsy',
+              icon: '\u2728',
+              action: () =>
+                vscode.postMessage({ type: 'applyStyle', styleId: 'artsy' } as unknown as WebviewMessage),
+            },
+            {
+              label: 'Import Custom Template\u2026',
+              icon: '\uD83D\uDCC2',
+              action: () =>
+                vscode.postMessage({ type: 'importStyleTemplate' } as unknown as WebviewMessage),
+              dividerBefore: true,
+            },
+          ],
+        },
+      ],
+    },
+    {
       title: 'Insert',
       items: [
         {
-          label: 'Heading 1',
-          shortcut: 'Cmd+Alt+1',
-          icon: 'H1',
+          label: 'Image',
+          icon: '\uD83D\uDDBC',
           action: () =>
-            editor.chain().focus().toggleHeading({ level: 1 }).run(),
-        },
-        {
-          label: 'Heading 2',
-          shortcut: 'Cmd+Alt+2',
-          icon: 'H2',
-          action: () =>
-            editor.chain().focus().toggleHeading({ level: 2 }).run(),
-        },
-        {
-          label: 'Heading 3',
-          shortcut: 'Cmd+Alt+3',
-          icon: 'H3',
-          action: () =>
-            editor.chain().focus().toggleHeading({ level: 3 }).run(),
-        },
-        {
-          label: 'Bullet List',
-          shortcut: 'Cmd+Shift+8',
-          icon: '\u2022',
-          action: () => editor.chain().focus().toggleBulletList().run(),
-        },
-        {
-          label: 'Numbered List',
-          shortcut: 'Cmd+Shift+7',
-          icon: '1.',
-          action: () => editor.chain().focus().toggleOrderedList().run(),
-        },
-        {
-          label: 'Quote',
-          shortcut: 'Cmd+Shift+B',
-          icon: '\u201C',
-          action: () => editor.chain().focus().toggleBlockquote().run(),
-        },
-        {
-          label: 'Code Block',
-          shortcut: 'Cmd+Alt+C',
-          icon: '{ }',
-          action: () => editor.chain().focus().toggleCodeBlock().run(),
-        },
-        {
-          label: 'Math Formula',
-          icon: '\u03A3',
-          action: () =>
-            editor
-              .chain()
-              .focus()
-              .insertContent({
-                type: 'typstRawBlock',
-                attrs: { content: '$ $', blockType: 'math' },
-              })
-              .run(),
-        },
-        {
-          label: 'Typst Code',
-          icon: '#',
-          action: () =>
-            editor
-              .chain()
-              .focus()
-              .insertContent({
-                type: 'typstRawBlock',
-                attrs: { content: '#', blockType: 'code' },
-              })
-              .run(),
+            vscode.postMessage({ type: 'pickImage' } as unknown as WebviewMessage),
         },
         {
           label: 'Table',
           icon: '\u25A6',
           action: () =>
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run(),
+            editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
         },
         {
           label: 'Citation',
           icon: '@',
           action: () => {
-            // Insert @ to trigger citation autocomplete
             editor.chain().focus().insertContent('@').run();
           },
         },
         {
-          label: 'Image',
-          icon: '\uD83D\uDDBC',
+          label: 'Math Formula',
+          icon: '\u03A3',
           action: () =>
-            vscode.postMessage({
-              type: 'pickImage',
-            } as unknown as WebviewMessage),
+            editor.chain().focus().insertContent({
+              type: 'typstRawBlock',
+              attrs: { content: '$ $', blockType: 'math' },
+            }).run(),
+        },
+        {
+          label: 'Typst Code',
+          icon: '#',
+          action: () =>
+            editor.chain().focus().insertContent({
+              type: 'typstRawBlock',
+              attrs: { content: '#', blockType: 'code' },
+            }).run(),
         },
         {
           label: 'Divider',
           icon: '\u2014',
           action: () => editor.chain().focus().setHorizontalRule().run(),
+          dividerBefore: true,
         },
         {
           label: 'Page Break',
@@ -154,80 +191,59 @@
       ],
     },
     {
-      title: 'Format',
+      title: 'Structure',
       items: [
         {
-          label: 'Bold',
-          shortcut: 'Cmd+B',
-          icon: 'B',
-          action: () => editor.chain().focus().toggleBold().run(),
-        },
-        {
-          label: 'Italic',
-          shortcut: 'Cmd+I',
-          icon: 'I',
-          action: () => editor.chain().focus().toggleItalic().run(),
-        },
-        {
-          label: 'Strikethrough',
-          shortcut: 'Cmd+Shift+X',
-          icon: 'S',
-          action: () => editor.chain().focus().toggleStrike().run(),
-        },
-        {
-          label: 'Inline Code',
-          shortcut: 'Cmd+E',
-          icon: '</>',
-          action: () => editor.chain().focus().toggleCode().run(),
-        },
-        {
-          label: 'Link',
-          shortcut: 'Cmd+K',
+          label: 'Merge Document',
           icon: '\uD83D\uDD17',
-          action: () => {
-            const previousUrl = editor.getAttributes('link').href;
-            const url = window.prompt('URL:', previousUrl || 'https://');
-            if (url === null) return;
-            if (url === '') {
-              editor
-                .chain()
-                .focus()
-                .extendMarkRange('link')
-                .unsetLink()
-                .run();
-            } else {
-              editor
-                .chain()
-                .focus()
-                .extendMarkRange('link')
-                .setLink({ href: url })
-                .run();
-            }
-          },
+          action: () =>
+            vscode.postMessage({ type: 'mergeDocument' } as unknown as WebviewMessage),
         },
         {
-          label: 'Align Left',
-          shortcut: 'Cmd+Shift+L',
-          icon: '\u2261',
-          action: () => editor.chain().focus().setTextAlign('left').run(),
+          label: 'Split into Chapters',
+          icon: '\u2702',
+          action: () =>
+            vscode.postMessage({ type: 'splitDocument' } as unknown as WebviewMessage),
+        },
+      ],
+    },
+    {
+      title: 'Export',
+      items: [
+        {
+          label: 'Export as PDF',
+          icon: '\uD83D\uDCC4',
+          action: () =>
+            vscode.postMessage({ type: 'exportPdf' } as unknown as WebviewMessage),
         },
         {
-          label: 'Align Center',
-          shortcut: 'Cmd+Shift+E',
-          icon: '\u2261',
-          action: () => editor.chain().focus().setTextAlign('center').run(),
+          label: 'Export as DOCX',
+          icon: '\uD83D\uDCDD',
+          action: () =>
+            vscode.postMessage({ type: 'exportDocx' } as unknown as WebviewMessage),
+        },
+      ],
+    },
+    {
+      title: 'References',
+      items: [
+        {
+          label: 'Link Zotero Library\u2026',
+          icon: '\uD83D\uDCD6',
+          action: () =>
+            vscode.postMessage({ type: 'linkZotero' } as unknown as WebviewMessage),
         },
         {
-          label: 'Align Right',
-          shortcut: 'Cmd+Shift+R',
-          icon: '\u2261',
-          action: () => editor.chain().focus().setTextAlign('right').run(),
+          label: 'Import Sources',
+          icon: '\uD83D\uDCDA',
+          action: () =>
+            vscode.postMessage({ type: 'importSources' } as unknown as WebviewMessage),
         },
         {
-          label: 'Justify',
-          shortcut: 'Cmd+Shift+J',
-          icon: '\u2261',
-          action: () => editor.chain().focus().setTextAlign('justify').run(),
+          label: 'Add Citation Manually',
+          icon: '\u270D',
+          action: () =>
+            vscode.postMessage({ type: 'addCitationManually' } as unknown as WebviewMessage),
         },
       ],
     },
@@ -253,193 +269,13 @@
       ],
     },
     {
-      title: 'File',
-      items: [
-        {
-          label: 'Undo AI Edit',
-          icon: '\u21B6',
-          action: () =>
-            vscode.postMessage({ type: 'undoLastAiEdit' } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Export as PDF',
-          icon: '\uD83D\uDCC4',
-          action: () =>
-            vscode.postMessage({ type: 'exportPdf' } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Export as DOCX',
-          icon: '\uD83D\uDCDD',
-          action: () =>
-            vscode.postMessage({ type: 'exportDocx' } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Document Settings',
-          icon: '\u2699',
-          action: () => onShowSettings(),
-        },
-        {
-          label: 'Style Templates',
-          icon: '\uD83C\uDFA8',
-          submenu: [
-            {
-              label: 'Classic Academic',
-              icon: '\uD83C\uDFDB',
-              action: () =>
-                vscode.postMessage({
-                  type: 'applyStyle',
-                  styleId: 'classic',
-                } as unknown as WebviewMessage),
-            },
-            {
-              label: 'Modern Clean',
-              icon: '\u2B2C',
-              action: () =>
-                vscode.postMessage({
-                  type: 'applyStyle',
-                  styleId: 'modern',
-                } as unknown as WebviewMessage),
-            },
-            {
-              label: 'Minimal',
-              icon: '\u25FB',
-              action: () =>
-                vscode.postMessage({
-                  type: 'applyStyle',
-                  styleId: 'minimal',
-                } as unknown as WebviewMessage),
-            },
-            {
-              label: 'Vibrant',
-              icon: '\u2B50',
-              action: () =>
-                vscode.postMessage({
-                  type: 'applyStyle',
-                  styleId: 'vibrant',
-                } as unknown as WebviewMessage),
-            },
-            {
-              label: 'Elegant',
-              icon: '\u2766',
-              action: () =>
-                vscode.postMessage({
-                  type: 'applyStyle',
-                  styleId: 'elegant',
-                } as unknown as WebviewMessage),
-            },
-            {
-              label: 'Professional Report',
-              icon: '\u25A0',
-              action: () =>
-                vscode.postMessage({
-                  type: 'applyStyle',
-                  styleId: 'professional',
-                } as unknown as WebviewMessage),
-            },
-            {
-              label: 'Artsy',
-              icon: '\u2728',
-              action: () =>
-                vscode.postMessage({
-                  type: 'applyStyle',
-                  styleId: 'artsy',
-                } as unknown as WebviewMessage),
-            },
-            {
-              label: 'Import Custom Template...',
-              icon: '\uD83D\uDCC2',
-              action: () =>
-                vscode.postMessage({
-                  type: 'importStyleTemplate',
-                } as unknown as WebviewMessage),
-              dividerBefore: true,
-            },
-          ],
-        },
-        {
-          label: 'Merge Document',
-          icon: '\uD83D\uDD17',
-          action: () =>
-            vscode.postMessage({
-              type: 'mergeDocument',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Split into Chapters',
-          icon: '\u2702',
-          action: () =>
-            vscode.postMessage({
-              type: 'splitDocument',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Open as Typst Source',
-          icon: '\uD83D\uDCDD',
-          action: () =>
-            vscode.postMessage({
-              type: 'openSource',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'New Project',
-          icon: '\uD83D\uDCC1',
-          action: () =>
-            vscode.postMessage({
-              type: 'newProject',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'New Typst File',
-          icon: '\uD83D\uDCC4',
-          action: () =>
-            vscode.postMessage({
-              type: 'newFile',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Import Markdown…',
-          icon: '\uD83D\uDCDD',
-          action: () =>
-            vscode.postMessage({
-              type: 'importMarkdown',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Link Zotero Library…',
-          icon: '\uD83D\uDCD6',
-          action: () =>
-            vscode.postMessage({
-              type: 'linkZotero',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Import Sources',
-          icon: '\uD83D\uDCDA',
-          action: () =>
-            vscode.postMessage({
-              type: 'importSources',
-            } as unknown as WebviewMessage),
-        },
-        {
-          label: 'Add Citation Manually',
-          icon: '\u270D',
-          action: () =>
-            vscode.postMessage({
-              type: 'addCitationManually',
-            } as unknown as WebviewMessage),
-        },
-      ],
-    },
-    {
       title: 'Help',
       items: [
         {
           label: 'User Guide',
           icon: '\uD83D\uDCD6',
           action: () =>
-            vscode.postMessage({
-              type: 'openUserGuide',
-            } as unknown as WebviewMessage),
+            vscode.postMessage({ type: 'openUserGuide' } as unknown as WebviewMessage),
         },
         {
           label: 'Keyboard Shortcuts',
@@ -545,6 +381,9 @@
     class:open
     onclick={toggle}
     title="Menu"
+    aria-label="Main menu"
+    aria-expanded={open}
+    aria-haspopup="true"
   >
     <span class="hamburger-icon">&#9776;</span>
   </button>
@@ -552,13 +391,16 @@
   {#if open}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="command-hub-backdrop" onclick={handleBackdropClick} role="presentation"></div>
-    <div class="command-hub-dropdown">
+    <div class="command-hub-dropdown" role="menu" aria-label="Main menu">
       {#each groups as group, gi}
         {#if gi > 0}
           <div class="command-hub-divider"></div>
         {/if}
         <div class="command-hub-group-title">{group.title}</div>
         {#each group.items as item}
+          {#if item.dividerBefore}
+            <div class="command-hub-divider"></div>
+          {/if}
           {#if item.submenu}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div

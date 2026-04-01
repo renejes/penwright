@@ -35,7 +35,7 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/preload-entry.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -174,7 +174,15 @@ app.whenReady().then(() => {
   // Register protocol handler for local asset files (images etc.)
   protocol.handle('vswrite-asset', (request) => {
     const filePath = decodeURIComponent(request.url.replace('vswrite-asset://', ''));
-    return net.fetch(`file://${filePath}`);
+    const normalized = path.normalize(path.resolve(filePath));
+
+    // Only allow files within the current project directory
+    const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
+    if (!projectRoot || !normalized.startsWith(path.normalize(path.resolve(projectRoot)))) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
+    return net.fetch(`file://${normalized}`);
   });
 
   buildMenu(appState);

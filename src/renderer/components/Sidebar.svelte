@@ -95,16 +95,16 @@
   }
 </script>
 
-<div class="sidebar">
+<div class="sidebar" role="complementary" aria-label="File explorer">
   {#if projectDir}
     <div class="sidebar-path">
       {#if hasParent}
-        <button class="back-btn" onclick={navigateUp} title="Go up">
+        <button class="back-btn" onclick={navigateUp} title="Go up" aria-label="Navigate to parent folder">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       {/if}
       <span class="path-text" title={projectDir}>{dirName(projectDir)}</span>
-      <button class="action-btn" onclick={openFolder} title="Open Folder">
+      <button class="action-btn" onclick={openFolder} title="Open Folder" aria-label="Open folder">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
     </div>
@@ -119,7 +119,7 @@
         <button class="open-btn" onclick={openFolder}>Open Folder</button>
       </div>
     {:else}
-      <ul class="file-list">
+      <ul class="file-list" role="tree" aria-label="Project files">
         {#each tree as entry}
           {@render fileNode(entry, 0)}
         {/each}

@@ -17,6 +17,8 @@ type IPty = import('node-pty').IPty;
 export class TerminalManager {
   private process: IPty | null = null;
   private window: BrowserWindow;
+  private respawnCount = 0;
+  private static readonly MAX_RESPAWNS = 5;
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -52,8 +54,12 @@ export class TerminalManager {
     });
 
     this.process.onExit(() => {
-      // Respawn on exit
-      setTimeout(() => this.spawn(cwd), 100);
+      if (this.respawnCount < TerminalManager.MAX_RESPAWNS) {
+        this.respawnCount++;
+        setTimeout(() => this.spawn(cwd), 100);
+      } else {
+        console.warn('[vswrite] Terminal respawn limit reached');
+      }
     });
   }
 
