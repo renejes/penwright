@@ -1,28 +1,26 @@
-#set text(font: "New Computer Modern", size: 11pt)
-#set page(paper: "a4", margin: (top: 2.5cm, bottom: 2.5cm, left: 3cm, right: 3cm), numbering: "1")
-#set par(justify: true, leading: 0.7em, spacing: 1.2em, first-line-indent: 1em)
-#set heading(numbering: "I.a.")
+#set text(font: "Helvetica", size: 11pt)
+#set page(paper: "a4", margin: (top: 2.5cm, bottom: 2.5cm, left: 2.5cm, right: 2.5cm), numbering: "1")
+#set par(justify: true, leading: 0.7em, spacing: 1.2em)
+#set heading(numbering: "1.1")
 
 #show heading.where(level: 1): it => {
-  v(1.5em)
-  align(center)[
-    #text(size: 18pt, weight: "bold", fill: rgb("#5d4037"))[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
-    #v(0.3em)
-    #line(length: 30%, stroke: 0.8pt + rgb("#8d6e63"))
-  ]
   v(0.8em)
+  text(size: 20pt, fill: rgb("#1a5276"), weight: "bold")[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
+  v(0.3em)
+  line(length: 100%, stroke: 1.5pt + rgb("#2980b9"))
+  v(0.5em)
 }
 
 #show heading.where(level: 2): it => {
-  v(0.8em)
-  text(size: 13pt, fill: rgb("#5d4037"), weight: "bold", style: "italic")[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
-  v(0.3em)
+  v(0.5em)
+  text(size: 14pt, fill: rgb("#2c3e50"), weight: "bold")[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
+  v(0.2em)
 }
 
 #show heading.where(level: 3): it => {
-  v(0.5em)
-  text(size: 11.5pt, fill: rgb("#795548"), weight: "bold")[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
-  v(0.2em)
+  v(0.3em)
+  text(size: 12pt, fill: rgb("#34495e"), weight: "bold")[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
+  v(0.1em)
 }
 
 #align(center)[
@@ -67,5 +65,21 @@
 #include "chapters/05-forschungsperspektiven.typ"
 
 #include "chapters/06-fazit.typ"
+
+#include "chapters/07-theoretische-grundlagen.typ"
+
+#include "chapters/08-methoden-der-forschung.typ"
+
+#include "chapters/09-schulpaedagogik.typ"
+
+#include "chapters/10-sozialpaedagogik.typ"
+
+#include "chapters/11-inklusion.typ"
+
+#include "chapters/12-bildungspolitik.typ"
+
+#include "chapters/13-medienpaedagogik.typ"
+
+#include "chapters/14-internationale-perspektiven.typ"
 
 #bibliography("references.bib", style: "chicago-author-date")
