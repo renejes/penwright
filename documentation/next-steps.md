@@ -297,6 +297,8 @@ Konfiguriert in `package.json` → `build.publish.url`. Die App fragt diesen End
 - [x] Grundlegende ARIA-Labels fuer Accessibility
 - [x] Export Loading-State (PDF/DOCX)
 - [x] CommandHub Redesign (thematische Sortierung)
+- [x] Typst CLI gebundelt (User muss Typst nicht installieren)
+- [x] File Watcher: Sidebar-Flackern bei Auto-Save behoben
 
 ### Phase 3: Distribution (naechster Schritt)
 
@@ -322,6 +324,7 @@ Konfiguriert in `package.json` → `build.publish.url`. Die App fragt diesen End
 
 ### Phase 5: Post-Release
 
+- [ ] Typst Binaries fuer andere Plattformen (x64-darwin, x64-linux, x64-win32)
 - [ ] Linux AppImage bauen + auf VPS hochladen
 - [ ] Windows Installer (wenn Nachfrage)
 - [ ] Dark Mode

@@ -7,6 +7,7 @@ import { dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
+import { getTypstPath } from './typstPath';
 import { watch, type FSWatcher } from 'chokidar';
 import { deserializeTypst } from './deserializer-bridge';
 import { serializeDocx } from '../shared/docxSerializer';
@@ -44,7 +45,7 @@ export async function handleExportPdf(): Promise<void> {
 
   appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: true, format: 'pdf' });
   try {
-    execFileSync('typst', ['compile', appState.currentFilePath, result.filePath]);
+    execFileSync(getTypstPath(), ['compile', appState.currentFilePath, result.filePath]);
     appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: 'pdf' });
     const choice = await dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',

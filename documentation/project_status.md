@@ -168,7 +168,14 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [x] Export Loading-State: Pulsierende Status-Anzeige bei PDF/DOCX-Export
 - [x] CommandHub Redesign: 7 fokussierte Gruppen statt 5 ueberladene, Format-Redundanz entfernt
 
-### Naechste Schritte (Session 7)
+**Session 7 — erledigt:**
+- [x] Typst CLI gebundelt: Binary in `resources/bin/` mitgeliefert, User muss Typst nicht installieren
+- [x] `typstPath.ts`: Resolver findet gebundelte Binary in Production, System-PATH in Development
+- [x] File Watcher Fix: Sidebar-Flackern bei eigenem Auto-Save behoben (Timestamp-Guard auf alle Handler)
+- [x] Tauri-Migration evaluiert und verworfen (Frontend-Rewrite zu aufwaendig, Electron-Loesung mit gebundelter Binary gleichwertig)
+- [x] MCP Server Dokumentation fuer Distribution erstellt
+
+### Naechste Schritte (Session 8)
 
 - [ ] **Distribution-Server:** Nginx-Container auf Hetzner VPS fuer `releases.vswrite.com`
 - [ ] **Auto-Updater:** `electron-updater` mit `generic` Provider → `latest-mac.yml` auf VPS
@@ -176,6 +183,7 @@ vswrite Desktop ist eine eigenständige Electron Desktop-App, portiert aus der v
 - [ ] **Ersten Release hochladen:** DMG + ZIP + latest-mac.yml via scp auf VPS
 - [ ] **Download-Link auf Homepage:** vswrite.com → `releases.vswrite.com/vswrite-*.dmg`
 - [ ] **Ausfuehrliches Testing:** Alle Features, Edge Cases (Offline, grosse Dokumente, File Locking)
+- [ ] **Typst Binaries fuer andere Plattformen:** x64-darwin (Intel Mac), x64-linux, x64-win32
 
 ### Offen (nach v1.0)
 

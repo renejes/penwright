@@ -7,6 +7,7 @@ import { execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
+import { getTypstPath } from './typstPath';
 
 export class TypstCompiler extends EventEmitter {
   private filePath: string;
@@ -29,7 +30,7 @@ export class TypstCompiler extends EventEmitter {
     const outPattern = path.join(dir, '.vswrite-preview-{n}.svg');
 
     execFile(
-      'typst',
+      getTypstPath(),
       ['compile', this.filePath, outPattern, '--format', 'svg'],
       { cwd: dir, timeout: 30000 },
       (error, _stdout, stderr) => {
@@ -71,7 +72,7 @@ export class TypstCompiler extends EventEmitter {
     const outPath = path.join(dir, '.vswrite-preview.pdf');
 
     execFile(
-      'typst',
+      getTypstPath(),
       ['compile', this.filePath, outPath],
       { cwd: dir, timeout: 30000 },
       (error, _stdout, stderr) => {

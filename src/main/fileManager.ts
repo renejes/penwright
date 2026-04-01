@@ -380,7 +380,7 @@ function setupFileWatcher(): void {
   });
 
   fileWatcher.on('change', (changedPath: string) => {
-    if (Date.now() - appState.lastSaveTimestamp < 2000) return;
+    if (Date.now() - appState.lastSaveTimestamp < 3000) return;
 
     if (changedPath === appState.currentFilePath) {
       try {
@@ -410,7 +410,10 @@ function setupFileWatcher(): void {
     }
 
     if (changedPath.endsWith('.typ') || changedPath.endsWith('.bib')) {
-      appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+      // Don't refresh file tree for our own saves
+      if (Date.now() - appState.lastSaveTimestamp >= 3000) {
+        appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+      }
       if (changedPath.endsWith('.bib')) {
         import('./importExport').then(({ handleRequestCitations }) => {
           handleRequestCitations();
@@ -419,11 +422,15 @@ function setupFileWatcher(): void {
     }
   });
 
-  fileWatcher.on('add', () => {
+  fileWatcher.on('add', (addedPath: string) => {
+    if (Date.now() - appState.lastSaveTimestamp < 3000) return;
+    if (addedPath.includes('.vswrite-preview')) return;
     appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
   });
 
-  fileWatcher.on('unlink', () => {
+  fileWatcher.on('unlink', (removedPath: string) => {
+    if (Date.now() - appState.lastSaveTimestamp < 3000) return;
+    if (removedPath.includes('.vswrite-preview')) return;
     appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
   });
 }

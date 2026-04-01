@@ -316,7 +316,8 @@ export function setupIPC(): void {
 
   ipcMain.handle('app:checkTypst', () => {
     try {
-      require('child_process').execFileSync('typst', ['--version'], { stdio: 'ignore' });
+      const { getTypstPath } = require('./typstPath');
+      require('child_process').execFileSync(getTypstPath(), ['--version'], { stdio: 'ignore' });
       return true;
     } catch {
       return false;

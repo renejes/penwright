@@ -4,8 +4,6 @@ Die Erziehungs- und Bildungswissenschaft gehört zu den zentralen Disziplinen de
 
 #image("../assets/FOTO LEBENSLAUF KLEINER-1-1.jpg", width: 50%)
 
-
-
 == Ausgangslage und Relevanz
 
 Die wissenschaftliche Auseinandersetzung mit Erziehung und Bildung hat eine lange Tradition, die bis in die griechische Antike zurückreicht. Wie @fuchs2013 ausführlich darlegt, konstituierte sich die Pädagogik als eigenständige Wissenschaft erst durch die systematische Aufarbeitung ihrer Geschichte. Von den sophistischen Bildungskonzepten des fünften Jahrhunderts v.Chr. über die Aufklärungspädagogik eines Jean-Jacques Rousseau und Immanuel Kant bis hin zu den Reformbewegungen des 20. Jahrhunderts lassen sich grundlegende Entwicklungslinien pädagogischen Denkens nachzeichnen, die bis heute das Verständnis von Erziehung und Bildung prägen.

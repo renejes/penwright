@@ -1,24 +1,28 @@
-#set text(font: "Helvetica", size: 10.5pt, fill: rgb("#333333"))
-#set page(paper: "a4", margin: (top: 3cm, bottom: 3cm, left: 3.5cm, right: 3.5cm), numbering: "1")
-#set par(justify: false, leading: 0.8em, spacing: 1.4em)
-#set heading(numbering: "1.1")
+#set text(font: "New Computer Modern", size: 11pt)
+#set page(paper: "a4", margin: (top: 2.5cm, bottom: 2.5cm, left: 3cm, right: 3cm), numbering: "1")
+#set par(justify: true, leading: 0.7em, spacing: 1.2em, first-line-indent: 1em)
+#set heading(numbering: "I.a.")
 
 #show heading.where(level: 1): it => {
-  v(2em)
-  text(size: 22pt, weight: "light", tracking: 0.05em)[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#{upper(it.body)}]
-  v(1em)
+  v(1.5em)
+  align(center)[
+    #text(size: 18pt, weight: "bold", fill: rgb("#5d4037"))[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
+    #v(0.3em)
+    #line(length: 30%, stroke: 0.8pt + rgb("#8d6e63"))
+  ]
+  v(0.8em)
 }
 
 #show heading.where(level: 2): it => {
-  v(1em)
-  text(size: 13pt, weight: "regular", fill: rgb("#666666"), tracking: 0.03em)[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#{upper(it.body)}]
-  v(0.5em)
+  v(0.8em)
+  text(size: 13pt, fill: rgb("#5d4037"), weight: "bold", style: "italic")[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
+  v(0.3em)
 }
 
 #show heading.where(level: 3): it => {
   v(0.5em)
-  text(size: 11pt, weight: "bold", fill: rgb("#888888"))[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
-  v(0.3em)
+  text(size: 11.5pt, fill: rgb("#795548"), weight: "bold")[#{if it.numbering != none {counter(heading).display(it.numbering) + " "}}#it.body]
+  v(0.2em)
 }
 
 #align(center)[

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-vswrite-desktop is a standalone Electron desktop app for WYSIWYG editing of Typst documents, ported from the vswrite VS Code extension. Tech stack: Electron 41, electron-vite 5, Svelte 5 (runes), TipTap/ProseMirror 3, node-pty + xterm.js, simple-git.
+vswrite-desktop is a standalone Electron desktop app for WYSIWYG editing of Typst documents, ported from the vswrite VS Code extension. Tech stack: Electron 41, electron-vite 5, Svelte 5 (runes), TipTap/ProseMirror 3, simple-git. Typst CLI is bundled with the app (no user installation needed).
 
 ## Commands
 
@@ -42,13 +42,17 @@ Build outputs go to `dist/main/`, `dist/preload/`, `dist/renderer/`.
 `appState.ts` is a leaf-module singleton imported by all other main modules — never import project modules into it (circular dependency prevention). The remaining modules are organized by domain:
 
 - `ipcHandlers.ts` — Central IPC message router dispatching to:
-  - `fileManager.ts` — File I/O, auto-save (300ms debounce), chokidar watcher, compiler invocation
-  - `importExport.ts` — PDF (via typst CLI), DOCX (via docx lib), Markdown, Zotero
+  - `fileManager.ts` — File I/O, auto-save (1s debounce), chokidar watcher (3s timestamp guard to prevent sidebar flicker), compiler invocation, AI snapshot ring buffer (max 20), crash recovery backups (30s interval)
+  - `importExport.ts` — PDF (via bundled typst CLI), DOCX (via docx lib), Markdown, Zotero
   - `projectManager.ts` — Project templates, file tree, image handling, settings
   - `gitManager.ts` — Git operations via simple-git
 - `typstCompiler.ts` — Typst → SVG compilation (compiles root file, reads zero-padded page SVGs)
+- `typstPath.ts` — Resolves bundled typst binary (Production: `resources/bin/typst-{arch}-{platform}`, Development: system PATH)
 - `terminalManager.ts` — node-pty wrapper for integrated terminal
 - `menuBuilder.ts` — Native menu (macOS/Windows)
+- `lockManager.ts` — File locking for shared folders (Dropbox, iCloud)
+- `persistenceManager.ts` — electron-store: window bounds, panel state, license, recent projects, crash recovery
+- `licenseManager.ts` — Polar SDK: license activation, validation, offline grace (30 days)
 
 ### IPC Communication
 
@@ -83,5 +87,9 @@ Configured in electron.vite.config.mts: `@shared` → `src/shared/`, `@editor` �
 
 - Preload whitelist: any new IPC channel must be added to the allowed lists in `preload-entry.ts`
 - Typst compilation always targets the root file (for multi-chapter support) and outputs zero-padded SVG filenames
-- External file changes are detected via chokidar and prompt the user to reload
-- `src/cli/` exists from the VS Code extension but is unused in the desktop app
+- Typst binary is bundled via `resources/bin/typst-{arch}-{platform}` and resolved by `typstPath.ts` — never call `'typst'` directly, always use `getTypstPath()`
+- External file changes are detected via chokidar; the watcher uses a 3-second timestamp guard (`lastSaveTimestamp`) to ignore self-triggered events and prevent sidebar flicker
+- AI snapshots: before applying external file changes, the current content is saved to a ring buffer (max 20) for "Undo AI Edit" functionality
+- Crash recovery: backups are saved every 30s to `app.getPath('userData')/backups/`; on file open, recovery dialog shown if backup is newer than file on disk
+- Security: all file read/write IPC handlers validate paths with `isPathWithinProject()`, SVG preview is sanitized with DOMPurify, sandbox is enabled
+- `src/cli/` and `src/mcp/` exist from the VS Code extension; CLI is unused, MCP server runs as standalone Node.js process

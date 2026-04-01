@@ -77,6 +77,11 @@
       {
         "from": "documentation/vswrite-logo.svg",
         "to": "logo.svg"
+      },
+      {
+        "from": "resources/bin/",
+        "to": "bin/",
+        "filter": ["typst-*"]
       }
     ],
     "mac": {
