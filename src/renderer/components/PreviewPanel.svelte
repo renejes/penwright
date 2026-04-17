@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, onDestroy } from 'svelte';
   import DOMPurify from 'dompurify';
   import PdfPreviewPanel from './PdfPreviewPanel.svelte';
 
@@ -21,30 +21,101 @@
     onModeChange: (mode: 'svg' | 'pdf') => void;
   } = $props();
 
-  let scrollContainer: HTMLDivElement;
+  let scrollContainer: HTMLDivElement | undefined = $state();
   let lastScrollTop = 0;
   let hasScrolledToChapter = false;
 
-  // Preserve scroll position on content updates, but scroll to chapter on first load
+  // Lazy-sanitized cache: sanitizing a single SVG page can run into the tens
+  // of milliseconds; doing it eagerly for 100+ pages stalls the UI. We only
+  // sanitize when a page scrolls into (or near) the viewport and cache the
+  // result so subsequent scrolls are free.
+  const SANITIZE_OPTIONS = {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ['use', 'clipPath', 'mask'],
+    ADD_ATTR: ['xlink:href', 'clip-path', 'mask'],
+  };
+  let sanitized: string[] = $state([]);
+  let observer: IntersectionObserver | null = null;
+  // Pages that were attached before the observer existed — we queue them
+  // and observe on first setup (avoids a race between DOM creation and
+  // the $effect that binds the scroll container).
+  const pendingNodes = new Set<HTMLDivElement>();
+
+  function sanitizeIndex(i: number) {
+    if (sanitized[i] !== undefined) return;
+    sanitized[i] = DOMPurify.sanitize(pages[i], SANITIZE_OPTIONS);
+  }
+
+  // Reset sanitization cache when a new compile arrives.
+  $effect(() => {
+    pages;
+    sanitized = new Array(pages.length);
+    // Eagerly sanitize the first 2 pages so the initial view isn't blank
+    // while the IntersectionObserver warms up.
+    for (let i = 0; i < Math.min(2, pages.length); i++) sanitizeIndex(i);
+  });
+
+  // Create the observer as soon as the scroll container is bound.
+  $effect(() => {
+    if (!scrollContainer || observer) return;
+    observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const idx = Number((entry.target as HTMLElement).dataset.index);
+            if (!Number.isNaN(idx)) sanitizeIndex(idx);
+          }
+        }
+      },
+      {
+        root: scrollContainer,
+        // Pre-sanitize pages one viewport ahead to avoid flicker on scroll.
+        rootMargin: '200% 0px',
+        threshold: 0,
+      },
+    );
+    for (const node of pendingNodes) observer.observe(node);
+    pendingNodes.clear();
+  });
+
+  function observeNode(node: HTMLDivElement) {
+    if (observer) {
+      observer.observe(node);
+    } else {
+      pendingNodes.add(node);
+    }
+    return {
+      destroy() {
+        observer?.unobserve(node);
+        pendingNodes.delete(node);
+      },
+    };
+  }
+
+  onDestroy(() => {
+    observer?.disconnect();
+    observer = null;
+    pendingNodes.clear();
+  });
+
+  // Preserve scroll position on content updates, scroll to chapter on first load
   $effect(() => {
     if (pages.length > 0 && scrollContainer) {
+      const container = scrollContainer;
       tick().then(() => {
         if (scrollToPage > 0 && !hasScrolledToChapter) {
-          // Scroll to the chapter's page
-          const pageEls = scrollContainer.querySelectorAll('.page');
+          const pageEls = container.querySelectorAll('.page');
           if (pageEls[scrollToPage]) {
             pageEls[scrollToPage].scrollIntoView({ behavior: 'smooth', block: 'start' });
             hasScrolledToChapter = true;
           }
         } else if (lastScrollTop > 0) {
-          // Restore previous scroll position on recompile
-          scrollContainer.scrollTop = lastScrollTop;
+          container.scrollTop = lastScrollTop;
         }
       });
     }
   });
 
-  // Reset chapter scroll flag when scrollToPage changes
   $effect(() => {
     if (scrollToPage !== undefined) {
       hasScrolledToChapter = false;
@@ -91,9 +162,17 @@
           <p class="hint">Save a .typ file to see the preview</p>
         </div>
       {:else}
-        {#each pages as page}
-          <div class="page">
-            {@html DOMPurify.sanitize(page, { USE_PROFILES: { svg: true, svgFilters: true }, ADD_TAGS: ['use', 'clipPath', 'mask'], ADD_ATTR: ['xlink:href', 'clip-path', 'mask'] })}
+        {#each pages as _page, i (i)}
+          <div
+            class="page"
+            data-index={i}
+            use:observeNode
+          >
+            {#if sanitized[i] !== undefined}
+              {@html sanitized[i]}
+            {:else}
+              <div class="page-placeholder" aria-label="Loading page {i + 1}"></div>
+            {/if}
           </div>
         {/each}
       {/if}
@@ -180,6 +259,23 @@
     margin-bottom: 16px;
     border-radius: 4px;
     overflow: hidden;
+    /* Browser-level virtualisation: skip layout/paint for off-screen pages. */
+    content-visibility: auto;
+    contain-intrinsic-size: 842px;
+  }
+
+  .page-placeholder {
+    /* Reserve vertical space so scroll position stays stable while a page
+       is waiting to be sanitized. Matches contain-intrinsic-size above. */
+    height: 842px;
+    background: repeating-linear-gradient(
+      0deg,
+      #fafafa 0,
+      #fafafa 20px,
+      #f3f3f3 20px,
+      #f3f3f3 40px
+    );
+    opacity: 0.4;
   }
 
   .page :global(svg) {

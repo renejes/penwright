@@ -16,6 +16,7 @@ import { openFile, saveFile, saveFileAs, newFile, stopFileWatcher, disposeCompil
 import { releaseLock } from './lockManager';
 import { getWindowBounds, saveWindowBounds, getLastProjectPath, saveLastProjectPath, addRecentProject } from './persistenceManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
+import { isPathWithin } from './pathSecurity';
 
 // ─── Window Creation ──────────────────────────────────
 
@@ -174,15 +175,14 @@ app.whenReady().then(() => {
   // Register protocol handler for local asset files (images etc.)
   protocol.handle('vswrite-asset', (request) => {
     const filePath = decodeURIComponent(request.url.replace('vswrite-asset://', ''));
-    const normalized = path.normalize(path.resolve(filePath));
 
-    // Only allow files within the current project directory
+    // Only allow files within the current project directory (symlink-aware)
     const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
-    if (!projectRoot || !normalized.startsWith(path.normalize(path.resolve(projectRoot)))) {
+    if (!projectRoot || !isPathWithin(filePath, projectRoot)) {
       return new Response('Forbidden', { status: 403 });
     }
 
-    return net.fetch(`file://${normalized}`);
+    return net.fetch(`file://${path.resolve(filePath)}`);
   });
 
   buildMenu(appState);

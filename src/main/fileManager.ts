@@ -104,7 +104,7 @@ export async function openFile(filePath?: string): Promise<void> {
   }
 
   try {
-    appState.currentContent = fs.readFileSync(filePath, 'utf-8');
+    appState.currentContent = await fs.promises.readFile(filePath, 'utf-8');
     appState.currentFilePath = filePath;
     if (!appState.projectDir) {
       appState.projectDir = path.dirname(filePath);
@@ -193,7 +193,7 @@ export async function saveFile(): Promise<boolean> {
 
   try {
     appState.lastSaveTimestamp = Date.now();
-    fs.writeFileSync(appState.currentFilePath, appState.currentContent, 'utf-8');
+    await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
     clearBackup(appState.currentFilePath);
     appState.isDirty = false;
     updateTitle();
@@ -379,12 +379,12 @@ function setupFileWatcher(): void {
     ],
   });
 
-  fileWatcher.on('change', (changedPath: string) => {
+  fileWatcher.on('change', async (changedPath: string) => {
     if (Date.now() - appState.lastSaveTimestamp < 3000) return;
 
     if (changedPath === appState.currentFilePath) {
       try {
-        const diskContent = fs.readFileSync(changedPath, 'utf-8');
+        const diskContent = await fs.promises.readFile(changedPath, 'utf-8');
         if (diskContent !== appState.currentContent) {
           // Snapshot current content before applying external change (AI edit)
           pushAiSnapshot(changedPath, appState.currentContent);

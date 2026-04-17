@@ -8,7 +8,7 @@
 import Store from 'electron-store';
 import * as path from 'path';
 import * as fs from 'fs';
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 
 export interface RecentProject {
   path: string;
@@ -49,11 +49,8 @@ interface StoreSchema {
   lastProjectPath: string | null;
   onboardingSeen: boolean;
   zoteroBibPath: string | null;
-  licenseKey: string | null;
-  activationId: string | null;
-  licenseTier: 'basic' | 'pro' | null;
-  licenseStatus: 'active' | 'expired' | null;
-  lastValidation: number;
+  /** Encrypted (OS keychain) base64 blob containing the full LicenseData payload. */
+  licenseBlob: string | null;
 }
 
 const store = new Store<StoreSchema>({
@@ -77,11 +74,7 @@ const store = new Store<StoreSchema>({
     lastProjectPath: null,
     onboardingSeen: false,
     zoteroBibPath: null,
-    licenseKey: null,
-    activationId: null,
-    licenseTier: null,
-    licenseStatus: null,
-    lastValidation: 0,
+    licenseBlob: null,
   },
 });
 
@@ -166,31 +159,52 @@ export function saveZoteroBibPath(bibPath: string | null): void {
 }
 
 // ─── License ────────────────────────────────────
+// The license payload is stored as an OS-encrypted blob (safeStorage →
+// macOS Keychain / Windows DPAPI / libsecret on Linux). This prevents
+// trivial tampering (e.g. editing the JSON on disk to flip `licenseTier`
+// to "pro"): if the blob cannot be decrypted or deserialised, we treat
+// it as "no license" instead of trusting its contents.
+
+const EMPTY_LICENSE: LicenseData = {
+  licenseKey: null,
+  activationId: null,
+  licenseTier: null,
+  licenseStatus: null,
+  lastValidation: 0,
+};
 
 export function getLicenseData(): LicenseData {
-  return {
-    licenseKey: store.get('licenseKey'),
-    activationId: store.get('activationId'),
-    licenseTier: store.get('licenseTier'),
-    licenseStatus: store.get('licenseStatus'),
-    lastValidation: store.get('lastValidation'),
-  };
+  const blob = store.get('licenseBlob');
+  if (!blob) return { ...EMPTY_LICENSE };
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return { ...EMPTY_LICENSE };
+    const decrypted = safeStorage.decryptString(Buffer.from(blob, 'base64'));
+    const parsed = JSON.parse(decrypted) as LicenseData;
+    // Shape-validate — if anything is off, treat as empty.
+    if (typeof parsed !== 'object' || parsed === null) return { ...EMPTY_LICENSE };
+    return {
+      licenseKey: typeof parsed.licenseKey === 'string' ? parsed.licenseKey : null,
+      activationId: typeof parsed.activationId === 'string' ? parsed.activationId : null,
+      licenseTier: parsed.licenseTier === 'pro' || parsed.licenseTier === 'basic' ? parsed.licenseTier : null,
+      licenseStatus: parsed.licenseStatus === 'active' || parsed.licenseStatus === 'expired' ? parsed.licenseStatus : null,
+      lastValidation: typeof parsed.lastValidation === 'number' ? parsed.lastValidation : 0,
+    };
+  } catch {
+    return { ...EMPTY_LICENSE };
+  }
 }
 
 export function saveLicenseData(data: LicenseData): void {
-  store.set('licenseKey', data.licenseKey);
-  store.set('activationId', data.activationId);
-  store.set('licenseTier', data.licenseTier);
-  store.set('licenseStatus', data.licenseStatus);
-  store.set('lastValidation', data.lastValidation);
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('[vswrite] safeStorage unavailable — license cannot be persisted securely.');
+    return;
+  }
+  const encrypted = safeStorage.encryptString(JSON.stringify(data));
+  store.set('licenseBlob', encrypted.toString('base64'));
 }
 
 export function clearLicenseData(): void {
-  store.set('licenseKey', null);
-  store.set('activationId', null);
-  store.set('licenseTier', null);
-  store.set('licenseStatus', null);
-  store.set('lastValidation', 0);
+  store.set('licenseBlob', null);
 }
 
 // ─── Crash Recovery / Backup ───────────────────

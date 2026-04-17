@@ -120,6 +120,43 @@ function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+/**
+ * Resolves a user-supplied path (absolute or relative) against the project
+ * directory and verifies the realpath does not escape the project root.
+ * Throws on violation.
+ */
+function resolveInsideProject(userPath: string): string {
+  if (!state.projectDir) {
+    throw new Error('Project directory not set. Call vswrite_set_project first.');
+  }
+  const absPath = path.isAbsolute(userPath) ? userPath : path.join(state.projectDir, userPath);
+  const resolvedRoot = safeRealpath(state.projectDir);
+  const resolvedPath = safeRealpath(absPath);
+  if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(resolvedRoot + path.sep)) {
+    throw new Error(`Access denied: path "${userPath}" is outside the project directory.`);
+  }
+  return absPath;
+}
+
+function safeRealpath(target: string): string {
+  let current = path.resolve(target);
+  try {
+    return fs.realpathSync(current);
+  } catch {
+    const segments: string[] = [];
+    while (true) {
+      const parent = path.dirname(current);
+      if (parent === current) return path.resolve(target);
+      segments.unshift(path.basename(current));
+      current = parent;
+      try {
+        const realParent = fs.realpathSync(current);
+        return path.join(realParent, ...segments);
+      } catch {}
+    }
+  }
+}
+
 // ─── Server Setup ────────────────────────────────────
 
 const server = new McpServer({
@@ -238,18 +275,22 @@ server.tool(
   'Opens a .typ file as the current document. Provide an absolute path or a path relative to the project directory.',
   { filePath: z.string().describe('Path to the .typ file (absolute or relative to project)') },
   async ({ filePath }) => {
-    const absPath = path.isAbsolute(filePath) ? filePath : path.join(state.projectDir, filePath);
-    if (!fs.existsSync(absPath)) {
-      return { content: [{ type: 'text' as const, text: `Error: File not found: ${absPath}` }], isError: true };
+    try {
+      const absPath = resolveInsideProject(filePath);
+      if (!fs.existsSync(absPath)) {
+        return { content: [{ type: 'text' as const, text: `Error: File not found: ${absPath}` }], isError: true };
+      }
+      state.currentFile = absPath;
+      const content = fs.readFileSync(absPath, 'utf-8');
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Opened ${path.basename(absPath)} (${wordCount(content)} words)`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
-    state.currentFile = absPath;
-    const content = fs.readFileSync(absPath, 'utf-8');
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Opened ${path.basename(absPath)} (${wordCount(content)} words)`,
-      }],
-    };
   },
 );
 
@@ -291,7 +332,7 @@ server.tool(
       const dir = path.dirname(rootFile);
       const ext = format === 'pdf' ? 'pdf' : 'svg';
       const outPath = outputPath
-        ? (path.isAbsolute(outputPath) ? outputPath : path.join(state.projectDir, outputPath))
+        ? resolveInsideProject(outputPath)
         : path.join(dir, `.vswrite-compile-output.${ext}`);
 
       const args = ['compile', rootFile, outPath];
@@ -467,15 +508,15 @@ server.tool(
   'Reads a file from the project. Returns content as text for text files. Provide an absolute path or a path relative to the project directory.',
   { filePath: z.string().describe('Path to the file (absolute or relative to project)') },
   async ({ filePath }) => {
-    const absPath = path.isAbsolute(filePath) ? filePath : path.join(state.projectDir, filePath);
-    if (!fs.existsSync(absPath)) {
-      return { content: [{ type: 'text' as const, text: `Error: File not found: ${absPath}` }], isError: true };
-    }
     try {
+      const absPath = resolveInsideProject(filePath);
+      if (!fs.existsSync(absPath)) {
+        return { content: [{ type: 'text' as const, text: `Error: File not found: ${absPath}` }], isError: true };
+      }
       const content = fs.readFileSync(absPath, 'utf-8');
       return { content: [{ type: 'text' as const, text: content }] };
-    } catch {
-      return { content: [{ type: 'text' as const, text: `Error: Cannot read file as text: ${absPath}` }], isError: true };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -490,8 +531,8 @@ server.tool(
     content: z.string().describe('File content to write'),
   },
   async ({ filePath, content }) => {
-    const absPath = path.isAbsolute(filePath) ? filePath : path.join(state.projectDir, filePath);
     try {
+      const absPath = resolveInsideProject(filePath);
       const dir = path.dirname(absPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -501,7 +542,7 @@ server.tool(
         content: [{ type: 'text' as const, text: `Written ${path.basename(absPath)} (${content.length} bytes)` }],
       };
     } catch (err) {
-      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -887,9 +928,8 @@ server.tool(
   },
   async ({ bibtex, bibFile }) => {
     try {
-      const dir = state.projectDir;
       const targetFile = bibFile || 'references.bib';
-      const bibPath = path.join(dir, targetFile);
+      const bibPath = resolveInsideProject(targetFile);
 
       // Create .bib file if needed
       if (!fs.existsSync(bibPath)) {

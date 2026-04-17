@@ -12,14 +12,12 @@ import { splitIntoChapters, slugify } from '../shared/splitDocument';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { appState } from './appState';
 import { openFile, saveFile, saveFileAs, newFile, autoSave, updateTitle, popAiSnapshot } from './fileManager';
+import { isPathWithin } from './pathSecurity';
 
-/** Validates that a file path is within the current project directory. */
+/** Validates that a file path is within the current project directory (symlink-aware). */
 function isPathWithinProject(filePath: string): boolean {
   const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
-  if (!projectRoot) return false;
-  const normalized = path.normalize(path.resolve(filePath));
-  const normalizedRoot = path.normalize(path.resolve(projectRoot));
-  return normalized.startsWith(normalizedRoot + path.sep) || normalized === normalizedRoot;
+  return isPathWithin(filePath, projectRoot);
 }
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate } from './importExport';
 import { handleCreateProject, handleNewFile, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree } from './projectManager';
@@ -391,25 +389,26 @@ export function setupIPC(): void {
   });
 
   // ─── Text File Handlers ─────────────────────────
-  ipcMain.handle('textfile:read', (_event, filePath: string) => {
+  ipcMain.handle('textfile:read', async (_event, filePath: string) => {
     if (!isPathWithinProject(filePath)) {
       throw new Error('Access denied: path is outside the project directory.');
     }
-    return fs.readFileSync(filePath, 'utf-8');
+    return fs.promises.readFile(filePath, 'utf-8');
   });
 
-  ipcMain.handle('textfile:readBinary', (_event, filePath: string) => {
+  ipcMain.handle('textfile:readBinary', async (_event, filePath: string) => {
     if (!isPathWithinProject(filePath)) {
       throw new Error('Access denied: path is outside the project directory.');
     }
-    return fs.readFileSync(filePath).toString('base64');
+    const buf = await fs.promises.readFile(filePath);
+    return buf.toString('base64');
   });
 
-  ipcMain.handle('textfile:write', (_event, filePath: string, content: string) => {
+  ipcMain.handle('textfile:write', async (_event, filePath: string, content: string) => {
     if (!isPathWithinProject(filePath)) {
       throw new Error('Access denied: path is outside the project directory.');
     }
-    fs.writeFileSync(filePath, content, 'utf-8');
+    await fs.promises.writeFile(filePath, content, 'utf-8');
     appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
   });
 
@@ -423,6 +422,7 @@ export function setupIPC(): void {
   ipcMain.handle('includes:open', (_event, relPath: string) => {
     if (!appState.currentFilePath) return;
     const absPath = path.join(path.dirname(appState.currentFilePath), relPath);
+    if (!isPathWithinProject(absPath)) return;
     if (fs.existsSync(absPath) && absPath.endsWith('.typ')) {
       openFile(absPath);
     }

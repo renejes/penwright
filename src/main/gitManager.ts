@@ -6,16 +6,17 @@ import { ipcMain } from 'electron';
 import * as path from 'path';
 import simpleGit from 'simple-git';
 import { appState } from './appState';
+import { isPathWithin } from './pathSecurity';
 
 function getGitDir(): string {
   return appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : process.cwd());
 }
 
-/** Validates that a file path is within the git working directory. */
+/** Validates that a file path is within the git working directory (symlink-aware). */
 function isPathWithinGitDir(filePath: string): boolean {
   const gitDir = getGitDir();
-  const normalized = path.normalize(path.resolve(gitDir, filePath));
-  return normalized.startsWith(path.normalize(path.resolve(gitDir)) + path.sep) || normalized === path.normalize(path.resolve(gitDir));
+  const absPath = path.isAbsolute(filePath) ? filePath : path.resolve(gitDir, filePath);
+  return isPathWithin(absPath, gitDir);
 }
 
 export function setupGitIPC(): void {

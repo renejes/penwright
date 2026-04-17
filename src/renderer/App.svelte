@@ -20,7 +20,7 @@
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
-  import { serializeTypst } from '../editor/lib/serializer';
+  import { serializeTypstCached } from '../editor/lib/serializer';
   import { ipc } from '../editor/lib/ipcAdapter';
   import type { DocumentSettings } from '../editor/lib/messages';
   import {
@@ -184,7 +184,7 @@
   function sendUpdate() {
     const editor = editorRef.current;
     if (!editor) return;
-    const typst = serializeTypst(editor.getJSON());
+    const typst = serializeTypstCached(editor.state.doc);
     if (!typst && editor.state.doc.content.size > 2) {
       console.error('[vswrite] Serializer produced empty output — skipping save');
       return;

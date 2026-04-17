@@ -33,7 +33,7 @@ export class TypstCompiler extends EventEmitter {
       getTypstPath(),
       ['compile', this.filePath, outPattern, '--format', 'svg'],
       { cwd: dir, timeout: 30000 },
-      (error, _stdout, stderr) => {
+      async (error, _stdout, stderr) => {
         if (error) {
           // Parse diagnostics from stderr
           const diagnostics = this.parseErrors(stderr);
@@ -41,22 +41,28 @@ export class TypstCompiler extends EventEmitter {
           return;
         }
 
-        // Collect SVG pages — typst zero-pads page numbers for multi-page docs
-        // (e.g. preview-1.svg for single page, preview-01.svg for multi-page)
-        const pages: string[] = [];
+        // Collect SVG pages asynchronously in parallel — typst zero-pads
+        // page numbers for multi-page docs (preview-01.svg, preview-02.svg, …).
+        // Reading + deleting each page with fs.promises keeps the main
+        // process event loop responsive for 100+ page documents.
         try {
-          const files = fs.readdirSync(dir)
+          const entries = await fs.promises.readdir(dir);
+          const files = entries
             .filter(f => f.startsWith('.vswrite-preview-') && f.endsWith('.svg'))
             .sort();
-          for (const file of files) {
-            const svgPath = path.join(dir, file);
-            pages.push(fs.readFileSync(svgPath, 'utf-8'));
-            try { fs.unlinkSync(svgPath); } catch {}
-          }
-        } catch {}
 
-        if (pages.length > 0) {
-          this.emit('compiled', pages);
+          const pages = await Promise.all(files.map(async (file) => {
+            const svgPath = path.join(dir, file);
+            const content = await fs.promises.readFile(svgPath, 'utf-8');
+            fs.promises.unlink(svgPath).catch(() => {});
+            return content;
+          }));
+
+          if (pages.length > 0) {
+            this.emit('compiled', pages);
+          }
+        } catch {
+          // Swallow — if the directory vanished mid-read, skip this cycle.
         }
       },
     );
@@ -75,7 +81,7 @@ export class TypstCompiler extends EventEmitter {
       getTypstPath(),
       ['compile', this.filePath, outPath],
       { cwd: dir, timeout: 30000 },
-      (error, _stdout, stderr) => {
+      async (error, _stdout, stderr) => {
         if (error) {
           const diagnostics = this.parseErrors(stderr);
           this.emit('error', diagnostics);
@@ -83,9 +89,9 @@ export class TypstCompiler extends EventEmitter {
         }
 
         try {
-          const pdfBuffer = fs.readFileSync(outPath);
+          const pdfBuffer = await fs.promises.readFile(outPath);
           this.emit('compiledPdf', pdfBuffer);
-          try { fs.unlinkSync(outPath); } catch {}
+          fs.promises.unlink(outPath).catch(() => {});
         } catch {}
       },
     );
