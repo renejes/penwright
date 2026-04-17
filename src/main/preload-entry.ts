@@ -13,6 +13,8 @@ const INVOKE_CHANNELS = [
   'dialog:saveFileAs',
   'app:getPlatform',
   'app:checkTypst',
+  'app:getAbout',
+  'app:openExternal',
   'filetree:list',
   'filetree:open',
   'filetree:navigateUp',

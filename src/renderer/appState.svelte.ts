@@ -24,6 +24,7 @@ export let uiState = $state({
   welcomePlatform: '',
   currentSettings: null as DocumentSettings | null,
   showLicense: false,
+  showAbout: false,
   licenseStatus: 'none' as string,
   licenseTier: null as string | null,
   licenseKey: null as string | null,

@@ -3,7 +3,7 @@
  * Central message router: switch-statement + dialog/filetree/includes handlers.
  */
 
-import { ipcMain, dialog, shell } from 'electron';
+import { ipcMain, dialog, shell, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { parseSettings } from '../shared/settingsParser';
@@ -316,6 +316,31 @@ export function setupIPC(): void {
     try {
       const { getTypstPath } = require('./typstPath');
       require('child_process').execFileSync(getTypstPath(), ['--version'], { stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  ipcMain.handle('app:getAbout', () => {
+    return {
+      version: app.getVersion(),
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+      node: process.versions.node,
+      platform: process.platform,
+      arch: process.arch,
+    };
+  });
+
+  // Route renderer-initiated external-link clicks through shell.openExternal.
+  // We reject anything that isn't an https:// URL so a compromised renderer
+  // can't launch `file://` or custom protocol handlers on the host.
+  ipcMain.handle('app:openExternal', (_event, url: string) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:') return false;
+      shell.openExternal(url);
       return true;
     } catch {
       return false;

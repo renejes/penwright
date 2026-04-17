@@ -17,6 +17,7 @@
   import PdfFileViewer from './components/PdfFileViewer.svelte';
   import NewProjectDialog from './components/NewProjectDialog.svelte';
   import LicenseDialog from './components/LicenseDialog.svelte';
+  import AboutDialog from './components/AboutDialog.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
@@ -557,6 +558,11 @@
     {#if uiState.showLicense}
       <LicenseDialog
         onClose={() => { uiState.showLicense = false; }}
+      />
+    {/if}
+    {#if uiState.showAbout}
+      <AboutDialog
+        onClose={() => { uiState.showAbout = false; }}
       />
     {/if}
   </div>

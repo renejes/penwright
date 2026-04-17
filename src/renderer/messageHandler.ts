@@ -152,6 +152,11 @@ export function handleMessage(message: ExtensionMessage): void {
     if (msg.panel === 'terminal') panelState.showTerminal = !panelState.showTerminal;
   }
 
+  // Open the About dialog from the native menu
+  if (msg.type === 'showAbout') {
+    uiState.showAbout = true;
+  }
+
   // Track current file
   if (msg.type === 'currentFile') {
     tabState.currentFile = (msg as unknown as { path: string }).path || '';

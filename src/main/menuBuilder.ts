@@ -9,13 +9,16 @@ import type { AppState } from './appState';
 export function buildMenu(state: AppState): void {
   const isMac = process.platform === 'darwin';
 
+  const showAbout = () =>
+    state.mainWindow?.webContents.send('vswrite', { type: 'showAbout' });
+
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
       ? [
           {
             label: app.name,
             submenu: [
-              { role: 'about' as const },
+              { label: `About ${app.name}`, click: showAbout },
               { type: 'separator' as const },
               { role: 'hide' as const },
               { role: 'hideOthers' as const },
@@ -119,9 +122,21 @@ export function buildMenu(state: AppState): void {
         {
           label: 'User Guide',
           click: () => {
-            shell.openExternal('https://github.com/renejes/vswrite');
+            shell.openExternal('https://vswrite.netlify.app/de/docs');
           },
         },
+        {
+          label: 'Report Issue',
+          click: () => {
+            shell.openExternal('https://github.com/renejes/vswrite-desktop/issues');
+          },
+        },
+        // On macOS an "About" entry is already in the application menu;
+        // add it to Help only on Windows/Linux where no equivalent exists.
+        ...(isMac ? [] : [
+          { type: 'separator' as const },
+          { label: `About ${app.name}`, click: showAbout },
+        ]),
       ],
     },
   ];
