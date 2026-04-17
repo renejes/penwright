@@ -62,6 +62,7 @@
 | Find/Replace | Funktional | DOM-basiert statt TipTap-aware, kann bei bestimmten Edge Cases Treffer uebersehen |
 | i18n/Lokalisierung | Nicht vorhanden | UI komplett auf Englisch, obwohl Handbuch auf Deutsch existiert |
 | Bestaetigungsdialoge | Meist vorhanden | Fehlen bei destruktiven Git-Operationen |
+| DOCX Export | Strukturell vollstaendig (Headings, Listen, Tabellen, Footnotes, Bibliografie, Bilder) | Output-Formatierung unbrauchbar — User muesste komplett neu formatieren (siehe 2.4) |
 
 ### 2.3 Nice-to-Have (Post-Release)
 
@@ -72,47 +73,135 @@
 - Virtualisierung fuer grosse Dokumente (Performance)
 - Offline-Cache fuer Zotero-Bibliographien
 
+### 2.4 DOCX Export Qualitaet (Quick-Win)
+
+Der bestehende [docxSerializer](src/shared/docxSerializer.ts) (915 Zeilen) deckt strukturell alles ab — Headings, Listen, Tabellen, Footnotes, Bibliografie, Bilder, Hyperlinks. Die produzierte Word-Datei sieht aber so unbrauchbar formatiert aus, dass User komplett neu formatieren muessten.
+
+**Architekturwechsel verworfen:**
+
+- Pandoc kann Typst **nicht** als Input lesen ([Pandoc Issue #8740](https://github.com/jgm/pandoc/issues/8740)) — eine direkte `typst -> docx` Konversion via Pandoc ist nicht moeglich.
+- Pandoc bundeln waere ~150 MB pro Plattform-Binary, GPL-2.0+ (lizenz-problematisch fuer kommerzielle Distribution), zusaetzlicher Code-Signing-Aufwand pro Plattform.
+- ODT statt DOCX waere kein Architektur-Win — beides sind ZIP+XML, Qualitaet haengt am Serializer, nicht am Format.
+
+**Plan: gezielte Fixes am bestehenden Serializer**
+
+- [ ] Test-Dokument mit allen Format-Features exportieren (Headings + Tabellen + Bilder + Footnotes + Bibliografie + Blockquotes + Listen + Math)
+- [ ] In Word, Pages und LibreOffice oeffnen, konkrete Bruchstellen pro Element-Typ dokumentieren
+- [ ] Pro Bruchstelle gezielt in [convertNode](src/shared/docxSerializer.ts#L288), [convertInlineContent](src/shared/docxSerializer.ts#L565) bzw. [convertTable](src/shared/docxSerializer.ts#L752) fixen
+- [ ] Word-Styles statt Inline-Formatierung verwenden (vermutlich groesster Hebel) — `styles`-Block in `serializeDocx()` ([docxSerializer.ts:147](src/shared/docxSerializer.ts#L147)) ausbauen
+- [ ] Re-Test, bis Output ohne manuelle Nacharbeit verwendbar ist
+- [ ] Optional fuer spaeter: ODT-Export zusaetzlich anbieten — die AST-Traversal-Logik ist wiederverwendbar, nur der Render-Layer (~30 % des Codes) muesste neu
+
 ---
 
-## 3. Distribution: Self-Hosted auf Hetzner VPS
+## 3. Distribution: Firebase Hosting
+
+> Setup orientiert sich exakt am Synova-App-Pattern ([synova-app/firebase.json](../../synova-app/firebase.json), [synova-app/documentation/distribution.md](../../synova-app/documentation/distribution.md)). Einzige Anpassung: Electron statt Tauri (`latest-mac.yml` statt `latest.json`).
 
 ### 3.1 Infrastruktur-Uebersicht
 
-Gleiche Infrastruktur wie Synova-App — bestehender Hetzner VPS (46.225.25.41) mit Coolify/Traefik.
+Auslieferung ueber Firebase Hosting — globales CDN, kostenloses SSL, Deploy via `firebase deploy`. Standardmaessig `*.web.app`-URL, keine Custom Domain noetig (kann spaeter ergaenzt werden).
 
 ```
 User besucht vswrite.com
   -> Klickt "Download"
-  -> Laedt DMG von releases.vswrite.com
+  -> Laedt DMG von https://<vswrite-projekt-id>.web.app/
   -> Installiert App
 
 App prueft bei jedem Start:
-  -> Fragt https://releases.vswrite.com/latest-mac.yml
+  -> Fragt https://<vswrite-projekt-id>.web.app/latest-mac.yml
   -> Vergleicht mit eigener Version
   -> Falls neuer: "Update verfuegbar" Dialog -> Download + Install
 ```
 
 | Dienst | URL | Hosting |
 |--------|-----|---------|
-| Homepage | https://vswrite.com | Netlify |
-| Release-Server | https://releases.vswrite.com | Hetzner VPS (Nginx-Container) |
+| Homepage | https://vswrite.com | (bestehende Konfiguration) |
+| Releases | https://&lt;vswrite-projekt-id&gt;.web.app | Firebase Hosting |
 
-### 3.2 Release-Server einrichten
+GCP-Projekt anlegen via [console.firebase.google.com](https://console.firebase.google.com/) — Region `europe-west3` (Frankfurt) waehlen. Projekt-ID merken (z.B. `vswrite-app` oder eine generierte ID wie bei Synova `gen-lang-client-XXXXX`).
 
-Neuen Nginx-Container auf dem VPS aufsetzen (analog zu `synova-releases`):
+### 3.2 Firebase-Projekt einrichten (einmalig)
 
 ```bash
-# Auf VPS: Verzeichnis anlegen
-ssh -i ~/.ssh/id_hetzner root@46.225.25.41
-mkdir -p /data/vswrite-releases
+# Firebase CLI installieren (falls noch nicht vorhanden)
+npm install -g firebase-tools
+firebase login
 
-# In Coolify: neuen Nginx-Container anlegen
-# - Name: vswrite-releases
-# - Image: nginx:alpine
-# - Domain: releases.vswrite.com
-# - Volume: /data/vswrite-releases:/usr/share/nginx/html:ro
-# - Network: coolify (Traefik)
-# - SSL: automatisch via Let's Encrypt
+# Im vswrite-desktop Repo
+firebase init hosting
+# - Use existing project: <vswrite-projekt-id>
+# - Public directory: releases
+# - Configure as SPA: No
+# - GitHub Auto-Deploy: No
+```
+
+`firebase.json` (analog zu Synova, MIME-Types fuer Electron angepasst):
+
+```json
+{
+  "hosting": {
+    "public": "releases",
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ],
+    "headers": [
+      {
+        "source": "**/*.dmg",
+        "headers": [
+          { "key": "Content-Type", "value": "application/x-apple-diskimage" },
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      },
+      {
+        "source": "**/*.zip",
+        "headers": [
+          { "key": "Content-Type", "value": "application/zip" },
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      },
+      {
+        "source": "**/*.blockmap",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      },
+      {
+        "source": "**/latest*.yml",
+        "headers": [
+          { "key": "Content-Type", "value": "text/yaml" },
+          { "key": "Cache-Control", "value": "no-cache" },
+          { "key": "Access-Control-Allow-Origin", "value": "*" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`.firebaserc` (committen):
+
+```json
+{
+  "projects": {
+    "default": "<vswrite-projekt-id>"
+  }
+}
+```
+
+`.gitignore` ergaenzen (analog Synova — Binaries nicht committen, Manifest schon):
+
+```
+# Firebase
+.firebase/
+
+# Firebase Hosting (release binaries)
+releases/*.dmg
+releases/*.zip
+releases/*.blockmap
+releases/*.exe
+releases/*.AppImage
 ```
 
 ### 3.3 Auto-Updater einrichten (electron-updater)
@@ -129,14 +218,14 @@ npm install electron-updater
 "build": {
   "publish": {
     "provider": "generic",
-    "url": "https://releases.vswrite.com"
+    "url": "https://<vswrite-projekt-id>.web.app"
   }
 }
 ```
 
-electron-builder generiert dann automatisch `latest-mac.yml` (bzw. `latest-linux.yml`) beim Build — diese Datei muss zusammen mit DMG/ZIP auf den VPS.
+electron-builder generiert dann automatisch `latest-mac.yml` (bzw. `latest-linux.yml`, `latest.yml` fuer Windows) beim Build — diese Manifeste muessen zusammen mit DMG/ZIP/Blockmaps deployed werden. Im Gegensatz zu Tauri (manuelles `latest.json`) ist hier keine Signatur-Kopie noetig — electron-builder schreibt SHA512 direkt ins YML.
 
-**3. Im Main Process (`src/main/index.ts`) Auto-Updater einbinden:**
+**3. Im Main Process ([src/main/index.ts](src/main/index.ts)) Auto-Updater einbinden:**
 
 ```typescript
 import { autoUpdater } from 'electron-updater';
@@ -150,9 +239,9 @@ app.whenReady().then(() => {
 });
 ```
 
-Der Updater zeigt automatisch einen nativen Dialog wenn ein Update gefunden wird.
+Der Updater zeigt automatisch einen nativen Dialog, wenn ein Update gefunden wird.
 
-### 3.4 macOS: DMG erstellen, signieren, hochladen
+### 3.4 macOS: DMG erstellen, signieren, deployen
 
 **Voraussetzungen:**
 1. Apple Developer ID Certificate im Keychain (`Developer ID Application: Rene Jesser (3LAHNFWNT3)`)
@@ -168,30 +257,34 @@ Der Updater zeigt automatisch einen nativen Dialog wenn ein Update gefunden wird
 npm run build && npm run package:mac
 ```
 
-**Output in `release/`:**
+**Output in `release/` (electron-builder Default):**
 ```
 release/
   vswrite-X.Y.Z.dmg              <- Download fuer User
+  vswrite-X.Y.Z.dmg.blockmap     <- Differential-Update-Map
   vswrite-X.Y.Z-mac.zip          <- Update-Bundle (fuer Auto-Updater)
+  vswrite-X.Y.Z-mac.zip.blockmap
   latest-mac.yml                  <- Updater-Manifest (Version + URL + SHA512)
 ```
 
-**Auf VPS hochladen:**
+**Build-Artefakte ins `releases/` kopieren und deployen:**
 ```bash
-scp -i ~/.ssh/id_hetzner \
-  release/vswrite-*.dmg \
-  release/vswrite-*-mac.zip \
-  release/latest-mac.yml \
-  root@46.225.25.41:/data/vswrite-releases/
+cp release/vswrite-*.dmg \
+   release/vswrite-*-mac.zip \
+   release/*.blockmap \
+   release/latest-mac.yml \
+   releases/
+
+firebase deploy --only hosting
 ```
 
 **Verifizieren:**
 ```bash
 # Manifest erreichbar?
-curl -s https://releases.vswrite.com/latest-mac.yml | head -5
+curl -s https://<vswrite-projekt-id>.web.app/latest-mac.yml | head -5
 
 # DMG downloadbar?
-curl -sI https://releases.vswrite.com/vswrite-X.Y.Z.dmg | head -3
+curl -sI https://<vswrite-projekt-id>.web.app/vswrite-X.Y.Z.dmg | head -3
 
 # Notarisierung pruefen
 xcrun stapler validate release/vswrite-*.dmg
@@ -223,27 +316,32 @@ Bei jedem neuen Release:
 1. Version hochzaehlen
    - package.json: "version": "X.Y.Z"
 
-2. Committen + Pushen
-   git add package.json && git commit -m "Bump version to X.Y.Z" && git push
-
-3. Build erstellen
+2. Build erstellen
    export APPLE_ID="..."
    export APPLE_APP_SPECIFIC_PASSWORD="..."
    export APPLE_TEAM_ID="3LAHNFWNT3"
    npm run build && npm run package:mac
 
-4. Auf VPS hochladen
-   scp -i ~/.ssh/id_hetzner \
-     release/vswrite-*.dmg \
-     release/vswrite-*-mac.zip \
-     release/latest-mac.yml \
-     root@46.225.25.41:/data/vswrite-releases/
+3. Build-Artefakte ins releases/ Verzeichnis kopieren
+   cp release/vswrite-*.dmg \
+      release/vswrite-*-mac.zip \
+      release/*.blockmap \
+      release/latest-mac.yml \
+      releases/
+
+4. Firebase Deploy
+   firebase deploy --only hosting
 
 5. Verifizieren
-   curl -s https://releases.vswrite.com/latest-mac.yml
+   curl -s https://<vswrite-projekt-id>.web.app/latest-mac.yml
    # App starten -> sollte "Update verfuegbar" zeigen
 
-6. Git Tag setzen
+6. Committen + Pushen (nur latest-mac.yml + package.json — Binaries sind gitignored)
+   git add package.json releases/latest-mac.yml
+   git commit -m "Release vX.Y.Z"
+   git push
+
+7. Git Tag setzen
    git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
@@ -251,29 +349,54 @@ Bei jedem neuen Release:
 
 **Initialer Download (DMG):**
 ```
-https://releases.vswrite.com/vswrite-X.Y.Z.dmg
+https://<vswrite-projekt-id>.web.app/vswrite-X.Y.Z.dmg
 ```
 
 Diesen Link als Download-Button auf vswrite.com einbinden.
 
 **Auto-Updater Endpoint:**
 ```
-https://releases.vswrite.com/latest-mac.yml
+https://<vswrite-projekt-id>.web.app/latest-mac.yml
 ```
 
-Konfiguriert in `package.json` → `build.publish.url`. Die App fragt diesen Endpoint automatisch ab.
+Konfiguriert in `package.json` → `build.publish.url`. Die App fragt diesen Endpoint bei jedem Start ab.
 
-### 3.9 Dateien auf dem VPS (Referenz)
+### 3.9 Hosting verwalten
+
+```bash
+# Deployen
+firebase deploy --only hosting
+
+# Aktive Version ansehen
+firebase hosting:channel:list
+
+# Rollback zur vorherigen Version
+firebase hosting:clone <vswrite-projekt-id>:live <vswrite-projekt-id>:previous
+```
+
+### 3.10 Dateien auf Firebase Hosting (Referenz)
 
 ```
-/data/vswrite-releases/
-  latest-mac.yml                  <- Auto-Updater Manifest (macOS)
-  latest-linux.yml                <- Auto-Updater Manifest (Linux, spaeter)
-  vswrite-X.Y.Z.dmg              <- macOS Installer
-  vswrite-X.Y.Z-mac.zip          <- macOS Update-Bundle
-  vswrite-X.Y.Z.AppImage         <- Linux (spaeter)
-  vswrite-X.Y.Z-setup.exe        <- Windows (spaeter)
+releases/                          <- Lokales Verzeichnis, wird deployed
+  latest-mac.yml                   <- Auto-Updater Manifest (macOS) — committed
+  latest-linux.yml                 <- Auto-Updater Manifest (Linux, spaeter)
+  latest.yml                       <- Auto-Updater Manifest (Windows, spaeter)
+  vswrite-X.Y.Z.dmg               <- macOS Installer (gitignored)
+  vswrite-X.Y.Z.dmg.blockmap      <- (gitignored)
+  vswrite-X.Y.Z-mac.zip           <- macOS Update-Bundle (gitignored)
+  vswrite-X.Y.Z-mac.zip.blockmap  <- (gitignored)
+  vswrite-X.Y.Z.AppImage          <- Linux (spaeter, gitignored)
+  vswrite-X.Y.Z-setup.exe         <- Windows (spaeter, gitignored)
 ```
+
+### 3.11 Custom Domain (optional, spaeter)
+
+Falls zu einem spaeteren Zeitpunkt eine eigene Subdomain gewuenscht ist:
+- Firebase Console → Hosting → Add custom domain → `releases.vswrite.com`
+- DNS-Records (A oder CNAME) beim Domain-Provider eintragen
+- SSL via Let's Encrypt (24-48h)
+- Danach `package.json` → `build.publish.url` auf neue Domain umstellen
+- **Wichtig:** Bestehende User behalten den alten `*.web.app`-Endpoint im Updater bis zum naechsten Update — beide Endpoints muessen eine Weile parallel laufen.
 
 ---
 
@@ -300,32 +423,45 @@ Konfiguriert in `package.json` → `build.publish.url`. Die App fragt diesen End
 - [x] Typst CLI gebundelt (User muss Typst nicht installieren)
 - [x] File Watcher: Sidebar-Flackern bei Auto-Save behoben
 
-### Phase 3: Distribution (naechster Schritt)
+### Phase 3: DOCX Export Quick-Win (vor Release)
 
+- [ ] Test-Dokument mit allen Format-Features exportieren
+- [ ] In Word, Pages, LibreOffice oeffnen — Bruchstellen pro Element-Typ dokumentieren
+- [ ] Word-Styles im `serializeDocx()` `styles`-Block ausbauen (statt Inline-Formatierung)
+- [ ] Bruchstellen in `convertNode` / `convertInlineContent` / `convertTable` gezielt fixen
+- [ ] Re-Test bis Output ohne manuelle Nacharbeit verwendbar ist
+
+### Phase 4: Distribution (naechster Schritt)
+
+- [ ] Firebase-Projekt in Console anlegen (Region `europe-west3`), Projekt-ID notieren
+- [ ] `firebase login` + `firebase init hosting` (public dir: `releases`)
+- [ ] `firebase.json` (MIME-Header analog Synova) + `.firebaserc` committen
+- [ ] `.gitignore` ergaenzen (`releases/*.dmg`, `*.zip`, `*.blockmap`, `*.exe`, `*.AppImage`)
 - [ ] `electron-updater` installieren und im Main Process einbinden
-- [ ] `publish`-Config in `package.json` hinzufuegen (generic Provider → releases.vswrite.com)
-- [ ] Nginx-Container `vswrite-releases` auf Hetzner VPS anlegen (Coolify)
-- [ ] DNS: `releases.vswrite.com` → VPS (46.225.25.41)
+- [ ] `publish`-Config in `package.json` hinzufuegen (generic Provider → `*.web.app`-URL)
 - [ ] macOS DMG bauen, signieren, notarisieren
-- [ ] DMG + ZIP + latest-mac.yml auf VPS hochladen
+- [ ] Artefakte (DMG + ZIP + Blockmaps + latest-mac.yml) nach `releases/` kopieren
+- [ ] `firebase deploy --only hosting` ausfuehren
 - [ ] Download-Link auf vswrite.com einbinden
-- [ ] Auto-Update einmal End-to-End testen
+- [ ] Auto-Update End-to-End testen (alte Version installieren → Update erkennt neue)
+- [ ] Optional spaeter: Custom Domain `releases.vswrite.com` ergaenzen
 
-### Phase 4: QA & Release
+### Phase 5: QA & Release
 
 - [ ] Alle Features auf macOS manuell testen
 - [ ] Multi-File-Projekte, Includes, Zitationen testen
 - [ ] File-Locking, externe Edits, Crash Recovery testen
 - [ ] Undo AI Edit testen (Terminal-Edit → Undo)
+- [ ] DOCX Export auf realem Dokument testen — Output muss ohne Nacharbeit nutzbar sein
 - [ ] Auto-Updater testen (alte Version installieren → Update erkennt neue)
 - [ ] Performance bei grossen Dokumenten (50+ Seiten) testen
 - [ ] DMG auf sauberem Mac (ohne Developer Tools) testen — Gatekeeper
 - [ ] Git-Tag erstellen: `git tag v1.0.0`
 
-### Phase 5: Post-Release
+### Phase 6: Post-Release
 
 - [ ] Typst Binaries fuer andere Plattformen (x64-darwin, x64-linux, x64-win32)
-- [ ] Linux AppImage bauen + auf VPS hochladen
+- [ ] Linux AppImage bauen + via `firebase deploy` ausliefern
 - [ ] Windows Installer (wenn Nachfrage)
 - [ ] Dark Mode
 - [ ] Deutsche UI-Uebersetzung
