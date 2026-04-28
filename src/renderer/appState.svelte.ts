@@ -46,12 +46,9 @@ export let panelState = $state({
 
 // ─── Preview State ──────────────────────────────
 export let previewState = $state({
-  pages: [] as string[],
   pdfData: null as Uint8Array | null,
-  previewMode: 'svg' as 'svg' | 'pdf',
   error: '',
   compiling: false,
-  scrollToPage: 0,
 });
 
 // ─── Tab / File State ───────────────────────────
@@ -76,6 +73,21 @@ export let contextMenu = $state({ x: 0, y: 0, path: '' });
 export let newProjectState = $state({
   show: false,
   templates: [] as Array<{ id: string; label: string; description: string }>,
+});
+
+// ─── Export Dialog ───────────────────────────────
+interface ExportChapter { includePath: string; title: string; }
+interface ExportSections {
+  multiChapter: boolean;
+  rootFile: string;
+  chapters: ExportChapter[];
+  hasBibliography: boolean;
+}
+
+export let exportDialogState = $state({
+  show: false,
+  format: 'pdf' as 'pdf' | 'docx',
+  sections: null as ExportSections | null,
 });
 
 // ─── Tab Operations ──────────────────────────────

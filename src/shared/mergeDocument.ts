@@ -24,13 +24,17 @@ export function resolveIncludes(filePath: string, seen = new Set<string>()): str
   const content = fs.readFileSync(absPath, 'utf-8');
   const dir = path.dirname(absPath);
 
-  // Replace #include "path" with the content of the referenced file
+  // Replace #include "path" with the content of the referenced file.
+  // The blank line after the comment marker is important: without it the
+  // marker glues to the chapter's H1 (`// comment\n= Heading`) which the
+  // block splitter then keeps in one block, and the deserializer drops it
+  // as "config" — making the heading vanish from the DOCX export.
   return content.replace(
     /^#include\s+"([^"]+)"\s*$/gm,
     (_match, includePath: string) => {
       const resolvedPath = path.resolve(dir, includePath);
       const includeContent = resolveIncludes(resolvedPath, new Set(seen));
-      return `// ─── ${path.basename(includePath)} ───\n${includeContent.trimEnd()}\n`;
+      return `// ─── ${path.basename(includePath)} ───\n\n${includeContent.trim()}\n\n`;
     },
   );
 }

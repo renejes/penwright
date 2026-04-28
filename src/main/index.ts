@@ -12,9 +12,10 @@ import { TerminalManager } from './terminalManager';
 import { buildMenu } from './menuBuilder';
 import { setupIPC } from './ipcHandlers';
 import { setupGitIPC } from './gitManager';
-import { openFile, saveFile, saveFileAs, newFile, stopFileWatcher, disposeCompiler, setupPreviewModeIPC } from './fileManager';
+import { openFile, saveFile, saveFileAs, closeProjectInteractive, stopFileWatcher, disposeCompiler } from './fileManager';
+import { openProject } from './projectManager';
 import { releaseLock } from './lockManager';
-import { getWindowBounds, saveWindowBounds, getLastProjectPath, saveLastProjectPath, addRecentProject } from './persistenceManager';
+import { getWindowBounds, saveWindowBounds } from './persistenceManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
 
@@ -160,10 +161,11 @@ function setupTerminal(): void {
 
 // ─── Wire up appState callbacks ───────────────────────
 
-appState.newFile = newFile;
 appState.openFile = openFile;
 appState.saveFile = saveFile;
 appState.saveFileAs = saveFileAs;
+appState.closeProject = closeProjectInteractive;
+appState.openProject = async () => { await openProject(); };
 appState.handleExportPdf = handleExportPdf;
 appState.handleExportDocx = handleExportDocx;
 appState.handleImportMarkdown = handleImportMarkdown;
@@ -187,20 +189,19 @@ app.whenReady().then(() => {
 
   buildMenu(appState);
   setupIPC();
-  setupPreviewModeIPC();
   createWindow();
   setupTerminal();
   setupGitIPC();
 
-  // Open file from command line args, or auto-reopen last project
+  // Open project from command-line arg if a .typ file path was passed
+  // (e.g. "Open With vswrite" from Finder). The parent folder becomes the
+  // project. We deliberately do NOT auto-reopen the last project on startup —
+  // the app always starts at the StartScreen.
   const fileArg = process.argv.find((arg) => arg.endsWith('.typ'));
   if (fileArg) {
-    openFile(path.resolve(fileArg));
-  } else {
-    const lastProject = getLastProjectPath();
-    if (lastProject && require('fs').existsSync(lastProject)) {
-      openFile(lastProject);
-    }
+    const absPath = path.resolve(fileArg);
+    appState.projectDir = path.dirname(absPath);
+    openFile(absPath);
   }
 
   app.on('activate', () => {
@@ -220,9 +221,9 @@ app.on('window-all-closed', () => {
   }
 });
 
-// macOS: open file via Finder double-click
+// macOS: open file via Finder double-click — treat parent folder as project.
 app.on('open-file', (_event, filePath) => {
-  if (appState.mainWindow) {
-    openFile(filePath);
-  }
+  if (!appState.mainWindow) return;
+  appState.projectDir = path.dirname(filePath);
+  openFile(filePath);
 });

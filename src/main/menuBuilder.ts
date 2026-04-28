@@ -33,14 +33,19 @@ export function buildMenu(state: AppState): void {
       label: 'File',
       submenu: [
         {
-          label: 'New',
+          label: 'New Project…',
           accelerator: 'CmdOrCtrl+N',
-          click: () => state.newFile(),
+          click: () => state.mainWindow?.webContents.send('vswrite', { type: 'newProject' }),
         },
         {
-          label: 'Open…',
+          label: 'Open Project…',
           accelerator: 'CmdOrCtrl+O',
-          click: () => state.openFile(),
+          click: () => state.openProject(),
+        },
+        {
+          label: 'Close Project',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click: () => state.closeProject(),
         },
         { type: 'separator' },
         {

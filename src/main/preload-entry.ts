@@ -5,7 +5,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
-const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create', 'preview:setMode'];
+const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create'];
 const ON_CHANNELS = ['vswrite', 'terminal:data'];
 const INVOKE_CHANNELS = [
   'dialog:openFile',
@@ -33,6 +33,27 @@ const INVOKE_CHANNELS = [
   'git:push',
   'git:pull',
   'git:init',
+  'git:ensureRepo',
+  'git:saveVersion',
+  'git:listVersions',
+  'git:showVersion',
+  'git:restoreVersion',
+  'git:getRemote',
+  'git:setRemote',
+  'project:listBackups',
+  'project:loadBackup',
+  'project:applyBackup',
+  'project:openBackupFolder',
+  'project:getBackupConfig',
+  'project:setBackupConfig',
+  'project:showInFinder',
+  'project:getInfo',
+  'project:open',
+  'project:close',
+  'project:newFolder',
+  'project:addAssets',
+  'export:getSections',
+  'export:run',
   'spellcheck:setLanguage',
   'persist:getPanelState',
   'persist:savePanelState',

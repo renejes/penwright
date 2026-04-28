@@ -2,13 +2,16 @@
  * Persistence Manager — electron-store based state persistence.
  *
  * Saves and restores: window bounds, panel state, recent projects,
- * last project path, onboarding flag, Zotero path.
+ * last project path, onboarding flag, Zotero path, license, backup config.
+ *
+ * Auto-backups live INSIDE each project at <projectDir>/.vswrite/backups/<timestamp>/
+ * so that projects are self-contained and travel with their history.
  */
 
 import Store from 'electron-store';
 import * as path from 'path';
 import * as fs from 'fs';
-import { app, safeStorage } from 'electron';
+import { safeStorage } from 'electron';
 
 export interface RecentProject {
   path: string;
@@ -42,6 +45,15 @@ export interface LicenseData {
   lastValidation: number;
 }
 
+export interface BackupConfig {
+  /** Seconds between automatic backup snapshots. */
+  intervalSec: number;
+  /** Maximum number of snapshots kept per project — older snapshots are pruned. */
+  maxCount: number;
+  /** Maximum number of AI-edit snapshots kept per project. */
+  maxAiSnapshots: number;
+}
+
 interface StoreSchema {
   windowBounds: WindowBounds;
   panelState: PanelState;
@@ -51,7 +63,14 @@ interface StoreSchema {
   zoteroBibPath: string | null;
   /** Encrypted (OS keychain) base64 blob containing the full LicenseData payload. */
   licenseBlob: string | null;
+  backupConfig: BackupConfig;
 }
+
+const DEFAULT_BACKUP_CONFIG: BackupConfig = {
+  intervalSec: 30,
+  maxCount: 30,
+  maxAiSnapshots: 20,
+};
 
 const store = new Store<StoreSchema>({
   name: 'vswrite-settings',
@@ -75,6 +94,7 @@ const store = new Store<StoreSchema>({
     onboardingSeen: false,
     zoteroBibPath: null,
     licenseBlob: null,
+    backupConfig: DEFAULT_BACKUP_CONFIG,
   },
 });
 
@@ -101,31 +121,34 @@ export function savePanelState(state: PanelState): void {
 }
 
 // ─── Recent Projects ─────────────────────────────
+// `path` is the *project folder* path. Entries that no longer point to an
+// existing folder are filtered out at read time.
 
 export function getRecentProjects(): RecentProject[] {
-  return store.get('recentProjects');
+  const recent = store.get('recentProjects');
+  return recent.filter(p => {
+    try {
+      return fs.existsSync(p.path) && fs.statSync(p.path).isDirectory();
+    } catch {
+      return false;
+    }
+  });
 }
 
-export function addRecentProject(projectPath: string, name?: string): void {
+export function addRecentProject(projectFolder: string, name?: string): void {
   const recent = store.get('recentProjects');
-
-  // Remove existing entry for this path
-  const filtered = recent.filter(p => p.path !== projectPath);
-
-  // Add at front
+  const filtered = recent.filter(p => p.path !== projectFolder);
   filtered.unshift({
-    path: projectPath,
-    name: name || projectPath.split('/').pop() || projectPath,
+    path: projectFolder,
+    name: name || path.basename(projectFolder) || projectFolder,
     timestamp: Date.now(),
   });
-
-  // Trim to max
   store.set('recentProjects', filtered.slice(0, MAX_RECENT_PROJECTS));
 }
 
-export function removeRecentProject(projectPath: string): void {
+export function removeRecentProject(projectFolder: string): void {
   const recent = store.get('recentProjects');
-  store.set('recentProjects', recent.filter(p => p.path !== projectPath));
+  store.set('recentProjects', recent.filter(p => p.path !== projectFolder));
 }
 
 // ─── Last Project (auto-reopen) ──────────────────
@@ -159,11 +182,6 @@ export function saveZoteroBibPath(bibPath: string | null): void {
 }
 
 // ─── License ────────────────────────────────────
-// The license payload is stored as an OS-encrypted blob (safeStorage →
-// macOS Keychain / Windows DPAPI / libsecret on Linux). This prevents
-// trivial tampering (e.g. editing the JSON on disk to flip `licenseTier`
-// to "pro"): if the blob cannot be decrypted or deserialised, we treat
-// it as "no license" instead of trusting its contents.
 
 const EMPTY_LICENSE: LicenseData = {
   licenseKey: null,
@@ -180,7 +198,6 @@ export function getLicenseData(): LicenseData {
     if (!safeStorage.isEncryptionAvailable()) return { ...EMPTY_LICENSE };
     const decrypted = safeStorage.decryptString(Buffer.from(blob, 'base64'));
     const parsed = JSON.parse(decrypted) as LicenseData;
-    // Shape-validate — if anything is off, treat as empty.
     if (typeof parsed !== 'object' || parsed === null) return { ...EMPTY_LICENSE };
     return {
       licenseKey: typeof parsed.licenseKey === 'string' ? parsed.licenseKey : null,
@@ -207,62 +224,272 @@ export function clearLicenseData(): void {
   store.set('licenseBlob', null);
 }
 
-// ─── Crash Recovery / Backup ───────────────────
+// ─── Backup Config ──────────────────────────────
 
-const BACKUP_DIR = path.join(app.getPath('userData'), 'backups');
-
-export interface BackupInfo {
-  filePath: string;
-  backupPath: string;
-  timestamp: number;
+export function getBackupConfig(): BackupConfig {
+  const cfg = store.get('backupConfig') ?? DEFAULT_BACKUP_CONFIG;
+  return {
+    intervalSec: typeof cfg.intervalSec === 'number' && cfg.intervalSec >= 5 ? cfg.intervalSec : DEFAULT_BACKUP_CONFIG.intervalSec,
+    maxCount: typeof cfg.maxCount === 'number' && cfg.maxCount >= 1 ? cfg.maxCount : DEFAULT_BACKUP_CONFIG.maxCount,
+    maxAiSnapshots: typeof cfg.maxAiSnapshots === 'number' && cfg.maxAiSnapshots >= 1 ? cfg.maxAiSnapshots : DEFAULT_BACKUP_CONFIG.maxAiSnapshots,
+  };
 }
 
-function ensureBackupDir(): void {
-  if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+export function setBackupConfig(config: BackupConfig): void {
+  store.set('backupConfig', {
+    intervalSec: Math.max(5, Math.min(3600, config.intervalSec)),
+    maxCount: Math.max(1, Math.min(10000, config.maxCount)),
+    maxAiSnapshots: Math.max(1, Math.min(1000, config.maxAiSnapshots)),
+  });
+}
+
+// ─── Project-Local Auto-Backups ─────────────────
+
+export interface BackupFile {
+  relPath: string;
+  content: string;
+}
+
+export interface BackupSnapshot {
+  timestamp: string;        // "2026-04-27_14-32-15" — sorts lexically
+  timestampMs: number;
+  fileCount: number;
+  totalBytes: number;
+}
+
+const BACKED_UP_EXTENSIONS = new Set(['.typ', '.bib']);
+const BACKUP_IGNORED_DIRS = new Set(['.git', '.vswrite', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
+
+function vswriteDir(projectDir: string): string {
+  return path.join(projectDir, '.vswrite');
+}
+
+function backupsDir(projectDir: string): string {
+  return path.join(vswriteDir(projectDir), 'backups');
+}
+
+export function aiSnapshotsDir(projectDir: string): string {
+  return path.join(vswriteDir(projectDir), 'ai-snapshots');
+}
+
+function ensureDir(dir: string): void {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function formatTimestamp(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+}
+
+function parseTimestamp(stamp: string): number {
+  // "2026-04-27_14-32-15" → Date
+  const m = stamp.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
+  if (!m) return 0;
+  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+}
+
+function collectProjectFiles(projectDir: string, depth = 0): string[] {
+  if (depth > 5) return [];
+  const result: string[] = [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(projectDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  for (const entry of entries) {
+    if (BACKUP_IGNORED_DIRS.has(entry.name)) continue;
+    if (entry.name.startsWith('.')) continue;
+
+    const full = path.join(projectDir, entry.name);
+    if (entry.isDirectory()) {
+      result.push(...collectProjectFiles(full, depth + 1));
+    } else if (BACKED_UP_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+      result.push(full);
+    }
+  }
+  return result;
+}
+
+/**
+ * Saves a multi-file backup snapshot of a project.
+ * Walks the project for .typ/.bib files; if `liveFile` is given, its content
+ * is used in place of the disk content (captures unsaved edits).
+ */
+export function saveProjectBackup(
+  projectDir: string,
+  liveFile?: { absPath: string; content: string },
+): BackupSnapshot | null {
+  if (!fs.existsSync(projectDir)) return null;
+
+  const files = collectProjectFiles(projectDir);
+  if (liveFile && !files.includes(liveFile.absPath) && fs.existsSync(path.dirname(liveFile.absPath))) {
+    files.push(liveFile.absPath);
+  }
+  if (files.length === 0) return null;
+
+  const timestamp = formatTimestamp(new Date());
+  const snapshotDir = path.join(backupsDir(projectDir), timestamp);
+  ensureDir(snapshotDir);
+
+  const fileList: string[] = [];
+  let totalBytes = 0;
+
+  for (const absPath of files) {
+    const relPath = path.relative(projectDir, absPath);
+    const targetPath = path.join(snapshotDir, relPath);
+    ensureDir(path.dirname(targetPath));
+
+    let content: string;
+    if (liveFile && absPath === liveFile.absPath) {
+      content = liveFile.content;
+    } else {
+      try {
+        content = fs.readFileSync(absPath, 'utf-8');
+      } catch {
+        continue;
+      }
+    }
+
+    try {
+      fs.writeFileSync(targetPath, content, 'utf-8');
+      fileList.push(relPath);
+      totalBytes += Buffer.byteLength(content, 'utf-8');
+    } catch {
+      // skip files we can't write
+    }
+  }
+
+  const meta = {
+    timestamp,
+    timestampMs: Date.now(),
+    files: fileList,
+    totalBytes,
+  };
+  fs.writeFileSync(path.join(snapshotDir, '.meta.json'), JSON.stringify(meta), 'utf-8');
+
+  return {
+    timestamp,
+    timestampMs: meta.timestampMs,
+    fileCount: fileList.length,
+    totalBytes,
+  };
+}
+
+/** Lists all backup snapshots for a project, newest first. */
+export function listProjectBackups(projectDir: string): BackupSnapshot[] {
+  const dir = backupsDir(projectDir);
+  if (!fs.existsSync(dir)) return [];
+
+  const result: BackupSnapshot[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const metaPath = path.join(dir, entry.name, '.meta.json');
+    let timestampMs = parseTimestamp(entry.name);
+    let fileCount = 0;
+    let totalBytes = 0;
+    if (fs.existsSync(metaPath)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+        if (typeof meta.timestampMs === 'number') timestampMs = meta.timestampMs;
+        if (Array.isArray(meta.files)) fileCount = meta.files.length;
+        if (typeof meta.totalBytes === 'number') totalBytes = meta.totalBytes;
+      } catch {}
+    }
+    result.push({ timestamp: entry.name, timestampMs, fileCount, totalBytes });
+  }
+  result.sort((a, b) => b.timestampMs - a.timestampMs);
+  return result;
+}
+
+/** Loads a single backup snapshot's files into memory. */
+export function loadProjectBackup(projectDir: string, timestamp: string): BackupFile[] {
+  const dir = path.join(backupsDir(projectDir), timestamp);
+  if (!fs.existsSync(dir)) return [];
+
+  const result: BackupFile[] = [];
+  function walk(sub: string, relBase: string): void {
+    for (const entry of fs.readdirSync(sub, { withFileTypes: true })) {
+      if (entry.name === '.meta.json') continue;
+      const full = path.join(sub, entry.name);
+      const relPath = path.posix.join(relBase, entry.name);
+      if (entry.isDirectory()) {
+        walk(full, relPath);
+      } else {
+        try {
+          result.push({ relPath, content: fs.readFileSync(full, 'utf-8') });
+        } catch {}
+      }
+    }
+  }
+  walk(dir, '');
+  return result;
+}
+
+/** Deletes oldest backups when count exceeds the configured maximum. */
+export function pruneProjectBackups(projectDir: string, maxCount: number): void {
+  const all = listProjectBackups(projectDir);
+  if (all.length <= maxCount) return;
+
+  const toDelete = all.slice(maxCount);
+  for (const snap of toDelete) {
+    const dir = path.join(backupsDir(projectDir), snap.timestamp);
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {}
   }
 }
 
-/** Saves a backup snapshot of the current file content. */
-export function saveBackup(filePath: string, content: string): void {
-  ensureBackupDir();
-  const fileName = path.basename(filePath, '.typ');
-  const backupPath = path.join(BACKUP_DIR, `${fileName}.backup.typ`);
-  const meta = { filePath, timestamp: Date.now() };
-  fs.writeFileSync(backupPath, content, 'utf-8');
-  fs.writeFileSync(backupPath + '.meta.json', JSON.stringify(meta), 'utf-8');
-}
+/**
+ * Checks if the latest backup contains a version of the given file that
+ * differs from the on-disk content and is newer than the disk mtime.
+ * Returns the snapshot info if recovery is offered, null otherwise.
+ */
+export function checkForFileRecovery(
+  projectDir: string,
+  absFilePath: string,
+): { snapshot: BackupSnapshot; backupContent: string } | null {
+  if (!fs.existsSync(projectDir) || !fs.existsSync(absFilePath)) return null;
 
-/** Checks if a recovery backup exists that is newer than the file on disk. */
-export function checkForRecovery(filePath: string): BackupInfo | null {
-  ensureBackupDir();
-  const fileName = path.basename(filePath, '.typ');
-  const backupPath = path.join(BACKUP_DIR, `${fileName}.backup.typ`);
-  const metaPath = backupPath + '.meta.json';
+  const backups = listProjectBackups(projectDir);
+  if (backups.length === 0) return null;
 
-  if (!fs.existsSync(backupPath) || !fs.existsSync(metaPath)) return null;
+  const latest = backups[0];
+  const relPath = path.relative(projectDir, absFilePath);
+  const backupFilePath = path.join(backupsDir(projectDir), latest.timestamp, relPath);
+  if (!fs.existsSync(backupFilePath)) return null;
 
+  let backupContent: string;
+  let diskContent: string;
   try {
-    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
-    if (meta.filePath !== filePath) return null;
+    backupContent = fs.readFileSync(backupFilePath, 'utf-8');
+    diskContent = fs.readFileSync(absFilePath, 'utf-8');
+  } catch {
+    return null;
+  }
 
-    const diskStat = fs.statSync(filePath);
-    if (meta.timestamp > diskStat.mtimeMs) {
-      return { filePath, backupPath, timestamp: meta.timestamp };
-    }
+  if (backupContent === diskContent) return null;
+
+  let diskMtime: number;
+  try {
+    diskMtime = fs.statSync(absFilePath).mtimeMs;
+  } catch {
+    return null;
+  }
+
+  if (latest.timestampMs <= diskMtime) return null;
+
+  return { snapshot: latest, backupContent };
+}
+
+/** Deletes the project's `.vswrite` folder entirely. */
+export function clearProjectVswriteData(projectDir: string): void {
+  const dir = vswriteDir(projectDir);
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
   } catch {}
-  return null;
-}
-
-/** Reads the backup content. */
-export function readBackup(backupPath: string): string {
-  return fs.readFileSync(backupPath, 'utf-8');
-}
-
-/** Clears the backup for a given file (call after successful save). */
-export function clearBackup(filePath: string): void {
-  const fileName = path.basename(filePath, '.typ');
-  const backupPath = path.join(BACKUP_DIR, `${fileName}.backup.typ`);
-  try { fs.unlinkSync(backupPath); } catch {}
-  try { fs.unlinkSync(backupPath + '.meta.json'); } catch {}
 }

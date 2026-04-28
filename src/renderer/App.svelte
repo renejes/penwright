@@ -10,7 +10,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import OutlinePanel from './components/OutlinePanel.svelte';
   import IncludesPanel from './components/IncludesPanel.svelte';
-  import GitPanel from './components/GitPanel.svelte';
+  import ProjectPanel from './components/ProjectPanel.svelte';
   import PreviewPanel from './components/PreviewPanel.svelte';
   import TerminalPanel from './components/TerminalPanel.svelte';
   import TextFileViewer from './components/TextFileViewer.svelte';
@@ -18,6 +18,7 @@
   import NewProjectDialog from './components/NewProjectDialog.svelte';
   import LicenseDialog from './components/LicenseDialog.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
+  import ExportDialog from './components/ExportDialog.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
@@ -34,6 +35,7 @@
     tabState,
     contextMenu,
     newProjectState,
+    exportDialogState,
     openTab,
     closeTab,
     tabName,
@@ -246,37 +248,19 @@
   }
 
   // ─── Start Screen Handlers ─────────────────────
-  function handlePreviewModeChange(mode: 'svg' | 'pdf') {
-    previewState.previewMode = mode;
-    const api = (window as unknown as { electronAPI: { send(channel: string, data: unknown): void } }).electronAPI;
-    api.send('preview:setMode', mode);
-  }
 
   function handleStartNewProject() {
     ipc.send({ type: 'newProject' });
   }
 
-  function handleStartOpenFile() {
+  function handleStartOpenProject() {
     const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
-    api.invoke('dialog:openFile').then((filePath) => {
-      if (filePath) {
-        api.invoke('filetree:open', filePath as string).then((result) => {
-          if (result === 'editor') openTab(filePath as string, 'typ');
-        });
-      }
-    });
+    api.invoke('project:open');
   }
 
-  function handleStartOpenRecent(filePath: string) {
+  function handleStartOpenRecent(folderPath: string) {
     const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
-    api.invoke('filetree:open', filePath).then((result) => {
-      if (result === 'editor') openTab(filePath, 'typ');
-    });
-  }
-
-  function handleStartOpenFolder() {
-    const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
-    api.invoke('filetree:openFolder');
+    api.invoke('project:open', folderPath);
   }
 
   function handleFileOpen(filePath: string) {
@@ -376,8 +360,7 @@
     {#if !hasFileOpen}
       <StartScreen
         onNewProject={handleStartNewProject}
-        onOpenFile={handleStartOpenFile}
-        onOpenFolder={handleStartOpenFolder}
+        onOpenProject={handleStartOpenProject}
         onOpenRecent={handleStartOpenRecent}
       />
     {/if}
@@ -391,7 +374,7 @@
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'files'} onclick={() => panelState.sidebarTab = 'files'} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label="Files panel">Files</button>
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'outline'} onclick={() => panelState.sidebarTab = 'outline'} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label="Outline panel">Outline</button>
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'includes'} onclick={() => panelState.sidebarTab = 'includes'} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label="Chapters panel">Chapters</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'git'} onclick={() => panelState.sidebarTab = 'git'} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Git panel">Git</button>
+            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'git'} onclick={() => panelState.sidebarTab = 'git'} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Project panel">Project</button>
           </div>
           <div class="sidebar-body">
             {#if panelState.sidebarTab === 'files'}
@@ -401,7 +384,7 @@
             {:else if panelState.sidebarTab === 'includes'}
               <IncludesPanel content={tabState.currentContent} currentFile={tabState.currentFile} />
             {:else if panelState.sidebarTab === 'git'}
-              <GitPanel />
+              <ProjectPanel />
             {/if}
           </div>
         </div>
@@ -497,13 +480,9 @@
         />
         <div class="panel-preview" style="width: {panelState.previewWidth}px">
           <PreviewPanel
-            pages={previewState.pages}
             pdfData={previewState.pdfData}
-            previewMode={previewState.previewMode}
             error={previewState.error}
             compiling={previewState.compiling}
-            scrollToPage={previewState.scrollToPage}
-            onModeChange={handlePreviewModeChange}
           />
         </div>
       {/if}
@@ -563,6 +542,13 @@
     {#if uiState.showAbout}
       <AboutDialog
         onClose={() => { uiState.showAbout = false; }}
+      />
+    {/if}
+    {#if exportDialogState.show && exportDialogState.sections}
+      <ExportDialog
+        initialFormat={exportDialogState.format}
+        sections={exportDialogState.sections}
+        onClose={() => { exportDialogState.show = false; }}
       />
     {/if}
   </div>

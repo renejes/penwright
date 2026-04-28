@@ -1,6 +1,8 @@
 /**
- * Typst Compiler — spawns `typst compile` and emits SVG pages.
- * Ported from the VS Code extension, stripped of vscode.* dependencies.
+ * Typst Compiler — spawns `typst compile` and emits the rendered PDF.
+ * The renderer displays the PDF via pdf.js (viewport-virtualised, scales
+ * cleanly to 100+ pages — the older SVG-page mode was removed in favour of
+ * this for performance).
  */
 
 import { execFile } from 'child_process';
@@ -11,61 +13,12 @@ import { getTypstPath } from './typstPath';
 
 export class TypstCompiler extends EventEmitter {
   private filePath: string;
-  private compileTimer: NodeJS.Timeout | null = null;
   private pdfCompileTimer: NodeJS.Timeout | null = null;
   private compileDelay = 400;
 
   constructor(filePath: string) {
     super();
     this.filePath = filePath;
-  }
-
-  compile(): void {
-    if (this.compileTimer) clearTimeout(this.compileTimer);
-    this.compileTimer = setTimeout(() => this.doCompile(), this.compileDelay);
-  }
-
-  private doCompile(): void {
-    const dir = path.dirname(this.filePath);
-    const outPattern = path.join(dir, '.vswrite-preview-{n}.svg');
-
-    execFile(
-      getTypstPath(),
-      ['compile', this.filePath, outPattern, '--format', 'svg'],
-      { cwd: dir, timeout: 30000 },
-      async (error, _stdout, stderr) => {
-        if (error) {
-          // Parse diagnostics from stderr
-          const diagnostics = this.parseErrors(stderr);
-          this.emit('error', diagnostics);
-          return;
-        }
-
-        // Collect SVG pages asynchronously in parallel — typst zero-pads
-        // page numbers for multi-page docs (preview-01.svg, preview-02.svg, …).
-        // Reading + deleting each page with fs.promises keeps the main
-        // process event loop responsive for 100+ page documents.
-        try {
-          const entries = await fs.promises.readdir(dir);
-          const files = entries
-            .filter(f => f.startsWith('.vswrite-preview-') && f.endsWith('.svg'))
-            .sort();
-
-          const pages = await Promise.all(files.map(async (file) => {
-            const svgPath = path.join(dir, file);
-            const content = await fs.promises.readFile(svgPath, 'utf-8');
-            fs.promises.unlink(svgPath).catch(() => {});
-            return content;
-          }));
-
-          if (pages.length > 0) {
-            this.emit('compiled', pages);
-          }
-        } catch {
-          // Swallow — if the directory vanished mid-read, skip this cycle.
-        }
-      },
-    );
   }
 
   compilePdf(): void {
@@ -116,10 +69,6 @@ export class TypstCompiler extends EventEmitter {
   }
 
   dispose(): void {
-    if (this.compileTimer) {
-      clearTimeout(this.compileTimer);
-      this.compileTimer = null;
-    }
     if (this.pdfCompileTimer) {
       clearTimeout(this.pdfCompileTimer);
       this.pdfCompileTimer = null;

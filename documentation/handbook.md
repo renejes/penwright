@@ -1,7 +1,7 @@
 # vswrite Desktop — User Handbook
 
 > **Version:** 0.7.0 (Pre-Release)
-> **Last updated:** 2026-04-17
+> **Last updated:** 2026-04-28
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
 ---
@@ -28,11 +28,15 @@ From v0.7.0:
 - **Windows:** download the NSIS installer and run it
 - **Linux:** download the AppImage, make it executable (`chmod +x`), run it
 
-### Opening your first file
+### Opening your first project
 
-- **File -> Open** (`Cmd+O`) -> pick a `.typ` file
-- **File -> Open Folder** -> open a project folder
-- **File -> New Project** -> create a new project from a template
+vswrite is project-based: a project is a folder that contains at least one `.typ` file. The app always starts on the Start Screen — you choose what to open.
+
+- **File -> New Project…** (`Cmd+N`) — create a new project from a template
+- **File -> Open Project…** (`Cmd+O`) — pick a folder
+- **Recent Projects** appear on the Start Screen and reopen with one click
+
+To stop working on a project without quitting the app, use **File -> Close Project** (`Cmd+Shift+W`) — you return to the Start Screen and can open another project.
 
 ---
 
@@ -44,10 +48,10 @@ From v0.7.0:
 +--------------------------------------------------------------+
 |  B I U S  | H1 H2 H3 | bul num | Link | Quick Focus Hub      |  Toolbar
 +------+-------------------------------+-----------------------+
-|[Files|Outline|Chapters|Git]          |                       |
+|[Files|Outline|Chapters|Project]      |                       |
 |      |  [main.typ] [refs.bib]        |                       |
 | Side-|                               |   Preview Panel       |
-| bar  |  WYSIWYG Editor               |   (SVG Pages)         |
+| bar  |  WYSIWYG Editor               |   (live PDF)          |
 |      |                               |                       |
 +------+-------------------------------+-----------------------+
 |  Terminal / AI  (real shell terminal)                         |
@@ -171,7 +175,11 @@ Type `@` in the editor -> dropdown with all sources from `.bib` files in the pro
 Every new project automatically gets:
 - Template files (main.typ, chapters/, bibliography.bib)
 - `assets/` folder for images
+- `sources/` folder for reference PDFs and other research material
 - `.claude/skills/` with Claude Code skills (typst, vswrite, research)
+- `.git/` repository + `.gitignore` so the version system works from the very first save
+- `.vswrite/` folder for auto-backups and AI-edit snapshots (hidden, project-local)
+- An initial commit with the template content
 
 ---
 
@@ -180,8 +188,9 @@ Every new project automatically gets:
 The sidebar has four tabs:
 
 ### Files
-- Recursive file tree, Back button, Open Folder
-- `.claude/` folder visible for skills
+- Recursive file tree, Back button, **New Folder** (inline input — Enter saves, Esc cancels), **Add Asset** (file picker that copies into `assets/`)
+- Empty folders like `assets/` and `sources/` stay visible so you always see where to drop things
+- `.claude/` folder visible for skills; `.git/` and `.vswrite/` are hidden
 - Images from `assets/` are draggable into the editor
 - Right-click -> "Open in New Tab"
 
@@ -191,20 +200,23 @@ The sidebar has four tabs:
 ### Chapters (Include manager)
 - `#include` statements, arrows to reorder (instant UI update), x to remove, + Add Chapter
 
-### Git
-- Branch, Stage/Unstage, Commit, Push/Pull, Init
-- **Note:** creating a new GitHub repo currently happens in the integrated terminal, e.g. via `gh repo create my-thesis --public --source . --push`. Push/Pull via the sidebar work once a remote is configured.
+### Project
+This tab replaces the old Git panel and uses writer-friendly vocabulary instead of raw Git commands. See the **[Versions & Auto-Backup](#versions--auto-backup)** section below for the full workflow. In short:
+- **Save Version** — names your current state and stores it in the project's history
+- **Changes since last version** — checkboxes for which files go into the next version
+- **History** (always visible) — every saved version, click to view diff and restore
+- **Auto-Backup status** — small footer showing when the last automatic snapshot was taken
+- **Advanced** (collapsed) — optional cloud sync (push/pull to GitHub or any other Git remote)
 
 ---
 
 ## Live Preview
 
 - **Root-file compilation:** with chapters, `main.typ` is compiled automatically
-- **Chapter navigation:** preview scrolls to the active chapter
-- **Scroll preservation:** position stays put on recompile
-- **Virtualized:** for larger documents (50+ pages) only visible pages are rendered — smooth scrolling even on 100+ pages
+- **PDF rendering** via pdf.js — viewport-virtualised, so 100+ page documents stay smooth
+- **Text selection & copy** in the preview thanks to pdf.js' TextLayer
 - **Error display:** Typst errors show up in the preview panel
-- **SVG/PDF mode:** toggle in the preview header — SVG (fast, default) or PDF (via pdf.js, with text selection)
+- **Live update** as you type, with a 400 ms compile debounce
 
 ---
 
@@ -223,19 +235,30 @@ The sidebar has four tabs:
 - **Auto-sync:** changes in Zotero are picked up automatically while the app is running
 - All Zotero sources appear in the `@` autocomplete
 
+### Export dialog
+
+For multi-chapter projects, **File -> Export PDF** or **Export DOCX** opens a dialog where you can:
+- Switch the **Format** between PDF and DOCX with a single click
+- **Tick which chapters** to include — every chapter shows its first H1 as the title
+- Toggle the **Bibliography** in/out
+- Use **All / None** shortcuts for the chapter list
+
+The title page, abstract and anything else outside `#include` is always part of the export. Single-file projects without `#include` skip the dialog and go straight to the file-save dialog.
+
 ### PDF export
-Hub -> File -> Export PDF
+
+Uses the bundled Typst CLI to render the (filtered) project. PDF reflects exactly what you see in the preview.
 
 ### DOCX export
 
-Hub -> File -> Export DOCX.
-
 The DOCX is produced with real Word styles:
+- **Multi-chapter aware:** all `#include`d chapters are merged into the output (the old "current file only" behaviour is gone)
 - Headings, bibliography, code blocks and quotes use named Word styles — restyle the whole document from the Word styles panel
 - Page size, margins, font, font size and line spacing are inherited from your Typst `#set` settings (e.g. A4 + Libertinus 11pt)
 - **Live heading numbering:** if your Typst file has `#set heading(numbering: "1.1")`, the headings get Word multilevel numbering. When your supervisor reorders chapters in Word, the numbers update automatically.
 - Citations render as `(Author Year)` when found in the `.bib` file, else as `[citekey]`
 - TOC and bibliography headings are localized to the document language (DE/EN/FR/ES/IT/PT/NL)
+- **Note:** DOCX export is iteratively improved. Custom Typst constructs (e.g. heavily styled title pages with `#show heading: …` rules) may not render perfectly — for the most faithful layout, prefer PDF.
 
 ---
 
@@ -255,6 +278,61 @@ The DOCX is produced with real Word styles:
 
 **Import your own template:** Hub -> Style Templates -> Import Style Template -> pick a `.typ` file. Only the preamble (#set/#show rules) is extracted, even when you pass a complete document. Stored in `.claude/style-templates/`.
 
+**Note:** styles can only be applied while you have the project's main file (`main.typ` or whichever file your `#include`s point at) active in the editor. If you try to apply a style while a chapter is open, vswrite blocks the action with a dialog — otherwise the style preamble would be prepended to that chapter and silently corrupt it.
+
+---
+
+## Versions & Auto-Backup
+
+vswrite keeps three independent layers of safety for your work — each with a clearly defined purpose:
+
+| Layer | Trigger | Purpose | Where it lives |
+|-------|---------|---------|----------------|
+| **Versions** | You click **Save Version** | Deliberate milestones in your project's history | `<project>/.git/` |
+| **Auto-Backup** | Timer (configurable, default every 30 s) | Crash / freeze protection — never lose more than X seconds of work | `<project>/.vswrite/backups/` |
+| **AI-Edit Undo** | Triggered by an external edit (terminal / MCP) | Quick rollback of the last AI change | `<project>/.vswrite/ai-snapshots/` |
+
+All three live **inside the project folder**, so the project is self-contained: copy or move it and the full history goes with it.
+
+### Saving a version
+
+In the **Project** sidebar tab:
+1. Type a short description in **Save Version** ("Chapter 3 first draft", "Before lecturer review", …)
+2. Optionally untick files in **Changes since last version** that should not be part of this version
+3. Click **Save Version**
+
+The history list updates immediately. Every entry stays available forever (until you delete the project).
+
+### Browsing the history
+
+Click any entry in the **History** to open its detail view:
+- Date and message
+- A diff per file in source-text style (red removed lines, green added lines — like GitHub)
+- **Restore this version** button — replaces the current files with the historical ones (with a confirmation prompt)
+
+The current document is never destroyed: restoring an old version overwrites your working copy, but you can always **Save Version** beforehand to keep your in-progress state.
+
+### Auto-Backup
+
+A small status line at the bottom of the **Project** tab shows when the last automatic backup was taken ("Last backup 12 s ago"). Click it to open the backup browser:
+- Every backup is a full snapshot of the project's `.typ` and `.bib` files at that point in time
+- **Load** restores a backup into the working tree (with a confirmation prompt — save a version first if you don't want to lose your current state)
+- The **gear icon** in the dialog header opens the settings: backup interval (10 s – 5 min), maximum number of backups kept (10 / 30 / 100 / 1000), maximum number of AI-edit snapshots
+
+### AI-Edit Undo
+
+When an external tool (Claude Code in the terminal, the MCP server, …) modifies a file you have open, vswrite saves the previous content into the AI-snapshot ring buffer **before** applying the change. Use the **Undo AI Edit** menu entry to step back through them one by one. Snapshots survive app restarts (they're persisted to `.vswrite/ai-snapshots/`).
+
+### Cloud backup (optional)
+
+The version history is local by default. If you want to push it to GitHub (or any other Git remote) for off-machine backup or to use the project on a second device:
+
+1. Open the **Project** tab and expand **Advanced**
+2. Paste the remote URL (e.g. `https://github.com/your-user/your-thesis.git`)
+3. Use **Sync to cloud** (push) and **Pull from cloud** as needed
+
+Two devices in parallel are not safe — one machine at a time.
+
 ---
 
 ## File Watcher
@@ -264,8 +342,9 @@ External file changes (e.g. from Claude Code in the terminal) are picked up auto
 - `.bib` changed -> citations are reloaded
 - Files added/removed -> file tree refreshes
 - Your own saves are ignored (3s protection window)
+- The `.vswrite/` folder is excluded from the watcher so backups never trigger refresh loops
 
-**Undo AI Edit:** before an external change lands in the editor, the current state is saved into a ring buffer (up to 20 entries). You can jump back to the state before the AI edit from the menu.
+For rolling back AI edits, see the [Versions & Auto-Backup](#versions--auto-backup) section.
 
 ---
 
@@ -305,20 +384,30 @@ Real PTY terminal (xterm.js + node-pty):
 - Edits are auto-saved after 1 second
 - Status Bar: "Unsaved" (orange) or "Saved 14:35"
 - Warning on close with unsaved changes
-- **Crash recovery:** every 30 s a backup snapshot is written to `~/Library/Application Support/vswrite/backups/` (macOS). If the app crashes and you later reopen the file, vswrite offers to restore the backup.
+- **Crash recovery:** auto-backups are written to `<project>/.vswrite/backups/<timestamp>/` (interval configurable, default 30 s). If the app crashes and the latest backup is newer than the saved file on disk, vswrite offers to restore it when you reopen the project. See [Versions & Auto-Backup](#versions--auto-backup) for details.
 
 ---
 
 ## Persistence
 
-vswrite remembers your app state between restarts:
+vswrite stores two kinds of state separately — **app preferences** that are global to your installation, and **project state** that travels with each project folder.
 
-- **Window position & size** — the window opens where you last left it
-- **Panel states** — sidebar, preview, terminal stay open/closed as last used
-- **Panel sizes** — sidebar width, preview width, terminal height
-- **Recent Projects** — the last 10 projects appear on the Start Screen
-- **Auto-reopen** — the last project opens automatically on app start
-- **Onboarding** — the welcome screen doesn't reappear if you ticked "Don't show again"
+**Global** (in your OS user data folder):
+- Window position & size
+- Panel states (sidebar/preview/terminal open/closed, sizes, active tab)
+- Recent Projects (the last 10 project folders — entries that no longer exist are filtered out automatically)
+- Onboarding flag (Welcome screen tick "Don't show again")
+- Zotero `.bib` path
+- Auto-Backup configuration (interval, max number of backups, max AI-snapshots)
+- License key (encrypted in the OS keychain)
+
+**Per-project** (inside the project folder):
+- Version history (`.git/`)
+- Auto-backups (`.vswrite/backups/`)
+- AI-edit snapshots (`.vswrite/ai-snapshots/`)
+- Claude Code skills (`.claude/skills/`)
+
+The app **always starts on the Start Screen** — there is no auto-reopen. This is deliberate so that opening vswrite never surprises you with a project you didn't intend to work on.
 
 ---
 
@@ -523,7 +612,11 @@ Claude will call `vswrite_set_project` and work with the new project from there 
 
 | Action | Shortcut |
 |--------|----------|
+| New Project | `Cmd+N` |
+| Open Project | `Cmd+O` |
+| Close Project | `Cmd+Shift+W` |
 | Save | `Cmd+S` |
+| Save As | `Cmd+Shift+S` |
 | Find | `Cmd+F` |
 | Find & Replace | `Cmd+H` |
 | Toggle sidebar | `Cmd+B` |

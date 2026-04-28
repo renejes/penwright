@@ -17,10 +17,11 @@ export interface AppState {
   lastSaveTimestamp: number;
 
   // Callbacks set by index.ts after module wiring
-  newFile: () => void;
   openFile: (filePath?: string) => void;
   saveFile: () => Promise<boolean>;
   saveFileAs: () => Promise<boolean>;
+  closeProject: () => Promise<boolean>;
+  openProject: () => Promise<void>;
   handleExportPdf: () => void;
   handleExportDocx: () => void;
   handleImportMarkdown: () => void;
@@ -37,10 +38,11 @@ export const appState: AppState = {
   lastSaveTimestamp: 0,
 
   // These get wired up in index.ts after all modules are imported
-  newFile: () => {},
   openFile: () => {},
   saveFile: async () => false,
   saveFileAs: async () => false,
+  closeProject: async () => false,
+  openProject: async () => {},
   handleExportPdf: () => {},
   handleExportDocx: () => {},
   handleImportMarkdown: () => {},

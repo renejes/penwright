@@ -144,37 +144,43 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
     };
   }
 
-  // 3. Bullet list: all lines start with "- "
+  // 3. & 4. List blocks ("- " bullets, "+ " ordered).
+  //    Continuation lines that are indented (or empty) belong to the
+  //    previous item — without this the deserializer rejected real
+  //    multi-line list items and dumped them as raw text.
   const lines = block.split('\n');
-  if (lines.every((l) => l.match(/^- /))) {
-    return {
-      type: 'bulletList',
-      content: lines.map((line) => ({
-        type: 'listItem',
-        content: [
-          {
-            type: 'paragraph',
-            content: parseInline(line.replace(/^- /, '')),
-          },
-        ],
-      })),
-    };
-  }
+  const listMarker = lines[0]?.match(/^([-+]) /)?.[1];
+  if (listMarker && lines.every((l) => l.match(/^[-+] /) || /^\s/.test(l) || l === '')) {
+    const allMatchSameMarker = lines.every((l) => {
+      const m = l.match(/^([-+]) /);
+      return !m || m[1] === listMarker;
+    });
+    if (allMatchSameMarker) {
+      const items: string[] = [];
+      let buf: string[] = [];
+      for (const line of lines) {
+        if (line.match(/^[-+] /)) {
+          if (buf.length > 0) items.push(buf.join(' ').trim());
+          buf = [line.replace(/^[-+] /, '')];
+        } else {
+          buf.push(line.trim());
+        }
+      }
+      if (buf.length > 0) items.push(buf.join(' ').trim());
 
-  // 4. Ordered list: all lines start with "+ "
-  if (lines.every((l) => l.match(/^\+ /))) {
-    return {
-      type: 'orderedList',
-      content: lines.map((line) => ({
-        type: 'listItem',
-        content: [
-          {
-            type: 'paragraph',
-            content: parseInline(line.replace(/^\+ /, '')),
-          },
-        ],
-      })),
-    };
+      return {
+        type: listMarker === '-' ? 'bulletList' : 'orderedList',
+        content: items.map((text) => ({
+          type: 'listItem',
+          content: [
+            {
+              type: 'paragraph',
+              content: parseInline(text),
+            },
+          ],
+        })),
+      };
+    }
   }
 
   // 5. Blockquote: #quote[text]
@@ -196,43 +202,16 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
     return { type: 'horizontalRule' };
   }
 
-  // 6.5. Aligned block: #align(center)[...] or #align(right)[...]
-  const alignMatch = block.match(/^#align\((center|right)\)\[([\s\S]+)\]$/);
-  if (alignMatch) {
-    const alignment = alignMatch[1];
-    const innerContent = alignMatch[2];
-
-    // Check if inner content is an image
-    const innerImageMatch = innerContent.match(/^#image\("([^"]+)"(?:\s*,\s*width:\s*([^)]+))?\)$/);
-    if (innerImageMatch) {
-      return {
-        type: 'image',
-        attrs: {
-          src: innerImageMatch[1],
-          width: innerImageMatch[2]?.trim() || null,
-          align: alignment,
-        },
-      };
-    }
-
-    // Check if inner content is a heading
-    const innerHeadingMatch = innerContent.match(/^(={1,4})\s+(.+)$/);
-    if (innerHeadingMatch) {
-      return {
-        type: 'heading',
-        attrs: { level: innerHeadingMatch[1].length, textAlign: alignment },
-        content: parseInline(innerHeadingMatch[2]),
-      };
-    }
-
-    // Otherwise treat as aligned paragraph
-    const inlineContent = parseInline(innerContent);
-    return {
-      type: 'paragraph',
-      attrs: { textAlign: alignment },
-      content: inlineContent.length > 0 ? inlineContent : undefined,
-    };
-  }
+  // 6.5. Aligned block: #align(<spec>)[<inner>]
+  //      <spec> may be a combined alignment like `center + horizon` —
+  //      we accept anything inside the parens and pull `center`/`right`/`left`
+  //      out of it, defaulting to center. Inner content with multiple
+  //      `#text(...)[…]` and `#v(...)` runs (typical title pages and
+  //      abstract headings) is broken into a series of styled paragraphs
+  //      so the visible text survives the DOCX export instead of being
+  //      dumped as a code block.
+  const alignNode = parseAlignedBlock(block);
+  if (alignNode) return alignNode;
 
   // 7. Image: #image("path") or #image("path", width: 80%)
   const imageMatch = block.match(/^#image\("([^"]+)"(?:\s*,\s*width:\s*([^)]+))?\)$/);
@@ -406,6 +385,147 @@ function classifyRawBlock(block: string): string {
 }
 
 // ─── Table Parser ───────────────────────────────────────────
+
+/**
+ * Parses an `#align(spec)[…]` block. Returns null if the block isn't
+ * an align construct or the brackets aren't balanced. The inner content
+ * is split into paragraphs (separated by `#v(…)` markers or blank lines)
+ * and each paragraph is best-effort un-wrapped from typical wrappers
+ * (`#text(…)[X]`, `#datetime.today().display(…)`, plain text). Bold +
+ * large `#text` becomes a heading.
+ *
+ * This is intentionally pragmatic — perfect Typst interpretation is out
+ * of scope for the deserializer, but we want title pages and abstract
+ * headings to survive DOCX export as actual visible text.
+ */
+function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
+  const headerMatch = block.match(/^#align\(([^)]+)\)\[/);
+  if (!headerMatch) return null;
+
+  const bracketStart = block.indexOf('[', headerMatch[0].length - 1);
+  if (bracketStart < 0) return null;
+
+  // Walk balanced brackets to find the matching closing `]`.
+  let depth = 0;
+  let end = -1;
+  for (let i = bracketStart; i < block.length; i++) {
+    if (block[i] === '[') depth++;
+    else if (block[i] === ']') {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+  if (end < 0 || end !== block.length - 1) return null;
+
+  const spec = headerMatch[1].trim();
+  const inner = block.slice(bracketStart + 1, end).trim();
+
+  const alignment: 'center' | 'right' | 'left' = /\bright\b/.test(spec)
+    ? 'right'
+    : /\bleft\b/.test(spec)
+      ? 'left'
+      : 'center';
+
+  // Special-case: a single image inside the align block.
+  const innerImageMatch = inner.match(/^#image\("([^"]+)"(?:\s*,\s*width:\s*([^)]+))?\)$/);
+  if (innerImageMatch) {
+    return {
+      type: 'image',
+      attrs: {
+        src: innerImageMatch[1],
+        width: innerImageMatch[2]?.trim() || null,
+        align: alignment,
+      },
+    };
+  }
+
+  // Special-case: a single heading inside the align block.
+  const innerHeadingMatch = inner.match(/^(={1,4})\s+(.+)$/);
+  if (innerHeadingMatch) {
+    return {
+      type: 'heading',
+      attrs: { level: innerHeadingMatch[1].length, textAlign: alignment },
+      content: parseInline(innerHeadingMatch[2]),
+    };
+  }
+
+  // General case: split into chunks separated by `#v(…)` or blank lines,
+  // then convert each chunk into a paragraph (or heading for big bold text).
+  const chunks = splitAlignedChunks(inner);
+  const nodes: TipTapNode[] = [];
+  for (const chunk of chunks) {
+    const node = chunkToAlignedNode(chunk, alignment);
+    if (node) nodes.push(node);
+  }
+  if (nodes.length === 0) {
+    nodes.push({ type: 'paragraph', attrs: { textAlign: alignment } });
+  }
+  return nodes;
+}
+
+/** Splits the inside of an aligned block into logical chunks. */
+function splitAlignedChunks(inner: string): string[] {
+  // Replace #v(…) calls with a synthetic separator, then split on blank
+  // lines. The separator ensures vertical-spacing markers also break
+  // chunks — they're the most common way users separate title elements.
+  const SEP = ' VBREAK ';
+  const withSep = inner.replace(/#v\([^)]+\)/g, `\n${SEP}\n`);
+  const chunks = withSep.split(/\n\s*\n/).map(c => c.trim()).filter(c => c && c !== SEP);
+  return chunks;
+}
+
+/** Converts one chunk inside an aligned block into a TipTap node. */
+function chunkToAlignedNode(chunk: string, alignment: 'center' | 'right' | 'left'): TipTapNode | null {
+  // #text(size: 22pt, weight: "bold")[Title] → centered Heading 1
+  // #text(size: 14pt)[Subtitle]              → centered paragraph (kept bold if weight present)
+  const textMatch = chunk.match(/^#text\((.*?)\)\[([\s\S]+)\]$/);
+  if (textMatch) {
+    const args = textMatch[1];
+    const innerText = textMatch[2].trim();
+    const sizeMatch = args.match(/size:\s*(\d+(?:\.\d+)?)\s*pt/);
+    const isBold = /weight:\s*"bold"/.test(args);
+    const size = sizeMatch ? parseFloat(sizeMatch[1]) : 11;
+
+    // Heading-sized bold text → emit as Heading 1 so DOCX picks up Title style.
+    if (isBold && size >= 18) {
+      return {
+        type: 'heading',
+        attrs: { level: 1, textAlign: alignment },
+        content: parseInline(innerText),
+      };
+    }
+
+    // Otherwise: paragraph. Apply bold mark inline if `weight: "bold"`.
+    const inline = parseInline(innerText);
+    const marked = isBold
+      ? inline.map(n => n.type === 'text' ? { ...n, marks: [...(n.marks || []), { type: 'bold' }] } : n)
+      : inline;
+    return {
+      type: 'paragraph',
+      attrs: { textAlign: alignment },
+      content: marked.length > 0 ? marked : undefined,
+    };
+  }
+
+  // #datetime.today().display("…") → today's date as plain text.
+  if (/^#datetime\.today\(\)\.display\(/.test(chunk)) {
+    const today = new Date().toLocaleDateString();
+    return {
+      type: 'paragraph',
+      attrs: { textAlign: alignment },
+      content: [{ type: 'text', text: today }],
+    };
+  }
+
+  // Plain text or other inline-formatted line.
+  const inline = parseInline(chunk);
+  if (inline.length === 0) return null;
+  return {
+    type: 'paragraph',
+    attrs: { textAlign: alignment },
+    content: inline,
+  };
+}
 
 /**
  * Parses a Typst #table(...) block into TipTap table nodes.

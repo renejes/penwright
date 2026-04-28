@@ -4,14 +4,12 @@
 
   let {
     onNewProject,
-    onOpenFile,
-    onOpenFolder,
+    onOpenProject,
     onOpenRecent,
   }: {
     onNewProject: () => void;
-    onOpenFile: () => void;
-    onOpenFolder: () => void;
-    onOpenRecent: (path: string) => void;
+    onOpenProject: () => void;
+    onOpenRecent: (folderPath: string) => void;
   } = $props();
 
   let typstInstalled = $state<boolean | null>(null);
@@ -90,19 +88,11 @@
         </div>
       </button>
 
-      <button class="action-card" onclick={onOpenFile}>
-        <span class="action-icon">&#9634;</span>
-        <div>
-          <strong>Open File</strong>
-          <span class="action-desc">Open an existing .typ file</span>
-        </div>
-      </button>
-
-      <button class="action-card" onclick={onOpenFolder}>
+      <button class="action-card" onclick={onOpenProject}>
         <span class="action-icon">&#9776;</span>
         <div>
-          <strong>Open Folder</strong>
-          <span class="action-desc">Open a project directory</span>
+          <strong>Open Project</strong>
+          <span class="action-desc">Open an existing project folder</span>
         </div>
       </button>
     </div>

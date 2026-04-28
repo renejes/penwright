@@ -76,8 +76,42 @@
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
   }
 
-  async function openFolder() {
-    await api.invoke('filetree:openFolder');
+  // Inline "Neuer Ordner"-Input — `window.prompt()` is disabled when the
+  // renderer runs sandboxed, so we render the input ourselves at the top
+  // of the file list.
+  let showNewFolderInput = $state(false);
+  let newFolderName = $state('');
+  let newFolderInputEl: HTMLInputElement | undefined = $state();
+
+  function newFolderAction() {
+    showNewFolderInput = true;
+    newFolderName = '';
+    setTimeout(() => newFolderInputEl?.focus(), 0);
+  }
+
+  async function submitNewFolder() {
+    const name = newFolderName.trim();
+    if (!name) {
+      showNewFolderInput = false;
+      return;
+    }
+    const result = await api.invoke('project:newFolder', { name }) as { ok: boolean; error?: string };
+    if (!result.ok) {
+      alert(result.error ?? 'Konnte Ordner nicht anlegen.');
+      return;
+    }
+    showNewFolderInput = false;
+    newFolderName = '';
+  }
+
+  function cancelNewFolder() {
+    showNewFolderInput = false;
+    newFolderName = '';
+  }
+
+  async function addAssetAction() {
+    const result = await api.invoke('project:addAssets') as { added: string[]; error?: string };
+    if (result.error) alert(result.error);
   }
 
   async function navigateUp() {
@@ -104,9 +138,35 @@
         </button>
       {/if}
       <span class="path-text" title={projectDir}>{dirName(projectDir)}</span>
-      <button class="action-btn" onclick={openFolder} title="Open Folder" aria-label="Open folder">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <button class="action-btn" onclick={newFolderAction} title="Neuer Ordner" aria-label="Neuer Ordner">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M2 4h4l1 1.5h7v7H2V4z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          <path d="M11 8.5v3M9.5 10h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
       </button>
+      <button class="action-btn" onclick={addAssetAction} title="Asset hinzufügen" aria-label="Asset hinzufügen">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M8 2v8M4 6l4-4 4 4M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  {/if}
+
+  {#if showNewFolderInput}
+    <div class="new-folder-row">
+      <span class="new-folder-icon">▸</span>
+      <input
+        bind:this={newFolderInputEl}
+        bind:value={newFolderName}
+        class="new-folder-input"
+        type="text"
+        placeholder="Ordnername"
+        onkeydown={(e) => {
+          if (e.key === 'Enter') submitNewFolder();
+          else if (e.key === 'Escape') cancelNewFolder();
+        }}
+        onblur={submitNewFolder}
+      />
     </div>
   {/if}
 
@@ -115,8 +175,8 @@
       <div class="sidebar-empty">Loading...</div>
     {:else if tree.length === 0}
       <div class="sidebar-empty">
-        <p>No project open</p>
-        <button class="open-btn" onclick={openFolder}>Open Folder</button>
+        <p>Leerer Projektordner</p>
+        <p class="hint">Lege einen Ordner oder ein Asset an, um zu starten.</p>
       </div>
     {:else}
       <ul class="file-list" role="tree" aria-label="Project files">
@@ -141,7 +201,7 @@
       ondragstart={(e) => handleDragStart(e, entry)}
       title={entry.path}
     >
-      <span class="chevron">{entry.isDir ? (expandedDirs.has(entry.path) ? '&#9662;' : '&#9656;') : ''}</span>
+      <span class="chevron">{entry.isDir ? (expandedDirs.has(entry.path) ? '▾' : '▸') : ''}</span>
       <span class="fname">{entry.name}</span>
     </button>
     {#if entry.isDir && entry.children && expandedDirs.has(entry.path)}
@@ -220,21 +280,13 @@
     gap: 12px;
   }
 
-  .open-btn {
-    padding: 6px 20px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    background: #fff;
-    color: #666;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-
-  .open-btn:hover {
-    background: #f8f8f8;
-    border-color: #ccc;
+  .sidebar-empty .hint {
+    font-size: 11px;
+    color: #ccc;
+    margin: -4px 0 0;
+    text-align: center;
+    padding: 0 24px;
+    line-height: 1.5;
   }
 
   .file-list {
@@ -288,5 +340,30 @@
   .file-entry.is-dir .fname {
     font-weight: 500;
     color: #444;
+  }
+
+  .new-folder-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 14px;
+    border-bottom: 1px solid #f5f5f5;
+    background: #fafafa;
+  }
+  .new-folder-icon {
+    color: #aaa;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .new-folder-input {
+    flex: 1;
+    border: 1px solid #4f7df9;
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    background: #fff;
+    color: #222;
   }
 </style>

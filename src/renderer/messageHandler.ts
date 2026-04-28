@@ -13,6 +13,7 @@ import type { ExtensionMessage } from '../editor/lib/messages';
 import {
   editorRef,
   uiState,
+  exportDialogState,
   previewState,
   tabState,
   newProjectState,
@@ -92,17 +93,6 @@ export function handleMessage(message: ExtensionMessage): void {
     uiState.showWelcome = message.showWelcome;
     uiState.welcomeTypstInstalled = message.typstInstalled;
     uiState.welcomePlatform = message.platform;
-  } else if (message.type === 'previewUpdate') {
-    previewState.pages = message.pages;
-    previewState.error = '';
-    previewState.compiling = false;
-    const msg2 = message as unknown as { scrollToPage?: number };
-    if (typeof msg2.scrollToPage === 'number') {
-      previewState.scrollToPage = msg2.scrollToPage;
-    }
-    if (!panelState.showPreview && previewState.pages.length > 0) {
-      panelState.showPreview = true;
-    }
   } else if (message.type === 'previewPdfUpdate') {
     const pdfMsg = message as unknown as { pdfData: string };
     const binaryStr = atob(pdfMsg.pdfData);
@@ -157,6 +147,15 @@ export function handleMessage(message: ExtensionMessage): void {
     uiState.showAbout = true;
   }
 
+  // Open the Export selection dialog when the menu triggers an export on
+  // a multi-chapter project.
+  if (msg.type === 'showExportDialog') {
+    const data = msg as unknown as { format: 'pdf' | 'docx'; sections: typeof exportDialogState.sections };
+    exportDialogState.format = data.format;
+    exportDialogState.sections = data.sections;
+    exportDialogState.show = true;
+  }
+
   // Track current file
   if (msg.type === 'currentFile') {
     tabState.currentFile = (msg as unknown as { path: string }).path || '';
@@ -173,6 +172,18 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'openPdfFile') {
     const pdfPath = (msg as unknown as { path: string }).path || '';
     openTab(pdfPath, 'pdf');
+  }
+
+  // Project was closed → reset all editor state and return to StartScreen
+  if (msg.type === 'projectClosed') {
+    tabState.openTabs = [];
+    tabState.activeTabIndex = -1;
+    tabState.currentFile = '';
+    tabState.currentContent = '';
+    tabState.isSaved = true;
+    if (editorRef.current) {
+      try { editorRef.current.commands.setContent(''); } catch {}
+    }
   }
 }
 

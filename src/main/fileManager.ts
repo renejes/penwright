@@ -3,7 +3,7 @@
  * File I/O, Auto-Save, Compiler Setup, File Watcher, Preamble Stripper
  */
 
-import { dialog, ipcMain } from 'electron';
+import { dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { watch, type FSWatcher } from 'chokidar';
@@ -12,23 +12,103 @@ import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
 import { checkLock, acquireLock, releaseLock } from './lockManager';
-import { addRecentProject, saveLastProjectPath, saveBackup, clearBackup, checkForRecovery, readBackup } from './persistenceManager';
+import {
+  addRecentProject,
+  saveLastProjectPath,
+  saveProjectBackup,
+  pruneProjectBackups,
+  checkForFileRecovery,
+  getBackupConfig,
+  aiSnapshotsDir,
+} from './persistenceManager';
 
 let compiler: TypstCompiler | null = null;
 let fileWatcher: FSWatcher | null = null;
 let autoSaveTimer: NodeJS.Timeout | null = null;
-let previewMode: 'svg' | 'pdf' = 'svg';
 
 // ─── AI Edit Snapshots ───────────────────────────────
 // Ring buffer that captures editor state before each external file change,
-// so the user can undo AI-driven edits (terminal / MCP).
+// so the user can undo AI-driven edits (terminal / MCP). Snapshots are also
+// persisted to <projectDir>/.vswrite/ai-snapshots/ so they survive app restarts.
 
-const MAX_AI_SNAPSHOTS = 20;
-const aiSnapshots: Array<{ filePath: string; content: string; timestamp: number }> = [];
+interface AiSnapshot {
+  filePath: string;
+  content: string;
+  timestamp: number;
+  diskName?: string; // basename of the persisted JSON file, when persisted
+}
+
+const aiSnapshots: AiSnapshot[] = [];
+
+function getMaxAiSnapshots(): number {
+  try { return getBackupConfig().maxAiSnapshots; } catch { return 20; }
+}
+
+function aiSnapshotFileName(timestamp: number, filePath: string): string {
+  const safe = path.basename(filePath).replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${timestamp}_${safe}.json`;
+}
+
+function persistAiSnapshot(snap: AiSnapshot): string | undefined {
+  if (!appState.projectDir) return undefined;
+  try {
+    const dir = aiSnapshotsDir(appState.projectDir);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const name = aiSnapshotFileName(snap.timestamp, snap.filePath);
+    const target = path.join(dir, name);
+    fs.writeFileSync(target, JSON.stringify({
+      filePath: snap.filePath,
+      content: snap.content,
+      timestamp: snap.timestamp,
+    }), 'utf-8');
+    return name;
+  } catch (err) {
+    console.warn('[vswrite] Failed to persist AI snapshot:', err);
+    return undefined;
+  }
+}
+
+function deletePersistedAiSnapshot(diskName?: string): void {
+  if (!diskName || !appState.projectDir) return;
+  try {
+    fs.unlinkSync(path.join(aiSnapshotsDir(appState.projectDir), diskName));
+  } catch {}
+}
+
+/**
+ * Loads AI snapshots from disk into the in-memory ring buffer.
+ * Called when a project is opened so AI undo survives app restarts.
+ */
+export function loadAiSnapshotsFromDisk(projectDir: string): void {
+  aiSnapshots.length = 0;
+  const dir = aiSnapshotsDir(projectDir);
+  if (!fs.existsSync(dir)) return;
+  try {
+    const entries = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort();
+    for (const name of entries) {
+      try {
+        const raw = fs.readFileSync(path.join(dir, name), 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.filePath === 'string' && typeof parsed.content === 'string' && typeof parsed.timestamp === 'number') {
+          aiSnapshots.push({ filePath: parsed.filePath, content: parsed.content, timestamp: parsed.timestamp, diskName: name });
+        }
+      } catch {}
+    }
+  } catch {}
+}
 
 function pushAiSnapshot(filePath: string, content: string): void {
-  aiSnapshots.push({ filePath, content, timestamp: Date.now() });
-  if (aiSnapshots.length > MAX_AI_SNAPSHOTS) aiSnapshots.shift();
+  const snap: AiSnapshot = { filePath, content, timestamp: Date.now() };
+  snap.diskName = persistAiSnapshot(snap);
+  aiSnapshots.push(snap);
+
+  // Trim to max — drop oldest, including from disk
+  const max = getMaxAiSnapshots();
+  while (aiSnapshots.length > max) {
+    const dropped = aiSnapshots.shift();
+    if (dropped) deletePersistedAiSnapshot(dropped.diskName);
+  }
+
   appState.mainWindow?.webContents.send('vswrite', {
     type: 'aiSnapshotCount',
     count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
@@ -36,14 +116,13 @@ function pushAiSnapshot(filePath: string, content: string): void {
 }
 
 export function popAiSnapshot(): boolean {
-  // Find the most recent snapshot for the current file
   for (let i = aiSnapshots.length - 1; i >= 0; i--) {
     if (aiSnapshots[i].filePath === appState.currentFilePath) {
       const snapshot = aiSnapshots.splice(i, 1)[0];
+      deletePersistedAiSnapshot(snapshot.diskName);
       appState.currentContent = snapshot.content;
       appState.isDirty = true;
       updateTitle();
-      // Write back to disk so the file watcher doesn't re-trigger
       if (appState.currentFilePath) {
         appState.lastSaveTimestamp = Date.now();
         fs.writeFileSync(appState.currentFilePath, snapshot.content, 'utf-8');
@@ -56,15 +135,16 @@ export function popAiSnapshot(): boolean {
         type: 'aiSnapshotCount',
         count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
       });
-      if (previewMode === 'pdf') {
-        compiler?.compilePdf();
-      } else {
-        compiler?.compile();
-      }
+      compiler?.compilePdf();
       return true;
     }
   }
   return false;
+}
+
+export function getAiSnapshotCount(filePath?: string): number {
+  if (!filePath) return aiSnapshots.length;
+  return aiSnapshots.filter(s => s.filePath === filePath).length;
 }
 
 // ─── File Operations ──────────────────────────────────
@@ -110,23 +190,33 @@ export async function openFile(filePath?: string): Promise<void> {
       appState.projectDir = path.dirname(filePath);
     }
 
-    // Check for crash recovery backup
-    const recovery = checkForRecovery(filePath);
-    if (recovery) {
-      const result = await dialog.showMessageBox(appState.mainWindow!, {
-        type: 'question',
-        buttons: ['Recover', 'Discard Backup'],
-        defaultId: 0,
-        title: 'Unsaved changes found',
-        message: 'A backup with unsaved changes was found for this file.',
-        detail: `Last backup: ${new Date(recovery.timestamp).toLocaleString()}\n\nWould you like to recover the backup?`,
-      });
-      if (result.response === 0) {
-        appState.currentContent = readBackup(recovery.backupPath);
-        appState.isDirty = true;
-      } else {
-        clearBackup(filePath);
+    // Check for crash recovery: if the latest project backup contains a
+    // version of this file that differs from disk and is newer, offer to
+    // restore it. The user can also browse the full backup history later
+    // via the Project panel.
+    if (appState.projectDir) {
+      const recovery = checkForFileRecovery(appState.projectDir, filePath);
+      if (recovery) {
+        const result = await dialog.showMessageBox(appState.mainWindow!, {
+          type: 'question',
+          buttons: ['Recover', 'Discard Backup'],
+          defaultId: 0,
+          title: 'Unsaved changes found',
+          message: 'A backup with unsaved changes was found for this file.',
+          detail: `Last backup: ${new Date(recovery.snapshot.timestampMs).toLocaleString()}\n\nWould you like to recover the backup?`,
+        });
+        if (result.response === 0) {
+          appState.currentContent = recovery.backupContent;
+          appState.isDirty = true;
+        }
       }
+
+      // Restore AI-edit history for this project
+      loadAiSnapshotsFromDisk(appState.projectDir);
+      appState.mainWindow?.webContents.send('vswrite', {
+        type: 'aiSnapshotCount',
+        count: aiSnapshots.filter(s => s.filePath === filePath).length,
+      });
     }
 
     if (!appState.isDirty) {
@@ -176,8 +266,10 @@ export async function openFile(filePath?: string): Promise<void> {
     setupFileWatcher();
 
     // Persist for recent projects + auto-reopen
-    addRecentProject(appState.currentFilePath, path.basename(appState.currentFilePath));
-    saveLastProjectPath(appState.currentFilePath);
+    if (appState.projectDir) {
+      addRecentProject(appState.projectDir, path.basename(appState.projectDir));
+      saveLastProjectPath(appState.projectDir);
+    }
   } catch (err) {
     dialog.showErrorBox(
       'Could not open file',
@@ -194,14 +286,9 @@ export async function saveFile(): Promise<boolean> {
   try {
     appState.lastSaveTimestamp = Date.now();
     await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
-    clearBackup(appState.currentFilePath);
     appState.isDirty = false;
     updateTitle();
-    if (previewMode === 'pdf') {
-      compiler?.compilePdf();
-    } else {
-      compiler?.compile();
-    }
+    compiler?.compilePdf();
     appState.mainWindow?.webContents.send('vswrite', {
       type: 'saveStatus',
       saved: true,
@@ -229,17 +316,55 @@ export async function saveFileAs(): Promise<boolean> {
   return saveFile();
 }
 
-export function newFile(): void {
+/**
+ * Closes the currently open project: releases lock, stops watcher, disposes
+ * compiler, clears in-memory state. The renderer is notified so it can
+ * reset the editor and return to the StartScreen.
+ *
+ * If unsaved changes exist, the caller is responsible for prompting first
+ * (see `closeProjectInteractive`).
+ */
+export function closeProject(): void {
   releaseLock();
+  stopFileWatcher();
+  disposeCompiler();
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+  if (backupTimer) {
+    clearTimeout(backupTimer);
+    backupTimer = null;
+  }
+
   appState.currentFilePath = null;
   appState.currentContent = '';
   appState.isDirty = false;
-  updateTitle();
+  appState.projectDir = null;
+  appState.lastSaveTimestamp = 0;
 
-  appState.mainWindow?.webContents.send('vswrite', {
-    type: 'update',
-    content: '',
-  });
+  updateTitle();
+  appState.mainWindow?.webContents.send('vswrite', { type: 'projectClosed' });
+}
+
+/**
+ * Like `closeProject()`, but prompts to save unsaved changes first.
+ * Returns true if the project was closed, false if the user cancelled.
+ */
+export async function closeProjectInteractive(): Promise<boolean> {
+  if (appState.isDirty && appState.currentFilePath) {
+    const result = await dialog.showMessageBox(appState.mainWindow!, {
+      type: 'warning',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      message: 'You have unsaved changes.',
+      detail: 'Do you want to save before closing the project?',
+    });
+    if (result.response === 2) return false;
+    if (result.response === 0) await saveFile();
+  }
+  closeProject();
+  return true;
 }
 
 export function updateTitle(): void {
@@ -257,39 +382,7 @@ function setupCompiler(): void {
   if (!appState.currentFilePath) return;
 
   const rootFile = findRootFile(appState.currentFilePath);
-  const isChapter = rootFile !== appState.currentFilePath;
-
   compiler = new TypstCompiler(rootFile);
-
-  compiler.on('compiled', (pages: string[]) => {
-    let scrollToPage = 0;
-    if (isChapter && appState.currentFilePath) {
-      try {
-        const rootContent = fs.readFileSync(rootFile, 'utf-8');
-        const relPath = path.relative(path.dirname(rootFile), appState.currentFilePath).replace(/\\/g, '/');
-        const lines = rootContent.split('\n');
-        let includeIndex = 0;
-        let totalIncludes = 0;
-        for (const line of lines) {
-          if (line.match(/^#include\s+"/)) {
-            totalIncludes++;
-            if (line.includes(relPath)) {
-              includeIndex = totalIncludes;
-            }
-          }
-        }
-        if (totalIncludes > 0 && includeIndex > 0) {
-          scrollToPage = Math.floor((includeIndex - 1) / totalIncludes * pages.length);
-        }
-      } catch {}
-    }
-
-    appState.mainWindow?.webContents.send('vswrite', {
-      type: 'previewUpdate',
-      pages,
-      scrollToPage,
-    });
-  });
 
   compiler.on('compiledPdf', (pdfBuffer: Buffer) => {
     appState.mainWindow?.webContents.send('vswrite', {
@@ -306,33 +399,11 @@ function setupCompiler(): void {
     });
   });
 
-  if (previewMode === 'pdf') {
-    compiler.compilePdf();
-  } else {
-    compiler.compile();
-  }
+  compiler.compilePdf();
 }
 
 export function getCompiler(): TypstCompiler | null {
   return compiler;
-}
-
-// ─── Preview Mode ─────────────────────────────────────
-
-export function setupPreviewModeIPC(): void {
-  ipcMain.on('preview:setMode', (_event, mode: 'svg' | 'pdf') => {
-    previewMode = mode;
-    if (!compiler) return;
-    if (mode === 'pdf') {
-      compiler.compilePdf();
-    } else {
-      compiler.compile();
-    }
-  });
-}
-
-export function getPreviewMode(): 'svg' | 'pdf' {
-  return previewMode;
 }
 
 // ─── Auto-Save ────────────────────────────────────────
@@ -347,14 +418,35 @@ export function autoSave(): void {
     }
   }, 1000);
 
-  // Save backup snapshot every 30 seconds (independent of auto-save)
-  if (!backupTimer && appState.currentFilePath) {
+  // Schedule a project backup snapshot (interval is user-configurable).
+  // Includes the in-memory edit so unsaved changes survive a crash.
+  if (!backupTimer && appState.currentFilePath && appState.projectDir) {
+    const intervalMs = Math.max(5, getBackupConfig().intervalSec) * 1000;
     backupTimer = setTimeout(() => {
       backupTimer = null;
-      if (appState.currentFilePath && appState.currentContent) {
-        saveBackup(appState.currentFilePath, appState.currentContent);
-      }
-    }, 30000);
+      runProjectBackup();
+    }, intervalMs);
+  }
+}
+
+export function runProjectBackup(): void {
+  if (!appState.projectDir || !appState.currentFilePath) return;
+  try {
+    const cfg = getBackupConfig();
+    const snap = saveProjectBackup(appState.projectDir, {
+      absPath: appState.currentFilePath,
+      content: appState.currentContent,
+    });
+    if (snap) {
+      pruneProjectBackups(appState.projectDir, cfg.maxCount);
+      appState.mainWindow?.webContents.send('vswrite', {
+        type: 'backupCreated',
+        timestamp: snap.timestampMs,
+        backupId: snap.timestamp,
+      });
+    }
+  } catch (err) {
+    console.warn('[vswrite] Project backup failed:', err);
   }
 }
 
@@ -373,6 +465,7 @@ function setupFileWatcher(): void {
     ignored: [
       '**/node_modules/**',
       '**/.git/**',
+      '**/.vswrite/**',
       '**/.DS_Store',
       '**/.vswrite-preview*',
       '**/*.lock',
@@ -400,11 +493,7 @@ function setupFileWatcher(): void {
             type: 'saveStatus',
             saved: true,
           });
-          if (previewMode === 'pdf') {
-            compiler?.compilePdf();
-          } else {
-            compiler?.compile();
-          }
+          compiler?.compilePdf();
         }
       } catch {}
     }

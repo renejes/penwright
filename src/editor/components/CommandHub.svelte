@@ -50,12 +50,6 @@
             vscode.postMessage({ type: 'newProject' } as unknown as WebviewMessage),
         },
         {
-          label: 'New File',
-          icon: '\uD83D\uDCC4',
-          action: () =>
-            vscode.postMessage({ type: 'newFile' } as unknown as WebviewMessage),
-        },
-        {
           label: 'Import Markdown\u2026',
           icon: '\uD83D\uDCDD',
           action: () =>

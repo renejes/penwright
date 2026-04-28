@@ -1,26 +1,30 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-04-17 (nach Session 8: Security-Haertung, Performance-Optimierung, DOCX-Rewrite, About-Dialog)
+> **Stand:** 2026-04-28 (nach Session 10: Projekt-First-Class, SVG-Preview entfernt, Export-Modal, DOCX-Multi-Chapter)
 > **Version (Doku):** 0.7.0 (Pre-Release) — package.json: 0.1.0, vor dem ersten Release auf 0.7.0 bumpen
 
 ---
 
 ## Zusammenfassung
 
-vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-Preview, Dateimanager, Git-Integration, Zotero-Anbindung und Claude Code Skills.
+vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung und Claude Code Skills.
 
 **Status Release-Readiness:**
 - Security gehaertet (Path Traversal + Symlink-Bypass + MCP-Pfade + verschluesselte Lizenz)
-- Performance-tauglich fuer 100+ Seiten Dokumente (virtualisierte Preview, inkrementeller Serializer, async File-I/O)
-- DOCX-Export produziert sauber formatierte Word-Dateien mit Live-Multilevel-Numbering
+- Performance-tauglich fuer 100+ Seiten Dokumente (PDF-Preview via pdf.js, inkrementeller Serializer, async File-I/O)
+- **Projekt-First-Class:** App startet am StartScreen; Projekte werden bewusst geoeffnet/geschlossen; jedes Projekt ist self-contained (`.git/`, `.vswrite/backups/`, `.vswrite/ai-snapshots/` im Projektordner)
+- **Versionssystem ohne Git-Vokabular:** „Version speichern" / „Verlauf" / „Wiederherstellen" statt Stage/Commit/Branch
+- **Auto-Backup pro Projekt:** Crash-Schutz parallel zum Versionssystem, konfigurierbar (Intervall + Max-Anzahl)
+- **Export-Modal:** Format-Wahl (PDF/DOCX) + Kapitel-Auswahl per Checkbox; DOCX nutzt jetzt `resolveIncludes` und exportiert Multi-Chapter-Projekte vollstaendig
+- DOCX-Export produziert formatierte Word-Dateien mit Live-Multilevel-Numbering (iterative Verbesserung weiterhin im Gange)
 - About-Dialog zeigt Version + Lizenz + System-Info
 - **Offen fuer Launch:** Crash-Telemetrie, Auto-Updater End-to-End-Test, finale QA auf echter 100-Seiten-Thesis
 
-**Codebase:** ~19.500 Zeilen in 74 Dateien
-- Main Process: ~2.950 Zeilen (15 Module + pathSecurity.ts)
-- Renderer: ~5.400 Zeilen (App.svelte + 15 Components inkl. AboutDialog)
-- Editor: ~5.700 Zeilen
-- Shared: ~2.700 Zeilen (docxSerializer rewritten mit Word-Styles)
+**Codebase:** ~21.000 Zeilen in 79 Dateien
+- Main Process: ~3.300 Zeilen (16 Module + pathSecurity.ts)
+- Renderer: ~6.000 Zeilen (App.svelte + 18 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog)
+- Editor: ~5.800 Zeilen
+- Shared: ~2.700 Zeilen (docxSerializer mit Word-Styles)
 - MCP: ~800 Zeilen
 - CLI: ~800 Zeilen (aus Extension, unused)
 
@@ -75,33 +79,46 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] Rechtschreibpruefung (Electron Spellchecker, Sprache aus Typst-Settings)
 
 **Sidebar (4 Tabs):**
-- [x] Files: Dateibaum, Navigate Up, Open Folder, Drag-Bilder
+- [x] Files: Dateibaum, Navigate Up, **„Neuer Ordner"** (inline input) + **„Asset hinzufügen"** (File-Picker → kopiert nach `assets/`), Drag-Bilder, leere Ordner sichtbar
 - [x] Outline: Live Heading-Hierarchie, Click-to-Navigate
 - [x] Chapters: Include-Manager mit sofortigem UI-Update bei Umsortierung
-- [x] Git: Status, Stage/Unstage, Commit, Push/Pull, Init (lokal; GitHub-Repo-Anlegen via Terminal)
+- [x] **Project (ehemals Git):** Projekt-Header mit „Im Finder zeigen", „Version speichern"-Card, „Änderungen seit letzter Version" mit Checkboxen, immer sichtbarer Verlauf, Auto-Backup-Status, „Erweitert"-Bereich für Cloud-Sync (Push/Pull/Remote-URL)
+
+**Versionssystem (Drei-Schichten-Modell):**
+- [x] **Versionen** (Git unter der Haube): „Version speichern" mit Namensfeld + Checkbox-Auswahl der Dateien → `git commit`. Verlauf-Liste mit Auto-Versionen ausgegraut. Klick auf Eintrag öffnet Versions-Detail mit Quelltext-Diff (rote/grüne Zeilen) + „Wiederherstellen"
+- [x] **Auto-Backup** projekt-lokal in `<projekt>/.vswrite/backups/<timestamp>/`: Multi-File-Snapshots (alle `.typ`/`.bib`), Status-Zeile mit Live-Update, Backup-Liste-Dialog mit „Laden", konfigurierbares Intervall (10s–5min) + Max-Anzahl (10/30/100/1000)
+- [x] **AI-Edit-Undo** persistiert in `<projekt>/.vswrite/ai-snapshots/`: Ringpuffer überlebt App-Neustart, separate Schicht vom Versionssystem
+- [x] **Self-Contained Projekte:** `.git/`, `.gitignore` (mit `.vswrite/`-Eintrag), `.vswrite/`-Skeleton automatisch beim Projektanlegen
+- [x] Lazy-Init: Bestehende Projekte ohne `.git/` → bei erstem „Version speichern"-Klick wird init durchgeführt
+- [x] Recovery-Dialog beim Öffnen, wenn das jüngste Backup neuer ist als Disk-mtime
 
 **Preview:**
-- [x] Typst -> SVG Kompilierung (Root-File fuer Chapters)
-- [x] **Virtualisiertes Rendering** via `content-visibility: auto` + `contain-intrinsic-size`
-- [x] **Lazy DOMPurify** via IntersectionObserver (Sanitize nur fuer sichtbare Seiten + Vorspann, Cache pro Seite)
-- [x] Auto-Scroll zu Chapter-Position, Scroll-Erhaltung bei Recompile
-- [x] SVG/PDF Preview Toggle (pdf.js mit TextLayer)
-- [x] Async SVG-Reads (parallel via `Promise.all`), async PDF-Read — Main-Prozess blockiert nicht mehr
+- [x] **PDF-Only** via pdf.js (SVG-Modus entfernt — war bei großen Dokumenten zu langsam, blockierte Main-Thread)
+- [x] Viewport-Virtualisierung via pdf.js TextLayer
+- [x] Async PDF-Read — Main-Prozess blockiert nicht
+- [x] PDF erscheint live während des Tippens (400ms Compile-Debounce)
 
 **Import/Export:**
-- [x] PDF Export (typst compile, gebundelte Binary)
-- [x] **DOCX Export** — benannte Word-Styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, TableHeader, TableCell, Caption), Page-Size + Margins + Font + Line-Spacing aus Typst-Settings, **Live Multilevel-Heading-Numbering** (Word re-numbert bei Reorder), Citations als `(Autor Jahr)` statt `[citekey]`, lokalisierte TOC-/Bibliography-Labels (DE/EN/FR/ES/IT/PT/NL)
+- [x] **Export-Modal** mit Format-Wahl (PDF/DOCX-Karten) + Kapitel-Auswahl per Checkbox + Bibliography-Toggle + „alle/keine"-Shortcuts. Single-File-Projekte ohne `#include` umgehen das Modal direkt.
+- [x] PDF Export (typst compile, gebundelte Binary, gefilterte temporäre `.vswrite-export-temp.typ` für Teil-Export)
+- [x] **DOCX Multi-Chapter:** nutzt jetzt `resolveIncludes` vor der Serialisierung — exportiert Multi-Chapter-Projekte vollständig, nicht nur die aktuell offene Datei
+- [x] DOCX Word-Styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, TableHeader, TableCell, Caption), Page-Size + Margins + Font + Line-Spacing aus Typst-Settings, **Live Multilevel-Heading-Numbering** (Word re-numbert bei Reorder), Citations als `(Autor Jahr)` statt `[citekey]`, lokalisierte TOC-/Bibliography-Labels (DE/EN/FR/ES/IT/PT/NL)
+- [x] DOCX-Deserializer-Verbesserungen: Multi-line Listen (`+ item\n  cont.`), `#align(center + horizon)[…]` mit verschachtelten `#text(…)[X]`, `#datetime.today().display(…)` → heutiges Datum, balanced bracket matching für Title-/Abstract-Pages
 - [x] PDF In-App Viewer (pdf.js, Text markieren & kopieren, virtualisiertes Rendering)
 - [x] Markdown -> Typst Import (eigener Converter)
 - [x] Zotero Better BibTeX Integration (File Watcher, Auto-Sync)
 - [x] Eigene Style Templates importieren (.typ-Datei -> nur Preamble extrahiert)
+- [x] **Style-Anwendung blockiert wenn nicht in main.typ** (verhinderte stille Korruption von Kapitel-Dateien durch fälschliches Prepend des Stil-Vorspanns)
 
 **Projekt-Management:**
+- [x] **Projekt First-Class:** App startet am StartScreen ohne Auto-Reopen; „Neues Projekt" / „Projekt öffnen" / **„Projekt schließen"** (Cmd+Shift+W, mit Save-Prompt) als explizite Menü-Aktionen
 - [x] 5 Projekt-Templates (Document, Thesis, Paper, Letter, Book) mit Modal-Dialog
+- [x] Templates legen `assets/` + `sources/` Unterordner an (auch leer im File-Tree sichtbar)
 - [x] Document Settings, Quick Settings, 7 Style Templates
 - [x] Merge/Split Document, Citation Management
 - [x] Claude Code Skills auto-erstellt (`.claude/skills/`)
-- [x] File Watcher fuer externe Aenderungen (chokidar, 3s Self-Save Guard)
+- [x] **Recent Projects als Ordner** (vorher Datei-Pfade) — tote Einträge automatisch gefiltert
+- [x] File Watcher fuer externe Aenderungen (chokidar, 3s Self-Save Guard, ignoriert `.vswrite/`)
 - [x] File Locking fuer Shared Folders (Dropbox, iCloud, OneDrive) — Lock-Datei, Heartbeat, Stale-Detection
 
 **App Shell:**
@@ -127,14 +144,16 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] 3 Skill-Dateien als MCP Prompts (typst-reference, vswrite-conventions, research-workflow)
 - [x] Pro-Lizenz-Gating (via `--license-key` Flag oder `VSWRITE_LICENSE_KEY` Env)
 
-**Persistenz (electron-store):**
-- [x] Window-Bounds (Position, Groesse, Maximized)
-- [x] Panel-States (Sidebar/Preview/Terminal offen/zu, Groessen, aktiver Tab)
-- [x] Recent Projects (max 10)
-- [x] Auto-Reopen letztes Projekt
-- [x] Onboarding-Flag
-- [x] Zotero .bib-Pfad
+**Persistenz (electron-store + projekt-lokal):**
+- [x] Window-Bounds (Position, Groesse, Maximized) — global
+- [x] Panel-States (Sidebar/Preview/Terminal offen/zu, Groessen, aktiver Tab) — global
+- [x] Recent Projects als Ordner-Pfade (max 10), tote Einträge automatisch gefiltert — global
+- [x] Auto-Reopen entfernt — App startet immer am StartScreen (bewusste Designentscheidung)
+- [x] Onboarding-Flag — global
+- [x] Zotero .bib-Pfad — global
 - [x] **Lizenz-Daten als verschluesselter Blob** (safeStorage / OS-Keychain / DPAPI / libsecret) — Tampering fuehrt zu Decrypt-Fail, gilt als "keine Lizenz"
+- [x] **Backup-Config** (Intervall, Max-Backups, Max-AI-Snapshots) — global
+- [x] **Versionen + Auto-Backups + AI-Snapshots projekt-lokal** in `<projekt>/.git/` und `<projekt>/.vswrite/` — wandern mit dem Projekt
 
 **Lizenz-Management (Polar):**
 - [x] `licenseManager.ts` mit Polar SDK (activate, validate, deactivate, 30-Tage Offline-Grace)
@@ -173,10 +192,12 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 
 ### Noch offen vor Launch
 
+- [ ] **DOCX-Iteration:** `#raw("…")` inline aufdröseln, `#outline()` als Word-TOC-Field, weitere Typst-Konstrukte nach Bedarf (iterativ — fundamentaler Refactor via Typst→HTML→DOCX optional später)
+- [ ] **Handbuch-Update:** „Versionen" / „Auto-Backup" / „Projekt schließen" dokumentieren, Git-Sektion aktualisieren auf das neue UI-Vokabular
 - [ ] **Crash-Telemetrie (Sentry)** mit Opt-out-Toggle — kritischster Launch-Enabler
 - [ ] **Shortcut-Cheat-Sheet** (`Cmd+/` Overlay) — Discovery-Problem
 - [ ] **"Open Sample Project"** im StartScreen — Conversion-Hebel
-- [ ] **Bestaetigungsdialoge** bei destruktiven Git-Operationen
+- [ ] **Bestaetigungsdialoge** bei destruktiven Versions-Operationen (Wiederherstellen alter Versionen mit Warndialog ist da; Cloud-Sync-Konflikte fehlen)
 - [ ] **Auto-Updater** (electron-updater) einbinden + Firebase-Hosting einrichten + E2E-Test
 - [ ] **DMG-Build & Notarization** real durchziehen
 - [ ] **QA auf echter 100-Seiten-Thesis** (nicht nur die 8 Test-Chapters)
@@ -198,6 +219,62 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 ---
 
 ## Session-Log
+
+### Session 10 (2026-04-28) — DOCX-Bugfixes + Add-Folder + Status-Update
+
+**DOCX-Strukturfixes:**
+- `resolveIncludes` setzt jetzt `\n\n` zwischen Comment-Marker und Chapter-Inhalt — vorher gluete `// ─── chapter ───` an `= Heading`, das Block wurde als Config gedroppt → alle Kapitel-H1s waren weg, H2-Numbering lief chapter-übergreifend von 1 bis 19
+- `parseAlignedBlock` mit balanced-bracket Matching: akzeptiert jetzt `#align(center + horizon)[…]`, splittet Inneres an `#v(…)` + Leerzeilen, unwrapped `#text(size:N, weight:"bold")[X]` → bei size≥18pt zentrierter H1, sonst zentrierter (bold) Paragraph; `#datetime.today().display(…)` → heutiges Datum als Text
+- Listen-Parser: erlaubt eingeruckte Folgezeilen (`+ Item\n  Fortsetzung`) — vorher Block-Reject → schmale Vertikal-Spalte in Word
+
+**Bugfixes:**
+- **Add Folder:** `window.prompt()` ist im sandboxed Renderer deaktiviert → Inline-Eingabefeld in Sidebar mit Enter/Escape/Blur-Submit
+- `previewMode is not defined` ReferenceError in `saveFile` (Restbestand vom SVG-Removal) → letzte Referenz entfernt, Save crasht nicht mehr → Live-PDF-Preview aktualisiert ohne Tab-Switch
+- Style-Switch in Kapitel-Dateien wird jetzt blockiert (nativer Dialog erklärt warum); Schutz vor stiller Korruption durch Stil-Vorspann-Prepend
+
+### Session 9 (2026-04-27/28) — Projekt First-Class + Versionssystem + SVG-Removal + Export-Modal
+
+**Projekt-Versionierung (Drei-Schichten):**
+- Plan in [done/project-versioning-plan.md](done/project-versioning-plan.md), Phase 1 + 2 abgeschlossen
+- `gitManager` um `git:saveVersion`, `git:listVersions`, `git:showVersion`, `git:restoreVersion`, `git:ensureRepo`, `git:getRemote`, `git:setRemote` erweitert
+- `persistenceManager` Backup-Storage komplett auf `<projekt>/.vswrite/backups/<timestamp>/` umgestellt (vorher global in userData) — Multi-File-Snapshots inkl. der in-memory Edits
+- AI-Snapshots persistieren nach `<projekt>/.vswrite/ai-snapshots/` — überleben App-Neustart
+- `projectManager.ensureProjectInfrastructure()`: legt `.git/` + `.gitignore` (mit `.vswrite/`-Eintrag) + `.vswrite/`-Skeleton + Initial-Commit beim Projektanlegen an
+- Neue Frontend-Komponenten: `ProjectPanel.svelte` (ersetzt `GitPanel.svelte`), `VersionDetail.svelte` (Modal mit Quelltext-Diff), `BackupListDialog.svelte` (Backup-Liste + ausklappbare Settings)
+- Backup-Config (Intervall, Max-Count, Max-AI-Snapshots) in electron-store
+
+**Projekt First-Class:**
+- `appState.closeProject` + `closeProjectInteractive` (mit Save-Prompt)
+- `projectManager.openProject()` mit Folder-Picker, schließt aktuell offenes Projekt sauber vorher
+- File-Menü: „New Project…" (Cmd+N), „Open Project…" (Cmd+O), „Close Project" (Cmd+Shift+W)
+- Auto-Reopen beim Startup deaktiviert — App startet immer am StartScreen
+- `addRecentProject` semantisch auf Ordner umgestellt; `getRecentProjects` filtert tote Einträge
+- StartScreen: „Open File"-Button entfernt, „Open Folder" → „Open Project"
+- `handleNewFile` + `'newFile'` IPC-Handler entfernt (jede Datei lebt in einem Projekt)
+- Templates legen `assets/` + `sources/` Unterordner an, leere Ordner sind im File-Tree sichtbar
+- Sidebar: „Neuer Ordner" + „Asset hinzufügen" Buttons, `.vswrite/` aus File-Tree gefiltert
+
+**SVG-Preview entfernt:**
+- `previewMode` + `setupPreviewModeIPC` aus fileManager raus, alle Compile-Aufrufe → `compilePdf()`
+- `TypstCompiler.compile()` (SVG) komplett entfernt, nur `compilePdf()` bleibt
+- `PreviewPanel.svelte` von ~320 auf ~60 Zeilen reduziert (dünner Wrapper um `PdfPreviewPanel`)
+- `pages`/`previewMode`/`scrollToPage` aus `previewState` raus, `previewUpdate`-Message + Handler entfernt
+- Bundle-Size ~55 KB JS kleiner
+
+**Export-Modal:**
+- `getExportableSections` parsed `#include`-Zeilen + `#bibliography`-Block aus dem Root-File, liest erste H1 jedes Kapitels als Anzeigetitel
+- `runFilteredExport` schreibt gefilterte temporäre `.vswrite-export-temp.typ`, kompiliert dort (PDF: typst CLI; DOCX: `resolveIncludes` + Serializer), räumt auf
+- `ExportDialog.svelte` mit Format-Karten (PDF/DOCX), Kapitel-Checkboxen, Bibliography-Toggle, „alle/keine"-Shortcuts
+- `handleExportPdf`/`handleExportDocx` werden Trigger: Multi-Chapter → Modal, Single-File → direkter Save-Dialog
+- DOCX exportiert jetzt das ganze Multi-Chapter-Projekt (vorher nur die offene Datei)
+
+**Diverse Bugfixes:**
+- `typstPath.ts`: probiert `/opt/homebrew/bin`, `/usr/local/bin`, `~/.cargo/bin` etc. + `command -v typst` via `/bin/sh -lc` durch — vorher zeigte die App fälschlich „Typst not found", weil GUI-Apps auf macOS keinen Homebrew-PATH erben
+- `Sidebar.svelte`: HTML-Entities `&#9662;`/`&#9656;` (in `{...}`-Expression als Text gerendert) durch echte Unicode-Zeichen `▾`/`▸` ersetzt
+- `readDirTree` zeigt leere Ordner an
+- `.vswrite/` zu `IGNORED_DIRS` hinzugefügt
+- `handleNewFolder`/`handleAddAssets` mit Path-Validierung
+- AI-Snapshot-Count beim Projektöffnen aus Disk rekonstruiert
 
 ### Session 8 (2026-04-17) — Security + Performance + DOCX-Quality + About-Dialog
 
@@ -284,10 +361,10 @@ Die Monolith-Dateien wurden erfolgreich aufgeteilt:
 
 | Modul | Zeilen | Inhalt |
 |-------|--------|--------|
-| `appState.svelte.ts` | ~145 | Svelte 5 reaktiver State |
-| `messageHandler.ts` | ~195 | ExtensionMessage Handler inkl. `showAbout` |
+| `appState.svelte.ts` | ~165 | Svelte 5 reaktiver State inkl. `exportDialogState` |
+| `messageHandler.ts` | ~210 | ExtensionMessage Handler inkl. `projectClosed`, `showExportDialog`, `showAbout` |
 | `App.svelte` | ~840 | Template + lokales Wiring |
-| 15 Components | ~2.100 | Inkl. AboutDialog, LicenseDialog, StartScreen, PreviewPanel, etc. |
+| 18 Components | ~2.700 | Inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog, AboutDialog, LicenseDialog, StartScreen, PreviewPanel, etc. |
 
 **Abhaengigkeitsrichtung:** `index.ts` -> `ipcHandlers` -> `fileManager`, `importExport`, `projectManager`, etc. -> `appState` (Leaf)
 
@@ -314,3 +391,14 @@ Die Monolith-Dateien wurden erfolgreich aufgeteilt:
 | DOCX-Output unbrauchbar formatiert | Named Word-Styles + Live-Multilevel-Numbering |
 | Table-Header Inline-Marks verschwinden | `TableHeader`-Style statt TextRun-Reassembly |
 | Bilder im DOCX gequetscht | PNG-/JPEG-Header-Parsing fuer echte Aspect-Ratio |
+| Git-Vokabular fuer Schreibende verwirrend | „Versionen"-UI mit „Version speichern" / „Verlauf" / „Wiederherstellen" — Git als Storage-Engine darunter unsichtbar |
+| Auto-Reopen lud altes Projekt beim Start | Bewusst entfernt — App startet immer am StartScreen |
+| Datei-zentriertes Modell (`projectDir = dirname(file)`) | Projekt First-Class: explizites „Projekt öffnen/schließen", Recents als Ordner-Pfade |
+| SVG-Preview blockierte Main-Thread bei großen Dokumenten | SVG-Modus komplett entfernt, PDF-Only via pdf.js (viewport-virtualisiert) |
+| `previewMode is not defined` in saveFile blockierte Live-Preview | Letzte Referenz im saveFile-Pfad entfernt |
+| `window.prompt()` im sandboxed Renderer deaktiviert (Add Folder ohne Reaktion) | Inline-Eingabefeld in Sidebar |
+| `&#9662;`-HTML-Entities als Text gerendert (Sidebar-Icons kaputt) | Echte Unicode-Zeichen `▾`/`▸` in `{...}`-Expressions |
+| GUI-App auf macOS findet Homebrew-typst nicht | `typstPath`-Resolver probiert übliche Locations + `command -v typst` via Login-Shell |
+| `// ─── chapter ───` glued an `= Heading` und droppt Kapitel-H1s im DOCX | `\n\n` zwischen Comment-Marker und Inhalt in `resolveIncludes` |
+| DOCX nur die offene Datei statt ganzes Projekt | `resolveIncludes` vor Serialisierung; gefilterter Temp-File für Teil-Export |
+| Stil-Wechsel in Kapitel-Datei korrumpierte die Datei | Native Block-Dialog wenn currentFile ≠ Root-File |

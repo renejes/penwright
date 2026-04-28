@@ -11,7 +11,7 @@ import { resolveIncludes } from '../shared/mergeDocument';
 import { splitIntoChapters, slugify } from '../shared/splitDocument';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { appState } from './appState';
-import { openFile, saveFile, saveFileAs, newFile, autoSave, updateTitle, popAiSnapshot } from './fileManager';
+import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, closeProjectInteractive } from './fileManager';
 import { isPathWithin } from './pathSecurity';
 
 /** Validates that a file path is within the current project directory (symlink-aware). */
@@ -19,9 +19,22 @@ function isPathWithinProject(filePath: string): boolean {
   const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
   return isPathWithin(filePath, projectRoot);
 }
-import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate } from './importExport';
-import { handleCreateProject, handleNewFile, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree } from './projectManager';
-import { getPanelState, savePanelState, getRecentProjects, isOnboardingSeen, setOnboardingSeen, getZoteroBibPath, type PanelState } from './persistenceManager';
+import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, type ExportConfig } from './importExport';
+import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, handleNewFolder, handleAddAssets } from './projectManager';
+import {
+  getPanelState,
+  savePanelState,
+  getRecentProjects,
+  isOnboardingSeen,
+  setOnboardingSeen,
+  getZoteroBibPath,
+  listProjectBackups,
+  loadProjectBackup,
+  getBackupConfig,
+  setBackupConfig,
+  type PanelState,
+  type BackupConfig,
+} from './persistenceManager';
 import { activateLicense, validateLicense, deactivateLicense } from './licenseManager';
 import { getLicenseData } from './persistenceManager';
 
@@ -105,11 +118,6 @@ export function setupIPC(): void {
         const templateId = msg.templateId as string;
         const projectName = msg.projectName as string;
         handleCreateProject(templateId, projectName);
-        break;
-      }
-
-      case 'newFile': {
-        handleNewFile();
         break;
       }
 
@@ -540,5 +548,119 @@ export function setupIPC(): void {
 
   ipcMain.handle('license:openCheckout', () => {
     shell.openExternal('https://vswrite.com/pricing');
+  });
+
+  // ─── Project Backups & Info ────────────────────
+  ipcMain.handle('project:listBackups', () => {
+    if (!appState.projectDir) return [];
+    return listProjectBackups(appState.projectDir);
+  });
+
+  ipcMain.handle('project:loadBackup', (_event, timestamp: string) => {
+    if (!appState.projectDir) return [];
+    if (!/^[\w-]+$/.test(timestamp)) throw new Error('Invalid backup id.');
+    return loadProjectBackup(appState.projectDir, timestamp);
+  });
+
+  /**
+   * Loads a backup snapshot into the working tree: writes each file from
+   * the backup back to disk inside the project. Caller is expected to
+   * surface a confirmation dialog beforehand.
+   */
+  ipcMain.handle('project:applyBackup', async (_event, timestamp: string) => {
+    if (!appState.projectDir) throw new Error('No project open.');
+    if (!/^[\w-]+$/.test(timestamp)) throw new Error('Invalid backup id.');
+
+    const files = loadProjectBackup(appState.projectDir, timestamp);
+    if (files.length === 0) return { ok: false, restored: 0 };
+
+    let restored = 0;
+    for (const f of files) {
+      const target = path.join(appState.projectDir, f.relPath);
+      if (!isPathWithinProject(target)) continue;
+      try {
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        appState.lastSaveTimestamp = Date.now();
+        fs.writeFileSync(target, f.content, 'utf-8');
+        restored++;
+
+        // If we just overwrote the currently-open file, refresh the editor
+        if (appState.currentFilePath && path.resolve(target) === path.resolve(appState.currentFilePath)) {
+          appState.currentContent = f.content;
+          appState.isDirty = false;
+          updateTitle();
+          appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+        }
+      } catch (err) {
+        console.warn('[vswrite] Could not restore backup file:', f.relPath, err);
+      }
+    }
+
+    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    return { ok: true, restored };
+  });
+
+  ipcMain.handle('project:openBackupFolder', () => {
+    if (!appState.projectDir) return { ok: false };
+    const dir = path.join(appState.projectDir, '.vswrite', 'backups');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    shell.openPath(dir);
+    return { ok: true };
+  });
+
+  ipcMain.handle('project:getBackupConfig', () => getBackupConfig());
+
+  ipcMain.handle('project:setBackupConfig', (_event, config: BackupConfig) => {
+    setBackupConfig(config);
+    return getBackupConfig();
+  });
+
+  ipcMain.handle('project:showInFinder', () => {
+    const target = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
+    if (!target) return { ok: false };
+    shell.openPath(target);
+    return { ok: true };
+  });
+
+  ipcMain.handle('project:getInfo', () => {
+    return {
+      projectDir: appState.projectDir,
+      currentFilePath: appState.currentFilePath,
+      projectName: appState.projectDir ? path.basename(appState.projectDir) : null,
+    };
+  });
+
+  ipcMain.handle('project:open', async (_event, projectDir?: string) => {
+    const result = await openProject(projectDir);
+    return { ok: !!result, projectDir: result };
+  });
+
+  ipcMain.handle('project:close', async () => {
+    const closed = await closeProjectInteractive();
+    return { ok: closed };
+  });
+
+  ipcMain.handle('project:newFolder', async (_event, args: { parentRelPath?: string; name: string }) => {
+    return handleNewFolder(args.parentRelPath ?? '', args.name);
+  });
+
+  ipcMain.handle('project:addAssets', async () => {
+    return handleAddAssets();
+  });
+
+  ipcMain.handle('export:getSections', () => {
+    return getExportableSections();
+  });
+
+  ipcMain.handle('export:run', async (_event, config: ExportConfig) => {
+    const written = await runFilteredExport(config);
+    return { ok: !!written, path: written };
+  });
+
+  // Ensure repo + .gitignore + .vswrite/ for projects opened that pre-date this version.
+  ipcMain.handle('git:ensureRepo', async () => {
+    if (!appState.projectDir) return { initialized: false };
+    await ensureProjectInfrastructure(appState.projectDir, 'First version');
+    return { initialized: true };
   });
 }
