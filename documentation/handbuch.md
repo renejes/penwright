@@ -87,8 +87,11 @@ Alle Panels sind per Drag resizeable.
 | bul | Aufzaehlung | `Cmd+Shift+8` |
 | num | Nummerierte Liste | `Cmd+Shift+7` |
 | { } | Code-Block | `Cmd+Alt+C` |
+| Fn | Fußnote einfuegen (oeffnet Popup-Editor) | — |
+| Cm | Kommentar zur Auswahl (oder Wort am Cursor) | `Cmd+Alt+M` |
 | ⚙ Quick | Quick-Settings-Dropdown | — |
 | ‥ Typewriter | Typewriter-Mode-Toggle | — |
+| 𝓡 Reading | Reading-Mode-Toggle (Buchsatz-Typografie) | `Cmd+Alt+R` |
 | ◎ Focus | Focus-Mode-Toggle | — |
 
 ### Native Menueleiste
@@ -96,8 +99,8 @@ Alle Panels sind per Drag resizeable.
 Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleiste** (oben am Bildschirm auf macOS, oben am Fenster auf Windows / Linux). Fuenf Top-Level-Menues:
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
-- **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), Undo AI Edit
-- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, plus Standard-Window-/Zoom-Rollen
+- **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), Undo AI Edit
+- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus Standard-Window-/Zoom-Rollen
 - **Document** — Document Settings, Style-Templates-Submenu (7 vordefinierte + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts, Report Issue (und About auf Windows / Linux)
 
@@ -117,6 +120,9 @@ Tippe `/` an einer leeren Stelle im Editor:
 | `/Math` | Typst Mathe-Block |
 | `/Typst Code` | Roher Typst-Code |
 | `/Image` | Bild einfuegen |
+| `/Footnote` | Fussnote — Popup oeffnet sich automatisch zur Eingabe |
+| `/Citation` | `@` als Trigger fuer den Citation-Picker |
+| `/Table` | Tabelle einfuegen (mit Header) |
 
 ### Multi-Tab Editor
 
@@ -185,7 +191,7 @@ Jedes neue Projekt bekommt automatisch:
 
 ## Sidebar
 
-Die Sidebar hat vier Tabs:
+Die Sidebar hat fuenf Tabs:
 
 ### Files
 - Rekursiver Dateibaum, Back-Button, **Neuer Ordner** (Inline-Eingabefeld — Enter speichert, Esc bricht ab), **Asset hinzufuegen** (Datei-Auswahl, kopiert nach `assets/`)
@@ -207,6 +213,136 @@ Dieser Tab ersetzt das alte Git-Panel und nutzt Schreiber-Vokabular statt roher 
 - **Verlauf** (immer sichtbar) — alle gespeicherten Versionen, Klick zeigt Diff + „Wiederherstellen"
 - **Auto-Backup-Status** — kleine Fusszeile, die zeigt, wann das letzte automatische Backup gemacht wurde
 - **Erweitert** (zugeklappt) — optional: Cloud-Sync (Push/Pull zu GitHub oder einem beliebigen Git-Remote)
+
+### Comments
+- Liste aller Kommentare zur **aktuellen Datei** oder **dem ganzen Projekt** (Tab oben im Panel)
+- Pro Eintrag: Anker-Vorschau (kursiv, klickbar — springt im Editor zur Stelle), Body-Textarea (Auto-Save nach kurzer Tippe-Pause), „erledigt"-Haken, Loeschen
+- Erledigte Kommentare sind ausgeblendet — Checkbox „Erledigte zeigen" macht sie wieder sichtbar
+- Vollstaendiger Workflow: siehe Abschnitt **[Kommentare & Notizen](#kommentare--notizen)** weiter unten
+
+---
+
+## Suche im Projekt
+
+Fuer **Suche und Ersetzen ueber alle Kapitel hinweg** gibt es eine separate Suche, getrennt von der einzeldatei-Suche (`Cmd+F`).
+
+**Oeffnen:** `Cmd+Shift+F` oder Menue **Edit -> Find in Project…**
+
+**Funktionen:**
+- Live-Suche, debounced ~ 200 ms
+- Vier Optionen, alle als Toggle-Buttons:
+  - **Aa** — Gross-/Kleinschreibung beachten
+  - **W** — Nur ganze Woerter
+  - **.*** — Regulaerer Ausdruck
+  - **.bib** — `.bib`-Dateien einschliessen (sonst nur `.typ`)
+- Treffer gruppiert nach Datei, jede Datei mit Treffer-Anzahl, auf-/zuklappbar
+- **Klick auf einen Treffer** oeffnet die Datei und scrollt im Editor zur Stelle, das Match wird kurz hervorgehoben
+- **Ersetzen** (Pfeil-Toggle links neben der Suche): zweites Eingabefeld erscheint, „Alle ersetzen"-Knopf bittet vorher um Bestaetigung („X Treffer in Y Datei(en) ersetzen?")
+- Maximal 1000 Treffer total — bei mehr wird die Liste mit Hinweis abgeschnitten
+
+**Tipps:**
+- Vor einem grossen Replace empfiehlt sich, zuerst ueber das Project-Panel **eine Version zu speichern** — dann kannst du jederzeit zurueck.
+- In der laufenden Datei greift weiterhin `Cmd+F` mit der gewohnten Suche (visuelles Highlight im aktuellen Tab).
+
+---
+
+## Fussnoten
+
+Typst rendert Fussnoten nativ — gross-Buchstabe als hochgestellte Zahl im Fliesstext, Fussnotenkoerper unten auf derselben Seite.
+
+**Einfuegen:**
+- **Toolbar:** Klick auf **Fn** in der Editor-Toolbar
+- **Slash-Command:** `/Footnote`
+
+In beiden Faellen wird eine leere Fussnote an der Cursor-Position eingefuegt und der **Inline-Popup-Editor oeffnet sich automatisch** zum Eingeben.
+
+**Bearbeiten:** Klick auf eine bestehende Fussnote im Editor oeffnet den Popup mit dem Body zum Editieren. Der Body wird **live** gespeichert (jeder Tastendruck), Esc oder `Cmd+Enter` schliesst den Popup.
+
+**In der Source:** `#footnote[Dein Text]` — wird vom Typst-Compiler nummeriert und positioniert.
+
+**Im Editor:** kleine hochgestellte Markierung mit Preview-Text (erste ~30 Zeichen). Echte Nummer + Position-am-Seitenende erscheinen erst in der PDF-Preview rechts (400 ms Compile-Debounce).
+
+---
+
+## Kommentare & Notizen
+
+Kommentare sind **gelbe Anmerkungen am Text**, die nur im vswrite-Editor sichtbar sind und **nicht** ins PDF/DOCX kompilieren. Geeignet fuer Selbstnotizen („hier noch Quelle ergaenzen") oder Betreuer-Feedback.
+
+**Speicherung:** Jeder Kommentar ist eine **eigene Markdown-Datei** im sichtbaren Ordner `comments/` im Projekt-Wurzelverzeichnis. Frontmatter (YAML) speichert Anker-Text, Datei, Autor, Datum, Status. Body ist freier Markdown — Listen, Links, Code-Snippets, alles erlaubt.
+
+```
+mein-projekt/
+├── main.typ
+├── chapters/
+├── comments/                              ← sichtbar
+│   ├── 2026-04-28-1432-a3f.md
+│   └── 2026-04-29-0901-b1e.md
+└── ...
+```
+
+Vorteil: Cloud-Sync (Dropbox / iCloud) nimmt Kommentare automatisch mit, dein Betreuer kann sie in jedem beliebigen Editor oeffnen, sie sind Git-diffbar, du kannst sie auch von ausserhalb der App bearbeiten.
+
+**Erstellen:**
+1. Text im Editor markieren (oder Cursor in ein Wort setzen)
+2. **Toolbar-Button „Cm"** klicken oder Menue **Edit -> Add Comment** (`Cmd+Alt+M`)
+3. Sidebar wechselt automatisch in den **Comments-Tab**, der neue Eintrag ist fokussiert, du kannst direkt lostippen
+4. Tippen wird mit ~ 400 ms Verzoegerung in die `.md` geschrieben
+
+**Visuell:** Der kommentierte Text bekommt einen **gelb-orangenen Hintergrund** mit unterer Linie. Klick auf das Highlight scrollt im Comments-Panel zum passenden Eintrag.
+
+**Filter im Panel:**
+- **Aktuelle Datei** vs **Ganzes Projekt** (Tabs oben im Panel)
+- **Erledigte zeigen** (Checkbox) — erledigte Kommentare sind sonst ausgeblendet
+
+**Aktionen pro Kommentar:**
+- **Anker-Klick** (kursiver Text in Anfuehrungszeichen) springt im Editor zur Stelle, das Highlight blinkt kurz
+- **✓ Erledigt** versteckt den Kommentar aus der Liste (umkehrbar mit ↺)
+- **× Loeschen** entfernt die `.md`-Datei nach Bestaetigung
+
+**Reanchoring:** Wenn du Text vor einem kommentierten Abschnitt einfuegst, verschiebt sich der Anker. vswrite findet ihn beim Datei-OEffnen ueber den gespeicherten Anker-Text wieder. Wenn der Anker-Text geloescht oder so stark geaendert wurde, dass er nicht mehr findbar ist, wird der Kommentar **orphaned** markiert (rotes Warndreieck) — du kannst ihn dann manuell neu zuordnen oder loeschen.
+
+**Bekannte MVP-Limitierungen:**
+- Anker-Text muss innerhalb eines Absatzes / einer Ueberschrift liegen — Kommentare, die ueber Absatz-Grenzen hinweg ankern, werden als orphaned markiert.
+- Mehrere Kommentare mit **identischem** Anker-Text in derselben Datei zeigen alle dasselbe (erste) Highlight.
+
+---
+
+## Reading Mode
+
+Zum Korrekturlesen schaltet vswrite den Editor auf **Buchsatz-Typografie** um — Serife, grosszuegiger Zeilenabstand, Justified Text, schmaler Spaltenbereich. Im Gegensatz zur PDF-Preview bleibt das Editing aktiv: Tippfehler kannst du direkt in dieser Ansicht korrigieren.
+
+**Aktivieren:**
+- Toolbar-Button **𝓡** (zwischen Typewriter und Focus)
+- Menue **View → Reading Mode**
+- Shortcut `Cmd+Alt+R`
+
+**Was passiert:**
+- Schriftart wechselt auf Iowan Old Style / Palatino / Georgia (je nach Verfuegbarkeit)
+- Schriftgrosse 17 px, Zeilenhoehe 1.75, max. 640 px Spaltenbreite
+- Absaetze sind im Blocksatz mit Auto-Trennung
+- Hintergrund leicht waermer (`#fdfcf8`) — angenehmer fuer laengeres Lesen
+- Headings bekommen klassische Buchsatz-Stile (H3 italic + 600er Gewicht etc.)
+- **Code-, Math- und Raw-Typst-Bloecke bleiben Monospace** — Code muss strukturell lesbar bleiben
+
+Sidebar und Preview bleiben so, wie du sie hattest. Wer voll ungestoert lesen will, kombiniert Reading Mode mit Focus Mode (`◎`-Toolbar-Button).
+
+---
+
+## Backlinks — „Wo wird das sonst noch erwaehnt?"
+
+Bei wissenschaftlichem Schreiben ist der Konsistenz-Check wichtig: jede Erwaehnung eines Konzepts oder einer Quelle ueber alle Kapitel hinweg finden. vswrite hat dafuer zwei eingebaute Trigger, die im Hintergrund [Suche im Projekt](#suche-im-projekt) mit der richtigen Query starten.
+
+**Heading-Backlinks:**
+- Im **Outline**-Sidebar-Tab: hovern ueber ein Heading laesst rechts einen kleinen Pfeil **↪** erscheinen
+- Klick darauf oeffnet die Project-Search mit dem **Heading-Titel** als Query
+- Zeigt jede Stelle im Projekt, wo dieser Begriff (oder ein Cross-Reference auf das Heading) auftaucht
+
+**Citation-Backlinks:**
+- **Right-Click** (Cmd+Klick auf macOS) auf eine Citation-Badge im Editor (`@chen2021codex` etc.)
+- Oeffnet die Project-Search mit `@<citekey>` als Whole-Word-Query
+- Listet alle Kapitel auf, in denen die Quelle zitiert wird
+
+In beiden Faellen ist die Suche eine ganz normale [Find-in-Project](#suche-im-projekt) — du kannst die Optionen (Aa / W / .* / .bib) nachjustieren oder gleich „Alle ersetzen" durchziehen, falls du z. B. einen Citekey umbenennen willst.
 
 ---
 
@@ -623,8 +759,11 @@ Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen 
 | Projekt schliessen | `Cmd+Shift+W` |
 | Speichern | `Cmd+S` |
 | Speichern unter | `Cmd+Shift+S` |
-| Suchen | `Cmd+F` |
-| Suchen & Ersetzen | `Cmd+H` |
+| Suchen (aktuelle Datei) | `Cmd+F` |
+| Suchen & Ersetzen (aktuelle Datei) | `Cmd+H` |
+| Suchen im Projekt | `Cmd+Shift+F` |
+| Kommentar hinzufuegen | `Cmd+Alt+M` |
+| Reading Mode | `Cmd+Alt+R` |
 | Sidebar ein/aus | `Cmd+B` |
 | Preview ein/aus | `Cmd+Shift+P` |
 | Terminal ein/aus | `` Cmd+` `` |

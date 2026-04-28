@@ -1,6 +1,7 @@
 import { Extension, type Editor } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
+import { insertFootnoteWithEditor } from './typstFootnote';
 
 interface SlashItem {
   title: string;
@@ -120,17 +121,9 @@ const COMMANDS: SlashItem[] = [
   },
   {
     title: 'Footnote',
-    description: 'Insert footnote (click to edit)',
+    description: 'Insert footnote (opens editor)',
     icon: '\u2020',
-    command: (e) =>
-      e
-        .chain()
-        .focus()
-        .insertContent({
-          type: 'footnote',
-          attrs: { content: 'Footnote text' },
-        })
-        .run(),
+    command: (e) => insertFootnoteWithEditor(e),
   },
   {
     title: 'Citation',

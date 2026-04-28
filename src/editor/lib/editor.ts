@@ -13,6 +13,7 @@ import { CitationSuggestion } from './citationSuggestion';
 import { TextColor, Highlight, Underline, Superscript, Subscript, Smallcaps } from './typstMarks';
 import { TextAlign } from './typstTextAlign';
 import { SlashCommands } from './slashCommands';
+import { CommentDecorations } from './commentDecorations';
 
 /**
  * Sets the spellcheck language on the ProseMirror editor element.
@@ -199,6 +200,7 @@ export function createEditor(
       Smallcaps,
       TextAlign,
       ImageDropHandler,
+      CommentDecorations,
     ],
     content: { type: 'doc', content: [{ type: 'paragraph' }] },
     onTransaction: options.onTransaction,

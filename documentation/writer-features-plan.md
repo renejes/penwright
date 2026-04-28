@@ -22,7 +22,7 @@ Dieser Plan beschreibt **neun Features**, die vswrite vom „funktioniert" zu �
 
 ---
 
-## 1. Find in Project
+## 1. Find in Project ✅ (Session 12)
 
 ### Problem
 Die aktuelle Suche ([SearchReplace.svelte](src/editor/components/SearchReplace.svelte)) operiert nur auf `editor.state.doc` der gerade aktiven Datei. Bei einem Multi-Chapter-Projekt mit 14 Kapiteln muss man jede Datei einzeln öffnen und durchsuchen.
@@ -62,7 +62,7 @@ Die aktuelle Suche ([SearchReplace.svelte](src/editor/components/SearchReplace.s
 
 ---
 
-## 2. Footnote-UI
+## 2. Footnote-UI ✅ (Session 12)
 
 ### Problem
 Typst hat `#footnote[Inhalt]`. Es gibt aktuell keinen UI-Weg, eine Fußnote einzufügen oder zu bearbeiten — User muss manuell Typst-Code tippen. Beide Zielgruppen (akademisch + Prosa) nutzen das ständig.
@@ -147,7 +147,23 @@ Zusätzlich: **Label-Erstellung beim `#figure`/`#table`-Insert** automatisieren 
 
 ---
 
-## 4. Comments / Annotations
+## 4. Comments / Annotations ✅ (Session 12)
+
+> **Implementiert.** Comments leben jetzt als sichtbare Markdown-Dateien im
+> `comments/`-Ordner des Projekts (nicht in `.vswrite/`), eine `.md` pro
+> Comment. Der Source bleibt komplett clean — Comments werden nie in PDF/DOCX
+> kompiliert. Highlights im Editor laufen über ProseMirror-Decorations
+> (ephemer, nicht im Doc), Reanchoring per `anchorText` mit Offset-Hint.
+
+**Stand:**
+
+- Backend: [src/main/commentManager.ts](src/main/commentManager.ts) — YAML-Frontmatter-Parse/Serialize, Reanchoring per `indexOf`, Orphaned-Detection
+- IPC: `comments:list` / `create` / `update` / `delete`
+- Editor-Plugin: [src/editor/lib/commentDecorations.ts](src/editor/lib/commentDecorations.ts) — Decoration-Set basierend auf Anker-Text, Click → `vswrite:comment-click`-Event
+- UI: [CommentsPanel.svelte](src/renderer/components/CommentsPanel.svelte) als 5. Sidebar-Tab; Filter „Aktuelle Datei / Ganzes Projekt", Resolved-Toggle, debounced Body-Save (400 ms)
+- Trigger: Toolbar-Button „Cm" + Menü „Edit → Add Comment" (Cmd+Alt+M); ohne Selektion expandiert auf das Wort am Cursor
+
+
 
 ### Problem
 Es gibt keinen Weg, Notizen oder Feedback ins Dokument zu schreiben, die **nicht** in den PDF-/DOCX-Output kompiliert werden. Sowohl wissenschaftlich (Betreuer-Kommentare zu eigenem Text) als auch Prosa (Selbstnotizen) brauchen das.
@@ -184,34 +200,33 @@ Die `////`-Marker sind doppelte Slashes, die kein gängiger Typst-User schreibt.
 - Eingabe-Feld pro Comment, „Resolved"-Toggle, „Delete"
 - Click springt zum markierten Range
 
-**Persistenz:**
-**Empfehlung:** `.vswrite/comments.json` statt Marker im Source. Source bleibt clean, Comments wandern mit dem Projekt mit (`.vswrite/` ist projekt-lokal). Schema:
-```json
-{
-  "comments": [
-    {
-      "id": "c1",
-      "file": "chapters/03-method.typ",
-      "rangeStart": 42, "rangeEnd": 58,
-      "anchorText": "five reference works",  // für Reanchoring
-      "author": "René Jesser",
-      "date": "2026-04-28T14:32",
-      "body": "Quelle ergänzen?",
-      "resolved": false
-    }
-  ]
-}
+**Persistenz (umgesetzte Variante):**
+Sichtbarer `comments/`-Ordner im Projekt-Root, eine `.md`-Datei pro Comment, YAML-Frontmatter + Markdown-Body. Sichtbar im File-Tree, in jedem Editor lesbar, git-diffbar, von außen bearbeitbar. Schema:
+
+```markdown
+---
+id: "2026-04-28-1432-a3f"
+file: "chapters/03-method.typ"
+anchor: "five reference works"
+rangeStart: 42
+rangeEnd: 58
+author: "René Jesser"
+date: "2026-04-28T14:32:00.000Z"
+resolved: false
+---
+
+Quelle ergänzen — vielleicht den Müller-Artikel?
 ```
 
-**Reanchoring** (wenn Source-Position sich verschoben hat): bei jedem File-Load die `anchorText` an alter Position prüfen; wenn nicht mehr da, Fuzzy-Search im File; wenn nicht gefunden → Comment „orphaned" markieren.
+**Reanchoring** (umgesetzt): Beim Laden prüfen, ob `anchor` an `rangeStart` steht — wenn ja, fertig. Sonst `indexOf(anchor)` ab `rangeStart - 200` als Fuzzy-Hint, sonst global. Nicht gefunden → `orphaned: true` im Listen-Result, der Eintrag bleibt in der Panel-Liste, hat aber kein Highlight im Editor.
 
-**Risiken:**
-- Stable Anchoring: wenn der User Text einfügt vor einem Comment, verschiebt sich der Range. Lösung: Anchor-Text speichern + bei jedem Open re-locaten
-- Sync auf zwei Geräten: `.vswrite/comments.json` ist im `.gitignore` (mit dem ganzen `.vswrite/`-Ordner). Cloud-Sync würde Comments **nicht** mit zur Cloud nehmen → bewusst dokumentieren
-- Performance bei 1000+ Comments: Liste virtualisieren
+**Bekannte Limitierungen (aktuelle MVP-Implementierung):**
+- Anker-Text muss innerhalb eines einzelnen ProseMirror-Textnodes liegen (also nicht über Absatz-/Heading-Grenzen). Multi-Node-Anker werden als orphaned markiert.
+- Mehrere Comments mit identischem Anker-Text in derselben Datei → alle markieren dieselbe (erste) Stelle. Klick öffnet den ersten Eintrag in der Panel-Liste.
+- Cloud-Sync: `comments/` liegt jetzt **im Projekt-Root**, also außerhalb von `.vswrite/`. Dropbox/iCloud syncen die Comments mit — Betreuer-Workflow funktioniert.
 
 ### Aufwand
-**2 Tage.** Reanchoring-Logik ist die schwierigste Stelle.
+**Erledigt** in Session 12. Storage als sichtbare `.md` (statt JSON in `.vswrite/`) machte das Schreiben aufwändiger (eigener YAML-Parser, ein File pro Comment) als der Plan es vorsah, dafür ist das Ergebnis benutzer-transparent.
 
 ---
 
@@ -247,7 +262,7 @@ Die `////`-Marker sind doppelte Slashes, die kein gängiger Typst-User schreibt.
 
 ---
 
-## 6. Reading Mode
+## 6. Reading Mode ✅ (Session 13)
 
 ### Problem
 Zum Korrekturlesen gibt's heute nur die PDF-Preview rechts daneben — schön, aber nicht im Editor selbst editierbar. Wer nur lesen + kleine Korrekturen machen will, muss zwischen Editor und Preview hin- und herklicken.
@@ -296,8 +311,8 @@ Der `sources/`-Ordner enthält PDFs zu jeder Zitation. Wer im Text auf `@chen202
 - Hover über `@citekey` → kleines Popover zeigt:
   - Autor, Titel, Jahr aus der `.bib`
   - Wenn `sources/<citekey>*.pdf` existiert → „PDF anzeigen"-Button
-  - Klick auf Button → Inline-PDF-Viewer-Popover (kleines Fenster im Editor) mit der ersten Seite
-  - Cmd+Klick auf Citation → öffnet PDF in vollem In-App-Viewer-Tab
+  - Klick auf Button → Tab mit PDF öffnet sich mit der ersten Seite
+
 
 ### Implementierung
 
@@ -322,7 +337,17 @@ Der `sources/`-Ordner enthält PDFs zu jeder Zitation. Wer im Text auf `@chen202
 
 ---
 
-## 8. Backlinks
+## 8. Backlinks ✅ (Session 13)
+
+> **Implementiert** als dünner Aufsatz auf Find-in-Project. Trigger:
+> Hover-Button (`↪`) neben jedem Heading im Outline-Panel + Right-Click auf
+> Citation-Badges im Editor. Beides setzt einen `projectSearchPreset` und
+> öffnet die Project-Search mit vorgefüllter Query: für Headings die
+> Heading-Text-Suche, für Citations `@<citekey>` als Whole-Word-Treffer.
+> Volltext-Suche ergibt automatisch auch Cross-References, sobald die
+> existieren — kein extra Backend nötig.
+
+
 
 ### Problem
 „Wo wird dieser Begriff/dieses Heading sonst noch erwähnt?" — typische Frage bei wissenschaftlichem Schreiben (Konsistenz-Check).
@@ -406,14 +431,14 @@ Das ist der „**Shunn Standard Manuscript Format**", quasi-Standard für Einrei
 
 | # | Feature | Aufwand | Audience | Block-Wert |
 |---|---------|---------|----------|------------|
-| 1 | Find in Project | 1 Tag | beide | hoch — ohne nicht skalierbar |
-| 2 | Footnote-UI | 1–1,5 Tage | beide | hoch — täglich genutzt |
+| 1 | Find in Project | ✅ | beide | hoch — ohne nicht skalierbar |
+| 2 | Footnote-UI | ✅ | beide | hoch — täglich genutzt |
 | 5 | Outline drag-to-reorder | 1 Tag | beide | hoch — User-Reibung |
-| 4 | Comments/Annotations | 2 Tage | beide | hoch — Betreuer-Workflow |
+| 4 | Comments/Annotations | ✅ | beide | hoch — Betreuer-Workflow |
 | 3 | Cross-References | 1,5–2 Tage | akademisch | mittel-hoch |
-| 6 | Reading Mode | 0,5–1 Tag | Prosa | mittel |
+| 6 | Reading Mode | ✅ | Prosa | mittel |
 | 7 | Inline Source Preview | 1 Tag | akademisch | mittel |
-| 8 | Backlinks | 0,5 Tag (nach #1) | beide | mittel |
+| 8 | Backlinks | ✅ | beide | mittel |
 | 9 | Manuscript Export | 1 Tag | Prosa | niedrig — Nische |
 
 **Gesamtaufwand:** ~10–12 Werktage für alle 9 Features.

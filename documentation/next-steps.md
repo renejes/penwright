@@ -451,3 +451,57 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Bundeled Offline-Handbuch (v1.1)
 - [ ] Vollstaendiges WCAG 2.1 AA Accessibility-Audit
 - [ ] MCP Server Phase 4 (Resources, Electron IPC-Bridge)
+- [ ] **MCP Tools fuer Footnotes & Comments** — siehe Abschnitt 6.
+
+---
+
+## 6. MCP Phase 4 — Writer-Features fuer Agents
+
+Aktuell koennen Agents Footnotes nur ueber generische `read_file` / `write_file` einfuegen (Typst-Syntax muss der Agent selbst kennen) und Comments nur ueber direktes Schreiben in `comments/<id>.md` (kein Schema-Schutz, keine ID-Generierung). Das funktioniert, aber ist fragil. Sinnvolle Erweiterungen:
+
+### 6.1 Footnote-Tool
+
+```ts
+add_footnote({
+  file: "chapters/03-method.typ",
+  after_text: "five reference works",   // exakter Substring zum Verankern
+  body: "Selection was peer-reviewed only — see the methodological note.",
+  occurrence: 1,                         // 1-basierter Index, falls after_text mehrfach vorkommt
+})
+```
+
+Verhalten: liest die Datei, findet `after_text`, fuegt direkt dahinter `#footnote[<body>]` ein, schreibt zurueck. Falls `after_text` mehrfach vorkommt, kommt der Treffer am `occurrence`-Index dran.
+
+Edge-Cases:
+- `after_text` nicht gefunden -> Fehler mit Vorschlaegen aehnlicher Strings
+- `after_text` mehrfach -> Fehler mit Treffer-Liste, wenn `occurrence` fehlt
+- Body enthaelt selbst `]` -> ueber `#footnote[..]` mit balanced-bracket-encoder loesen
+
+### 6.2 Comment-Tools
+
+```ts
+add_comment({
+  file: "chapters/01-introduction.typ",
+  anchor: "five reference works",        // muss in der Datei vorkommen
+  body: "Quelle ergaenzen?",
+  resolved: false,                        // optional, default false
+})
+
+list_comments({
+  file?: "chapters/...",                  // optional Filter
+  include_resolved?: false,
+})
+
+resolve_comment({ id: "2026-04-28-1432-a3f", resolved: true })
+delete_comment({ id: "2026-04-28-1432-a3f" })
+```
+
+`add_comment` macht intern: ID generieren, `comments/<id>.md` schreiben mit korrekt gefuelltem Frontmatter, `rangeStart` aus aktueller Datei berechnen, `author` aus Git-Config holen. Der Agent muss das Frontmatter-Schema **nicht** kennen.
+
+### 6.3 Wo das hingehoert
+
+Implementierung im MCP-Server [src/mcp/server.ts](src/mcp/server.ts) — die Logik existiert bereits in [src/main/commentManager.ts](src/main/commentManager.ts), muss aber so refaktoriert werden, dass sie ohne `appState` (also ohne Electron-Kontext) lauft. Konkret: `appState.projectDir` durch einen explicit uebergebenen `projectDir`-Parameter ersetzen, oder einen Standalone-Wrapper bauen.
+
+### 6.4 Pro-Gating
+
+Wie alle MCP-Tools auf Pro-Lizenz gegated. Dokumentation in [mcp-server.md](mcp-server.md) ergaenzen, sobald implementiert.

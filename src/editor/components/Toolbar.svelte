@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
+  import { insertFootnoteWithEditor } from '../lib/typstFootnote';
 
   let { editor }: { editor: Editor } = $props();
 
@@ -288,6 +289,22 @@
     aria-pressed={editor.isActive('smallcaps')}
   >
     <span style="font-variant: small-caps; font-size: 0.85em">Sc</span>
+  </button>
+
+  <button
+    onclick={() => insertFootnoteWithEditor(editor)}
+    title="Footnote"
+    aria-label="Insert footnote"
+  >
+    <span style="font-size: 0.9em">Fn</span>
+  </button>
+
+  <button
+    onclick={() => window.dispatchEvent(new CustomEvent('vswrite:add-comment'))}
+    title="Comment hinzufügen"
+    aria-label="Add comment to selection"
+  >
+    <span style="font-size: 0.9em">Cm</span>
   </button>
 
   <div class="separator" role="separator"></div>

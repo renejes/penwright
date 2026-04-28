@@ -37,6 +37,8 @@ import {
 } from './persistenceManager';
 import { activateLicense, validateLicense, deactivateLicense } from './licenseManager';
 import { getLicenseData } from './persistenceManager';
+import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
+import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
 
 export function setupIPC(): void {
   // Renderer sends edited content
@@ -655,6 +657,44 @@ export function setupIPC(): void {
   ipcMain.handle('export:run', async (_event, config: ExportConfig) => {
     const written = await runFilteredExport(config);
     return { ok: !!written, path: written };
+  });
+
+  // ─── Project-wide Search & Replace ──────────────
+  ipcMain.handle('project:search', (_event, opts: SearchOptions) => {
+    return searchProject(opts);
+  });
+
+  ipcMain.handle('project:replaceAll', (_event, opts: ReplaceOptions) => {
+    return replaceInProject(opts);
+  });
+
+  // ─── Comments / Annotations ─────────────────────
+  ipcMain.handle('comments:list', (_event, opts?: ListOptions) => {
+    if (!appState.projectDir) return [];
+    return listComments(appState.projectDir, opts ?? {});
+  });
+
+  ipcMain.handle('comments:create', (_event, args: CreateArgs) => {
+    if (!appState.projectDir) return null;
+    const created = createComment(appState.projectDir, args);
+    if (created) {
+      appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    }
+    return created;
+  });
+
+  ipcMain.handle('comments:update', (_event, id: string, patch: UpdateArgs) => {
+    if (!appState.projectDir) return null;
+    return updateComment(appState.projectDir, id, patch);
+  });
+
+  ipcMain.handle('comments:delete', (_event, id: string) => {
+    if (!appState.projectDir) return false;
+    const ok = deleteComment(appState.projectDir, id);
+    if (ok) {
+      appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    }
+    return ok;
   });
 
   // Ensure repo + .gitignore + .vswrite/ for projects opened that pre-date this version.

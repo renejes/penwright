@@ -50,7 +50,7 @@ export const TypstCitation = Node.create({
       const dom = document.createElement('span');
       dom.className = 'typst-citation';
       dom.contentEditable = 'false';
-      dom.title = `@${node.attrs.citekey}`;
+      dom.title = `@${node.attrs.citekey} — Right-click to find usages`;
 
       const icon = document.createElement('span');
       icon.className = 'typst-citation-icon';
@@ -63,6 +63,19 @@ export const TypstCitation = Node.create({
       dom.appendChild(icon);
       dom.appendChild(text);
 
+      // Right-click on a citation → open Project Search pre-filled with
+      // `@<citekey>` (whole-word) so the user lands on every usage in the
+      // project. Whole-word stops `@chen2021codex` matching `@chen2021codex2`.
+      dom.addEventListener('contextmenu', (e) => {
+        const citekey = (node.attrs.citekey as string) || '';
+        if (!citekey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('vswrite:find-backlinks', {
+          detail: { query: `@${citekey}`, wholeWord: true, caseSensitive: true },
+        }));
+      });
+
       return {
         dom,
         stopEvent: () => true,
@@ -70,7 +83,7 @@ export const TypstCitation = Node.create({
         update(updatedNode) {
           if (updatedNode.type.name !== 'citation') return false;
           text.textContent = updatedNode.attrs.label || updatedNode.attrs.citekey;
-          dom.title = `@${updatedNode.attrs.citekey}`;
+          dom.title = `@${updatedNode.attrs.citekey} — Right-click to find usages`;
           return true;
         },
       };

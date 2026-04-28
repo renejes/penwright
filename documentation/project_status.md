@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-04-28 (nach Session 11: Wortzahl + Lesezeit in der Status Bar, CommandHub entfernt, native Menues ausgebaut, Writer-Features-Plan)
+> **Stand:** 2026-04-28 (nach Session 13: Reading Mode + Backlinks via OutlinePanel-Hover-Button und Citation-Right-Click)
 > **Version (Doku):** 0.7.0 (Pre-Release) — package.json: 0.1.0, vor dem ersten Release auf 0.7.0 bumpen
 
 ---
@@ -20,10 +20,10 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - About-Dialog zeigt Version + Lizenz + System-Info
 - **Offen fuer Launch:** Crash-Telemetrie, Auto-Updater End-to-End-Test, finale QA auf echter 100-Seiten-Thesis
 
-**Codebase:** ~20.500 Zeilen in 78 Dateien
-- Main Process: ~3.300 Zeilen (16 Module + pathSecurity.ts)
-- Renderer: ~5.500 Zeilen (App.svelte + 18 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog)
-- Editor: ~5.300 Zeilen (CommandHub.svelte entfernt — ~456 Zeilen)
+**Codebase:** ~21.500 Zeilen in 82 Dateien (Session 12)
+- Main Process: ~3.700 Zeilen (18 Module inkl. `pathSecurity`, `projectSearch`, `commentManager`)
+- Renderer: ~6.000 Zeilen (App.svelte + 20 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog, ProjectSearchPanel, CommentsPanel)
+- Editor: ~5.500 Zeilen (CommandHub.svelte entfernt — ~456 Zeilen, dafür `commentDecorations.ts` neu)
 - Shared: ~2.700 Zeilen (docxSerializer mit Word-Styles)
 - MCP: ~800 Zeilen
 - CLI: ~800 Zeilen (aus Extension, unused)
@@ -75,14 +75,20 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] Bild-Rendering via `vswrite-asset://` Custom Protocol mit Pfad-Validierung
 - [x] Raw Blocks fuer Typst-Code, Slash Commands, Citation Autocomplete (@)
 - [x] Suchen & Ersetzen, Focus Mode, Typewriter Mode
+- [x] **Find in Project** (Cmd+Shift+F): Slide-In-Panel mit Query/Replace, Optionen Aa/W/.*/.bib, Treffer gruppiert pro Datei (auf-/zuklappbar), Klick springt + scrollt im Editor zur Stelle; max 1000 Treffer mit Truncation-Hinweis; Replace-All über Confirm-Dialog
+- [x] **Footnote-UI**: Toolbar-Button „Fn" + Slash-Command `/Footnote` legen leere Fußnote an und öffnen automatisch den Inline-Popup-Editor; Klick auf bestehende Fußnote öffnet sie zum Editieren; Esc / Cmd+Enter schließt; Nummerierung via Typst beim Compile
+- [x] **Comments / Annotations**: Toolbar-Button „Cm" oder Menü „Edit → Add Comment" (Cmd+Alt+M) legt Comment an die Selektion (oder das Wort am Cursor); gelbes Highlight im Editor via ProseMirror-Decorations; Side-Panel als 5. Sidebar-Tab
+- [x] **Reading Mode** (Cmd+Alt+R): Buchsatz-Typografie im Editor (Serife, Justified-Text, Buchspiegel-Margins), Code/Math/Raw-Blöcke bleiben monospace; Toggle in Toolbar + View-Menü; Editing bleibt aktiv
+- [x] **Backlinks**: Hover-Button („↪") an jedem Heading im Outline-Panel öffnet Project-Search mit dem Heading-Titel; Right-Click auf eine Citation öffnet die Suche mit `@<citekey>` als Whole-Word-Treffer — beide Trigger nutzen einen Preset-State, der von ProjectSearchPanel beim Mount konsumiert wird
 - [x] Guard: Bilder nicht in Code-Bloecke einfuegbar
 - [x] Rechtschreibpruefung (Electron Spellchecker, Sprache aus Typst-Settings)
 
-**Sidebar (4 Tabs):**
+**Sidebar (5 Tabs):**
 - [x] Files: Dateibaum, Navigate Up, **„Neuer Ordner"** (inline input) + **„Asset hinzufügen"** (File-Picker → kopiert nach `assets/`), Drag-Bilder, leere Ordner sichtbar
 - [x] Outline: Live Heading-Hierarchie, Click-to-Navigate
 - [x] Chapters: Include-Manager mit sofortigem UI-Update bei Umsortierung
 - [x] **Project (ehemals Git):** Projekt-Header mit „Im Finder zeigen", „Version speichern"-Card, „Änderungen seit letzter Version" mit Checkboxen, immer sichtbarer Verlauf, Auto-Backup-Status, „Erweitert"-Bereich für Cloud-Sync (Push/Pull/Remote-URL)
+- [x] **Comments (neu):** sichtbare `.md`-Dateien in `comments/`, Filter „Aktuelle Datei / Ganzes Projekt", Resolved-Toggle, Klick auf Anker springt im Editor an die Stelle, gelbes Highlight per ProseMirror-Decorations
 
 **Versionssystem (Drei-Schichten-Modell):**
 - [x] **Versionen** (Git unter der Haube): „Version speichern" mit Namensfeld + Checkbox-Auswahl der Dateien → `git commit`. Verlauf-Liste mit Auto-Versionen ausgegraut. Klick auf Eintrag öffnet Versions-Detail mit Quelltext-Diff (rote/grüne Zeilen) + „Wiederherstellen"
@@ -145,6 +151,15 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] Getestet mit Claude Desktop (Cowork)
 - [x] 3 Skill-Dateien als MCP Prompts (typst-reference, vswrite-conventions, research-workflow)
 - [x] Pro-Lizenz-Gating (via `--license-key` Flag oder `VSWRITE_LICENSE_KEY` Env)
+
+**Comments / Annotations (Session 12):**
+- [x] Storage als sichtbarer `comments/`-Ordner im Projekt-Root (nicht in `.vswrite/`) — eine `.md`-Datei pro Comment, YAML-Frontmatter (`id`, `file`, `anchor`, `rangeStart/End`, `author`, `date`, `resolved`) + Markdown-Body
+- [x] Cloud-Sync-tauglich: Comments wandern mit Dropbox/iCloud mit, Betreuer kann sie in jedem Editor öffnen
+- [x] Source bleibt komplett clean — Comments werden nie in PDF/DOCX kompiliert
+- [x] Reanchoring beim Open: erst exakte Offset-Treffer, dann `indexOf` mit Hint-Distanz, sonst global; nicht gefunden → `orphaned: true`
+- [x] Editor-Highlight via ProseMirror Decorations (ephemer, mutiert das Doc nicht); Click auf Highlight → `vswrite:comment-click`-Event scrollt im Side-Panel zum Eintrag
+- [x] Side-Panel: Filter „Aktuelle Datei" / „Ganzes Projekt", „Erledigte zeigen"-Checkbox, Body-Textarea mit Auto-Save (400 ms debounce), Resolve/Delete-Buttons
+- [x] Bekannte MVP-Limitierung: Anker-Text muss innerhalb eines Textnodes liegen (nicht über Absatz-Grenzen) — sonst orphaned
 
 **Persistenz (electron-store + projekt-lokal):**
 - [x] Window-Bounds (Position, Groesse, Maximized) — global
@@ -209,11 +224,13 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 
 Funktionale Reife als Writing-Tool — neun Features mit Implementierungsdetails dokumentiert:
 
-- [ ] **Find in Project** (1 Tag) — Suche ueber alle `.typ`-Dateien
-- [ ] **Footnote-UI** (1–1,5 Tage) — Toolbar/Slash-Command + Side-Editor
+- [x] **Find in Project** — Suche ueber alle `.typ`-Dateien (Session 12)
+- [x] **Footnote-UI** — Toolbar/Slash-Command + Auto-Open-Popup (Session 12)
 - [ ] **Cross-References** (1,5–2 Tage) — `<label>` und `@label`-Picker
-- [ ] **Comments / Annotations** (2 Tage) — gelbe Margin-Notizen, kompilieren nicht
+- [x] **Comments / Annotations** — sichtbare `.md`-Dateien in `comments/`, kompilieren nicht (Session 12)
 - [ ] **Outline drag-to-reorder** (1 Tag) — Sektionen in der Outline-Sidebar verschieben
+- [x] **Reading Mode** — Buchsatz-Typografie als Editor-Toggle (Session 13)
+- [x] **Backlinks** — Outline-Hover + Citation-Right-Click (Session 13)
 - [ ] **Reading Mode** (½–1 Tag) — Editor in Buchsatz-Typografie
 - [ ] **Inline Source Preview** (1 Tag) — Hover auf Citation zeigt PDF-Popover
 - [ ] **Backlinks** (½ Tag, nach Find-in-Project) — wo wird ein Heading sonst noch erwähnt?
@@ -236,6 +253,56 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 13 (2026-04-28) — Polish-Sprint: Reading Mode + Backlinks + Comments-Bugfix
+
+**Reading Mode (Cmd+Alt+R):**
+- Neue CSS-Klasse `.reading-mode` auf `.vswrite-container` in [App.svelte](src/renderer/App.svelte) — Editor-Container schaltet auf Buchsatz-Typografie um (Iowan Old Style / Palatino / Georgia, 17 px / 1.75 line-height, 640 px max-width, justified Paragraphs, Heading-Style mit Serife)
+- Code-, Math- und Raw-Typst-Blöcke behalten Monospace via `.reading-mode .ProseMirror pre, code, .typst-raw-block`
+- State `uiState.readingMode` in [appState.svelte.ts](src/renderer/appState.svelte.ts), Toolbar-Button (𝓡) zwischen Typewriter und Focus, View-Menü-Eintrag, `toggleReadingMode`-Message-Handler
+- Editing bleibt aktiv — User kann Tippfehler in dieser Ansicht direkt korrigieren
+
+**Backlinks (Hover + Right-Click):**
+- Neuer Preset-State `projectSearchPreset` in [appState.svelte.ts](src/renderer/appState.svelte.ts) — `{ query, wholeWord, caseSensitive }`, ProjectSearchPanel liest ihn beim Mount und löscht ihn (Consume-once)
+- [OutlinePanel.svelte](src/renderer/components/OutlinePanel.svelte): Hover-Button (`↪`) rechts an jeder Heading-Row dispatcht `vswrite:find-backlinks`-Event mit dem Heading-Titel als Query
+- [typstCitation.ts](src/editor/lib/typstCitation.ts): Right-Click auf Citation-Badge dispatcht dasselbe Event mit `@<citekey>` als Whole-Word-Query
+- Event-Handler in [App.svelte](src/renderer/App.svelte) setzt Preset und öffnet Project-Search; falls bereits offen, kurzer Close+Open-Cycle damit der Mount-Hook erneut greift
+
+**Comments-Bugfix (Endlosschleife):**
+- Der `$effect`, der `editorVersion.value` trackte und bei jedem Editor-Tick `pushDecorations()` rief, hat eine Endlosschleife verursacht: `setCommentMarks` dispatched eine PM-Transaktion → `onTransaction` feuert → `editorVersion.value++` → Effect re-runs → dispatcht erneut. UI-Thread blockiert, Sidebar-Tabs wurden unklickbar
+- Fix in [CommentsPanel.svelte](src/renderer/components/CommentsPanel.svelte): den editorVersion-Effect entfernt; das Plugin-eigene `apply()` in [commentDecorations.ts](src/editor/lib/commentDecorations.ts) erkennt `tr.docChanged` selbst und baut die Decorations bei Tippvorgängen automatisch neu
+
+**Doku:**
+- [writer-features-plan.md](writer-features-plan.md): Reading Mode + Backlinks mit ✅ markiert, Backlinks-Sektion mit umgesetzter „Aufsatz auf Find-in-Project"-Variante dokumentiert
+- [project_status.md](project_status.md) + [handbuch.md](handbuch.md) + [handbook.md](handbook.md) erweitert
+
+### Session 12 (2026-04-28) — Writer-Sprint #1: Find in Project, Footnote-UI, Comments
+
+**Find in Project (Cmd+Shift+F):**
+- Neues Modul [src/main/projectSearch.ts](src/main/projectSearch.ts) — `searchProject` walks `.typ` (+optional `.bib`), nutzt In-Memory-Content für die offene Datei, regex/case/whole-word, max 1000 Treffer, Pfade per `isPathWithin` validiert
+- `replaceInProject` schreibt direkt auf Disk, bumps `lastSaveTimestamp` für Watcher-Self-Save-Guard, aktualisiert die offene Datei live
+- IPC: `project:search` + `project:replaceAll` in [ipcHandlers.ts](src/main/ipcHandlers.ts) + Whitelist
+- Frontend: [ProjectSearchPanel.svelte](src/renderer/components/ProjectSearchPanel.svelte) als Slide-In oben, Treffer pro Datei aufklappbar, Optionen Aa/W/.*/.bib, Klick auf Treffer dispatcht `vswrite:project-search-jump`-Event → scrollt im Editor; Confirm-Dialog vor Replace-All
+- Cmd+Shift+F + Menü „Edit → Find in Project…" + showProjectSearch im messageHandler
+
+**Footnote-UI:**
+- Neuer Helper `insertFootnoteWithEditor()` in [typstFootnote.ts](src/editor/lib/typstFootnote.ts) — fügt leere Footnote ein und triggert per requestAnimationFrame einen synthetischen Click auf das frisch gemountete DOM-Element → Popup öffnet automatisch
+- Slash-Command auf den Helper umgestellt (vorher Platzhaltertext „Footnote text", jetzt empty + auto-open)
+- Toolbar-Button „Fn" in [Toolbar.svelte](src/editor/components/Toolbar.svelte) zwischen Smallcaps und Align-Group
+
+**Comments / Annotations:**
+- Neues Modul [src/main/commentManager.ts](src/main/commentManager.ts) — eigener YAML-Frontmatter-Parser ohne externe Deps, `listComments` / `createComment` / `updateComment` / `deleteComment`, Reanchoring per `indexOf` mit Hint-Offset, Orphaned-Detection
+- Storage in **`<project>/comments/<id>.md`** (sichtbarer Ordner, **nicht** `.vswrite/`!) — Cloud-Sync-tauglich, in jedem Editor lesbar
+- IPC: `comments:list` / `:create` / `:update` / `:delete` + Whitelist
+- Editor-Plugin [commentDecorations.ts](src/editor/lib/commentDecorations.ts) — ProseMirror-Decoration-Set (ephemer, mutiert das Doc nicht), `setCommentMarks(editor, marks)` als API; Click auf Highlight dispatcht `vswrite:comment-click`-Event
+- UI: [CommentsPanel.svelte](src/renderer/components/CommentsPanel.svelte) als 5. Sidebar-Tab — Filter „Aktuelle Datei / Ganzes Projekt", Resolved-Toggle, Body-Textarea mit 400-ms-Debounced-Save, Anker-Klick scrollt im Editor + flasht das Highlight
+- Trigger: Toolbar-Button „Cm" + Menü „Edit → Add Comment" (Cmd+Alt+M); ohne Selektion expandiert auf das Wort am Cursor
+- CSS-Highlight in [editor/style.css](src/editor/style.css): gelb-orange, Hover heller, `vswrite-comment-active` für 1,6 s Flash beim Anker-Klick
+- File-Watcher emittiert beim Comment-Write `filetreeChanged` → CommentsPanel reloadet, Sidebar zeigt das neue Markdown
+
+**Doku:**
+- [writer-features-plan.md](writer-features-plan.md): Find/Footnote/Comments mit ✅ markiert, Comments-Sektion mit umgesetzter Storage-Variante (sichtbares `comments/` statt `.vswrite/comments.json`) + MVP-Limitierungen aktualisiert
+- [project_status.md](project_status.md) (diese Datei) + [handbuch.md](handbuch.md) + [handbook.md](handbook.md) erweitert
 
 ### Session 11 (2026-04-28) — Writer-Tool-Polish: Wortzahl, Hub-Removal, native Menues, Feature-Plan
 

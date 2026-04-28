@@ -16,9 +16,11 @@ export let uiState = $state({
   showShortcuts: false,
   showSettings: false,
   showSearch: false,
+  showProjectSearch: false,
   showQuickSettings: false,
   focusMode: false,
   typewriterMode: false,
+  readingMode: false,
   showWelcome: false,
   welcomeTypstInstalled: true,
   welcomePlatform: '',
@@ -38,7 +40,7 @@ export let panelState = $state({
   showSidebar: true,
   showPreview: false,
   showTerminal: false,
-  sidebarTab: 'files' as 'files' | 'outline' | 'includes' | 'git',
+  sidebarTab: 'files' as 'files' | 'outline' | 'includes' | 'git' | 'comments',
   sidebarWidth: 220,
   previewWidth: 400,
   terminalHeight: 200,
@@ -73,6 +75,16 @@ export let contextMenu = $state({ x: 0, y: 0, path: '' });
 export let newProjectState = $state({
   show: false,
   templates: [] as Array<{ id: string; label: string; description: string }>,
+});
+
+// ─── Project-Search Preset ──────────────────────
+// Set by "Find backlinks" triggers (OutlinePanel headings, citation
+// right-click, etc.). ProjectSearchPanel reads this on mount and clears it
+// after applying — that way the preset is consumed exactly once.
+export let projectSearchPreset = $state({
+  query: '' as string,
+  wholeWord: false,
+  caseSensitive: false,
 });
 
 // ─── Export Dialog ───────────────────────────────

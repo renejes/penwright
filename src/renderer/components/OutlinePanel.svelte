@@ -43,6 +43,14 @@
     }
     editor.commands.focus();
   }
+
+  function findBacklinks(heading: HeadingEntry, e: MouseEvent) {
+    e.stopPropagation();
+    if (!heading.title || heading.title === '(untitled)') return;
+    window.dispatchEvent(new CustomEvent('vswrite:find-backlinks', {
+      detail: { query: heading.title, wholeWord: false, caseSensitive: false },
+    }));
+  }
 </script>
 
 <div class="outline">
@@ -52,12 +60,20 @@
     <div class="outline-label">Outline</div>
     <ul class="outline-list">
       {#each headings as heading}
-        <li>
+        <li class="outline-row">
           <button
             class="outline-item level-{heading.level}"
             onclick={() => scrollTo(heading)}
           >
             {heading.title}
+          </button>
+          <button
+            class="outline-backlinks"
+            onclick={(e) => findBacklinks(heading, e)}
+            title="Find references to this heading"
+            aria-label="Find references to {heading.title}"
+          >
+            &#x21AA;
           </button>
         </li>
       {/each}
@@ -94,9 +110,18 @@
     padding: 0;
   }
 
+  .outline-row {
+    display: flex;
+    align-items: stretch;
+    position: relative;
+  }
+  .outline-row:hover .outline-backlinks {
+    opacity: 1;
+  }
+
   .outline-item {
-    display: block;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     padding: 4px 16px;
     border: none;
     background: transparent;
@@ -117,6 +142,23 @@
   .outline-item:hover {
     background: rgba(0, 0, 0, 0.03);
     color: #333;
+  }
+
+  .outline-backlinks {
+    flex-shrink: 0;
+    width: 22px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .outline-backlinks:hover {
+    color: #4f7df9;
+    background: rgba(79, 125, 249, 0.08);
   }
 
   .outline-item.level-1 {

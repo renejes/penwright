@@ -1202,6 +1202,85 @@ body {
   padding-bottom: 50vh;
 }
 
+/* ─── Reading Mode ────────────────────────────
+ * Editor stays editable — User can fix typos while reading.
+ * Code-/math-/raw-blocks keep their monospace look (scoped overrides).
+ * Sidebar and Preview stay open if the user had them open. */
+.reading-mode .editor-container {
+  padding: 64px 96px;
+  background: #fdfcf8;
+}
+
+.reading-mode .ProseMirror {
+  max-width: 640px;
+  margin: 0 auto;
+  font-family: 'Iowan Old Style', 'Palatino', 'Palatino Linotype', 'Book Antiqua', Georgia, 'Liberation Serif', serif;
+  font-size: 17px;
+  line-height: 1.75;
+  color: #1f1d18;
+  hyphens: auto;
+}
+
+.reading-mode .ProseMirror p {
+  text-align: justify;
+  text-indent: 0;
+  margin: 0 0 0.9em 0;
+}
+
+.reading-mode .ProseMirror h1,
+.reading-mode .ProseMirror h2,
+.reading-mode .ProseMirror h3,
+.reading-mode .ProseMirror h4 {
+  font-family: 'Iowan Old Style', 'Palatino', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  color: #1f1d18;
+  text-align: left;
+  font-weight: 700;
+}
+
+.reading-mode .ProseMirror h1 {
+  font-size: 1.9em;
+  margin: 1.6em 0 0.6em;
+  letter-spacing: -0.01em;
+}
+.reading-mode .ProseMirror h2 {
+  font-size: 1.45em;
+  margin: 1.4em 0 0.5em;
+}
+.reading-mode .ProseMirror h3 {
+  font-size: 1.2em;
+  margin: 1.2em 0 0.4em;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.reading-mode .ProseMirror blockquote {
+  border-left: 3px solid #c9c2b2;
+  margin: 1.2em 0 1.2em 0.5em;
+  padding: 0.1em 0 0.1em 1em;
+  color: #4a4640;
+  font-style: italic;
+}
+
+.reading-mode .ProseMirror ul,
+.reading-mode .ProseMirror ol {
+  padding-left: 1.6em;
+  margin: 0.5em 0 1em 0;
+}
+.reading-mode .ProseMirror li {
+  margin: 0.25em 0;
+}
+
+/* Code, math, and raw-Typst blocks keep their workshop-look so structure
+ * remains readable even in book typography. */
+.reading-mode .ProseMirror pre,
+.reading-mode .ProseMirror code,
+.reading-mode .ProseMirror .typst-raw-block,
+.reading-mode .ProseMirror .typst-raw-block textarea {
+  font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+  font-style: normal;
+  hyphens: none;
+}
+
 .toolbar-icon-btn.active {
   opacity: 1;
   background: rgba(128, 128, 128, 0.2);
@@ -1953,4 +2032,22 @@ mark.search-current {
 
 .welcome-btn:hover {
   opacity: 0.9;
+}
+
+/* ─── Comment / Annotation Highlight ─────────── */
+.vswrite-comment-mark {
+  background: rgba(255, 213, 79, 0.35);
+  border-bottom: 2px solid rgba(232, 168, 50, 0.7);
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 1px;
+  transition: background 0.15s;
+}
+
+.vswrite-comment-mark:hover {
+  background: rgba(255, 213, 79, 0.55);
+}
+
+.vswrite-comment-mark.vswrite-comment-active {
+  background: rgba(255, 184, 28, 0.6);
 }

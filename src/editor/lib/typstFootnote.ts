@@ -1,4 +1,44 @@
-import { Node } from '@tiptap/core';
+import { Node, type Editor } from '@tiptap/core';
+
+/**
+ * Insert a footnote at the current selection and immediately open its
+ * editor popup. The popup is bound to the NodeView's click handler, so
+ * we synthesize a click on the freshly-mounted DOM node once
+ * ProseMirror has rendered the change.
+ */
+export function insertFootnoteWithEditor(editor: Editor): void {
+  if (!editor) return;
+  editor.chain().focus().insertContent({ type: 'footnote', attrs: { content: '' } }).run();
+
+  // Wait for ProseMirror to mount the NodeView, then dispatch a click on
+  // the just-inserted footnote so the popup opens for immediate editing.
+  // We retry a few times in case the NodeView hasn't attached yet.
+  let attempts = 0;
+  const tryOpen = () => {
+    const root = editor.view.dom;
+    // The freshly inserted footnote sits immediately before the cursor.
+    const candidates = root.querySelectorAll('span.typst-footnote');
+    let target: HTMLElement | null = null;
+    if (candidates.length > 0) {
+      // Prefer the footnote whose preview is empty — that's the new one.
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        const el = candidates[i] as HTMLElement;
+        const preview = el.querySelector('.typst-footnote-preview');
+        if (preview?.classList.contains('typst-footnote-empty')) {
+          target = el;
+          break;
+        }
+      }
+      target ??= candidates[candidates.length - 1] as HTMLElement;
+    }
+    if (target) {
+      target.click();
+      return;
+    }
+    if (attempts++ < 5) requestAnimationFrame(tryOpen);
+  };
+  requestAnimationFrame(tryOpen);
+}
 
 /**
  * Inline atom node for Typst footnotes.

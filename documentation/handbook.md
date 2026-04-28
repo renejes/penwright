@@ -87,8 +87,11 @@ All panels are resizable by dragging their edges.
 | bul | Bullet list | `Cmd+Shift+8` |
 | num | Numbered list | `Cmd+Shift+7` |
 | { } | Code block | `Cmd+Alt+C` |
+| Fn | Insert footnote (opens popup editor) | — |
+| Cm | Add comment to selection (or word under cursor) | `Cmd+Alt+M` |
 | ⚙ Quick | Quick settings dropdown | — |
 | ‥ Typewriter | Typewriter mode toggle | — |
+| 𝓡 Reading | Reading-mode toggle (book-style typography) | `Cmd+Alt+R` |
 | ◎ Focus | Focus mode toggle | — |
 
 ### Native menu
@@ -96,8 +99,8 @@ All panels are resizable by dragging their edges.
 All project-level and document-level actions live in the **native menu bar** (top of the screen on macOS, top of the window on Windows / Linux). Five top-level menus:
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
-- **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), Undo AI Edit
-- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, plus standard window/zoom roles
+- **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), Undo AI Edit
+- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus standard window/zoom roles
 - **Document** — Document Settings, Style Templates submenu (7 predefined + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts, Report Issue (and About on Windows / Linux)
 
@@ -117,6 +120,9 @@ Type `/` at an empty position in the editor:
 | `/Math` | Typst math block |
 | `/Typst Code` | Raw Typst code |
 | `/Image` | Insert image |
+| `/Footnote` | Footnote — popup opens for immediate editing |
+| `/Citation` | Inserts `@` to trigger the citation picker |
+| `/Table` | Insert a table (with header row) |
 
 ### Multi-tab editor
 
@@ -185,7 +191,7 @@ Every new project automatically gets:
 
 ## Sidebar
 
-The sidebar has four tabs:
+The sidebar has five tabs:
 
 ### Files
 - Recursive file tree, Back button, **New Folder** (inline input — Enter saves, Esc cancels), **Add Asset** (file picker that copies into `assets/`)
@@ -207,6 +213,136 @@ This tab replaces the old Git panel and uses writer-friendly vocabulary instead 
 - **History** (always visible) — every saved version, click to view diff and restore
 - **Auto-Backup status** — small footer showing when the last automatic snapshot was taken
 - **Advanced** (collapsed) — optional cloud sync (push/pull to GitHub or any other Git remote)
+
+### Comments
+- Lists every comment for the **current file** or **the whole project** (toggle at the top of the panel)
+- Per entry: anchor preview (italic, click jumps to the spot in the editor), body textarea (auto-saves shortly after you stop typing), resolved checkmark, delete
+- Resolved comments are hidden by default; the "Show resolved" checkbox brings them back
+- Full workflow: see the **[Comments & Notes](#comments--notes)** section below
+
+---
+
+## Find in Project
+
+For **searching and replacing across all chapters at once**, vswrite has a separate project-wide search, distinct from the in-file search (`Cmd+F`).
+
+**Open:** `Cmd+Shift+F` or menu **Edit -> Find in Project…**
+
+**Features:**
+- Live search, debounced ~ 200 ms
+- Four options as toggle buttons:
+  - **Aa** — case-sensitive
+  - **W** — whole-word only
+  - **.*** — regular expression
+  - **.bib** — also search `.bib` files (otherwise `.typ` only)
+- Matches grouped by file with hit counts, expandable / collapsible
+- **Click a match** to open the file and scroll the editor to the location; the match briefly highlights
+- **Replace** (arrow toggle on the left): a second input appears, "Replace all" asks for confirmation ("Replace X matches in Y file(s)?")
+- Capped at 1000 matches total — beyond that the list is truncated with a notice
+
+**Tips:**
+- Before a sweeping replace it's worth saving a **Version** in the Project panel first — that gives you a one-click rollback.
+- The classic `Cmd+F` still works in the active file with the familiar single-file search and visual highlights.
+
+---
+
+## Footnotes
+
+Typst renders footnotes natively — superscript number inline, footnote body at the bottom of the same page.
+
+**Insert:**
+- **Toolbar:** click **Fn** in the editor toolbar
+- **Slash command:** `/Footnote`
+
+Both insert an empty footnote at the cursor position and **automatically open the inline popup editor** so you can start typing.
+
+**Edit:** clicking an existing footnote in the editor reopens the popup with its body. The body is **saved live** (every keystroke); Esc or `Cmd+Enter` closes the popup.
+
+**In the source:** `#footnote[Your text]` — Typst handles numbering and placement at compile time.
+
+**In the editor:** a small superscript marker with a preview of the first ~30 characters. The actual number and end-of-page placement appear in the PDF preview on the right (400 ms compile debounce).
+
+---
+
+## Comments & Notes
+
+Comments are **yellow annotations** that are visible only inside the vswrite editor and **never** compile into the PDF/DOCX output. Useful for self-notes ("add a citation here") or supervisor feedback.
+
+**Storage:** every comment is its own **Markdown file** in the visible `comments/` folder at the project root. YAML frontmatter holds the anchor text, target file, author, date, and status. The body is plain Markdown — lists, links, code snippets, anything.
+
+```
+my-project/
+├── main.typ
+├── chapters/
+├── comments/                              ← visible
+│   ├── 2026-04-28-1432-a3f.md
+│   └── 2026-04-29-0901-b1e.md
+└── ...
+```
+
+The advantage: cloud sync (Dropbox / iCloud) carries the comments along automatically, your supervisor can open them in any plain editor, they are git-diffable, and you can edit them outside the app.
+
+**Create:**
+1. Select text in the editor (or place the cursor inside a word)
+2. Click the toolbar button **Cm** or use the menu **Edit -> Add Comment** (`Cmd+Alt+M`)
+3. The sidebar switches to the **Comments** tab, the new entry is focused, you can start typing immediately
+4. Typing is persisted to the `.md` file with ~ 400 ms debounce
+
+**Visual:** the commented text gets a **yellow-orange highlight** with a thin underline. Clicking the highlight scrolls the Comments panel to the matching entry.
+
+**Panel filters:**
+- **Current file** vs **Whole project** (tabs at the top of the panel)
+- **Show resolved** (checkbox) — resolved comments are hidden by default
+
+**Per-comment actions:**
+- **Anchor click** (italic quoted text) jumps to the spot in the editor and briefly flashes the highlight
+- **✓ Resolve** hides the comment from the list (reversible with ↺)
+- **× Delete** removes the `.md` file after confirmation
+
+**Reanchoring:** if you insert text before a commented stretch, the anchor shifts. vswrite locates it again on file open via the stored anchor text. If the anchor was deleted or changed beyond recognition, the comment is marked **orphaned** (red warning triangle) — you can reassign or delete it manually.
+
+**Known MVP limitations:**
+- The anchor text must live within a single paragraph / heading — comments anchored across paragraph boundaries are reported as orphaned.
+- Multiple comments with **identical** anchor text in the same file all highlight the same (first) location.
+
+---
+
+## Reading Mode
+
+For proofreading, vswrite can switch the editor into **book-style typography** — serif font, generous line height, justified text, narrow column. Unlike the PDF preview, editing stays active: you can fix typos right in this view.
+
+**Toggle:**
+- Toolbar button **𝓡** (between Typewriter and Focus)
+- Menu **View → Reading Mode**
+- Shortcut `Cmd+Alt+R`
+
+**What changes:**
+- Font switches to Iowan Old Style / Palatino / Georgia (whichever is available)
+- 17 px / 1.75 line height, 640 px max column width
+- Paragraphs are justified with auto-hyphenation
+- Background warms slightly (`#fdfcf8`) — easier on the eyes for longer reads
+- Headings get classic book-typography styling (italic + 600 weight for H3, etc.)
+- **Code, math, and raw-Typst blocks stay monospace** — code must remain structurally readable
+
+The sidebar and preview stay as you had them. For a fully distraction-free read, combine Reading Mode with Focus Mode (the `◎` toolbar toggle).
+
+---
+
+## Backlinks — "Where else is this mentioned?"
+
+For consistency checks in academic work, you often want every mention of a concept or source across all chapters. vswrite has two built-in triggers that under the hood open [Find in Project](#find-in-project) with the right query.
+
+**Heading backlinks:**
+- In the **Outline** sidebar tab: hovering over a heading reveals a small **↪** arrow on the right
+- Clicking it opens Project Search with the **heading title** as the query
+- Lists every place in the project where the term (or a cross-reference to the heading) appears
+
+**Citation backlinks:**
+- **Right-click** (Cmd+click on macOS) on a citation badge in the editor (e.g. `@chen2021codex`)
+- Opens Project Search with `@<citekey>` as a whole-word query
+- Lists every chapter where the source is cited
+
+Both triggers feed into the standard [Find in Project](#find-in-project), so the four option toggles (Aa / W / .* / .bib) work on the result, and you can run "Replace all" right from there if, say, you want to rename a citekey.
 
 ---
 
@@ -623,8 +759,11 @@ Claude will call `vswrite_set_project` and work with the new project from there 
 | Close Project | `Cmd+Shift+W` |
 | Save | `Cmd+S` |
 | Save As | `Cmd+Shift+S` |
-| Find | `Cmd+F` |
-| Find & Replace | `Cmd+H` |
+| Find (current file) | `Cmd+F` |
+| Find & Replace (current file) | `Cmd+H` |
+| Find in Project | `Cmd+Shift+F` |
+| Add Comment | `Cmd+Alt+M` |
+| Reading Mode | `Cmd+Alt+R` |
 | Toggle sidebar | `Cmd+B` |
 | Toggle preview | `Cmd+Shift+P` |
 | Toggle terminal | `` Cmd+` `` |

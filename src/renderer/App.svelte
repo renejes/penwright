@@ -4,12 +4,14 @@
   import ShortcutCheatsheet from '../editor/components/ShortcutCheatsheet.svelte';
   import SettingsPanel from '../editor/components/SettingsPanel.svelte';
   import SearchReplace from '../editor/components/SearchReplace.svelte';
+  import ProjectSearchPanel from './components/ProjectSearchPanel.svelte';
   import QuickSettings from '../editor/components/QuickSettings.svelte';
   import WelcomeScreen from '../editor/components/WelcomeScreen.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import OutlinePanel from './components/OutlinePanel.svelte';
   import IncludesPanel from './components/IncludesPanel.svelte';
   import ProjectPanel from './components/ProjectPanel.svelte';
+  import CommentsPanel from './components/CommentsPanel.svelte';
   import PreviewPanel from './components/PreviewPanel.svelte';
   import TerminalPanel from './components/TerminalPanel.svelte';
   import TextFileViewer from './components/TextFileViewer.svelte';
@@ -35,6 +37,7 @@
     contextMenu,
     newProjectState,
     exportDialogState,
+    projectSearchPreset,
     openTab,
     closeTab,
     tabName,
@@ -137,6 +140,9 @@
 
     ipc.onMessage(handleMessage);
     window.addEventListener('keydown', handleGlobalKeydown);
+    window.addEventListener('vswrite:project-search-jump', handleProjectSearchJump as EventListener);
+    window.addEventListener('vswrite:add-comment', addCommentFromSelection as EventListener);
+    window.addEventListener('vswrite:find-backlinks', handleFindBacklinks as EventListener);
 
     // Drag & Drop images into the editor
     document.addEventListener('dragover', (e) => e.preventDefault());
@@ -242,8 +248,150 @@
     uiState.typewriterMode = !uiState.typewriterMode;
   }
 
+  function toggleReadingMode() {
+    uiState.readingMode = !uiState.readingMode;
+  }
+
+  // ─── Add Comment ────────────────────────────────
+  // Anchor the comment to the current selection (preferred) or the word
+  // under the cursor (fallback). Computes a source-offset hint by walking
+  // the document up to the selection, which the backend uses as a starting
+  // point for re-locating the anchor on later opens.
+  async function addCommentFromSelection() {
+    const editor = editorRef.current;
+    if (!editor || !tabState.currentFile) {
+      alert('Bitte zuerst eine Datei öffnen.');
+      return;
+    }
+    const { state } = editor;
+    let { from, to } = state.selection;
+    let anchorText = state.doc.textBetween(from, to, ' ', ' ').trim();
+
+    // No selection → expand to the surrounding word
+    if (!anchorText) {
+      const resolved = state.doc.resolve(from);
+      const parent = resolved.parent;
+      const text = parent.textBetween(0, parent.content.size, ' ', ' ');
+      const offsetInParent = resolved.parentOffset;
+      let start = offsetInParent;
+      let end = offsetInParent;
+      while (start > 0 && /\S/.test(text[start - 1])) start--;
+      while (end < text.length && /\S/.test(text[end])) end++;
+      anchorText = text.slice(start, end);
+      if (!anchorText) {
+        alert('Bitte Text markieren, der kommentiert werden soll.');
+        return;
+      }
+    }
+
+    if (anchorText.length > 200) anchorText = anchorText.slice(0, 200);
+
+    // Best-effort source-offset hint: the byte position in the live source.
+    const rangeStart = Math.max(0, tabState.currentContent.indexOf(anchorText));
+    const rangeEnd = rangeStart + anchorText.length;
+
+    const projectInfo = await (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI.invoke('project:getInfo') as { projectDir: string | null };
+    if (!projectInfo.projectDir) {
+      alert('Kein Projekt geöffnet.');
+      return;
+    }
+
+    const rel = tabState.currentFile.startsWith(projectInfo.projectDir + '/')
+      ? tabState.currentFile.slice(projectInfo.projectDir.length + 1)
+      : tabState.currentFile.replace(/^.*\//, '');
+
+    const api = (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    const created = await api.invoke('comments:create', {
+      file: rel.replace(/\\/g, '/'),
+      anchor: anchorText,
+      rangeStart,
+      rangeEnd,
+      body: '',
+    });
+
+    if (!created) {
+      alert('Kommentar konnte nicht angelegt werden.');
+      return;
+    }
+
+    // Switch sidebar to Comments and let the panel scroll to the new entry
+    panelState.showSidebar = true;
+    panelState.sidebarTab = 'comments';
+    window.dispatchEvent(new CustomEvent('vswrite:comment-created', { detail: created }));
+  }
+
+  // Backlinks trigger: OutlinePanel hover-button or citation right-click
+  // dispatches `vswrite:find-backlinks` with `{ query, wholeWord, caseSensitive }`.
+  // We seed the project-search preset (consumed-once on panel mount) and
+  // open the panel.
+  function handleFindBacklinks(e: Event) {
+    const detail = (e as CustomEvent<{ query: string; wholeWord?: boolean; caseSensitive?: boolean }>).detail;
+    if (!detail?.query) return;
+    projectSearchPreset.query = detail.query;
+    projectSearchPreset.wholeWord = !!detail.wholeWord;
+    projectSearchPreset.caseSensitive = !!detail.caseSensitive;
+    // If the panel is already open, force a remount so the preset is picked
+    // up. Cheapest way: close + open via tick.
+    if (uiState.showProjectSearch) {
+      uiState.showProjectSearch = false;
+      requestAnimationFrame(() => { uiState.showProjectSearch = true; });
+    } else {
+      uiState.showProjectSearch = true;
+    }
+  }
+
+  // Project Search → after the file opens, scroll the editor to the first
+  // occurrence of the match text so the user can see context. Editor mount
+  // is async, so we retry a few times before giving up.
+  function handleProjectSearchJump(e: Event) {
+    const detail = (e as CustomEvent<{ matchText: string }>).detail;
+    if (!detail?.matchText) return;
+    let attempts = 0;
+    const tryScroll = () => {
+      const editor = editorRef.current;
+      const root = editor?.view.dom;
+      if (!root) {
+        if (attempts++ < 20) setTimeout(tryScroll, 100);
+        return;
+      }
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      const target = detail.matchText;
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const text = node.textContent || '';
+        const idx = text.indexOf(target);
+        if (idx >= 0) {
+          const range = document.createRange();
+          range.setStart(node, idx);
+          range.setEnd(node, idx + target.length);
+          const rect = range.getBoundingClientRect();
+          const container = root.closest('.editor-container');
+          if (container) {
+            const containerRect = container.getBoundingClientRect();
+            const offset = rect.top - containerRect.top + container.scrollTop - containerRect.height / 3;
+            container.scrollTo({ top: offset, behavior: 'smooth' });
+          } else {
+            (node.parentElement as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          return;
+        }
+      }
+      if (attempts++ < 8) setTimeout(tryScroll, 120);
+    };
+    setTimeout(tryScroll, 80);
+  }
+
   function handleGlobalKeydown(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      uiState.showProjectSearch = true;
+      return;
+    }
     if (mod && e.key === 'f') {
       e.preventDefault();
       uiState.showSearch = true;
@@ -263,6 +411,10 @@
     if (mod && e.key === '`') {
       e.preventDefault();
       panelState.showTerminal = !panelState.showTerminal;
+    }
+    if (mod && e.altKey && (e.key === 'r' || e.key === 'R')) {
+      e.preventDefault();
+      toggleReadingMode();
     }
     if (e.key === 'Escape') {
       if (uiState.focusMode) uiState.focusMode = false;
@@ -319,6 +471,9 @@
   onDestroy(() => {
     clearTimeout(debounceTimer);
     window.removeEventListener('keydown', handleGlobalKeydown);
+    window.removeEventListener('vswrite:project-search-jump', handleProjectSearchJump as EventListener);
+    window.removeEventListener('vswrite:add-comment', addCommentFromSelection as EventListener);
+    window.removeEventListener('vswrite:find-backlinks', handleFindBacklinks as EventListener);
     editorRef.current?.destroy();
   });
 </script>
@@ -327,7 +482,7 @@
   <!-- Titlebar drag region (macOS hiddenInset) -->
   <div class="titlebar-drag-region"></div>
 
-  <div class="vswrite-container" class:focus-mode={uiState.focusMode} class:typewriter-mode={uiState.typewriterMode}>
+  <div class="vswrite-container" class:focus-mode={uiState.focusMode} class:typewriter-mode={uiState.typewriterMode} class:reading-mode={uiState.readingMode}>
     {#if editorRef.current}
       {@const _ = editorVersion.value}
       {#if !uiState.focusMode}
@@ -351,6 +506,15 @@
             </button>
             <button
               class="toolbar-icon-btn"
+              class:active={uiState.readingMode}
+              onclick={toggleReadingMode}
+              title="Reading Mode (Cmd+Alt+R)"
+              aria-pressed={uiState.readingMode}
+            >
+              &#x1D4E1;
+            </button>
+            <button
+              class="toolbar-icon-btn"
               onclick={toggleFocusMode}
               title="Focus Mode"
             >
@@ -368,6 +532,10 @@
       {#if uiState.showSearch}
         <SearchReplace editor={editorRef.current} onClose={() => (uiState.showSearch = false)} />
       {/if}
+    {/if}
+
+    {#if uiState.showProjectSearch}
+      <ProjectSearchPanel onClose={() => (uiState.showProjectSearch = false)} />
     {/if}
 
     <!-- Start Screen (when no file is open) -->
@@ -389,6 +557,7 @@
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'outline'} onclick={() => panelState.sidebarTab = 'outline'} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label="Outline panel">Outline</button>
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'includes'} onclick={() => panelState.sidebarTab = 'includes'} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label="Chapters panel">Chapters</button>
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'git'} onclick={() => panelState.sidebarTab = 'git'} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Project panel">Project</button>
+            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'comments'} onclick={() => panelState.sidebarTab = 'comments'} role="tab" aria-selected={panelState.sidebarTab === 'comments'} aria-label="Comments panel">Comments</button>
           </div>
           <div class="sidebar-body">
             {#if panelState.sidebarTab === 'files'}
@@ -399,6 +568,8 @@
               <IncludesPanel content={tabState.currentContent} currentFile={tabState.currentFile} />
             {:else if panelState.sidebarTab === 'git'}
               <ProjectPanel />
+            {:else if panelState.sidebarTab === 'comments'}
+              <CommentsPanel />
             {/if}
           </div>
         </div>

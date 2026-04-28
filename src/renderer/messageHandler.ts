@@ -151,6 +151,12 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'showSearch') {
     uiState.showSearch = true;
   }
+  if (msg.type === 'showProjectSearch') {
+    uiState.showProjectSearch = true;
+  }
+  if (msg.type === 'addComment') {
+    window.dispatchEvent(new CustomEvent('vswrite:add-comment'));
+  }
   if (msg.type === 'showShortcuts') {
     uiState.showShortcuts = true;
   }
@@ -159,6 +165,9 @@ export function handleMessage(message: ExtensionMessage): void {
   }
   if (msg.type === 'toggleTypewriterMode') {
     uiState.typewriterMode = !uiState.typewriterMode;
+  }
+  if (msg.type === 'toggleReadingMode') {
+    uiState.readingMode = !uiState.readingMode;
   }
 
   // Open the Export selection dialog when the menu triggers an export on

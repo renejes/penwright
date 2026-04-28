@@ -119,6 +119,17 @@ export function buildMenu(state: AppState): void {
           accelerator: 'CmdOrCtrl+F',
           click: () => send('showSearch'),
         },
+        {
+          label: 'Find in Project…',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => send('showProjectSearch'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Add Comment',
+          accelerator: 'CmdOrCtrl+Alt+M',
+          click: () => send('addComment'),
+        },
         { type: 'separator' },
         {
           label: 'Undo AI Edit',
@@ -154,6 +165,11 @@ export function buildMenu(state: AppState): void {
         {
           label: 'Typewriter Mode',
           click: () => send('toggleTypewriterMode'),
+        },
+        {
+          label: 'Reading Mode',
+          accelerator: 'CmdOrCtrl+Alt+R',
+          click: () => send('toggleReadingMode'),
         },
         { type: 'separator' },
         { role: 'reload' },
