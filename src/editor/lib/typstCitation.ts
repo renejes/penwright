@@ -76,6 +76,41 @@ export const TypstCitation = Node.create({
         }));
       });
 
+      // Hover preview: 350 ms after entering a citation badge, dispatch a
+      // `vswrite:citation-hover` event. The App-level listener decides whether
+      // to mount the hover card. We also dispatch `vswrite:citation-leave`
+      // so the card can begin its close-with-grace-period.
+      let hoverTimer: number | null = null;
+      dom.addEventListener('mouseenter', () => {
+        const citekey = (node.attrs.citekey as string) || '';
+        if (!citekey) return;
+        if (hoverTimer != null) window.clearTimeout(hoverTimer);
+        hoverTimer = window.setTimeout(() => {
+          hoverTimer = null;
+          const rect = dom.getBoundingClientRect();
+          window.dispatchEvent(new CustomEvent('vswrite:citation-hover', {
+            detail: {
+              citekey,
+              rect: {
+                left: rect.left,
+                right: rect.right,
+                top: rect.top,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height,
+              },
+            },
+          }));
+        }, 350);
+      });
+      dom.addEventListener('mouseleave', () => {
+        if (hoverTimer != null) {
+          window.clearTimeout(hoverTimer);
+          hoverTimer = null;
+        }
+        window.dispatchEvent(new CustomEvent('vswrite:citation-leave'));
+      });
+
       return {
         dom,
         stopEvent: () => true,

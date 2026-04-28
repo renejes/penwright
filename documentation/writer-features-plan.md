@@ -100,7 +100,23 @@ Typst hat `#footnote[Inhalt]`. Es gibt aktuell keinen UI-Weg, eine Fußnote einz
 
 ---
 
-## 3. Cross-References
+## 3. Cross-References ✅ (Session 15)
+
+> **Implementiert** — Picker-only (kein neuer Inline-Trigger). `@` bleibt
+> exklusiv für Citations. Cross-Refs werden über drei Surfaces ausgelöst:
+> Slash-Command `/Reference`, Menü `Edit → Insert Reference…`, Shortcut
+> `Cmd+Alt+L`. Picker zeigt alle `<label>`s im Projekt, gruppiert nach
+> Typ (Abbildung / Tabelle / Gleichung / Überschrift / Andere) mit
+> bestmöglich extrahierter Caption.
+>
+> Im Editor: orangene Inline-Pille `↳ fig:results` (visuell deutlich vom
+> blauen `@`-Citation-Badge unterschieden). Kein Live-Resolve auf
+> „Fig. 3" — Typst macht das beim Compile, im Editor bleibt der Label
+> stabil und reorder-sicher.
+>
+> Disambiguierung beim Deserializer: Label-Name enthält `:` ODER startet
+> mit einem bekannten Präfix (`fig|tbl|eq|sec|chap|app|thm|lem|def|cor|prop|algo|lst`)
+> → Reference-Node, sonst Citation-Node.
 
 ### Problem
 Typst kennt `<label>` und `@label`-Verweise mit Auto-Numbering. Beispiel: `#figure(image("a.png"), caption: "X") <fig:1>` und im Text `siehe @fig:1`. User muss die Label-Namen aktuell manuell tippen + sich merken, welche Labels existieren.
@@ -230,7 +246,17 @@ Quelle ergänzen — vielleicht den Müller-Artikel?
 
 ---
 
-## 5. Outline drag-to-reorder
+## 5. Outline drag-to-reorder ✅ (Session 14)
+
+> **Implementiert** als Single-File-Reorder per HTML5-Drag-API. Headings im
+> Outline-Panel sind drag-bar; beim Drop wird der gesamte „Block" (Heading
+> plus alles bis zum nächsten Heading gleicher oder höherer Stufe) per
+> ProseMirror-`tr.delete` + `tr.replace` an die Zielposition verschoben. Der
+> Block-Range wird über `node.nodeSize` und das Heading-Level bestimmt.
+> Die Drop-Linie erscheint je nach Cursor-Y über oder unter der Ziel-Row.
+>
+> Cross-File-Reorder (zwischen Kapitel-Dateien) bleibt bewusst dem
+> Chapters-Tab überlassen.
 
 ### Problem
 [OutlinePanel.svelte](src/renderer/components/OutlinePanel.svelte) ist read-only Navigation. Der User kann sehen, welche Headings es gibt, aber sie nicht umordnen ohne in der Source zu editieren.
@@ -302,7 +328,18 @@ Zum Korrekturlesen gibt's heute nur die PDF-Preview rechts daneben — schön, a
 
 ---
 
-## 7. Inline Source Preview
+## 7. Inline Source Preview ✅ (Session 14)
+
+> **Implementiert** als Hover-Karte über Citation-Badges. Nach 350 ms Dwell
+> auf `@citekey` öffnet sich ein Popover mit Autor / Titel / Jahr aus der
+> in-memory Bib-Liste, plus „PDF öffnen"-Button wenn `sources/<citekey>*.pdf`
+> existiert. Klick auf den Button öffnet das PDF als Tab via
+> `PdfFileViewer` (kein Mini-Modal — der existierende Tab-Renderer ist
+> komfortabler und kann selbst zoomen / blättern).
+>
+> Die Karte schließt mit 250-ms-Grace-Period, sobald sowohl Badge als auch
+> Karte verlassen werden — Maus kann von Badge zu Karte wandern, ohne dass
+> sie verschwindet.
 
 ### Problem
 Der `sources/`-Ordner enthält PDFs zu jeder Zitation. Wer im Text auf `@chen2021codex` klickt, will direkt die Quelle nachschauen — heute muss man manuell zur Sidebar, das PDF suchen, öffnen.
@@ -433,11 +470,11 @@ Das ist der „**Shunn Standard Manuscript Format**", quasi-Standard für Einrei
 |---|---------|---------|----------|------------|
 | 1 | Find in Project | ✅ | beide | hoch — ohne nicht skalierbar |
 | 2 | Footnote-UI | ✅ | beide | hoch — täglich genutzt |
-| 5 | Outline drag-to-reorder | 1 Tag | beide | hoch — User-Reibung |
+| 5 | Outline drag-to-reorder | ✅ | beide | hoch — User-Reibung |
 | 4 | Comments/Annotations | ✅ | beide | hoch — Betreuer-Workflow |
-| 3 | Cross-References | 1,5–2 Tage | akademisch | mittel-hoch |
+| 3 | Cross-References | ✅ | akademisch | mittel-hoch |
 | 6 | Reading Mode | ✅ | Prosa | mittel |
-| 7 | Inline Source Preview | 1 Tag | akademisch | mittel |
+| 7 | Inline Source Preview | ✅ | akademisch | mittel |
 | 8 | Backlinks | ✅ | beide | mittel |
 | 9 | Manuscript Export | 1 Tag | Prosa | niedrig — Nische |
 

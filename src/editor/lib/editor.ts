@@ -7,6 +7,7 @@ import { TypstImage } from './typstImage';
 import { TypstTable, TypstTableRow, TypstTableCell, TypstTableHeader } from './typstTable';
 import { TypstFootnote } from './typstFootnote';
 import { TypstCitation } from './typstCitation';
+import { TypstReference } from './typstReference';
 import { TypstBibliography } from './typstBibliography';
 import { TypstPagebreak } from './typstPagebreak';
 import { CitationSuggestion } from './citationSuggestion';
@@ -185,6 +186,7 @@ export function createEditor(
       TypstImage,
       TypstFootnote,
       TypstCitation,
+      TypstReference,
       TypstBibliography,
       TypstPagebreak,
       CitationSuggestion,

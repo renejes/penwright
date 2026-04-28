@@ -130,6 +130,11 @@ export function buildMenu(state: AppState): void {
           accelerator: 'CmdOrCtrl+Alt+M',
           click: () => send('addComment'),
         },
+        {
+          label: 'Insert Reference…',
+          accelerator: 'CmdOrCtrl+Alt+L',
+          click: () => send('showReferencePicker'),
+        },
         { type: 'separator' },
         {
           label: 'Undo AI Edit',

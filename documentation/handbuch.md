@@ -1,7 +1,7 @@
 # vswrite Desktop — Handbuch
 
 > **Version:** 0.7.0 (Pre-Release)
-> **Letzte Aktualisierung:** 2026-04-28
+> **Letzte Aktualisierung:** 2026-04-29
 > **English version:** [handbook.md](handbook.md)
 
 ---
@@ -99,7 +99,7 @@ Alle Panels sind per Drag resizeable.
 Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleiste** (oben am Bildschirm auf macOS, oben am Fenster auf Windows / Linux). Fuenf Top-Level-Menues:
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
-- **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), Undo AI Edit
+- **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus Standard-Window-/Zoom-Rollen
 - **Document** — Document Settings, Style-Templates-Submenu (7 vordefinierte + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts, Report Issue (und About auf Windows / Linux)
@@ -122,6 +122,7 @@ Tippe `/` an einer leeren Stelle im Editor:
 | `/Image` | Bild einfuegen |
 | `/Footnote` | Fussnote — Popup oeffnet sich automatisch zur Eingabe |
 | `/Citation` | `@` als Trigger fuer den Citation-Picker |
+| `/Reference` | Cross-Reference-Picker — waehle ein `<label>` zum Einfuegen als `@label` |
 | `/Table` | Tabelle einfuegen (mit Header) |
 
 ### Multi-Tab Editor
@@ -157,6 +158,16 @@ Tippe `@` im Editor -> Dropdown mit allen Quellen aus den `.bib`-Dateien:
 - Klick fuegt `@citekey` als Citation-Node ein
 - Citations werden automatisch beim Datei-OEffnen geladen
 - Funktioniert auch mit Zotero-verknuepften `.bib`-Dateien
+
+### Inline Source Preview
+
+Hover ueber ein `@citekey`-Badge fuer ~ 350 ms und ein kleines Popover erscheint mit:
+- Autor, Titel und Jahr aus dem `.bib`-Eintrag
+- **PDF oeffnen**-Button, wenn eine passende Quelle in `sources/` liegt
+
+Konvention: Quell-PDFs in den `sources/`-Ordner legen und so benennen, dass der **Dateiname mit dem Citekey beginnt** — `chen2021codex.pdf`, `chen2021codex_supplement.pdf`, `chen2021codex-arxiv.pdf` matchen alle. Klick auf **PDF oeffnen** und die Quelle erscheint als regulaerer Tab im integrierten PDF-Viewer (Text markierbar + kopierbar).
+
+Die Karte bleibt 250 ms nach Verlassen des Badges sichtbar — du kannst die Maus also auf die Karte fuehren, ohne dass sie verschwindet.
 
 ---
 
@@ -202,6 +213,8 @@ Die Sidebar hat fuenf Tabs:
 
 ### Outline
 - Live Heading-Hierarchie (H1 -> H2 -> H3), Klick navigiert zum Heading
+- **Per Drag umsortieren:** zieh eine Heading-Zeile nach oben oder unten — die ganze Sektion (Heading + alles bis zum naechsten gleich- oder hoeherrangigen Heading) wandert mit. Eine blaue 2-px-Linie zeigt das Drop-Ziel. Funktioniert nur innerhalb einer Datei; kapitelweises Umsortieren laeuft weiterhin ueber den **Chapters**-Tab.
+- **Backlinks finden:** Hovern ueber ein Heading laesst rechts einen kleinen Pfeil **↪** erscheinen — Klick darauf zeigt jede Stelle im Projekt, wo das Heading erwaehnt wird (siehe [Backlinks](#backlinks--wo-wird-das-sonst-noch-erwaehnt))
 
 ### Chapters (Include-Manager)
 - `#include` Statements, Pfeile zum Umsortieren (sofortiges UI-Update), x zum Entfernen, + Add Chapter
@@ -261,6 +274,55 @@ In beiden Faellen wird eine leere Fussnote an der Cursor-Position eingefuegt und
 **In der Source:** `#footnote[Dein Text]` — wird vom Typst-Compiler nummeriert und positioniert.
 
 **Im Editor:** kleine hochgestellte Markierung mit Preview-Text (erste ~30 Zeichen). Echte Nummer + Position-am-Seitenende erscheinen erst in der PDF-Preview rechts (400 ms Compile-Debounce).
+
+---
+
+## Cross-References
+
+In Typst kannst du Figuren, Tabellen, Gleichungen oder Headings mit einem `<label>` markieren und von ueberall im Projekt mit `@label` darauf verweisen. Typst nummeriert beim Compilen automatisch — wenn du Kapitel umstellst oder eine Figur einfuegst, aktualisieren sich alle Verweise ohne Zutun.
+
+vswrite gibt dir einen Picker, der jedes `<label>` im Projekt auflistet, damit du dir keine Namen merken musst.
+
+### Label setzen
+
+Schreib das Label direkt nach dem Element, auf das du verweisen willst:
+
+```typst
+#figure(
+  image("plot.png"),
+  caption: [Parameter-Skalierung],
+) <fig:scaling>
+
+= Method <sec:method>
+
+$ "Attention"(Q, K, V) = "softmax"(frac(Q K^T, sqrt(d_k))) V $ <eq:attention>
+```
+
+Konventionell bekommen Labels ein Praefix nach Art des Verweises — `fig:`, `tbl:`, `eq:`, `sec:`, `chap:` etc. Der Picker gruppiert seine Treffer ueber diese Praefixe, und der Editor unterscheidet damit Reference von Citation (siehe unten).
+
+> **Equation-Refs** brauchen aktivierte Nummerierung. Setze in deiner `main.typ` Preamble `#set math.equation(numbering: "(1)")` — sonst weist Typst jeden `@eq:…`-Verweis beim Compile zurueck.
+
+### Reference einfuegen
+
+Drei Wege, den Picker zu oeffnen:
+
+- **Slash-Command:** `/Reference`
+- **Menue:** `Edit -> Insert Reference…`
+- **Shortcut:** `Cmd+Alt+L`
+
+Der Picker zeigt jedes Label im Projekt, gruppiert nach Typ (Abbildungen / Tabellen / Gleichungen / Ueberschriften / Andere) mit Caption-Vorschau und Quellort (`chapters/04-results.typ:24`). Das Suchfeld filtert ueber Label, Caption und Pfad. ↑↓ navigiert, Enter fuegt ein, Esc bricht ab.
+
+Im Editor erscheint die eingefuegte Node als **orangene `↳ label`-Pille** — visuell klar unterschieden vom blauen `@citekey`-Citation-Badge. In der Source serialisiert sie zur normalen Typst-Syntax `@label`.
+
+### Citation vs. Reference — Disambiguierung
+
+Typst nutzt fuer Citations (`@chen2021codex`) und Cross-References (`@fig:scaling`) dieselbe `@…`-Syntax. vswrite unterscheidet sie ueber den Namen:
+
+- Enthaelt einen Doppelpunkt (`:`) — Reference
+- Beginnt mit einem bekannten Praefix (`fig`, `tbl`, `eq`, `sec`, `chap`, `app`, `thm`, `lem`, `def`, `cor`, `prop`, `algo`, `lst` und ihre Vollformen) — Reference
+- Sonst — Citation
+
+Deshalb ist das `@`-Autocomplete reserviert fuer Citations (Citekeys sind konventionell schlichte Slugs). Fuer Refs nutzt du den Picker.
 
 ---
 
@@ -763,6 +825,7 @@ Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen 
 | Suchen & Ersetzen (aktuelle Datei) | `Cmd+H` |
 | Suchen im Projekt | `Cmd+Shift+F` |
 | Kommentar hinzufuegen | `Cmd+Alt+M` |
+| Cross-Reference einfuegen | `Cmd+Alt+L` |
 | Reading Mode | `Cmd+Alt+R` |
 | Sidebar ein/aus | `Cmd+B` |
 | Preview ein/aus | `Cmd+Shift+P` |

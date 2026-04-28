@@ -1,6 +1,6 @@
 # vswrite Desktop — Next Steps bis zum Release
 
-> Audit-Datum: 2026-04-17 | App-Version (Doku): 0.7.0 (Pre-Release) | package.json: 0.1.0 — vor dem ersten Release auf 0.7.0 hochzaehlen.
+> Audit-Datum: 2026-04-17 (zuletzt erweitert 2026-04-29 fuer Writer-Features-QA) | App-Version (Doku): 0.7.0 (Pre-Release) | package.json: 0.1.0 — vor dem ersten Release auf 0.7.0 hochzaehlen.
 
 ---
 
@@ -429,6 +429,8 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 ### Phase 5: QA & Release
 
+#### Core (Sessions 1–10)
+
 - [ ] Alle Features auf macOS manuell testen
 - [ ] Multi-File-Projekte, Includes, Zitationen
 - [ ] File-Locking, externe Edits, Crash Recovery
@@ -440,6 +442,72 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Lizenz-Tampering-Test: electron-store JSON editieren, Pro vortaeuschen, App sollte zurueck auf "Unlicensed" fallen
 - [ ] DMG auf sauberem Mac (ohne Developer Tools) testen — Gatekeeper
 - [ ] Git-Tag `v0.7.0` erstellen
+
+#### Writer-Features (Sessions 11–15)
+
+> Alles auf `/Users/renejesser/Desktop/test_thesis` durchziehen — das Projekt enthaelt jetzt Footnotes, Citations, Comments, Cross-References (Figuren / Tabellen / Equations / Section-Labels).
+
+**Find in Project (Session 12):**
+- [ ] `Cmd+Shift+F` oeffnet das Slide-In-Panel
+- [ ] Suche nach Wort liefert gruppierte Treffer pro Datei
+- [ ] Optionen: case sensitive / whole word / regex / `.bib` einbeziehen verhalten sich jeweils richtig
+- [ ] Klick auf einen Treffer scrollt im Editor zur Stelle
+- [ ] Replace-All ueber alle Dateien funktioniert + Confirm-Dialog erscheint vorher
+
+**Footnote-UI (Session 12):**
+- [ ] Toolbar-Button „Fn" inserts leere Fussnote, Popup oeffnet automatisch
+- [ ] `/Footnote` slash-command verhaelt sich gleich
+- [ ] Klick auf bestehende Fussnote oeffnet sie zum Editieren; `Esc` / `Cmd+Enter` schliesst
+- [ ] Round-Trip: Fussnote schreiben, Datei reload — Inhalt bleibt erhalten
+
+**Comments / Annotations (Session 12, Bugfix Session 16):**
+- [ ] Selektion + Toolbar „Cm" / Menue `Edit -> Add Comment` / `Cmd+Alt+M` legen Kommentar an
+- [ ] **Highlights erscheinen sofort beim File-Open** (frueher: nur nach Klick auf Comments-Tab — Bug behoben)
+- [ ] Klick auf Highlight scrollt im Side-Panel zum Eintrag
+- [ ] Anchor-Klick im Side-Panel scrollt im Editor zur Stelle (mit Flash)
+- [ ] Comments wandern als sichtbare `comments/<id>.md` ins Projekt
+- [ ] Comments **erscheinen NICHT** im PDF/DOCX-Output
+- [ ] Resolved-Toggle blendet Highlight aus, Eintrag bleibt im Panel
+- [ ] Loeschen entfernt Datei + Highlight
+
+**Reading Mode (Session 13):**
+- [ ] `Cmd+Alt+R` toggelt Buchsatz-Typografie
+- [ ] Code-, Math- und Raw-Typst-Bloecke bleiben monospace
+- [ ] Editing bleibt aktiv (Tippfehler direkt korrigierbar)
+- [ ] View-Menue + Toolbar-`𝓡`-Toggle synchron
+
+**Backlinks (Session 13):**
+- [ ] Hover ueber ein Heading im Outline zeigt `↪`-Button → oeffnet Project-Search mit dem Heading-Text
+- [ ] Right-Click auf Citation-Badge oeffnet Project-Search mit `@<citekey>` (whole-word)
+- [ ] Beide Trigger zeigen alle Vorkommen ueber alle Kapitel
+
+**Outline drag-to-reorder (Session 14):**
+- [ ] Heading-Row im Outline ist drag-bar
+- [ ] Drop ueber/unter einer anderen Row bewegt den ganzen Block (Heading + zugehoerige Inhalte bis zum naechsten gleich-/hoeherrangigen Heading)
+- [ ] Drop-Linie erscheint als blaue 2-px-Anzeige
+- [ ] Drop-on-self / drop-direkt-darunter sind No-Ops
+- [ ] Verschachtelte H2 unter H1 wandern mit
+- [ ] Source-File reflektiert die Reihenfolge nach Save
+
+**Inline Source Preview (Session 14):**
+- [ ] 350-ms-Hover ueber `@chen2021codex` oeffnet Karte mit Autor / Jahr / Titel
+- [ ] „PDF oeffnen"-Button erscheint, wenn `sources/<citekey>*.pdf` existiert (test_thesis hat das fuer alle 5 Citations)
+- [ ] Karte verschwindet **nicht** wenn Maus von Badge zu Karte wandert (250-ms-Grace)
+- [ ] Klick auf „PDF oeffnen" oeffnet das PDF als Tab im PdfFileViewer
+
+**Cross-References (Session 15):**
+- [ ] `/Reference` slash-command oeffnet den Picker
+- [ ] `Edit -> Insert Reference…` Menue oeffnet ihn auch
+- [ ] `Cmd+Alt+L` oeffnet ihn ebenfalls
+- [ ] Picker zeigt alle Labels gruppiert nach Typ (Abbildung / Tabelle / Gleichung / Ueberschrift / Andere) mit Caption-Vorschau
+- [ ] Filter-Input filtert ueber Label, Caption und Pfad
+- [ ] Type-Tabs (Alle / Abb. / Tab. / Gl. / § / Andere) filtern korrekt
+- [ ] Tastatur: `↑↓` navigiert, `Enter` fuegt ein, `Esc` schliesst
+- [ ] Eingefuegte Pille (orange `↳ label`) ist visuell vom blauen `@`-Citation-Badge unterscheidbar
+- [ ] Round-Trip: Reference einfuegen, save, reload — kommt als Reference-Node (nicht als Citation) zurueck
+- [ ] Cross-File-Refs (Discussion -> @sec:results / @fig:scaling / @tbl:params / @eq:attention) resolven im PDF zu „Section 4 / Figure 1 / Table 1 / Equation (1)"
+- [ ] Disambiguierungs-Edge-Case: ein Citekey wie `chen2021codex` (ohne Doppelpunkt, ohne bekanntes Praefix) bleibt Citation; ein Label wie `fig:scaling` wird Reference
+- [ ] Picker zeigt korrekte Caption-Vorschau (test_thesis: „Parameter counts and architectural family…", „Parameter scaling of encoder vs. decoder…")
 
 ### Phase 6: Post-Release
 
@@ -457,7 +525,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 ## 6. MCP Phase 4 — Writer-Features fuer Agents
 
-Aktuell koennen Agents Footnotes nur ueber generische `read_file` / `write_file` einfuegen (Typst-Syntax muss der Agent selbst kennen) und Comments nur ueber direktes Schreiben in `comments/<id>.md` (kein Schema-Schutz, keine ID-Generierung). Das funktioniert, aber ist fragil. Sinnvolle Erweiterungen:
+Aktuell koennen Agents Footnotes nur ueber generische `read_file` / `write_file` einfuegen (Typst-Syntax muss der Agent selbst kennen), Comments nur ueber direktes Schreiben in `comments/<id>.md` (kein Schema-Schutz, keine ID-Generierung), und Cross-References gar nicht (sie wuerden Labels neu erfinden anstatt auf existierende zu verweisen). Sinnvolle Erweiterungen:
 
 ### 6.1 Footnote-Tool
 
@@ -498,10 +566,70 @@ delete_comment({ id: "2026-04-28-1432-a3f" })
 
 `add_comment` macht intern: ID generieren, `comments/<id>.md` schreiben mit korrekt gefuelltem Frontmatter, `rangeStart` aus aktueller Datei berechnen, `author` aus Git-Config holen. Der Agent muss das Frontmatter-Schema **nicht** kennen.
 
-### 6.3 Wo das hingehoert
+### 6.3 Cross-Reference-Tools
 
-Implementierung im MCP-Server [src/mcp/server.ts](src/mcp/server.ts) — die Logik existiert bereits in [src/main/commentManager.ts](src/main/commentManager.ts), muss aber so refaktoriert werden, dass sie ohne `appState` (also ohne Electron-Kontext) lauft. Konkret: `appState.projectDir` durch einen explicit uebergebenen `projectDir`-Parameter ersetzen, oder einen Standalone-Wrapper bauen.
+```ts
+list_labels({
+  type?: "figure" | "table" | "equation" | "heading" | "other",
+})
 
-### 6.4 Pro-Gating
+insert_reference({
+  file: "chapters/05-discussion.typ",
+  after_text: "as shown in",       // exakter Substring zum Verankern
+  label: "fig:scaling",            // muss in list_labels() vorkommen
+  occurrence: 1,
+})
+```
+
+`list_labels` spiegelt den `project:listLabels`-Handler aus [src/main/projectLabels.ts](src/main/projectLabels.ts) und gibt fuer jeden `<label>` im Projekt `{ label, type, caption, relPath, line }` zurueck — der Agent kann sich also vor dem Insert orientieren statt zu raten. `insert_reference` validiert, dass der Label tatsaechlich existiert (sonst Fehler mit Liste der naechsten Match-Kandidaten), und schreibt `@label` an die gewaehlte Stelle.
+
+Edge-Cases:
+- Label nicht gefunden -> Fehler mit aehnlich klingenden Labels als Vorschlag (analog zu Footnote)
+- `after_text` mehrfach -> Fehler mit Treffer-Liste, wenn `occurrence` fehlt
+- Agent versucht ein neues Label zu vergeben (z. B. `fig:newone`) -> kein dediziertes Tool dafuer; passiert ueber `write_file` direkt in der Source. Bewusst, weil Label-Vergabe inhaerent an `<…>`-Setzungen direkt nach `#figure`/`#table`/Heading gebunden ist und nicht entkoppelt davon Sinn macht.
+
+### 6.4 Wo das hingehoert
+
+Implementierung im MCP-Server [src/mcp/server.ts](src/mcp/server.ts) — Logik existiert bereits:
+- Comments: [src/main/commentManager.ts](src/main/commentManager.ts) — `appState.projectDir`-Abhaengigkeit muss durch expliziten `projectDir`-Parameter ersetzt werden, oder Standalone-Wrapper.
+- Labels: [src/main/projectLabels.ts](src/main/projectLabels.ts) — gleiche Frage; aktuell liest die Funktion `appState.projectDir` und `appState.currentContent` (fuer in-memory Hot-File). Im MCP-Kontext: einfach den `projectDir` als Parameter durchreichen, kein Hot-File noetig (MCP-Calls operieren immer auf Disk).
+
+### 6.5 Pro-Gating
 
 Wie alle MCP-Tools auf Pro-Lizenz gegated. Dokumentation in [mcp-server.md](mcp-server.md) ergaenzen, sobald implementiert.
+
+---
+
+## 7. Claude Skills aktualisieren
+
+Die Skills, die beim Projektanlegen automatisch in `.claude/skills/` erzeugt werden, sind beim heutigen Stand auf den **alten Funktionsumfang** geeicht (Sessions 1–10). Mit den Writer-Features aus Sessions 12–15 sind sie inhaltlich rueckstaendig. Vor Launch alle drei Skills durchgehen:
+
+### 7.1 typst-reference
+
+Aktuell deckt der Skill grundlegende Typst-Syntax (Headings, Lists, Math, Figures, Tables, Bibliography) ab. Zu ergaenzen:
+
+- **Cross-References:** wie `<label>` an `#figure(...)`/`#table(...)`/Headings angehaengt wird, welche Praefixe konventionell sind (`fig:`, `tbl:`, `eq:`, `sec:`, …), und wie `@label` im Fliesstext zu Auto-Numbering fuehrt
+- **Equation-Numbering:** `#set math.equation(numbering: "(1)")` ist Voraussetzung fuer `<eq:foo>`-Refs; ohne diesen Set bricht der Build
+- **Footnotes:** `#footnote[...]`-Syntax mit balanced-bracket-Hinweis (Body darf `]` enthalten, wenn die Klammern matchen)
+- **Comments im Source vs. vswrite-Comments:** `// …` ist ein Typst-Compile-Comment, vswrite-Annotations leben hingegen als sichtbare `comments/<id>.md` ausserhalb der Source
+
+### 7.2 vswrite-conventions
+
+Soll alle vswrite-eigenen Konzepte abdecken, die ueber reines Typst hinausgehen. Heute fehlen:
+
+- **Drei Persistenz-Schichten:** Versionen (`.git/`), Auto-Backup (`.vswrite/backups/`), AI-Snapshots (`.vswrite/ai-snapshots/`) — Agent muss wissen, dass Versionen das User-Vokabular sind und nicht „Commits" heissen
+- **`comments/`-Ordner** ist sichtbar und cloud-sync-tauglich; YAML-Frontmatter-Schema dokumentieren, damit Agent ohne `commentManager` ID + Frontmatter korrekt erzeugen kann (oder besser: stets ueber das `add_comment`-MCP-Tool gehen)
+- **Cross-References:** Picker-Konvention im UI (`/Reference` slash, `Cmd+Alt+L`, `Edit -> Insert Reference…`); im Source emergiert das als `@label`. Disambiguierungs-Heuristik (Doppelpunkt oder bekannter Praefix) erklaeren, damit Agent nicht versehentlich Refs als Citations missinterpretiert
+- **Sources-Ordner:** PDFs fuer Citations gehoeren nach `sources/<citekey>*.pdf` damit der Inline-Source-Preview den Match findet
+- **Reading Mode / Focus Mode / Typewriter Mode** — Mode-Toggles, die das Editor-Layout beeinflussen, aber den Source nicht aendern (relevant, falls Agent UI-Vorgaben gibt)
+
+### 7.3 research-workflow
+
+Aktuell auf Recherche + Citation-Workflow ausgerichtet. Zu ergaenzen:
+
+- **Backlinks-Pattern:** Agent kann via `project:search` nach `@<citekey>` (whole-word) suchen, um alle Vorkommen einer Quelle zu finden — nuetzlich beim Refactoren von Citekeys oder zum Konsistenz-Check
+- **Inline Source Preview:** PDFs nach `sources/<citekey>*.pdf` benennen, damit User per Hover direkt den Source aufrufen kann
+
+### 7.4 Wo die Skills liegen
+
+Die Templates werden bei jedem `New Project` aus dem Repo nach `<projekt>/.claude/skills/` kopiert. Quelle der Wahrheit liegt im Repo selbst (zu pruefen: irgendwo unter `src/shared/projectTemplates.ts` oder als statische Dateien im Build-Output) — vor Update beide Sprachvarianten checken (Deutsch + Englisch), falls beide existieren, sonst zumindest Englisch. Bestehende Projekte profitieren erst vom Update, nachdem sie die Skill-Datei manuell ersetzen — ueberlegenswert: ein optionales „Skills aktualisieren"-Menue.

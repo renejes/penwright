@@ -135,6 +135,15 @@ const COMMANDS: SlashItem[] = [
     },
   },
   {
+    title: 'Reference',
+    description: 'Insert cross-reference (@label)',
+    icon: '↳',
+    command: () => {
+      // Picker is owned by App.svelte; we just open it via a window event.
+      window.dispatchEvent(new CustomEvent('vswrite:open-reference-picker'));
+    },
+  },
+  {
     title: 'Image',
     description: 'Insert image from file',
     icon: '\uD83D\uDDBC',

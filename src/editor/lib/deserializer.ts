@@ -323,9 +323,11 @@ function stripKnownInlines(text: string): string {
       }
     }
 
-    // Skip @citekey patterns (so they don't interfere with raw block detection)
+    // Skip @citekey / @label patterns (so they don't interfere with raw
+    // block detection). Allow `:` and `.` so cross-refs like `@fig:results`
+    // are also covered.
     if (!matched && text[i] === '@' && /[a-zA-Z]/.test(text[i + 1] || '')) {
-      const citeMatch = text.slice(i).match(/^@[a-zA-Z][\w-]*/);
+      const citeMatch = text.slice(i).match(/^@[a-zA-Z][\w:.-]*/);
       if (citeMatch) {
         i += citeMatch[0].length;
         matched = true;
@@ -695,12 +697,55 @@ type InlineSegType =
   | 'footnote'
   | 'link'
   | 'citation'
+  | 'reference'
   | 'textColor'
   | 'highlight'
   | 'underline'
   | 'superscript'
   | 'subscript'
   | 'smallcaps';
+
+const REFERENCE_PREFIXES = new Set([
+  'fig', 'figure',
+  'tbl', 'table', 'tab',
+  'eq', 'eqn', 'equation',
+  'sec', 'section',
+  'chap', 'chapter',
+  'app', 'appendix',
+  'thm', 'theorem',
+  'lem', 'lemma',
+  'def', 'definition',
+  'cor', 'corollary',
+  'prop', 'proposition',
+  'algo', 'alg', 'algorithm',
+  'lst', 'listing',
+]);
+
+/**
+ * Heuristic: does this `@name` look like a Typst label (cross-reference)
+ * rather than a bib citekey? Citekeys are conventionally bare slugs like
+ * `chen2021codex`; labels are typically prefixed with `fig:`, `tbl:`,
+ * `sec:` etc. Anything containing a colon or starting with a known label
+ * prefix is treated as a reference.
+ */
+function isReferenceLabel(name: string): boolean {
+  const colonIdx = name.indexOf(':');
+  if (colonIdx > 0) return true;
+  // Bare prefix like `figure` or `section` is rare for citekeys but plausible
+  // for headings — only count an exact-match prefix as a reference.
+  return REFERENCE_PREFIXES.has(name.toLowerCase());
+}
+
+/** Maps a label name to a coarse type used for icon / picker grouping. */
+function refTypeFromLabel(name: string): 'figure' | 'table' | 'equation' | 'heading' | 'other' {
+  const colonIdx = name.indexOf(':');
+  const prefix = (colonIdx > 0 ? name.slice(0, colonIdx) : name).toLowerCase();
+  if (prefix === 'fig' || prefix === 'figure') return 'figure';
+  if (prefix === 'tbl' || prefix === 'table' || prefix === 'tab') return 'table';
+  if (prefix === 'eq' || prefix === 'eqn' || prefix === 'equation') return 'equation';
+  if (prefix === 'sec' || prefix === 'section' || prefix === 'chap' || prefix === 'chapter') return 'heading';
+  return 'other';
+}
 
 interface InlineSegment {
   type: InlineSegType;
@@ -721,6 +766,12 @@ function parseInline(text: string): TipTapNode[] {
         break;
       case 'citation':
         result.push({ type: 'citation', attrs: { citekey: seg.content, label: seg.content } });
+        break;
+      case 'reference':
+        result.push({
+          type: 'reference',
+          attrs: { label: seg.content, caption: '', refType: refTypeFromLabel(seg.content) },
+        });
         break;
       case 'link':
         result.push(
@@ -872,18 +923,30 @@ function splitInlineConstructs(text: string): InlineSegment[] {
       }
     }
 
-    // Check @citekey pattern (Typst citation)
+    // Check @label pattern. Same source syntax (`@something`) is used both
+    // for citations (bib entry) and cross-references (label inside a .typ).
+    // We heuristically separate them: a colon in the name OR a known label
+    // prefix (`fig|tbl|eq|sec|chap` and friends) → reference; otherwise →
+    // citation. The picker only ever emits prefixed labels, so the heuristic
+    // matches our own writes round-trip.
     if (!matched && text[i] === '@' && /[a-zA-Z]/.test(text[i + 1] || '')) {
       // Only trigger at word boundary (start of string or after whitespace/punctuation)
       const prev = i > 0 ? text[i - 1] : ' ';
       if (/[\s([\-,;:!?]/.test(prev) || i === 0) {
-        const citeMatch = text.slice(i).match(/^@([a-zA-Z][\w-]*)/);
-        if (citeMatch) {
+        // Reference-style labels can carry colons and dots, so allow them in
+        // the matched name. The classifier below decides the segment type.
+        const refMatch = text.slice(i).match(/^@([a-zA-Z][\w:.-]*)/);
+        if (refMatch) {
           if (i > textStart) {
             segments.push({ type: 'text', content: text.slice(textStart, i) });
           }
-          segments.push({ type: 'citation', content: citeMatch[1] });
-          i += citeMatch[0].length;
+          const name = refMatch[1];
+          if (isReferenceLabel(name)) {
+            segments.push({ type: 'reference', content: name });
+          } else {
+            segments.push({ type: 'citation', content: name });
+          }
+          i += refMatch[0].length;
           textStart = i;
           matched = true;
         }

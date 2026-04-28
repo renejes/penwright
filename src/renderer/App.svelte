@@ -20,6 +20,8 @@
   import LicenseDialog from './components/LicenseDialog.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
   import ExportDialog from './components/ExportDialog.svelte';
+  import CitationHoverCard from './components/CitationHoverCard.svelte';
+  import ReferencePicker from './components/ReferencePicker.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
@@ -51,11 +53,24 @@
     onTerminalResize,
   } from './appState.svelte';
   import { handleMessage } from './messageHandler';
+  import { setCommentMarks, type CommentMark } from '../editor/lib/commentDecorations';
 
   // ─── Local State ───────────────────────────────
   let editorElement: HTMLDivElement;
   let debounceTimer: ReturnType<typeof setTimeout>;
   let panelSaveTimer: ReturnType<typeof setTimeout>;
+
+  // Citation hover preview — shown when the user dwells on an `@citekey`
+  // badge. Position is captured at the moment the badge dispatches its hover
+  // event (we don't track scroll, so the popover is intentionally short-lived).
+  let citationHover = $state<{
+    citekey: string;
+    rect: { left: number; right: number; top: number; bottom: number; width: number; height: number };
+  } | null>(null);
+
+  // Cross-reference picker — shown via slash command (`/Reference`),
+  // menu (`Edit → Insert Reference…` / `Cmd+Alt+L`), or window event.
+  let showReferencePicker = $state(false);
 
   // Debounced panel state persistence
   $effect(() => {
@@ -143,6 +158,9 @@
     window.addEventListener('vswrite:project-search-jump', handleProjectSearchJump as EventListener);
     window.addEventListener('vswrite:add-comment', addCommentFromSelection as EventListener);
     window.addEventListener('vswrite:find-backlinks', handleFindBacklinks as EventListener);
+    window.addEventListener('vswrite:citation-hover', handleCitationHover as EventListener);
+    window.addEventListener('vswrite:open-reference-picker', handleOpenReferencePicker as EventListener);
+    window.addEventListener('vswrite:comment-created', onCommentCreatedAtApp as EventListener);
 
     // Drag & Drop images into the editor
     document.addEventListener('dragover', (e) => e.preventDefault());
@@ -344,6 +362,129 @@
     }
   }
 
+  // Citation hover trigger: a badge dwell-fired `vswrite:citation-hover`.
+  // We just store the citekey + viewport rect; CitationHoverCard owns the
+  // close-with-grace-period logic so the user can move the mouse from badge
+  // to card without it disappearing.
+  function handleCitationHover(e: Event) {
+    const detail = (e as CustomEvent<{
+      citekey: string;
+      rect: { left: number; right: number; top: number; bottom: number; width: number; height: number };
+    }>).detail;
+    if (!detail?.citekey || !detail.rect) return;
+    citationHover = { citekey: detail.citekey, rect: detail.rect };
+  }
+
+  function closeCitationHover() {
+    citationHover = null;
+  }
+
+  // Cross-reference picker — opened from `/Reference` slash command, the
+  // `Edit → Insert Reference…` menu (Cmd+Alt+L), or the window event from
+  // messageHandler. The picker calls back via `onPick` with the chosen
+  // ProjectLabel; we then insert a `reference` node at the current cursor.
+  function handleOpenReferencePicker() {
+    if (!editorRef.current) return;
+    showReferencePicker = true;
+  }
+
+  interface PickedLabel {
+    label: string;
+    type: 'figure' | 'table' | 'equation' | 'heading' | 'other';
+    caption: string;
+    relPath: string;
+    line: number;
+  }
+
+  function insertReferenceFromPicker(picked: PickedLabel) {
+    showReferencePicker = false;
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'reference',
+        attrs: {
+          label: picked.label,
+          caption: picked.caption,
+          refType: picked.type,
+        },
+      })
+      .run();
+  }
+
+  // Comment-mark loading lives at the App level so highlights appear as soon
+  // as a file opens, regardless of whether the Comments sidebar tab has ever
+  // been mounted. Without this, marks only became visible after the user
+  // clicked the Comments tab once — because that's where setCommentMarks was
+  // first called. CommentsPanel still does its own push on CRUD, which is
+  // idempotent (setCommentMarks just overwrites the plugin state).
+  interface RawCommentEntry {
+    id: string;
+    file: string;
+    anchor: string;
+    resolved: boolean;
+    orphaned?: boolean;
+  }
+
+  async function refreshCommentMarks() {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const apiRef = (window as unknown as {
+      electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    if (!apiRef) return;
+
+    if (!tabState.currentFile) {
+      setCommentMarks(editor, []);
+      return;
+    }
+
+    try {
+      const info = await apiRef.invoke('project:getInfo') as { projectDir: string | null };
+      if (!info.projectDir || !tabState.currentFile.startsWith(info.projectDir + '/')) {
+        setCommentMarks(editor, []);
+        return;
+      }
+      const rel = tabState.currentFile.slice(info.projectDir.length + 1).replace(/\\/g, '/');
+      const list = await apiRef.invoke('comments:list', {
+        forFile: rel,
+        includeResolved: false,
+      }) as RawCommentEntry[];
+      const marks: CommentMark[] = list
+        .filter((c) => c.file === rel)
+        .map((c) => ({ id: c.id, anchor: c.anchor, resolved: c.resolved, orphaned: c.orphaned }));
+      setCommentMarks(editor, marks);
+    } catch (err) {
+      console.warn('[vswrite] refreshCommentMarks failed:', err);
+    }
+  }
+
+  // Re-load and re-push marks whenever the current file changes. Editor mount
+  // is async, so we delay one frame to let the new doc content settle before
+  // computing decorations against it.
+  $effect(() => {
+    void tabState.currentFile;
+    void editorRef.current;
+    requestAnimationFrame(() => { void refreshCommentMarks(); });
+  });
+
+  function onCommentCreatedAtApp() {
+    void refreshCommentMarks();
+  }
+
+  function openPdfTabFromHover(filePath: string) {
+    const api = (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    api.invoke('filetree:open', filePath).then((result) => {
+      if (result === 'pdfviewer') {
+        openTab(filePath, 'pdf');
+      }
+    });
+  }
+
   // Project Search → after the file opens, scroll the editor to the first
   // occurrence of the match text so the user can see context. Editor mount
   // is async, so we retry a few times before giving up.
@@ -416,6 +557,10 @@
       e.preventDefault();
       toggleReadingMode();
     }
+    if (mod && e.altKey && (e.key === 'l' || e.key === 'L')) {
+      e.preventDefault();
+      handleOpenReferencePicker();
+    }
     if (e.key === 'Escape') {
       if (uiState.focusMode) uiState.focusMode = false;
       if (uiState.typewriterMode) uiState.typewriterMode = false;
@@ -474,6 +619,9 @@
     window.removeEventListener('vswrite:project-search-jump', handleProjectSearchJump as EventListener);
     window.removeEventListener('vswrite:add-comment', addCommentFromSelection as EventListener);
     window.removeEventListener('vswrite:find-backlinks', handleFindBacklinks as EventListener);
+    window.removeEventListener('vswrite:citation-hover', handleCitationHover as EventListener);
+    window.removeEventListener('vswrite:open-reference-picker', handleOpenReferencePicker as EventListener);
+    window.removeEventListener('vswrite:comment-created', onCommentCreatedAtApp as EventListener);
     editorRef.current?.destroy();
   });
 </script>
@@ -734,6 +882,20 @@
         initialFormat={exportDialogState.format}
         sections={exportDialogState.sections}
         onClose={() => { exportDialogState.show = false; }}
+      />
+    {/if}
+    {#if citationHover}
+      <CitationHoverCard
+        citekey={citationHover.citekey}
+        rect={citationHover.rect}
+        onClose={closeCitationHover}
+        onOpenPdf={openPdfTabFromHover}
+      />
+    {/if}
+    {#if showReferencePicker}
+      <ReferencePicker
+        onClose={() => (showReferencePicker = false)}
+        onPick={insertReferenceFromPicker}
       />
     {/if}
   </div>

@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-04-28 (nach Session 13: Reading Mode + Backlinks via OutlinePanel-Hover-Button und Citation-Right-Click)
+> **Stand:** 2026-04-29 (nach Session 15: Cross-References via `/Reference` Slash-Command + Picker)
 > **Version (Doku):** 0.7.0 (Pre-Release) — package.json: 0.1.0, vor dem ersten Release auf 0.7.0 bumpen
 
 ---
@@ -80,12 +80,14 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **Comments / Annotations**: Toolbar-Button „Cm" oder Menü „Edit → Add Comment" (Cmd+Alt+M) legt Comment an die Selektion (oder das Wort am Cursor); gelbes Highlight im Editor via ProseMirror-Decorations; Side-Panel als 5. Sidebar-Tab
 - [x] **Reading Mode** (Cmd+Alt+R): Buchsatz-Typografie im Editor (Serife, Justified-Text, Buchspiegel-Margins), Code/Math/Raw-Blöcke bleiben monospace; Toggle in Toolbar + View-Menü; Editing bleibt aktiv
 - [x] **Backlinks**: Hover-Button („↪") an jedem Heading im Outline-Panel öffnet Project-Search mit dem Heading-Titel; Right-Click auf eine Citation öffnet die Suche mit `@<citekey>` als Whole-Word-Treffer — beide Trigger nutzen einen Preset-State, der von ProjectSearchPanel beim Mount konsumiert wird
+- [x] **Inline Source Preview**: 350-ms-Hover über `@citekey` öffnet Karte mit Autor / Titel / Jahr aus der Bib + „PDF öffnen"-Button, wenn `sources/<citekey>*.pdf` existiert; Klick öffnet das PDF als Tab via `PdfFileViewer`
+- [x] **Cross-References**: `/Reference` Slash-Command, `Edit → Insert Reference…` Menü, `Cmd+Alt+L` öffnen Picker mit allen `<label>`s im Projekt (gruppiert nach Typ + Caption-Vorschau); inserter eine orangene `↳ label`-Pille, die zu `@label` serialisiert. Disambiguierung via Heuristik (Doppelpunkt oder bekannter Präfix → Reference, sonst Citation)
 - [x] Guard: Bilder nicht in Code-Bloecke einfuegbar
 - [x] Rechtschreibpruefung (Electron Spellchecker, Sprache aus Typst-Settings)
 
 **Sidebar (5 Tabs):**
 - [x] Files: Dateibaum, Navigate Up, **„Neuer Ordner"** (inline input) + **„Asset hinzufügen"** (File-Picker → kopiert nach `assets/`), Drag-Bilder, leere Ordner sichtbar
-- [x] Outline: Live Heading-Hierarchie, Click-to-Navigate
+- [x] Outline: Live Heading-Hierarchie, Click-to-Navigate, **Drag-to-Reorder** (Heading + zugehöriger Block bis zum nächsten gleich-/höherrangigen Heading wandert per ProseMirror-Transaction)
 - [x] Chapters: Include-Manager mit sofortigem UI-Update bei Umsortierung
 - [x] **Project (ehemals Git):** Projekt-Header mit „Im Finder zeigen", „Version speichern"-Card, „Änderungen seit letzter Version" mit Checkboxen, immer sichtbarer Verlauf, Auto-Backup-Status, „Erweitert"-Bereich für Cloud-Sync (Push/Pull/Remote-URL)
 - [x] **Comments (neu):** sichtbare `.md`-Dateien in `comments/`, Filter „Aktuelle Datei / Ganzes Projekt", Resolved-Toggle, Klick auf Anker springt im Editor an die Stelle, gelbes Highlight per ProseMirror-Decorations
@@ -226,14 +228,12 @@ Funktionale Reife als Writing-Tool — neun Features mit Implementierungsdetails
 
 - [x] **Find in Project** — Suche ueber alle `.typ`-Dateien (Session 12)
 - [x] **Footnote-UI** — Toolbar/Slash-Command + Auto-Open-Popup (Session 12)
-- [ ] **Cross-References** (1,5–2 Tage) — `<label>` und `@label`-Picker
+- [x] **Cross-References** — Picker via Slash / Menü / `Cmd+Alt+L` (Session 15)
 - [x] **Comments / Annotations** — sichtbare `.md`-Dateien in `comments/`, kompilieren nicht (Session 12)
-- [ ] **Outline drag-to-reorder** (1 Tag) — Sektionen in der Outline-Sidebar verschieben
+- [x] **Outline drag-to-reorder** — HTML5-Drag, Block-Move via ProseMirror-Transaction (Session 14)
 - [x] **Reading Mode** — Buchsatz-Typografie als Editor-Toggle (Session 13)
 - [x] **Backlinks** — Outline-Hover + Citation-Right-Click (Session 13)
-- [ ] **Reading Mode** (½–1 Tag) — Editor in Buchsatz-Typografie
-- [ ] **Inline Source Preview** (1 Tag) — Hover auf Citation zeigt PDF-Popover
-- [ ] **Backlinks** (½ Tag, nach Find-in-Project) — wo wird ein Heading sonst noch erwähnt?
+- [x] **Inline Source Preview** — Hover-Karte mit Bib-Daten + „PDF öffnen" (Session 14)
 - [ ] **Manuscript Export** (1 Tag) — Shunn-Format fuer Belletristik
 
 Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + Backlinks + Word-Count [done]), **Annotation-Sprint** (Comments + Outline-Reorder), **Reference-Sprint** (Cross-Refs + Source-Preview).
@@ -253,6 +253,53 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 15 (2026-04-29) — Cross-References
+
+**Backend:**
+- Neues Modul [src/main/projectLabels.ts](src/main/projectLabels.ts) — walks alle `.typ`-Dateien (ignoriert `.git`, `.vswrite`, `assets`, `sources`, `comments`), scannt jede Zeile auf `<label>` (Regex `<([a-zA-Z][\w:.-]*)>`), klassifiziert nach Präfix (`fig|tbl|eq|sec|chap|…`) und extrahiert Caption per Heuristik: für Headings die `=+ Heading`-Zeile, für Figuren/Tabellen das nächste `caption: [...]` in den umliegenden Zeilen, für Equations einen `$…$`-Snippet
+- Live in-memory Content der offenen Datei wird mitberücksichtigt (analog projectSearch)
+- Cap bei 2.000 Labels mit Truncation-Flag
+- IPC: `project:listLabels` in [ipcHandlers.ts](src/main/ipcHandlers.ts) + Whitelist in [preload-entry.ts](src/main/preload-entry.ts)
+
+**Editor:**
+- Neue TipTap-Node [src/editor/lib/typstReference.ts](src/editor/lib/typstReference.ts) — inline atomic, Attribute `label`, `caption`, `refType`. Rendert als orangene Pille `↳ label` mit Caption als Tooltip. Distinkte CSS-Klasse `.typst-reference` (warmes Orange) zur visuellen Abgrenzung vom blauen `.typst-citation`
+- [Serializer](src/editor/lib/serializer.ts): `reference`-Node → `@label`
+- [Deserializer](src/editor/lib/deserializer.ts): bestehender `@`-Path erweitert auf `[a-zA-Z][\w:.-]*`, neuer `isReferenceLabel()`-Check entscheidet zwischen `citation`- und `reference`-Segment. Heuristik: Label enthält `:` ODER ist exakt ein bekannter Präfix (`fig|tbl|eq|sec|chap|app|thm|lem|def|cor|prop|algo|lst` und Vollformen). Reine Slugs wie `chen2021codex` bleiben Citations
+- Auch der vorgelagerte Raw-Block-Skip-Path wurde auf `:`/`.` erweitert, damit `@fig:results` keine False-Positives in der Raw-Detection auslöst
+
+**UI:**
+- Neue Komponente [src/renderer/components/ReferencePicker.svelte](src/renderer/components/ReferencePicker.svelte) — Modal mit Backdrop, Filter-Input, Type-Tabs (Alle / Abb. / Tab. / Gl. / § / Andere), Treffer gruppiert nach Typ mit Caption + `relPath:line`. Keyboard: `↑/↓` navigiert, `Enter` fügt ein, `Esc` schließt
+- Eintrag im Slash-Menu: [slashCommands.ts](src/editor/lib/slashCommands.ts) `Reference` mit `↳`-Icon → dispatcht `vswrite:open-reference-picker`-Event
+- Native Menü: [menuBuilder.ts](src/main/menuBuilder.ts) `Edit → Insert Reference…` mit Shortcut `Cmd+Alt+L`. Sendet `showReferencePicker`-IPC, der von [messageHandler.ts](src/renderer/messageHandler.ts) zum gleichen Window-Event umgeleitet wird
+- App-Integration ([App.svelte](src/renderer/App.svelte)): Listener für das Window-Event, `showReferencePicker`-State, `Cmd+Alt+L`-Shortcut im globalen Keydown-Handler, Render des Modals, `insertReferenceFromPicker`-Callback fügt einen `reference`-Node mit Label / Caption / refType ein
+
+**Doku:**
+- [writer-features-plan.md](writer-features-plan.md): Cross-Refs ✅, Implementierungs-Notiz mit Picker-only-Design (kein neuer Inline-Trigger), Disambiguierungs-Heuristik dokumentiert
+- [project_status.md](project_status.md) (diese Datei) + [CLAUDE.md](../CLAUDE.md) erweitert
+
+### Session 14 (2026-04-28) — Outline drag-to-reorder + Inline Source Preview
+
+**Outline drag-to-reorder:**
+- [OutlinePanel.svelte](src/renderer/components/OutlinePanel.svelte) komplett überarbeitet — Heading-Rows sind `draggable="true"`. Pro Heading werden jetzt zusätzlich `nodeSize` getrackt
+- `blockRange(i)` ermittelt den „Sektions-Block": vom Heading-`pos` bis zum `pos` des nächsten Headings mit gleichem oder höherem Rang (oder bis Doc-Ende). So wandert ein H1 mit allen Unter-Headings + Paragraphen
+- Drop-Logik per ProseMirror-Transaction: `slice = doc.slice(from, to)` → `tr.delete(from, to)` → `tr.replace(adjTarget, adjTarget, slice)` mit Position-Korrektur falls Target hinter dem Source-Range lag
+- Drop-Indikator: blaue 2-px-Linie zwischen Rows (oben/unten der Hover-Row, abhängig von Y-Position der Maus). Zusätzliches `.outline-end`-Element fängt „Drop ans Ende"
+- No-Op-Detection: drop-on-self und drop-direkt-darunter werden ignoriert (vermeidet unnötige Transactions)
+- Cross-File-Reorder bleibt dem Chapters-Tab überlassen — Outline sieht nur die offene Datei
+
+**Inline Source Preview (Citation-Hover-Karte):**
+- Backend: neuer IPC-Handler `project:findSourceForCitation` in [ipcHandlers.ts](src/main/ipcHandlers.ts) — sucht in `<project>/sources/` nach `<citekey>.pdf` (exact) oder `<citekey>{_,-,space,.}*.pdf` (Prefix). Pfad wird via `isPathWithinProject` validiert. Channel in [preload-entry.ts](src/main/preload-entry.ts) whitelisted
+- TypstCitation-Node: Mouse-Enter startet 350-ms-Timer, der `vswrite:citation-hover`-Event mit `{ citekey, rect }` dispatcht; Mouse-Leave dispatcht `vswrite:citation-leave`
+- Neue Komponente [CitationHoverCard.svelte](src/renderer/components/CitationHoverCard.svelte): liest Bib-Eintrag aus `getCitationEntries()` (in-memory), zeigt Autor + Jahr + Titel + Citekey, fragt PDF-Pfad via IPC ab, rendert „PDF öffnen"-Button wenn vorhanden
+- Position: rechts neben dem Badge; bei Platzmangel unter dem Badge, mit Viewport-Clamp
+- Close-with-Grace-Period: Verlässt der User Badge oder Karte, läuft 250-ms-Timer; Eintritt in eine der beiden Flächen cancelt ihn — so kann die Maus von Badge zur Karte wandern, ohne dass sie verschwindet
+- Klick auf „PDF öffnen" → `filetree:open` + `openTab(path, 'pdf')`, das PDF erscheint als regulärer Tab im PdfFileViewer (mit Zoom, Scrolling, Text-Selection — kein Mini-Modal nötig)
+- App-State: neues `citationHover`-State in [App.svelte](src/renderer/App.svelte), Listener für `vswrite:citation-hover`, Render der Karte am Container-Ende mit `position: fixed`
+
+**Doku:**
+- [writer-features-plan.md](writer-features-plan.md): Outline-Reorder + Source-Preview als ✅ markiert, Implementierungs-Notizen am Anfang der Sektionen, Empfehlungs-Tabelle aktualisiert
+- [project_status.md](project_status.md) (diese Datei): Sidebar-Beschreibung erweitert + Writer-Features-Block aktualisiert
 
 ### Session 13 (2026-04-28) — Polish-Sprint: Reading Mode + Backlinks + Comments-Bugfix
 

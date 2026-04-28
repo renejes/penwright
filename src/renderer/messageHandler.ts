@@ -157,6 +157,9 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'addComment') {
     window.dispatchEvent(new CustomEvent('vswrite:add-comment'));
   }
+  if (msg.type === 'showReferencePicker') {
+    window.dispatchEvent(new CustomEvent('vswrite:open-reference-picker'));
+  }
   if (msg.type === 'showShortcuts') {
     uiState.showShortcuts = true;
   }

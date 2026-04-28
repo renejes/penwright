@@ -266,6 +266,10 @@ function serializeInline(nodes: TipTapNode[]): string {
         return `@${node.attrs?.citekey ?? ''}`;
       }
 
+      if (node.type === 'reference') {
+        return `@${node.attrs?.label ?? ''}`;
+      }
+
       if (node.type === 'hardBreak') {
         return '\n';
       }
