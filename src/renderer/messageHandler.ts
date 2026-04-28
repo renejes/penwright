@@ -147,6 +147,20 @@ export function handleMessage(message: ExtensionMessage): void {
     uiState.showAbout = true;
   }
 
+  // Native menu hooks for things that live in renderer state.
+  if (msg.type === 'showSearch') {
+    uiState.showSearch = true;
+  }
+  if (msg.type === 'showShortcuts') {
+    uiState.showShortcuts = true;
+  }
+  if (msg.type === 'toggleFocusMode') {
+    uiState.focusMode = !uiState.focusMode;
+  }
+  if (msg.type === 'toggleTypewriterMode') {
+    uiState.typewriterMode = !uiState.typewriterMode;
+  }
+
   // Open the Export selection dialog when the menu triggers an export on
   // a multi-chapter project.
   if (msg.type === 'showExportDialog') {

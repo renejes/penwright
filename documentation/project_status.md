@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-04-28 (nach Session 10: Projekt-First-Class, SVG-Preview entfernt, Export-Modal, DOCX-Multi-Chapter)
+> **Stand:** 2026-04-28 (nach Session 11: Wortzahl + Lesezeit in der Status Bar, CommandHub entfernt, native Menues ausgebaut, Writer-Features-Plan)
 > **Version (Doku):** 0.7.0 (Pre-Release) — package.json: 0.1.0, vor dem ersten Release auf 0.7.0 bumpen
 
 ---
@@ -20,10 +20,10 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - About-Dialog zeigt Version + Lizenz + System-Info
 - **Offen fuer Launch:** Crash-Telemetrie, Auto-Updater End-to-End-Test, finale QA auf echter 100-Seiten-Thesis
 
-**Codebase:** ~21.000 Zeilen in 79 Dateien
+**Codebase:** ~20.500 Zeilen in 78 Dateien
 - Main Process: ~3.300 Zeilen (16 Module + pathSecurity.ts)
-- Renderer: ~6.000 Zeilen (App.svelte + 18 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog)
-- Editor: ~5.800 Zeilen
+- Renderer: ~5.500 Zeilen (App.svelte + 18 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog)
+- Editor: ~5.300 Zeilen (CommandHub.svelte entfernt — ~456 Zeilen)
 - Shared: ~2.700 Zeilen (docxSerializer mit Word-Styles)
 - MCP: ~800 Zeilen
 - CLI: ~800 Zeilen (aus Extension, unused)
@@ -122,11 +122,13 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] File Locking fuer Shared Folders (Dropbox, iCloud, OneDrive) — Lock-Datei, Heartbeat, Stale-Detection
 
 **App Shell:**
-- [x] macOS Titlebar (hiddenInset), native Menues
-- [x] Status Bar mit Panel-Toggles, Save-Indikator, Lizenz-Status
+- [x] macOS Titlebar (hiddenInset), **native Menueleiste mit fuenf Top-Level-Menues** (File / Edit / View / Document / Help)
+- [x] **Document-Menue:** Document Settings, Style-Templates-Submenu (7 + Import Custom), Merge/Split Document, Open as Typst Source, Ensure Bibliography
+- [x] **CommandHub entfernt** — alle Aktionen liegen jetzt in der nativen Menueleiste oder Slash-Commands; Toolbar ist minimaler (Quick / Typewriter / Focus rechts)
+- [x] Status Bar mit Panel-Toggles, **Wortzahl + Lesezeit (live, 200 wpm)**, Save-Indikator, Filename, Lizenz-Status
 - [x] Resizeable Panels, Keyboard Shortcuts
 - [x] Terminal (node-pty + xterm.js), Auto-Resize, Max 5 Respawns
-- [x] 37+ IPC Message Handler, 35 IPC Channels
+- [x] 40+ IPC Message Handler, ~50 IPC Channels
 - [x] Modularer Main Process (16 Module)
 - [x] Modularer Renderer (State + MessageHandler extrahiert)
 - [x] Start Screen mit Onboarding (Typst-Check, AI/Terminal Info, Skills)
@@ -193,9 +195,8 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 ### Noch offen vor Launch
 
 - [ ] **DOCX-Iteration:** `#raw("…")` inline aufdröseln, `#outline()` als Word-TOC-Field, weitere Typst-Konstrukte nach Bedarf (iterativ — fundamentaler Refactor via Typst→HTML→DOCX optional später)
-- [ ] **Handbuch-Update:** „Versionen" / „Auto-Backup" / „Projekt schließen" dokumentieren, Git-Sektion aktualisieren auf das neue UI-Vokabular
 - [ ] **Crash-Telemetrie (Sentry)** mit Opt-out-Toggle — kritischster Launch-Enabler
-- [ ] **Shortcut-Cheat-Sheet** (`Cmd+/` Overlay) — Discovery-Problem
+- [ ] **Shortcut-Cheat-Sheet** (`Cmd+/` Overlay) — Discovery-Problem (nativen "Keyboard Shortcuts"-Menueeintrag gibt es seit Session 11)
 - [ ] **"Open Sample Project"** im StartScreen — Conversion-Hebel
 - [ ] **Bestaetigungsdialoge** bei destruktiven Versions-Operationen (Wiederherstellen alter Versionen mit Warndialog ist da; Cloud-Sync-Konflikte fehlen)
 - [ ] **Auto-Updater** (electron-updater) einbinden + Firebase-Hosting einrichten + E2E-Test
@@ -203,6 +204,22 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [ ] **QA auf echter 100-Seiten-Thesis** (nicht nur die 8 Test-Chapters)
 - [ ] **Netlify-Hosting fuer Handbuch** (de + en) live
 - [ ] **package.json Version auf 0.7.0 bumpen** (aktuell 0.1.0)
+
+### Writer-Features (Plan in [writer-features-plan.md](writer-features-plan.md))
+
+Funktionale Reife als Writing-Tool — neun Features mit Implementierungsdetails dokumentiert:
+
+- [ ] **Find in Project** (1 Tag) — Suche ueber alle `.typ`-Dateien
+- [ ] **Footnote-UI** (1–1,5 Tage) — Toolbar/Slash-Command + Side-Editor
+- [ ] **Cross-References** (1,5–2 Tage) — `<label>` und `@label`-Picker
+- [ ] **Comments / Annotations** (2 Tage) — gelbe Margin-Notizen, kompilieren nicht
+- [ ] **Outline drag-to-reorder** (1 Tag) — Sektionen in der Outline-Sidebar verschieben
+- [ ] **Reading Mode** (½–1 Tag) — Editor in Buchsatz-Typografie
+- [ ] **Inline Source Preview** (1 Tag) — Hover auf Citation zeigt PDF-Popover
+- [ ] **Backlinks** (½ Tag, nach Find-in-Project) — wo wird ein Heading sonst noch erwähnt?
+- [ ] **Manuscript Export** (1 Tag) — Shunn-Format fuer Belletristik
+
+Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + Backlinks + Word-Count [done]), **Annotation-Sprint** (Comments + Outline-Reorder), **Reference-Sprint** (Cross-Refs + Source-Preview).
 
 ### Offen (nach v1.0)
 
@@ -219,6 +236,36 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 ---
 
 ## Session-Log
+
+### Session 11 (2026-04-28) — Writer-Tool-Polish: Wortzahl, Hub-Removal, native Menues, Feature-Plan
+
+**Wortzahl + Lesezeit in der Status Bar:**
+- Neuer `wordStats` `$derived.by(...)` in [App.svelte](src/renderer/App.svelte) — walks editor JSON, ueberspringt `typstRawBlock` / `codeBlock` / `pagebreak` damit Code nicht mitgezaehlt wird; reagiert live auf `editorVersion.value`
+- Anzeige unten rechts: „1.247 words · 5 min read" (200 wpm, mindestens 1 min wenn > 0 Woerter)
+- toLocaleString() fuer Tausender-Trennzeichen
+
+**CommandHub komplett entfernt:**
+- [CommandHub.svelte](src/editor/components/CommandHub.svelte) geloescht (~456 Zeilen)
+- Import + JSX-Block + `openSettings`-Helper aus [App.svelte](src/renderer/App.svelte) raus
+- Toolbar rechts schlanker: nur noch ⚙ Quick / ‥ Typewriter / ◎ Focus
+- Bundle-Size ~15 KB JS kleiner
+
+**Native Menueleiste ausgebaut:**
+- [menuBuilder.ts](src/main/menuBuilder.ts) restrukturiert: fuenf Top-Level-Menues (File / Edit / View / Document / Help) statt drei
+- **File:** + Open Sources Folder, + Add Citation Manually
+- **Edit:** + Find & Replace (Cmd+F), + Undo AI Edit
+- **View:** + Focus Mode, + Typewriter Mode
+- **Document (neu):** Document Settings, Style-Templates-Submenu (alle 7 + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
+- **Help:** + Keyboard Shortcuts
+- Alle Hub-Aktionen so erreichbar; Slash-Commands bleiben fuer In-Text-Inserts (Image/Math/Table/Citation/etc.)
+- Vier neue Renderer-Message-Handler in [messageHandler.ts](src/renderer/messageHandler.ts): `showSearch`, `showShortcuts`, `toggleFocusMode`, `toggleTypewriterMode`
+
+**Writer-Features-Plan:**
+- Neue Datei [documentation/writer-features-plan.md](writer-features-plan.md) — pro Feature: Problem, Zielverhalten, Implementierungs-Pfad (Backend/Frontend/Editor mit Datei-Verweisen), Risiken, Aufwandsschaetzung
+- Neun Features (Find in Project, Footnote-UI, Cross-References, Comments, Outline-Reorder, Reading Mode, Inline Source Preview, Backlinks, Manuscript Export) mit drei vorgeschlagenen Mini-Release-Sprints
+
+**Doku-Sync:**
+- [handbook.md](handbook.md) und [handbuch.md](handbuch.md): Hub-Sektion ersetzt durch „Native menu" / „Native Menueleiste"-Beschreibung mit allen fuenf Menues; Toolbar-Tabelle ohne Hub-Eintrag; alle Hub-Verweise im Fliesstext entfernt; neue Status-Bar-Beschreibung mit Wortzahl/Lesezeit; App-Layout-Diagramm aktualisiert
 
 ### Session 10 (2026-04-28) — DOCX-Bugfixes + Add-Folder + Status-Update
 
@@ -402,3 +449,5 @@ Die Monolith-Dateien wurden erfolgreich aufgeteilt:
 | `// ─── chapter ───` glued an `= Heading` und droppt Kapitel-H1s im DOCX | `\n\n` zwischen Comment-Marker und Inhalt in `resolveIncludes` |
 | DOCX nur die offene Datei statt ganzes Projekt | `resolveIncludes` vor Serialisierung; gefilterter Temp-File für Teil-Export |
 | Stil-Wechsel in Kapitel-Datei korrumpierte die Datei | Native Block-Dialog wenn currentFile ≠ Root-File |
+| Hamburger-Hub als Auffangbecken — alles zwei Klicks tief versteckt, doppelte Wege fuer File-Aktionen | CommandHub geloescht; native Menueleiste auf fuenf Top-Level-Menues (File/Edit/View/Document/Help) ausgebaut; Slash-Commands fuer In-Text-Inserts |
+| Schreibende sehen ihre Wortzahl nicht | `wordStats` derived in der Status Bar, live, codefiltert, mit Lesezeit-Schaetzung bei 200 wpm |

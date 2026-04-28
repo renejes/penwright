@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import Toolbar from '../editor/components/Toolbar.svelte';
-  import CommandHub from '../editor/components/CommandHub.svelte';
   import ShortcutCheatsheet from '../editor/components/ShortcutCheatsheet.svelte';
   import SettingsPanel from '../editor/components/SettingsPanel.svelte';
   import SearchReplace from '../editor/components/SearchReplace.svelte';
@@ -78,6 +77,34 @@
   let textViewerFile = $derived(activeTab?.type === 'text' || activeTab?.type === 'rawtyp' ? activeTab.path : '');
   let pdfViewerFile = $derived(activeTab?.type === 'pdf' ? activeTab.path : '');
   let hasFileOpen = $derived(tabState.openTabs.length > 0 || !!tabState.currentFile);
+
+  // Word count + reading time. We walk the editor's JSON instead of using
+  // editor.getText() so we can skip raw Typst blocks and code blocks —
+  // their content isn't prose and shouldn't inflate the count.
+  function extractProseText(node: { type?: string; text?: string; content?: unknown[] } | null): string[] {
+    if (!node) return [];
+    if (node.type === 'typstRawBlock' || node.type === 'codeBlock' || node.type === 'pagebreak') return [];
+    if (typeof node.text === 'string') return [node.text];
+    if (Array.isArray(node.content)) {
+      return node.content.flatMap((c) => extractProseText(c as { type?: string; text?: string; content?: unknown[] }));
+    }
+    return [];
+  }
+
+  let wordStats = $derived.by(() => {
+    // Tracks editor mutations so the count stays live while typing.
+    void editorVersion.value;
+    const editor = editorRef.current;
+    if (!editor || !hasFileOpen) return { words: 0, minutes: 0 };
+    try {
+      const text = extractProseText(editor.getJSON() as { content?: unknown[] }).join(' ');
+      const words = text.trim().split(/\s+/).filter(Boolean).length;
+      const minutes = words === 0 ? 0 : Math.max(1, Math.round(words / 200));
+      return { words, minutes };
+    } catch {
+      return { words: 0, minutes: 0 };
+    }
+  });
 
   // IPC adapter for CommandHub/QuickSettings compatibility
   const vscodeBridge = {
@@ -194,10 +221,6 @@
     }
     tabState.currentContent = typst;
     ipc.send({ type: 'edit', content: typst });
-  }
-
-  function openSettings() {
-    ipc.send({ type: 'requestSettings' });
   }
 
   function saveSettings(settings: DocumentSettings) {
@@ -333,15 +356,6 @@
             >
               &#9678;
             </button>
-            <CommandHub
-              editor={editorRef.current}
-              vscode={vscodeBridge}
-              onShowShortcuts={() => (uiState.showShortcuts = true)}
-              onShowSettings={openSettings}
-              onToggleFocusMode={toggleFocusMode}
-              onToggleTypewriterMode={toggleTypewriterMode}
-              onShowSearch={() => (uiState.showSearch = true)}
-            />
           </div>
           {#if uiState.showQuickSettings}
             <QuickSettings
@@ -588,6 +602,11 @@
       </button>
     </div>
     <div class="status-right">
+      {#if hasFileOpen && wordStats.words > 0}
+        <span class="status-info" title="Word count · estimated reading time at 200 wpm">
+          {wordStats.words.toLocaleString()} {wordStats.words === 1 ? 'word' : 'words'} · {wordStats.minutes} min read
+        </span>
+      {/if}
       {#if uiState.exporting}
         <span class="status-info status-exporting" aria-live="polite">Exporting {uiState.exportFormat.toUpperCase()}...</span>
       {:else if !tabState.isSaved}

@@ -46,7 +46,7 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 +--------------------------------------------------------------+
 |                        (Titelleiste)                          |
 +--------------------------------------------------------------+
-|  B I U S  | H1 H2 H3 | bul num | Link | Quick Focus Hub      |  Toolbar
+|  B I U S  | H1 H2 H3 | bul num | Link  ⚙ ‥ ◎               |  Toolbar
 +------+-------------------------------+-----------------------+
 |[Files|Outline|Chapters|Project]      |                       |
 |      |  [main.typ] [refs.bib]        |                       |
@@ -56,7 +56,7 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 +------+-------------------------------+-----------------------+
 |  Terminal / AI  (echtes Shell-Terminal)                       |
 +--------------------------------------------------------------+
-| [Project] [Terminal/AI] [Preview]      Saved 14:35  main.typ |
+| [Project] [Terminal/AI] [Preview]   1.247 Wörter · 5 Min     |
 +--------------------------------------------------------------+
 ```
 
@@ -87,20 +87,21 @@ Alle Panels sind per Drag resizeable.
 | bul | Aufzaehlung | `Cmd+Shift+8` |
 | num | Nummerierte Liste | `Cmd+Shift+7` |
 | { } | Code-Block | `Cmd+Alt+C` |
-| Quick | Quick-Settings | — |
-| Focus | Focus Mode | — |
-| Hub | Aktions-Menue (Command Hub) | — |
+| ⚙ Quick | Quick-Settings-Dropdown | — |
+| ‥ Typewriter | Typewriter-Mode-Toggle | — |
+| ◎ Focus | Focus-Mode-Toggle | — |
 
-### Aktions-Menue (Command Hub)
+### Native Menueleiste
 
-OEffnet ein Dropdown mit allen verfuegbaren Aktionen:
+Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleiste** (oben am Bildschirm auf macOS, oben am Fenster auf Windows / Linux). Fuenf Top-Level-Menues:
 
-- **Insert** — Ueberschriften, Listen, Zitat, Code Block, Math-Formel, Typst Code, Bild, Linie
-- **Format** — Fett, Kursiv, Durchgestrichen, Inline-Code, Link, Textausrichtung
-- **View** — Focus Mode, Suchen & Ersetzen
-- **File** — PDF/DOCX exportieren, Import Markdown, Link Zotero, Dokument-Einstellungen, Merge, Split, Neues Projekt/Datei
-- **Style Templates** — 7 vordefinierte + eigene Templates importieren
-- **Help** — Keyboard Shortcuts
+- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
+- **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), Undo AI Edit
+- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, plus Standard-Window-/Zoom-Rollen
+- **Document** — Document Settings, Style-Templates-Submenu (7 vordefinierte + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
+- **Help** — User Guide, Keyboard Shortcuts, Report Issue (und About auf Windows / Linux)
+
+In-Text-Inserts (Bild, Tabelle, Mathe, Zitat, Trenner, Seitenumbruch etc.) gehen ueber [Slash-Commands](#slash-commands) — tippe `/` an einer leeren Stelle im Editor.
 
 ### Slash Commands
 
@@ -133,7 +134,6 @@ Tippe `/` an einer leeren Stelle im Editor:
 **Einfuegen:**
 - **Slash Command:** `/Image` -> Datei-Auswahl
 - **Drag & Drop:** Bild vom Finder oder aus der Sidebar (assets/) in den Editor ziehen
-- **Command Hub:** Hub -> Insert -> Image
 
 **Bild-Dialog (Klick aufs Bild):**
 - **Breite:** Presets (25 %, 50 %, 75 %, 100 %) oder Custom (z. B. `60%`, `8cm`)
@@ -156,7 +156,7 @@ Tippe `@` im Editor -> Dropdown mit allen Quellen aus den `.bib`-Dateien:
 
 ## Neues Projekt erstellen
 
-**OEffnen:** File -> New Project oder Hub -> File -> New Project
+**OEffnen:** File -> New Project… (`Cmd+N`)
 
 **Dialog:**
 1. **Projektname** eingeben (wird zum Ordnernamen)
@@ -223,13 +223,13 @@ Dieser Tab ersetzt das alte Git-Panel und nutzt Schreiber-Vokabular statt roher 
 ## Import & Export
 
 ### Markdown Import
-- **File -> Import Markdown** oder Hub -> Import Markdown
+- **File -> Import Markdown…**
 - Konvertiert: Headings, Bold/Italic, Links, Images, Listen, Code Blocks, Blockquotes
 - YAML-Frontmatter wird uebersprungen
 - Erzeugt eine neue `.typ`-Datei mit Standard-Preamble
 
 ### Zotero Integration
-- **File -> Link Zotero Library** oder Hub -> Link Zotero Library
+- **File -> Link Zotero Library…**
 - Zotero Better BibTeX `.bib`-Datei auswaehlen
 - Wird als `zotero.bib` ins Projekt kopiert
 - **Auto-Sync:** AEnderungen in Zotero werden automatisch uebernommen (solange die App laeuft)
@@ -276,7 +276,9 @@ Das DOCX wird mit echten Word-Styles erzeugt:
 | Professional Report | Business-Layout |
 | Artsy | Rot-blaues Farbschema |
 
-**Eigene Templates importieren:** Hub -> Style Templates -> Import Style Template -> `.typ`-Datei waehlen. Nur das Preamble (#set/#show Regeln) wird extrahiert, auch aus kompletten Dokumenten. Gespeichert in `.claude/style-templates/`.
+**Template anwenden:** Document-Menue -> Style Templates -> Stil waehlen. Wendet das gewaehlte Preamble auf deine `main.typ` an (nur erlaubt, wenn die Hauptdatei aktiv ist — siehe Hinweis unten).
+
+**Eigene Templates importieren:** Document-Menue -> Style Templates -> Import Custom Template… -> `.typ`-Datei waehlen. Nur das Preamble (#set/#show Regeln) wird extrahiert, auch aus kompletten Dokumenten. Gespeichert in `.claude/style-templates/`.
 
 **Hinweis:** Stile koennen nur angewendet werden, solange du im Hauptdokument des Projekts (`main.typ` bzw. die Datei, auf die deine `#include`s zeigen) bist. Wer einen Stil aus einem Kapitel heraus anwenden will, bekommt einen Block-Dialog — sonst wuerde der Stil-Vorspann an den Kapitel-Anfang gehaengt und die Datei stillschweigend kaputtmachen.
 
@@ -382,7 +384,11 @@ Echtes PTY-Terminal (xterm.js + node-pty):
 ## Auto-Save & Status
 
 - Edits werden nach 1 Sekunde automatisch gespeichert
-- Status Bar: "Unsaved" (orange) oder "Saved 14:35"
+- Status Bar (unten rechts) zeigt jederzeit:
+  - **Wortzahl + Lesezeit** des aktiven Dokuments (z. B. *1.247 Wörter · 5 Min Lesezeit*) — live waehrend du tippst, mit 200 Woertern pro Minute. Code-Bloecke und rohe Typst-Bloecke werden nicht mitgezaehlt, damit der Wert sinnvoll bleibt.
+  - **Save-Status:** "Unsaved" (orange) oder "Saved 14:35"
+  - **Dateiname** des aktiven Tabs
+  - **Lizenz-Tier**-Badge (Unlicensed / Licensed / Pro)
 - Warnung beim Schliessen bei ungespeicherten AEnderungen
 - **Crash Recovery:** Auto-Backups werden nach `<projekt>/.vswrite/backups/<timestamp>/` geschrieben (Intervall konfigurierbar, Default 30 s). Wenn die App abstuerzt und das juengste Backup neuer ist als die zuletzt gespeicherte Datei auf der Platte, bietet vswrite beim Wiederoeffnen des Projekts an, den Backup-Stand zurueckzuholen. Details siehe [Versionen & Auto-Backup](#versionen--auto-backup).
 
