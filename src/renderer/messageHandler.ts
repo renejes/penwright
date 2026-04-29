@@ -94,8 +94,7 @@ export function handleMessage(message: ExtensionMessage): void {
     uiState.welcomeTypstInstalled = message.typstInstalled;
     uiState.welcomePlatform = message.platform;
   } else if (message.type === 'previewPdfUpdate') {
-    const pdfMsg = message as unknown as { pdfData: string };
-    const binaryStr = atob(pdfMsg.pdfData);
+    const binaryStr = atob(message.pdfData);
     const bytes = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) {
       bytes[i] = binaryStr.charCodeAt(i);
@@ -109,13 +108,9 @@ export function handleMessage(message: ExtensionMessage): void {
   } else if (message.type === 'compileError') {
     previewState.error = message.error;
     previewState.compiling = false;
-  }
-
-  // Handle export status
-  if (message.type === 'exportStatus') {
-    const exportMsg = message as unknown as { exporting: boolean; format: string };
-    uiState.exporting = exportMsg.exporting;
-    uiState.exportFormat = exportMsg.format;
+  } else if (message.type === 'exportStatus') {
+    uiState.exporting = message.exporting;
+    uiState.exportFormat = message.format;
   }
 
   // Handle save status

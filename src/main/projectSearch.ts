@@ -149,8 +149,8 @@ function clipContext(line: string, matchStart: number, matchEnd: number): {
   };
 }
 
-export function searchProject(opts: SearchOptions): SearchResults {
-  const projectRoot = appState.projectDir;
+export function searchProject(opts: SearchOptions, projectDir?: string | null): SearchResults {
+  const projectRoot = projectDir ?? appState.projectDir;
   if (!projectRoot) {
     return { files: [], totalMatches: 0, truncated: false, error: 'No project open.' };
   }
@@ -218,8 +218,8 @@ export function searchProject(opts: SearchOptions): SearchResults {
   return { files: results, totalMatches: total, truncated };
 }
 
-export function replaceInProject(opts: ReplaceOptions): ReplaceResults {
-  const projectRoot = appState.projectDir;
+export function replaceInProject(opts: ReplaceOptions, projectDir?: string | null): ReplaceResults {
+  const projectRoot = projectDir ?? appState.projectDir;
   if (!projectRoot) return { filesChanged: 0, totalReplacements: 0, error: 'No project open.' };
   if (!opts.query) return { filesChanged: 0, totalReplacements: 0 };
 

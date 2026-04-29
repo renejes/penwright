@@ -57,7 +57,7 @@ Claude sieht jetzt die vswrite-Tools im MCP-Menue.
 
 ---
 
-## Verfuegbare Tools (26)
+## Verfuegbare Tools (43)
 
 ### Projekt & Dateien (5)
 
@@ -76,7 +76,7 @@ Claude sieht jetzt die vswrite-Tools im MCP-Menue.
 | `vswrite_get_document` | Aktuelles Dokument lesen (Content, Pfad, Word Count) |
 | `vswrite_open_file` | .typ Datei als aktuelles Dokument oeffnen |
 | `vswrite_update_document` | Dokumentinhalt ersetzen und speichern |
-| `vswrite_compile` | Typst kompilieren (SVG/PDF), Fehler zurueckgeben |
+| `vswrite_compile` | Verifiziert, dass das Dokument kompiliert. Liefert `{ success, rootFile, sizeBytes }` oder strukturierte `errors[]`. Ergebnisdatei wird verworfen — fuer ein echtes Artefakt `vswrite_export_pdf` / `vswrite_export_docx` nutzen. |
 
 ### Settings & Styles (4)
 
@@ -106,13 +106,67 @@ Claude sieht jetzt die vswrite-Tools im MCP-Menue.
 | `vswrite_add_citation` | BibTeX-Eintrag hinzufuegen + #bibliography sicherstellen |
 | `vswrite_ensure_bibliography` | references.bib + #bibliography erstellen falls fehlend |
 
-### Export (1)
+### Cross-References & Footnotes (3)
+
+Spiegelung der Cross-Reference-Picker- und Footnote-UI aus dem Editor. Anker-basiert: der Agent gibt einen exakten Text-Snippet als `afterText`/`anchor` und vswrite findet und schreibt an die richtige Stelle.
 
 | Tool | Beschreibung |
 |------|-------------|
-| `vswrite_export_pdf` | PDF an bestimmten Pfad exportieren |
+| `vswrite_list_labels` | Alle `<label>`s im Projekt auflisten, optional nach Typ gefiltert (figure / table / equation / heading / other). Liefert `{ label, type, caption, relPath, line }`. **Vor `insert_reference` aufrufen**, sonst raet der Agent nur. |
+| `vswrite_insert_reference` | `@label` an einer Anker-Position einfuegen. Validiert, dass das Label existiert (sonst Vorschlaege). Auto-Space, wenn der vorherige Char alphanumerisch ist (Typst-Syntax-Zwang). |
+| `vswrite_add_footnote` | `#footnote[<body>]` an einer Anker-Position einfuegen. Klammer-Balance-Check auf den Body, damit der Typst-Parser nicht bricht. |
 
-### Git (3)
+### Comments & Annotations (4)
+
+Spiegelung des Comments-Panels. Comments leben als `comments/<id>.md` im Projekt-Root und werden **nie** in PDF/DOCX kompiliert — geeignet fuer Selbstnotizen oder Betreuer-Feedback.
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_list_comments` | Comments lesen, optional nach Datei gefiltert. Standard: nur offene (nicht-erledigte). |
+| `vswrite_add_comment` | Neuer Comment, verankert an einem exakten Text-Snippet in einer Projektdatei. Erzeugt automatisch ID + YAML-Frontmatter. |
+| `vswrite_resolve_comment` | Comment als erledigt / wieder offen markieren. |
+| `vswrite_delete_comment` | Comment-Datei loeschen. |
+
+### Discovery — Suche & Quellen (3)
+
+Projekt-weite Suche und Citation-Source-Lookup. **Pflicht fuer jeden Konsistenz-Check**: ohne diese Tools muesste der Agent jede Datei einzeln per `read_file` durchgehen, was bei 100+ Kapiteln teuer und fehleranfaellig wird.
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_search_project` | Volltext-Suche ueber alle `.typ` (optional `.bib`). Optionen: case-sensitive / whole-word / regex. Whole-Word funktioniert auch bei Tokens, die mit Sonderzeichen anfangen (`@chen2021codex` etc.) — Lookarounds statt `\b`. Cap: 1000 Treffer. |
+| `vswrite_replace_in_project` | Bulk-Replace ueber alle Dateien. **Destruktiv** — vorher `vswrite_save_version` aufrufen. |
+| `vswrite_find_source_for_citation` | Sucht in `sources/` nach `<citekey>.pdf` oder Suffix-Varianten (`<citekey>_supplement.pdf` etc.). Liefert relativen Pfad oder `{ found: false }`. |
+
+### Export (2)
+
+PDF und DOCX schreiben in den Projektordner — Konvention: `exports/<name>.<ext>`, Parent-Dir wird automatisch angelegt. Pfade ausserhalb des Projekts werden abgelehnt.
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_export_pdf` | PDF-Export ueber die Typst-CLI. Identisch zur Live-Preview. |
+| `vswrite_export_docx` | DOCX-Export mit echten Word-Styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, …) und Live-Multilevel-Numbering. Multi-Chapter wird via `resolveIncludes` gemerged. Heading-Numbers aktualisieren sich live, wenn der Betreuer Kapitel in Word umstellt. |
+
+### Import & Assets (2)
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_import_markdown` | Konvertiert Markdown nach Typst (Headings, Bold/Italic, Links, Bilder, Listen, Code-Bloecke, Blockquotes; YAML-Frontmatter wird uebersprungen). Source: inline `markdown`-Text ODER `srcPath` (kann ausserhalb des Projekts liegen). Destination ist immer im Projekt. |
+| `vswrite_add_image` | Kopiert ein Bild nach `assets/` (Content-Hash-Dedup) und liefert ein Typst-Snippet zurueck. Mit `caption` wird daraus ein `#figure(...)`, mit `caption + label` ein referenzierbares Figure-Target. Optional sofortiger Inline-Insert via `file + afterText` — spart eine Round-Trip. |
+
+### Versionen (4)
+
+High-Level-API analog zum „Versionen"-Panel im UI. Spricht Schreiber-Vokabular („Version speichern" statt „Commit") und arbeitet rein lokal — kein Push zum Remote. Initialisiert das Git-Repo automatisch, wenn das Projekt noch keines hat.
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_save_version` | Benannte Version speichern (Git-Commit). Optional auf bestimmte Dateien einschraenken. Returns `{ sha: null, skipped: true }`, wenn nichts zu speichern ist. |
+| `vswrite_list_versions` | Versionsverlauf lesen, neueste zuerst, max. 200 Eintraege. Pro Eintrag: `{ sha, message, date, author, isAuto }`. |
+| `vswrite_show_version` | Diff einer einzelnen Version pro Datei: `{ path, status, patch }`. |
+| `vswrite_restore_version` | Dateien aus einer historischen Version zurueck in den Working-Tree. **Achtung:** ueberschreibt unkommittete Aenderungen. Vorher `vswrite_save_version` aufrufen, um den aktuellen Stand zu sichern. |
+
+### Git — Low-Level (3)
+
+Fuer Cloud-Sync-Workflows. Im Normalfall reicht der Versionen-Block oben.
 
 | Tool | Beschreibung |
 |------|-------------|
@@ -165,8 +219,192 @@ Agent: vswrite_get_citations()
 Agent: vswrite_list_styles()
 Agent: vswrite_apply_style({ styleId: "elegant" })
 Agent: vswrite_compile()
-Agent: vswrite_export_pdf({ outputPath: "/Users/.../thesis.pdf" })
+Agent: vswrite_export_pdf({ outputPath: "exports/thesis.pdf" })
+  -> "PDF exported to /.../my-thesis/exports/thesis.pdf (842.3 KB)"
 ```
+
+Der Output muss im Projekt liegen — Konvention ist `exports/<name>.pdf`. Der Ordner wird beim ersten Export automatisch angelegt. Wer das PDF ausserhalb des Projekts haben will, verschiebt es danach manuell.
+
+### Version speichern und wiederherstellen
+
+```
+Agent: vswrite_save_version({ message: "Vor Lektorats-Feedback" })
+  -> { sha: "a3f7b91", changes: 4, insertions: 120, deletions: 8 }
+
+Agent: vswrite_list_versions()
+  -> [
+       { sha: "a3f7b91...", message: "Vor Lektorats-Feedback", date: "...", isAuto: false },
+       { sha: "9e2d4c8...", message: "Kapitel 3 erste Fassung", date: "...", isAuto: false }
+     ]
+
+Agent: vswrite_show_version({ sha: "a3f7b91" })
+  -> { sha: "a3f7b91", files: [{ path: "chapters/03-method.typ", status: "modified", patch: "@@ ..." }] }
+
+Agent: vswrite_restore_version({ sha: "9e2d4c8", files: ["chapters/03-method.typ"] })
+  -> "Restored 1 file(s) from version 9e2d4c8."
+```
+
+Vor einem `restore` empfiehlt sich ein `save_version`, sonst gehen die aktuellen Aenderungen der wiederhergestellten Dateien verloren.
+
+### Cross-Reference einfuegen
+
+```
+Agent: vswrite_list_labels({ type: "figure" })
+  -> { labels: [
+       { label: "fig:scaling",   type: "figure", caption: "Parameter scaling …", relPath: "chapters/04-results.typ", line: 24 },
+       { label: "fig:dataflow",  type: "figure", caption: "Dataflow overview",   relPath: "chapters/03-method.typ",  line: 12 }
+     ]}
+
+Agent: vswrite_insert_reference({
+  file: "chapters/05-discussion.typ",
+  afterText: "as shown in",
+  label: "fig:scaling"
+})
+  -> "Inserted \" @fig:scaling\" into chapters/05-discussion.typ at offset 1273. Run vswrite_compile to verify the cross-reference resolves."
+
+Agent: vswrite_compile()
+  -> { success: true }
+```
+
+`list_labels` ist Pflicht-Vorbereitung — `insert_reference` lehnt unbekannte Label-Namen ab und schlaegt aehnlich aussehende Labels vor.
+
+### Footnote einfuegen
+
+```
+Agent: vswrite_add_footnote({
+  file: "chapters/03-method.typ",
+  afterText: "five reference works",
+  body: "Selection was peer-reviewed only — see the methodological note."
+})
+  -> "Inserted footnote into chapters/03-method.typ at offset 842."
+```
+
+Wenn `afterText` mehrfach vorkommt, antwortet das Tool mit der Anzahl Treffer und verlangt einen `occurrence`-Parameter.
+
+### Comment hinterlassen
+
+```
+Agent: vswrite_add_comment({
+  file: "chapters/01-introduction.typ",
+  anchor: "five reference works",
+  body: "Quelle ergaenzen — vielleicht den Mueller-Artikel?",
+  author: "Claude (research)"
+})
+  -> { id: "2026-04-29-1547-x9k", file: "chapters/01-introduction.typ", anchor: "five reference works", … }
+
+Agent: vswrite_list_comments({ file: "chapters/01-introduction.typ" })
+  -> [{ id: "2026-04-29-1547-x9k", body: "Quelle ergaenzen …", resolved: false, … }]
+
+Agent: vswrite_resolve_comment({ id: "2026-04-29-1547-x9k" })
+  -> "Comment 2026-04-29-1547-x9k marked as resolved."
+```
+
+Comments werden **nie** ins PDF/DOCX kompiliert — sie leben als sichtbare Markdown-Dateien im `comments/`-Ordner und sind cloud-sync-tauglich (Dropbox / iCloud / Git nehmen sie mit).
+
+### Backlinks — Konsistenz-Check ueber alle Kapitel
+
+```
+Agent: vswrite_search_project({ query: "@chen2021codex", wholeWord: true })
+  -> {
+       totalMatches: 7,
+       files: [
+         { relPath: "chapters/02-related.typ",   matches: [{ line: 18, ... }, { line: 34, ... }] },
+         { relPath: "chapters/04-results.typ",   matches: [{ line: 92, ... }] },
+         { relPath: "chapters/05-discussion.typ", matches: [{ line: 12, ... }, ...] }
+       ]
+     }
+
+Agent: vswrite_find_source_for_citation({ citekey: "chen2021codex" })
+  -> { found: true, citekey: "chen2021codex", relPath: "sources/chen2021codex.pdf" }
+```
+
+Das Citation-Whole-Word funktioniert nur dank Lookaround-Pattern — `\b@key\b` waere kaputt, weil `\b` zwischen `@` und Buchstabe nicht greift.
+
+### Bulk-Refactor mit Sicherheitsnetz
+
+```
+Agent: vswrite_save_version({ message: "Vor Citekey-Umbenennung" })
+  -> { sha: "8f2a91c", changes: 0 }   // skipped if nothing to save
+
+Agent: vswrite_replace_in_project({
+  query: "smith2023",
+  replacement: "smith2024",
+  wholeWord: true
+})
+  -> { filesChanged: 4, totalReplacements: 11 }
+
+Agent: vswrite_compile()
+  -> { success: true }
+```
+
+Wenn der Compile fehlschlaegt: `vswrite_restore_version({ sha: "8f2a91c" })` rollt zurueck.
+
+### Recherche-Notizen als Kapitel importieren
+
+```
+Agent: vswrite_import_markdown({
+  markdown: "# Verwandte Arbeiten\n\n## Chen et al. (2021)\n...",
+  destPath: "chapters/06-related.typ"
+})
+  -> "Imported Markdown to chapters/06-related.typ (1842 characters). Review the output …"
+
+Agent: vswrite_add_chapter({ title: "Verwandte Arbeiten" })
+  // …or directly add an #include statement to main.typ via update_document
+```
+
+`import_markdown` schreibt nur die konvertierte Body-Datei. Den `#include`-Eintrag in `main.typ` setzt der Agent in einem zweiten Schritt.
+
+### Bild als Figure mit Cross-Reference einbauen
+
+```
+Agent: vswrite_add_image({
+  srcPath: "/Users/.../scaling-plot.png",
+  caption: "Parameter-Skalierung von Encoder vs. Decoder",
+  label: "fig:scaling",
+  width: "80%",
+  alt: "Plot mit Parameter-Skalierung",
+  file: "chapters/04-results.typ",
+  afterText: "Wir untersuchen die Skalierung."
+})
+  -> "Asset placed at assets/scaling-plot.png. Inserted figure into chapters/04-results.typ at offset 1245."
+
+Agent: vswrite_insert_reference({
+  file: "chapters/05-discussion.typ",
+  afterText: "wie in",
+  label: "fig:scaling"
+})
+  -> "Inserted \" @fig:scaling\" into chapters/05-discussion.typ at offset 832."
+
+Agent: vswrite_compile()
+  -> { success: true }
+```
+
+Mit `caption + label + file + afterText` ist Asset-Anlegen, Figure-Block bauen und Cross-Reference setzen ein einziger Tool-Call.
+
+### DOCX fuer Betreuer-Feedback exportieren
+
+```
+Agent: vswrite_export_docx({ outputPath: "exports/thesis-v3-feedback.docx" })
+  -> "DOCX exported to /.../my-thesis/exports/thesis-v3-feedback.docx (642.8 KB)"
+```
+
+Der Betreuer kann die Datei direkt in Word oeffnen und Kapitel umordnen — Heading-Numbering passt sich live an, weil vswrite Word-Multilevel-Numbering schreibt. Bibliographie wird zu `(Autor Jahr)` aufgeloest.
+
+---
+
+## Skill-Prompts
+
+Der MCP-Server bietet drei MCP-Prompts an, die die im Projekt deployed Skill-Dateien laden:
+
+| Prompt | Inhalt |
+|--------|--------|
+| `typst-reference` | Typst-Sprachreferenz — Syntax, Math, Cross-Refs, Footnotes, Bibliographie |
+| `vswrite-conventions` | vswrite-Projekt-Konventionen — Ordnerstruktur, Persistenz-Schichten, Comments, Mode-Toggles |
+| `research-workflow` | End-to-End-Recherche-Workflow — Discover, Capture, Synthesize, Integrate |
+
+Der Agent ruft sie ueber MCP `prompts/get` ab. Inhalt liegt in `<projekt>/.claude/skills/<name>/SKILL.md` — bei jedem `vswrite_create_project` automatisch deployed, bei bestehenden Projekten on-demand bei Open. Master-Quelle: [src/shared/skillTemplates.ts](../src/shared/skillTemplates.ts).
+
+**Update bestehender Projekte:** Wenn der Skill-Inhalt nach einem vswrite-Update aktualisiert werden soll, einfach die alte SKILL.md loeschen — beim naechsten Open wird sie aus dem Master neu geschrieben. Eigene User-Anpassungen werden nicht ueberschrieben (per-file-Guard).
 
 ---
 

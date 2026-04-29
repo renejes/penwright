@@ -58,6 +58,17 @@ export interface CompileErrorMessage {
   error: string;
 }
 
+export interface PreviewPdfUpdateMessage {
+  type: 'previewPdfUpdate';
+  pdfData: string; // base64-encoded PDF buffer
+}
+
+export interface ExportStatusMessage {
+  type: 'exportStatus';
+  exporting: boolean;
+  format: string;
+}
+
 export type ExtensionMessage =
   | UpdateMessage
   | SettingsDataMessage
@@ -68,7 +79,9 @@ export type ExtensionMessage =
   | CitationDataMessage
   | DocumentLangMessage
   | WelcomeDataMessage
-  | CompileErrorMessage;
+  | CompileErrorMessage
+  | PreviewPdfUpdateMessage
+  | ExportStatusMessage;
 
 // Shared settings interface
 export interface DocumentSettings {

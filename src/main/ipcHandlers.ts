@@ -38,6 +38,7 @@ import {
 import { activateLicense, validateLicense, deactivateLicense } from './licenseManager';
 import { getLicenseData } from './persistenceManager';
 import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
+import { findSourceForCitation } from './citationSources';
 import { listProjectLabels } from './projectLabels';
 import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
 
@@ -623,44 +624,7 @@ export function setupIPC(): void {
   // and trailing tokens. Returns absolute path or null. Used by the citation
   // hover card to surface a "Open PDF" button when the source is bundled.
   ipcMain.handle('project:findSourceForCitation', (_event, citekey: string) => {
-    if (!appState.projectDir) return null;
-    if (typeof citekey !== 'string' || !citekey || !/^[\w:.-]+$/.test(citekey)) return null;
-    const sourcesDir = path.join(appState.projectDir, 'sources');
-    if (!isPathWithinProject(sourcesDir)) return null;
-    if (!fs.existsSync(sourcesDir)) return null;
-    try {
-      const stat = fs.statSync(sourcesDir);
-      if (!stat.isDirectory()) return null;
-      const lower = citekey.toLowerCase();
-      const entries = fs.readdirSync(sourcesDir);
-      // Prefer exact `<citekey>.pdf` over prefix matches.
-      let prefixMatch: string | null = null;
-      for (const entry of entries) {
-        const lc = entry.toLowerCase();
-        if (!lc.endsWith('.pdf')) continue;
-        const stem = lc.slice(0, -4);
-        if (stem === lower) {
-          const full = path.join(sourcesDir, entry);
-          if (isPathWithinProject(full)) return full;
-        }
-        if (
-          !prefixMatch &&
-          (stem.startsWith(lower + '_') ||
-            stem.startsWith(lower + '-') ||
-            stem.startsWith(lower + ' ') ||
-            stem.startsWith(lower + '.'))
-        ) {
-          prefixMatch = entry;
-        }
-      }
-      if (prefixMatch) {
-        const full = path.join(sourcesDir, prefixMatch);
-        if (isPathWithinProject(full)) return full;
-      }
-    } catch (err) {
-      console.warn('[vswrite] findSourceForCitation failed:', err);
-    }
-    return null;
+    return findSourceForCitation(appState.projectDir ?? '', citekey);
   });
 
   ipcMain.handle('project:showInFinder', () => {

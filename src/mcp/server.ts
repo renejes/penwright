@@ -27,6 +27,13 @@ import { parseBibFile } from '../shared/bibParser.js';
 import { resolveIncludes } from '../shared/mergeDocument.js';
 import { splitIntoChapters, slugify } from '../shared/splitDocument.js';
 import { templates as projectTemplates } from '../shared/projectTemplates.js';
+import { listComments, createComment, updateComment, deleteComment } from '../main/commentManager.js';
+import { listProjectLabels, type LabelType } from '../main/projectLabels.js';
+import { searchProject, replaceInProject } from '../main/projectSearch.js';
+import { findSourceForCitation } from '../main/citationSources.js';
+import { markdownToTypst } from '../shared/markdownImporter.js';
+import { serializeDocx } from '../shared/docxSerializer.js';
+import { deserializeTypst } from '../editor/lib/deserializer.js';
 import simpleGit from 'simple-git';
 
 const execFileAsync = promisify(execFile);
@@ -161,7 +168,7 @@ function safeRealpath(target: string): string {
 
 const server = new McpServer({
   name: 'vswrite',
-  version: '0.5.0',
+  version: '0.9.0',
 });
 
 // ─── Prompts: Project Skills ─────────────────────────
@@ -320,63 +327,37 @@ server.tool(
 
 server.tool(
   'vswrite_compile',
-  'Compiles the current Typst document. Returns compilation errors if any, or success with details. Automatically finds the root file for chapter-based projects.',
-  {
-    format: z.enum(['svg', 'pdf']).default('pdf').describe('Output format'),
-    outputPath: z.string().optional().describe('Output file path (optional, defaults to temp file)'),
-  },
-  async ({ format, outputPath }) => {
+  'Verifies that the current Typst document compiles cleanly. Returns success or a structured list of compilation errors with file/line. Automatically resolves the root file for multi-chapter projects (so a chapter file passes too). Output format is PDF; the produced file is written to a temp location and removed afterwards — call vswrite_export_pdf or vswrite_export_docx to get a real artifact.',
+  async () => {
     try {
       const { filePath } = readCurrentDocument();
       const rootFile = findRootFile(filePath);
       const dir = path.dirname(rootFile);
-      const ext = format === 'pdf' ? 'pdf' : 'svg';
-      const outPath = outputPath
-        ? resolveInsideProject(outputPath)
-        : path.join(dir, `.vswrite-compile-output.${ext}`);
-
-      const args = ['compile', rootFile, outPath];
-      if (format === 'svg') {
-        args.push('--format', 'svg');
-      }
+      const tempPath = path.join(dir, '.vswrite-compile-output.pdf');
 
       try {
-        await execFileAsync('typst', args, { cwd: dir, timeout: 30000 });
-
-        const stat = fs.statSync(outPath);
-        const result: Record<string, unknown> = {
-          success: true,
-          format,
-          outputPath: outPath,
-          rootFile,
-          sizeBytes: stat.size,
-        };
-
-        // Clean up temp file if no explicit output path
-        if (!outputPath) {
-          try { fs.unlinkSync(outPath); } catch {}
-          delete result.outputPath;
-        }
-
+        await execFileAsync('typst', ['compile', rootFile, tempPath], { cwd: dir, timeout: 30000 });
+        const stat = fs.statSync(tempPath);
+        try { fs.unlinkSync(tempPath); } catch {}
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ success: true, rootFile, sizeBytes: stat.size }, null, 2),
+          }],
         };
       } catch (compileErr: unknown) {
+        try { fs.unlinkSync(tempPath); } catch {}
         const stderr = (compileErr as { stderr?: string }).stderr || String(compileErr);
         const errors = parseCompileErrors(stderr);
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify({
-              success: false,
-              rootFile,
-              errors,
-            }, null, 2),
+            text: JSON.stringify({ success: false, rootFile, errors }, null, 2),
           }],
         };
       }
     } catch (err) {
-      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );
@@ -551,14 +532,20 @@ server.tool(
 
 server.tool(
   'vswrite_export_pdf',
-  'Compiles the current Typst document and exports it as PDF. Returns the output path on success.',
-  { outputPath: z.string().describe('Absolute path for the PDF output file') },
+  'Compiles the current Typst document and exports it as PDF. The output path must be inside the project directory; the convention is "exports/<name>.pdf". Parent directories are created automatically. Returns the output path on success.',
+  { outputPath: z.string().describe('Path for the PDF output file, relative to the project (e.g. "exports/thesis.pdf"). Absolute paths must point inside the project directory.') },
   async ({ outputPath }) => {
     try {
       const { filePath } = readCurrentDocument();
       const rootFile = findRootFile(filePath);
       const dir = path.dirname(rootFile);
-      const absOutput = path.isAbsolute(outputPath) ? outputPath : path.join(state.projectDir, outputPath);
+      const absOutput = resolveInsideProject(outputPath);
+
+      // Auto-create the parent dir (e.g. exports/) so a fresh project doesn't error on first export.
+      const outDir = path.dirname(absOutput);
+      if (!fs.existsSync(outDir)) {
+        fs.mkdirSync(outDir, { recursive: true });
+      }
 
       await execFileAsync('typst', ['compile', rootFile, absOutput], { cwd: dir, timeout: 30000 });
       const stat = fs.statSync(absOutput);
@@ -570,7 +557,7 @@ server.tool(
         }],
       };
     } catch (err: unknown) {
-      const stderr = (err as { stderr?: string }).stderr || String(err);
+      const stderr = (err as { stderr?: string }).stderr || (err instanceof Error ? err.message : String(err));
       return { content: [{ type: 'text' as const, text: `Export failed:\n${stderr}` }], isError: true };
     }
   },
@@ -1051,6 +1038,229 @@ server.tool(
   },
 );
 
+// ═══════════════════════════════════════════════════════
+// Versions — high-level project history (mirrors the
+// "Versionen" UI in ProjectPanel). All operations are
+// local; nothing is ever pushed to a remote.
+// ═══════════════════════════════════════════════════════
+
+const GITIGNORE_REQUIRED_LINES = ['.vswrite/', '*.pdf'];
+
+async function ensureGitRepo(dir: string): Promise<void> {
+  const git = simpleGit(dir);
+  const isRepo = await git.checkIsRepo();
+  if (!isRepo) {
+    await git.init();
+    // Default to "main" — older Git versions still default to "master".
+    try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
+  }
+  // Make sure .gitignore covers vswrite-local state so we don't accidentally
+  // commit auto-backups or generated PDFs.
+  const gitignorePath = path.join(dir, '.gitignore');
+  let existing = '';
+  if (fs.existsSync(gitignorePath)) {
+    existing = fs.readFileSync(gitignorePath, 'utf-8');
+  }
+  const lines = existing.split('\n').map(l => l.trim());
+  const missing = GITIGNORE_REQUIRED_LINES.filter(req => !lines.includes(req));
+  if (missing.length === 0) return;
+  const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+  const addition = (existing.length === 0 ? '# vswrite\n' : prefix + '\n# vswrite\n') + missing.join('\n') + '\n';
+  fs.writeFileSync(gitignorePath, existing + addition, 'utf-8');
+}
+
+interface DiffFileEntry {
+  path: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed';
+  patch: string;
+}
+
+function parseUnifiedDiff(diff: string): DiffFileEntry[] {
+  const result: DiffFileEntry[] = [];
+  const fileChunks = diff.split(/^diff --git /m).slice(1);
+  for (const chunk of fileChunks) {
+    const lines = chunk.split('\n');
+    const headerMatch = lines[0].match(/a\/(.+) b\/(.+)/);
+    if (!headerMatch) continue;
+    const filePath = headerMatch[2];
+    let status: DiffFileEntry['status'] = 'modified';
+    if (lines.some(l => l.startsWith('new file mode'))) status = 'added';
+    else if (lines.some(l => l.startsWith('deleted file mode'))) status = 'deleted';
+    else if (lines.some(l => l.startsWith('rename from'))) status = 'renamed';
+    const hunkStart = lines.findIndex(l => l.startsWith('@@'));
+    const patch = hunkStart >= 0 ? lines.slice(hunkStart).join('\n') : '';
+    result.push({ path: filePath, status, patch });
+  }
+  return result;
+}
+
+function validateProjectRelPaths(files: string[]): string[] {
+  const out: string[] = [];
+  for (const f of files) {
+    const abs = resolveInsideProject(f);
+    out.push(path.relative(state.projectDir, abs));
+  }
+  return out;
+}
+
+// ─── Tool: vswrite_save_version ──────────────────────
+
+server.tool(
+  'vswrite_save_version',
+  'Saves a named version of the project (creates a Git commit). Use this to mark milestones — they appear in the "Versionen" panel of the vswrite UI. Local-only; never pushes to a remote. Initializes a Git repo if the project has none yet. Returns { sha: null, skipped: true } when there are no changes to save.',
+  {
+    message: z.string().describe('Version description, e.g. "Chapter 3 first draft" or "Before supervisor feedback"'),
+    files: z.array(z.string()).optional().describe('Restrict to these project-relative paths. Omit to include all changes.'),
+  },
+  async ({ message, files }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      await ensureGitRepo(state.projectDir);
+      const git = simpleGit(state.projectDir);
+
+      if (files && files.length > 0) {
+        await git.add(validateProjectRelPaths(files));
+      } else {
+        await git.add('-A');
+      }
+
+      const status = await git.status();
+      if (
+        status.staged.length === 0 &&
+        status.created.length === 0 &&
+        status.deleted.length === 0 &&
+        status.renamed.length === 0
+      ) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ sha: null, skipped: true, reason: 'No changes to save.' }, null, 2),
+          }],
+        };
+      }
+
+      const result = await git.commit(message || 'Untitled version');
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            sha: result.commit,
+            message,
+            changes: result.summary.changes,
+            insertions: result.summary.insertions,
+            deletions: result.summary.deletions,
+          }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_list_versions ─────────────────────
+
+server.tool(
+  'vswrite_list_versions',
+  'Returns the project version history (newest first), capped at the 200 most recent versions. Each entry: { sha, message, date, author, isAuto }. isAuto is true for vswrite-internal auto-versions (message starts with "[auto]").',
+  async () => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const git = simpleGit(state.projectDir);
+      const isRepo = await git.checkIsRepo();
+      if (!isRepo) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ versions: [], note: 'No Git repo yet — call vswrite_save_version to create the first version.' }, null, 2),
+          }],
+        };
+      }
+      const log = await git.log({ '--max-count': 200 });
+      const versions = log.all.map(c => ({
+        sha: c.hash,
+        message: c.message,
+        date: c.date,
+        author: c.author_name,
+        isAuto: c.message.startsWith('[auto]'),
+      }));
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(versions, null, 2) }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_show_version ──────────────────────
+
+server.tool(
+  'vswrite_show_version',
+  'Returns the per-file diff for a specific version. Each file entry: { path, status, patch } where status is "added" | "modified" | "deleted" | "renamed" and patch contains the unified diff hunks.',
+  { sha: z.string().describe('Version id (full or abbreviated Git SHA, 4-40 hex characters) — get this from vswrite_list_versions') },
+  async ({ sha }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      if (!/^[0-9a-f]{4,40}$/i.test(sha)) {
+        return { content: [{ type: 'text' as const, text: `Error: Invalid version id "${sha}". Expected 4-40 hex characters.` }], isError: true };
+      }
+      const git = simpleGit(state.projectDir);
+      const raw = await git.raw(['show', '--no-color', '--format=', sha]);
+      const files = parseUnifiedDiff(raw);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ sha, files }, null, 2) }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_restore_version ───────────────────
+
+server.tool(
+  'vswrite_restore_version',
+  'Restores files from a historical version into the working tree. WARNING: overwrites uncommitted changes for the affected files. Consider calling vswrite_save_version first to preserve the current state before restoring.',
+  {
+    sha: z.string().describe('Version id (Git SHA, 4-40 hex chars) — get this from vswrite_list_versions'),
+    files: z.array(z.string()).optional().describe('Restrict restore to these project-relative paths. Omit to restore everything from that version.'),
+  },
+  async ({ sha, files }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      if (!/^[0-9a-f]{4,40}$/i.test(sha)) {
+        return { content: [{ type: 'text' as const, text: `Error: Invalid version id "${sha}". Expected 4-40 hex characters.` }], isError: true };
+      }
+      const git = simpleGit(state.projectDir);
+
+      if (files && files.length > 0) {
+        const validated = validateProjectRelPaths(files);
+        await git.raw(['checkout', sha, '--', ...validated]);
+      } else {
+        await git.raw(['checkout', sha, '--', '.']);
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Restored ${files && files.length > 0 ? `${files.length} file(s)` : 'all files'} from version ${sha.slice(0, 7)}.`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
 // ─── Tool: vswrite_git_status ────────────────────────
 
 server.tool(
@@ -1120,6 +1330,652 @@ server.tool(
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ═══════════════════════════════════════════════════════
+// Writer Features — Comments, Cross-References, Footnotes
+// (mirrors the Sessions 12-15 features in the renderer)
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Locates `anchor` in `content` and returns the offset of the requested
+ * occurrence. Used by add_comment / insert_reference / add_footnote so
+ * agents can specify "the place where this exact text appears" without
+ * having to compute offsets themselves.
+ */
+function findAnchorOffset(
+  content: string,
+  anchor: string,
+  occurrence: number | undefined,
+  label: string = 'anchor',
+): { offset: number } | { error: string } {
+  if (!anchor) {
+    return { error: `${label} cannot be empty.` };
+  }
+  const occurrences: number[] = [];
+  let idx = 0;
+  while ((idx = content.indexOf(anchor, idx)) !== -1) {
+    occurrences.push(idx);
+    idx += anchor.length;
+  }
+  if (occurrences.length === 0) {
+    const preview = anchor.length > 60 ? anchor.slice(0, 60) + '…' : anchor;
+    return { error: `${label} "${preview}" not found in file.` };
+  }
+  if (occurrences.length > 1 && occurrence === undefined) {
+    return {
+      error: `${label} appears ${occurrences.length} times in the file. Specify "occurrence" (1-${occurrences.length}) to disambiguate.`,
+    };
+  }
+  const occIdx = (occurrence ?? 1) - 1;
+  if (occIdx < 0 || occIdx >= occurrences.length) {
+    return { error: `Invalid occurrence ${occurrence}. Valid range: 1-${occurrences.length}.` };
+  }
+  return { offset: occurrences[occIdx] };
+}
+
+// ─── Tool: vswrite_list_comments ─────────────────────
+
+server.tool(
+  'vswrite_list_comments',
+  'Lists vswrite comments (annotations) in the project. Comments live as Markdown files in the project\'s comments/ folder and are NEVER compiled into the PDF/DOCX output. Each entry: { id, file, anchor, body, rangeStart, rangeEnd, author, date, resolved, orphaned }. "orphaned: true" means the anchor text could not be located in the file (it was edited away).',
+  {
+    file: z.string().optional().describe('Project-relative path to filter by (e.g. "chapters/03-method.typ"). Omit for all files.'),
+    includeResolved: z.boolean().optional().describe('Include resolved comments. Default: false.'),
+  },
+  async ({ file, includeResolved }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const comments = listComments(state.projectDir, {
+        forFile: file,
+        includeResolved: includeResolved ?? false,
+      });
+      // Strip absolute filePath from output — agents only need project-relative info.
+      const slim = comments.map(({ filePath: _filePath, ...rest }) => rest);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(slim, null, 2) }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_add_comment ───────────────────────
+
+server.tool(
+  'vswrite_add_comment',
+  'Creates a new comment anchored to a verbatim text snippet in a project file. Comments appear as yellow highlights in the vswrite editor and never compile into the output. The anchor must match exactly (whitespace-sensitive) and must lie within a single paragraph / heading (multi-paragraph anchors become orphaned).',
+  {
+    file: z.string().describe('Project-relative path of the file to anchor the comment to (e.g. "chapters/01-introduction.typ")'),
+    anchor: z.string().describe('Exact verbatim text in the file the comment is attached to. Whitespace-sensitive. Should be specific enough to be unique within the file.'),
+    body: z.string().describe('Comment body (Markdown allowed: lists, links, code).'),
+    occurrence: z.number().int().min(1).optional().describe('1-based index of the anchor occurrence to use, if it appears multiple times.'),
+    author: z.string().optional().describe('Comment author. Default: "MCP Agent".'),
+  },
+  async ({ file, anchor, body, occurrence, author }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const absFile = resolveInsideProject(file);
+      if (!fs.existsSync(absFile)) {
+        return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
+      }
+
+      const content = fs.readFileSync(absFile, 'utf-8');
+      const located = findAnchorOffset(content, anchor, occurrence, 'Anchor');
+      if ('error' in located) {
+        return { content: [{ type: 'text' as const, text: `Error: ${located.error}` }], isError: true };
+      }
+
+      const relPath = path.relative(state.projectDir, absFile).replace(/\\/g, '/');
+      const created = createComment(state.projectDir, {
+        file: relPath,
+        anchor,
+        rangeStart: located.offset,
+        rangeEnd: located.offset + anchor.length,
+        body,
+        author: author ?? 'MCP Agent',
+      });
+      if (!created) {
+        return { content: [{ type: 'text' as const, text: 'Error: Failed to create comment.' }], isError: true };
+      }
+      const { filePath: _filePath, ...slim } = created;
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(slim, null, 2) }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_resolve_comment ───────────────────
+
+server.tool(
+  'vswrite_resolve_comment',
+  'Marks a comment as resolved (or unresolved). Resolved comments are hidden from the comments panel by default but remain in the project until explicitly deleted.',
+  {
+    id: z.string().describe('Comment id (e.g. "2026-04-28-1432-a3f")'),
+    resolved: z.boolean().optional().describe('Resolution state. Default: true.'),
+  },
+  async ({ id, resolved }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const updated = updateComment(state.projectDir, id, { resolved: resolved ?? true });
+      if (!updated) {
+        return { content: [{ type: 'text' as const, text: `Error: Comment "${id}" not found.` }], isError: true };
+      }
+      return {
+        content: [{ type: 'text' as const, text: `Comment ${id} marked as ${updated.resolved ? 'resolved' : 'open'}.` }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_delete_comment ────────────────────
+
+server.tool(
+  'vswrite_delete_comment',
+  'Permanently deletes a comment (removes its .md file from comments/). Use vswrite_resolve_comment instead if you only want to hide it.',
+  { id: z.string().describe('Comment id') },
+  async ({ id }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const ok = deleteComment(state.projectDir, id);
+      if (!ok) {
+        return { content: [{ type: 'text' as const, text: `Error: Comment "${id}" not found.` }], isError: true };
+      }
+      return { content: [{ type: 'text' as const, text: `Comment ${id} deleted.` }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_list_labels ───────────────────────
+
+server.tool(
+  'vswrite_list_labels',
+  'Lists all <label>s defined across the project\'s .typ files for use with cross-references. Each entry: { label, type, caption, relPath, line }. Type is "figure" | "table" | "equation" | "heading" | "other" — derived from the label\'s prefix (fig:, tbl:, eq:, sec:, …). Always call this before insert_reference so you don\'t guess label names. Capped at 2000 labels.',
+  {
+    type: z.enum(['figure', 'table', 'equation', 'heading', 'other']).optional().describe('Filter by label type. Omit for all types.'),
+  },
+  async ({ type }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const result = listProjectLabels(state.projectDir);
+      const filtered = type ? result.labels.filter(l => l.type === (type as LabelType)) : result.labels;
+      // Strip absolute filePath — relPath is what agents need.
+      const slim = filtered.map(({ filePath: _filePath, ...rest }) => rest);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ labels: slim, truncated: result.truncated }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_insert_reference ──────────────────
+
+server.tool(
+  'vswrite_insert_reference',
+  'Inserts a Typst cross-reference (`@label`) at a specified anchor in a project file. The label must already exist in the project — call vswrite_list_labels first. In Typst the reference compiles to "Figure 3" / "Table 1" / "Section 4.2" / "Equation (1)" depending on the label\'s target. A leading space is auto-inserted if the preceding character is a letter or digit (Typst would otherwise glue "@label" onto the previous word).',
+  {
+    file: z.string().describe('Project-relative path of the file (e.g. "chapters/05-discussion.typ")'),
+    afterText: z.string().describe('Verbatim text after which "@label" is inserted. Whitespace-sensitive.'),
+    label: z.string().describe('Label name without "@" or angle brackets, e.g. "fig:scaling". Must exist in the project — see vswrite_list_labels.'),
+    occurrence: z.number().int().min(1).optional().describe('1-based occurrence of afterText if it appears multiple times.'),
+  },
+  async ({ file, afterText, label, occurrence }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const absFile = resolveInsideProject(file);
+      if (!fs.existsSync(absFile)) {
+        return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
+      }
+
+      // Validate the label exists. Suggest similar labels on miss.
+      const all = listProjectLabels(state.projectDir);
+      const exists = all.labels.find(l => l.label === label);
+      if (!exists) {
+        const lower = label.toLowerCase();
+        const suggestions = all.labels
+          .map(l => l.label)
+          .filter(l => l.toLowerCase().includes(lower) || lower.includes(l.toLowerCase()))
+          .slice(0, 5);
+        const hint = suggestions.length > 0 ? `\nSimilar labels: ${suggestions.join(', ')}` : '';
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: Label "${label}" not found in project.${hint}\nUse vswrite_list_labels to see all labels.`,
+          }],
+          isError: true,
+        };
+      }
+
+      const content = fs.readFileSync(absFile, 'utf-8');
+      const located = findAnchorOffset(content, afterText, occurrence, 'afterText');
+      if ('error' in located) {
+        return { content: [{ type: 'text' as const, text: `Error: ${located.error}` }], isError: true };
+      }
+      const insertPos = located.offset + afterText.length;
+
+      // Auto-prepend a space if the preceding char is alphanumeric — Typst would
+      // otherwise parse "word@label" as a single content unit and not as a ref.
+      const prevChar = insertPos > 0 ? content[insertPos - 1] : '';
+      const needsSpace = /[\p{L}\p{N}]/u.test(prevChar);
+      const refText = (needsSpace ? ' ' : '') + `@${label}`;
+      const updated = content.slice(0, insertPos) + refText + content.slice(insertPos);
+
+      fs.writeFileSync(absFile, updated, 'utf-8');
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Inserted "${refText}" into ${file} at offset ${insertPos}. Run vswrite_compile to verify the cross-reference resolves.`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_add_footnote ──────────────────────
+
+server.tool(
+  'vswrite_add_footnote',
+  'Inserts a Typst footnote (#footnote[<body>]) at a specified anchor in a project file. Typst auto-numbers footnotes at compile time and renders the body at the bottom of the page. The body may contain Typst inline syntax (italic _word_, citation @key, etc.). Brackets in the body must be balanced (every [ has a matching ]).',
+  {
+    file: z.string().describe('Project-relative path of the file (e.g. "chapters/03-method.typ")'),
+    afterText: z.string().describe('Verbatim text after which the footnote is inserted. Whitespace-sensitive. Convention: place directly after the punctuation or word that the footnote applies to.'),
+    body: z.string().describe('Footnote body (Typst markup allowed)'),
+    occurrence: z.number().int().min(1).optional().describe('1-based occurrence of afterText if it appears multiple times.'),
+  },
+  async ({ file, afterText, body, occurrence }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const absFile = resolveInsideProject(file);
+      if (!fs.existsSync(absFile)) {
+        return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
+      }
+
+      // Bracket-balance check on the body — unbalanced [...] would break the Typst parse.
+      let depth = 0;
+      for (let i = 0; i < body.length; i++) {
+        const ch = body[i];
+        // Skip escaped brackets
+        if (ch === '\\' && i + 1 < body.length) { i++; continue; }
+        if (ch === '[') depth++;
+        else if (ch === ']') depth--;
+        if (depth < 0) {
+          return {
+            content: [{ type: 'text' as const, text: 'Error: Footnote body has an unmatched "]". Brackets must be balanced — escape with "\\[" / "\\]" if a literal bracket is needed.' }],
+            isError: true,
+          };
+        }
+      }
+      if (depth !== 0) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: Footnote body has ${depth} unmatched "[". Brackets must be balanced.` }],
+          isError: true,
+        };
+      }
+
+      const content = fs.readFileSync(absFile, 'utf-8');
+      const located = findAnchorOffset(content, afterText, occurrence, 'afterText');
+      if ('error' in located) {
+        return { content: [{ type: 'text' as const, text: `Error: ${located.error}` }], isError: true };
+      }
+      const insertPos = located.offset + afterText.length;
+      const footnoteText = `#footnote[${body}]`;
+      const updated = content.slice(0, insertPos) + footnoteText + content.slice(insertPos);
+
+      fs.writeFileSync(absFile, updated, 'utf-8');
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Inserted footnote into ${file} at offset ${insertPos}.`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ═══════════════════════════════════════════════════════
+// Discovery — project-wide search & source lookup
+// ═══════════════════════════════════════════════════════
+
+// ─── Tool: vswrite_search_project ────────────────────
+
+server.tool(
+  'vswrite_search_project',
+  'Searches across all .typ files in the project (and optionally .bib). Returns matches grouped by file with line/column info and contextual snippets. Use this for backlinks ("where else is @chen2021codex cited?", "where is this heading mentioned?"), consistency checks across chapters, or finding examples to model after. Capped at 1000 total matches. **Whole-word** matching uses lookarounds, so it works correctly even when the query starts with a non-word char like `@` (citation backlinks).',
+  {
+    query: z.string().describe('Search term. Plain text by default; set regex=true for a regular expression.'),
+    caseSensitive: z.boolean().optional().describe('Match case. Default: false.'),
+    wholeWord: z.boolean().optional().describe('Match whole words only (uses lookarounds, not \\b). Default: false.'),
+    regex: z.boolean().optional().describe('Treat query as a regular expression. Default: false.'),
+    includeBib: z.boolean().optional().describe('Search .bib files too. Default: false (only .typ).'),
+  },
+  async ({ query, caseSensitive, wholeWord, regex, includeBib }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const result = searchProject({
+        query,
+        caseSensitive: caseSensitive ?? false,
+        wholeWord: wholeWord ?? false,
+        regex: regex ?? false,
+        includeBib: includeBib ?? false,
+      }, state.projectDir);
+      // Strip absolute filePath, agents work in project-relative terms.
+      const slim = {
+        ...result,
+        files: result.files.map(({ filePath: _filePath, ...rest }) => rest),
+      };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(slim, null, 2) }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_replace_in_project ────────────────
+
+server.tool(
+  'vswrite_replace_in_project',
+  'Replaces all matches of a query across project files. **Destructive** — overwrites files in place. Strongly recommended: call vswrite_save_version BEFORE replacing, so the operation is reversible. Returns { filesChanged, totalReplacements } on success. Same matching options as vswrite_search_project.',
+  {
+    query: z.string().describe('Search term'),
+    replacement: z.string().describe('Replacement text. For regex mode, $1, $2 etc. backreferences are honored.'),
+    caseSensitive: z.boolean().optional().describe('Default: false.'),
+    wholeWord: z.boolean().optional().describe('Default: false.'),
+    regex: z.boolean().optional().describe('Default: false.'),
+    includeBib: z.boolean().optional().describe('Default: false.'),
+  },
+  async ({ query, replacement, caseSensitive, wholeWord, regex, includeBib }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const result = replaceInProject({
+        query,
+        replacement,
+        caseSensitive: caseSensitive ?? false,
+        wholeWord: wholeWord ?? false,
+        regex: regex ?? false,
+        includeBib: includeBib ?? false,
+      }, state.projectDir);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_find_source_for_citation ──────────
+
+server.tool(
+  'vswrite_find_source_for_citation',
+  'Looks up a PDF in the project\'s sources/ folder matching the given BibTeX citekey. Convention: name the PDF `<citekey>.pdf` (e.g. "chen2021codex.pdf"). Suffixed names like "<citekey>_supplement.pdf" or "<citekey>-arxiv.pdf" also match. Returns the project-relative path or null. Use this before referring to a source so you know whether the user has the PDF on disk.',
+  { citekey: z.string().describe('BibTeX citation key (e.g. "chen2021codex")') },
+  async ({ citekey }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      const abs = findSourceForCitation(state.projectDir, citekey);
+      if (!abs) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ found: false, citekey }, null, 2) }],
+        };
+      }
+      const rel = path.relative(state.projectDir, abs).replace(/\\/g, '/');
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ found: true, citekey, relPath: rel }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ═══════════════════════════════════════════════════════
+// Import / Export & Asset Management
+// ═══════════════════════════════════════════════════════
+
+// ─── Tool: vswrite_export_docx ───────────────────────
+
+server.tool(
+  'vswrite_export_docx',
+  'Compiles the current Typst document and exports it as DOCX (Microsoft Word). Multi-chapter projects are merged via #include resolution before serialization. Uses real Word styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, …) and live multilevel-numbering, so a supervisor can reorder chapters in Word and the heading numbers update automatically. The output path must be inside the project — convention is "exports/<name>.docx", parent dir is created automatically.',
+  { outputPath: z.string().describe('Path for the DOCX output, relative to the project (e.g. "exports/thesis.docx")') },
+  async ({ outputPath }) => {
+    try {
+      const { filePath } = readCurrentDocument();
+      const rootFile = findRootFile(filePath);
+      const rootDir = path.dirname(rootFile);
+      const absOutput = resolveInsideProject(outputPath);
+
+      const outDir = path.dirname(absOutput);
+      if (!fs.existsSync(outDir)) {
+        fs.mkdirSync(outDir, { recursive: true });
+      }
+
+      const mergedContent = resolveIncludes(rootFile);
+      const doc = deserializeTypst(mergedContent);
+      const buffer = await serializeDocx(doc, rootDir, mergedContent);
+      fs.writeFileSync(absOutput, buffer);
+
+      const stat = fs.statSync(absOutput);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `DOCX exported to ${absOutput} (${(stat.size / 1024).toFixed(1)} KB)`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Export failed: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_import_markdown ───────────────────
+
+server.tool(
+  'vswrite_import_markdown',
+  'Converts Markdown to Typst syntax and writes the result to a project file. Handles headings, bold/italic, links, images, lists, code blocks, blockquotes. YAML frontmatter is skipped. Provide either inline `markdown` text OR an absolute/relative `srcPath` to a .md file (exactly one). The destination must be inside the project. Errors if destPath already exists unless `overwrite: true`. Note: complex Markdown constructs may need manual adjustment after import — review the result.',
+  {
+    markdown: z.string().optional().describe('Inline Markdown text. Mutually exclusive with srcPath.'),
+    srcPath: z.string().optional().describe('Path to a .md / .markdown / .txt file to import. May be inside or outside the project (read-only). Mutually exclusive with markdown.'),
+    destPath: z.string().describe('Project-relative path for the new .typ file (e.g. "chapters/06-related.typ")'),
+    overwrite: z.boolean().optional().describe('Overwrite destPath if it already exists. Default: false.'),
+  },
+  async ({ markdown, srcPath, destPath, overwrite }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      if ((markdown === undefined) === (srcPath === undefined)) {
+        return { content: [{ type: 'text' as const, text: 'Error: Provide exactly one of `markdown` or `srcPath`.' }], isError: true };
+      }
+
+      let mdContent: string;
+      if (srcPath !== undefined) {
+        const absSrc = path.isAbsolute(srcPath) ? srcPath : path.join(state.projectDir, srcPath);
+        if (!fs.existsSync(absSrc)) {
+          return { content: [{ type: 'text' as const, text: `Error: Source file not found: ${srcPath}` }], isError: true };
+        }
+        mdContent = fs.readFileSync(absSrc, 'utf-8');
+      } else {
+        mdContent = markdown!;
+      }
+
+      const absDest = resolveInsideProject(destPath);
+      if (fs.existsSync(absDest) && !overwrite) {
+        return { content: [{ type: 'text' as const, text: `Error: Destination already exists: ${destPath}. Set overwrite=true to replace it.` }], isError: true };
+      }
+
+      const typstContent = markdownToTypst(mdContent);
+
+      const destDir = path.dirname(absDest);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+      fs.writeFileSync(absDest, typstContent, 'utf-8');
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Imported Markdown to ${destPath} (${typstContent.length} characters). Review the output — complex Markdown constructs may need manual adjustment.`,
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: vswrite_add_image ─────────────────────────
+
+server.tool(
+  'vswrite_add_image',
+  'Imports an image into the project\'s assets/ folder and returns a Typst snippet for it. Optionally also inserts the snippet at an anchor in a project file (one round-trip instead of two). Source can be anywhere on disk. Deduplication: if an asset with the same content already exists in assets/, that path is reused; if a different file with the same name exists, a numeric suffix is appended ("chart.png" → "chart-2.png"). With `caption`, the snippet is wrapped in `#figure(image(…), caption: […])`; combined with `label` (use "fig:" prefix) it becomes a referenceable target for vswrite_insert_reference.',
+  {
+    srcPath: z.string().describe('Absolute or project-relative path to the source image file (PNG, JPG, SVG, …)'),
+    width: z.string().optional().describe('Typst width spec, e.g. "80%", "8cm", "300pt". Default: "100%".'),
+    alt: z.string().optional().describe('Alt text for accessibility / hover.'),
+    caption: z.string().optional().describe('Wraps the image in #figure(...) with this caption. Required if you want the figure cross-referenceable.'),
+    label: z.string().optional().describe('Typst label like "fig:my-chart". Only used together with caption. Use the "fig:" prefix so vswrite picks it up as a figure reference.'),
+    file: z.string().optional().describe('Project-relative file to insert the snippet into. If set, afterText is required.'),
+    afterText: z.string().optional().describe('Anchor text for inline insertion. Required when `file` is set.'),
+    occurrence: z.number().int().min(1).optional().describe('1-based occurrence of afterText.'),
+  },
+  async ({ srcPath, width, alt, caption, label, file, afterText, occurrence }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+      }
+      if (file !== undefined && afterText === undefined) {
+        return { content: [{ type: 'text' as const, text: 'Error: When `file` is set, `afterText` is required for the anchor.' }], isError: true };
+      }
+      if (label && !caption) {
+        return { content: [{ type: 'text' as const, text: 'Error: `label` requires `caption` (Typst labels must attach to a #figure block).' }], isError: true };
+      }
+
+      const absSrc = path.isAbsolute(srcPath) ? srcPath : path.join(state.projectDir, srcPath);
+      if (!fs.existsSync(absSrc)) {
+        return { content: [{ type: 'text' as const, text: `Error: Source image not found: ${srcPath}` }], isError: true };
+      }
+      if (!fs.statSync(absSrc).isFile()) {
+        return { content: [{ type: 'text' as const, text: `Error: Source path is not a file: ${srcPath}` }], isError: true };
+      }
+
+      // Place asset with content-based deduplication.
+      const assetsDir = path.join(state.projectDir, 'assets');
+      if (!fs.existsSync(assetsDir)) {
+        fs.mkdirSync(assetsDir, { recursive: true });
+      }
+      const ext = path.extname(absSrc);
+      const stem = path.basename(absSrc, ext);
+      const srcBuf = fs.readFileSync(absSrc);
+      let assetName = `${stem}${ext}`;
+      let assetAbs = path.join(assetsDir, assetName);
+      let counter = 2;
+      while (fs.existsSync(assetAbs)) {
+        const existing = fs.readFileSync(assetAbs);
+        if (existing.equals(srcBuf)) break; // same content — reuse
+        assetName = `${stem}-${counter}${ext}`;
+        assetAbs = path.join(assetsDir, assetName);
+        counter++;
+      }
+      if (!fs.existsSync(assetAbs)) {
+        fs.writeFileSync(assetAbs, srcBuf);
+      }
+      const assetRel = `assets/${assetName}`;
+
+      // Build the Typst snippet.
+      const widthSpec = width ?? '100%';
+      const altPart = alt ? `, alt: "${alt.replace(/"/g, '\\"')}"` : '';
+      const imageCall = `image("${assetRel}", width: ${widthSpec}${altPart})`;
+      let snippet: string;
+      if (caption) {
+        const captionEsc = caption.replace(/\\/g, '\\\\').replace(/]/g, '\\]');
+        const labelPart = label ? ` <${label}>` : '';
+        snippet = `#figure(${imageCall}, caption: [${captionEsc}])${labelPart}`;
+      } else {
+        snippet = `#${imageCall}`;
+      }
+
+      // Optional inline insert.
+      if (file && afterText) {
+        const absFile = resolveInsideProject(file);
+        if (!fs.existsSync(absFile)) {
+          return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
+        }
+        const content = fs.readFileSync(absFile, 'utf-8');
+        const located = findAnchorOffset(content, afterText, occurrence, 'afterText');
+        if ('error' in located) {
+          return { content: [{ type: 'text' as const, text: `Error: ${located.error}` }], isError: true };
+        }
+        const insertPos = located.offset + afterText.length;
+        // Figures are block-level — wrap with blank lines so they don't glue onto surrounding paragraphs.
+        const updated = content.slice(0, insertPos) + '\n\n' + snippet + '\n\n' + content.slice(insertPos);
+        fs.writeFileSync(absFile, updated, 'utf-8');
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Asset placed at ${assetRel}. Inserted figure into ${file} at offset ${insertPos}.`,
+          }],
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            assetPath: assetRel,
+            snippet,
+            note: 'Pass {file, afterText} on the next call for inline insertion, or use vswrite_update_document / vswrite_write_file manually.',
+          }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   },
 );

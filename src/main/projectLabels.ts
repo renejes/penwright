@@ -159,8 +159,8 @@ function cleanInline(text: string): string {
 
 const LABEL_REGEX = /<([a-zA-Z][\w:.-]*)>/g;
 
-export function listProjectLabels(): ProjectLabelResults {
-  const root = appState.projectDir;
+export function listProjectLabels(projectDir?: string | null): ProjectLabelResults {
+  const root = projectDir ?? appState.projectDir;
   if (!root || !isPathWithin(root, root)) {
     return { labels: [], truncated: false };
   }

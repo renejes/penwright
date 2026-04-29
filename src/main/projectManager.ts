@@ -10,6 +10,7 @@ import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile } from '../shared/rootFinder';
+import { TYPST_SKILL, VSWRITE_SKILL, RESEARCH_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
 
 const GITIGNORE_TEMPLATE = `# vswrite
@@ -407,86 +408,32 @@ export function handleUpdateSettings(settings: Record<string, string>): void {
 
 // ─── Claude Code Skills ──────────────────────────────
 
+const SKILL_FILES: Array<{ slug: string; content: string }> = [
+  { slug: 'typst', content: TYPST_SKILL },
+  { slug: 'vswrite', content: VSWRITE_SKILL },
+  { slug: 'research', content: RESEARCH_SKILL },
+];
+
+/**
+ * Deploys the project's Claude Code skill set to `<dir>/.claude/skills/`.
+ *
+ * Per-skill behaviour: writes SKILL.md only if missing, so user edits to a
+ * deployed skill are preserved across project re-opens. To force-update the
+ * canonical content, the user (or the agent) deletes the file first.
+ *
+ * The skill content lives in `src/shared/skillTemplates.ts` and is shared
+ * between this in-app deployment and the MCP server's prompt loader.
+ */
 export function ensureClaudeSkills(dir: string): void {
   const skillsDir = path.join(dir, '.claude', 'skills');
-
-  if (fs.existsSync(skillsDir)) return;
-
   fs.mkdirSync(skillsDir, { recursive: true });
 
-  // Typst skill
-  fs.mkdirSync(path.join(skillsDir, 'typst'), { recursive: true });
-  fs.writeFileSync(path.join(skillsDir, 'typst', 'SKILL.md'), `---
-name: typst
-description: Comprehensive Typst language reference for writing correct, idiomatic Typst markup and code
----
-
-# Typst Language Reference
-
-Typst is a modern typesetting system. Use this reference to write correct Typst code.
-
-## Key Syntax
-
-- Headings: \`= H1\`, \`== H2\`, \`=== H3\`
-- Bold: \`*bold*\`, Italic: \`_italic_\`, Code: \`\\\`code\\\`\`
-- Links: \`#link("url")[text]\`
-- Images: \`#image("path.png", width: 80%)\`
-- Lists: \`- item\` (unordered), \`+ item\` (ordered)
-- Math: \`$x^2$\` (inline), \`$ x^2 $\` (block)
-- Code blocks: \`\\\`\\\`\\\`lang ... \\\`\\\`\\\`\`
-
-## Document Settings
-
-\`\`\`typst
-#set text(font: "Georgia", size: 11pt)
-#set page(paper: "a4", margin: 2.5cm, numbering: "1")
-#set par(justify: true, leading: 0.6em)
-#set heading(numbering: "1.1")
-\`\`\`
-
-## Multi-File Projects
-
-Use \`#include "chapters/file.typ"\` to split documents.
-The main.typ file contains settings + includes.
-`, 'utf-8');
-
-  // vswrite skill
-  fs.mkdirSync(path.join(skillsDir, 'vswrite'), { recursive: true });
-  fs.writeFileSync(path.join(skillsDir, 'vswrite', 'SKILL.md'), `---
-name: vswrite
-description: CLI tools for working with Typst documents in vswrite projects
----
-
-# vswrite CLI — Agent Instructions
-
-You are working in a project that uses **vswrite**, a WYSIWYG editor for Typst (.typ) files.
-
-## Important
-
-- The .typ files on disk are the source of truth
-- Edit .typ files directly — the WYSIWYG editor updates automatically
-- Use standard Typst syntax (not HTML, not LaTeX)
-- Settings are in the first lines of main.typ (#set rules)
-- Chapters live in the chapters/ folder
-- Images go in assets/
-- Bibliography in references.bib
-`, 'utf-8');
-
-  // Research skill
-  fs.mkdirSync(path.join(skillsDir, 'research'), { recursive: true });
-  fs.writeFileSync(path.join(skillsDir, 'research', 'SKILL.md'), `---
-name: research
-description: Deep web research with structured output — search for academic sources, synthesize findings, save results and citations to the project
----
-
-# Deep Research — Agent Instructions
-
-When the user asks you to research a topic, follow this workflow:
-
-1. Search for relevant sources (academic, institutional)
-2. Evaluate source quality
-3. Create BibTeX entries in references.bib
-4. Save research notes as markdown in sources/
-5. Suggest how to integrate findings into the document
-`, 'utf-8');
+  for (const skill of SKILL_FILES) {
+    const subDir = path.join(skillsDir, skill.slug);
+    fs.mkdirSync(subDir, { recursive: true });
+    const target = path.join(subDir, 'SKILL.md');
+    if (!fs.existsSync(target)) {
+      fs.writeFileSync(target, skill.content, 'utf-8');
+    }
+  }
 }
