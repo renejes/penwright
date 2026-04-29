@@ -3,7 +3,7 @@
  * Central message router: switch-statement + dialog/filetree/includes handlers.
  */
 
-import { ipcMain, dialog, shell, app } from 'electron';
+import { ipcMain, dialog, shell, app, clipboard } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { parseSettings } from '../shared/settingsParser';
@@ -39,6 +39,14 @@ import { activateLicense, validateLicense, deactivateLicense } from './licenseMa
 import { getLicenseData } from './persistenceManager';
 import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
 import { findSourceForCitation } from './citationSources';
+import {
+  captureRendererCrash,
+  getLatestUnshownReport,
+  markLatestAsShown,
+  deleteAllReports,
+  getReportsDir,
+  type RendererCrashPayload,
+} from './crashReporter';
 import { listProjectLabels } from './projectLabels';
 import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
 
@@ -716,5 +724,54 @@ export function setupIPC(): void {
     if (!appState.projectDir) return { initialized: false };
     await ensureProjectInfrastructure(appState.projectDir, 'First version');
     return { initialized: true };
+  });
+
+  // ─── Crash Reports ─────────────────────────────
+  // Renderer-side error handlers POST their crash payload here.
+  ipcMain.handle('crash:report', (_event, payload: RendererCrashPayload) => {
+    const written = captureRendererCrash(payload);
+    return { ok: !!written };
+  });
+
+  // Returns the latest crash report not yet shown to the user, or null.
+  ipcMain.handle('crash:getLatest', () => {
+    return getLatestUnshownReport();
+  });
+
+  // Updates the "last shown" marker so the dialog won't reappear next boot.
+  ipcMain.handle('crash:markShown', () => {
+    markLatestAsShown();
+    return { ok: true };
+  });
+
+  ipcMain.handle('crash:deleteAll', () => {
+    deleteAllReports();
+    return { ok: true };
+  });
+
+  ipcMain.handle('crash:openFolder', () => {
+    shell.openPath(getReportsDir());
+    return { ok: true };
+  });
+
+  // Copies the report to the clipboard via main (avoids navigator.clipboard
+  // permission noise in the renderer).
+  ipcMain.handle('crash:copyToClipboard', (_event, content: string) => {
+    if (typeof content !== 'string') return { ok: false };
+    clipboard.writeText(content);
+    return { ok: true };
+  });
+
+  // Opens the OS default mail client with the report pre-filled. Body is
+  // truncated for mailto length safety; the user can attach the full file
+  // separately if they want.
+  ipcMain.handle('crash:openMail', (_event, content: string) => {
+    const subject = encodeURIComponent('vswrite Crash Report');
+    const truncated = content.length > 1500
+      ? content.slice(0, 1500) + '\n\n... (gekuerzt — vollstaendiger Bericht im crash-reports/-Ordner)'
+      : content;
+    const url = `mailto:feedback@vswrite.com?subject=${subject}&body=${encodeURIComponent(truncated)}`;
+    shell.openExternal(url);
+    return { ok: true };
   });
 }

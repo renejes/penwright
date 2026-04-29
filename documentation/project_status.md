@@ -1,13 +1,13 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-04-29 (nach Session 15: Cross-References via `/Reference` Slash-Command + Picker)
-> **Version (Doku):** 0.7.0 (Pre-Release) — package.json: 0.1.0, vor dem ersten Release auf 0.7.0 bumpen
+> **Stand:** 2026-04-29 (nach Session 16: Pre-Launch-Polish — MCP auf 43 Tools, Skills-Overhaul, lokales Crash-Reporting, Cheatsheet, `Cmd+/`, Cloud-Pull-Confirm, Versionsbump)
+> **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
 
 ## Zusammenfassung
 
-vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung und Claude Code Skills.
+vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung, Claude Code Skills und einen MCP-Server mit 43 Tools fuer externe Agents.
 
 **Status Release-Readiness:**
 - Security gehaertet (Path Traversal + Symlink-Bypass + MCP-Pfade + verschluesselte Lizenz)
@@ -18,14 +18,16 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - **Export-Modal:** Format-Wahl (PDF/DOCX) + Kapitel-Auswahl per Checkbox; DOCX nutzt jetzt `resolveIncludes` und exportiert Multi-Chapter-Projekte vollstaendig
 - DOCX-Export produziert formatierte Word-Dateien mit Live-Multilevel-Numbering (iterative Verbesserung weiterhin im Gange)
 - About-Dialog zeigt Version + Lizenz + System-Info
-- **Offen fuer Launch:** Crash-Telemetrie, Auto-Updater End-to-End-Test, finale QA auf echter 100-Seiten-Thesis
+- **Lokales Crash-Reporting:** Plaintext-Reports nach `<userData>/crash-reports/`, Boot-Dialog beim naechsten Start, User entscheidet selbst ueber Weitergabe — keine externe Telemetrie
+- **MCP-Server mit 43 Tools** (vorher 26): Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets — externe Agents koennen die kompletten Editor-Workflows fahren
+- **Offen fuer Launch:** Auto-Updater End-to-End-Test, „Open Sample Project"-Onboarding, finale QA auf echter 100-Seiten-Thesis, Distribution-Pipeline (Firebase + DMG + Notarization)
 
-**Codebase:** ~21.500 Zeilen in 82 Dateien (Session 12)
-- Main Process: ~3.700 Zeilen (18 Module inkl. `pathSecurity`, `projectSearch`, `commentManager`)
-- Renderer: ~6.000 Zeilen (App.svelte + 20 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog, ProjectSearchPanel, CommentsPanel)
+**Codebase:** ~24.500 Zeilen in 87 Dateien (Session 16)
+- Main Process: ~4.200 Zeilen (20 Module inkl. `pathSecurity`, `projectSearch`, `commentManager`, `citationSources`, `crashReporter`)
+- Renderer: ~6.300 Zeilen (App.svelte + 21 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog, ProjectSearchPanel, CommentsPanel, CrashReportDialog)
 - Editor: ~5.500 Zeilen (CommandHub.svelte entfernt — ~456 Zeilen, dafür `commentDecorations.ts` neu)
-- Shared: ~2.700 Zeilen (docxSerializer mit Word-Styles)
-- MCP: ~800 Zeilen
+- Shared: ~3.400 Zeilen (docxSerializer mit Word-Styles, `skillTemplates.ts` mit den drei Claude-Skills als Master-Quelle)
+- MCP: ~1.700 Zeilen (43 Tools)
 - CLI: ~800 Zeilen (aus Extension, unused)
 
 **Weitere Dokumente:**
@@ -135,24 +137,39 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **CommandHub entfernt** — alle Aktionen liegen jetzt in der nativen Menueleiste oder Slash-Commands; Toolbar ist minimaler (Quick / Typewriter / Focus rechts)
 - [x] Status Bar mit Panel-Toggles, **Wortzahl + Lesezeit (live, 200 wpm)**, Save-Indikator, Filename, Lizenz-Status
 - [x] Resizeable Panels, Keyboard Shortcuts
+- [x] **Shortcut-Cheatsheet** (`Cmd+/` oder Help → Keyboard Shortcuts) — sieben Gruppen mit ~30 Eintraegen aus dem Handbuch (Project & Files, Search, Writer Features, Formatting, Blocks, View, General). Cross-Plattform per `navigator.platform`-Check (Cmd auf macOS, Ctrl sonst)
+- [x] **Help-Menue:** User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Crash-Berichte oeffnen** (oeffnet `<userData>/crash-reports/` direkt im Finder)
 - [x] Terminal (node-pty + xterm.js), Auto-Resize, Max 5 Respawns
-- [x] 40+ IPC Message Handler, ~50 IPC Channels
-- [x] Modularer Main Process (16 Module)
+- [x] 50+ IPC Message Handler, ~60 IPC Channels (inkl. `crash:*`)
+- [x] Modularer Main Process (20 Module)
 - [x] Modularer Renderer (State + MessageHandler extrahiert)
 - [x] Start Screen mit Onboarding (Typst-Check, AI/Terminal Info, Skills)
 - [x] App Icon & Branding (Logo SVG, build/icons/ 16-1024px, appId: com.vswrite.desktop)
 - [x] **About-Dialog** — Version, Electron/Chromium/Node-Versionen, Platform/Arch, Lizenz-Tier (Unlicensed/Basic/Pro-Badge), Links (User Guide, Website, Report Issue), "Copy Diagnostics" fuer Bug-Reports
+- [x] **Bestaetigungsdialoge bei destruktiven Cloud-Ops:** Restore Version, Apply Backup, Cloud-Backup laden (Pull) — Vokabular bleibt im Versionen-Sprech, kein „Pull / Reset / Branch"
 
-**MCP Server (Model Context Protocol) — 26 Tools:**
-- [x] Eigenstaendiges CLI-Tool (`src/mcp/server.ts`, ~800 Zeilen)
-- [x] Phase 1+2: set_project, get/update_document, open_file, compile, get/update_settings, list/read/write_files, export_pdf
-- [x] Phase 3: list/apply_style, get/reorder/add/remove_chapters, merge/split_document, get/add_citations, ensure_bibliography, create_project, git_status/commit/push
-- [x] **Path-Validierung fuer alle File-Tools** via `resolveInsideProject()` — blockiert `../`-Traversal und Symlink-Escape
+**MCP Server (Model Context Protocol) — 43 Tools, Server-Version 0.9.0:**
+- [x] Eigenstaendiges CLI-Tool (`src/mcp/server.ts`, ~1.700 Zeilen)
+- [x] **Projekt & Dateien (5):** set_project, list_files, read_file, write_file, create_project
+- [x] **Dokument-Operationen (4):** get_document, open_file, update_document, **compile** (reiner Verifier — SVG-Mode entfernt, kein Output-Path; Artefakt-Schreiben uebernehmen die Export-Tools)
+- [x] **Settings & Styles (4):** get_settings, update_settings, list_styles, apply_style
+- [x] **Kapitel & Struktur (6):** get_chapters, reorder_chapters, add_chapter, remove_chapter, merge_document, split_document
+- [x] **Bibliographie & Citations (3):** get_citations, add_citation, ensure_bibliography
+- [x] **Cross-References & Footnotes (3):** list_labels (gefiltert nach Typ), insert_reference (Label-Existenz-Check + Vorschlaege fuer aehnliche Labels, Auto-Space wenn vorheriger Char alphanumerisch), add_footnote (Klammer-Balance-Check auf Body)
+- [x] **Comments & Annotations (4):** list_comments, add_comment (anker-basiert, generiert ID + YAML-Frontmatter), resolve_comment, delete_comment
+- [x] **Versionen (4):** save_version (auto-init Git + .gitignore wenn fehlt), list_versions (max 200), show_version (per-File-Diff), restore_version (mit File-Path-Validierung)
+- [x] **Discovery (3):** search_project (lookarounds fuer whole-word — `@citekey`-Backlinks funktionieren!), replace_in_project (mit Versions-Sicherheitsnetz-Hinweis), find_source_for_citation (sucht in `sources/<citekey>*.pdf`)
+- [x] **Export (2):** export_pdf (strikt projekt-only via `resolveInsideProject`, Auto-mkdir fuer `exports/`), **export_docx** (echte Word-Styles + Live-Multilevel-Numbering, mergt #include-Kapitel)
+- [x] **Import & Assets (2):** import_markdown (inline `markdown` ODER `srcPath`, kann ausserhalb des Projekts liegen), add_image (Content-Hash-Dedup auf `assets/`, Figure-Builder mit Caption + Label, optional Inline-Insert via Anchor)
+- [x] **Git Low-Level (3):** git_status, git_commit, git_push — fuer Cloud-Sync-Workflows; im Normalfall reicht der Versionen-Block
+- [x] **Path-Validierung fuer alle File-Tools** via `resolveInsideProject()` — blockiert `../`-Traversal und Symlink-Escape, neuerdings auch `export_pdf` (Sicherheitsfix in Session 16)
+- [x] **Anker-basiertes Editing-Pattern:** add_footnote / insert_reference / add_comment / add_image nehmen alle einen `afterText`-/`anchor`-Parameter und einen optionalen `occurrence` (1-basiert), wenn der Anker mehrfach vorkommt — Agent muss keine Offsets berechnen
 - [x] @modelcontextprotocol/sdk + StdioServerTransport
 - [x] Dynamischer Projektwechsel (kein hardcoded Pfad in Config)
 - [x] Getestet mit Claude Desktop (Cowork)
-- [x] 3 Skill-Dateien als MCP Prompts (typst-reference, vswrite-conventions, research-workflow)
+- [x] **3 Skill-Dateien als MCP Prompts** (typst-reference, vswrite-conventions, research-workflow) — Inhalt aus `src/shared/skillTemplates.ts`, deployed pro Projekt nach `.claude/skills/<name>/SKILL.md`. Tilde-Fences (`~~~`) statt Backticks im Source, damit keine Escape-Hoelle in TS-Strings
 - [x] Pro-Lizenz-Gating (via `--license-key` Flag oder `VSWRITE_LICENSE_KEY` Env)
+- [x] **Doku komplett:** [mcp-server.md](mcp-server.md) mit allen 43 Tools, neun Workflow-Beispielen (Backlinks, Bulk-Refactor mit Versions-Safety-Net, Recherche-Markdown als Kapitel, Bild + Figure + Reference in einem Rutsch, etc.)
 
 **Comments / Annotations (Session 12):**
 - [x] Storage als sichtbarer `comments/`-Ordner im Projekt-Root (nicht in `.vswrite/`) — eine `.md`-Datei pro Comment, YAML-Frontmatter (`id`, `file`, `anchor`, `rangeStart/End`, `author`, `date`, `resolved`) + Markdown-Body
@@ -162,6 +179,19 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] Editor-Highlight via ProseMirror Decorations (ephemer, mutiert das Doc nicht); Click auf Highlight → `vswrite:comment-click`-Event scrollt im Side-Panel zum Eintrag
 - [x] Side-Panel: Filter „Aktuelle Datei" / „Ganzes Projekt", „Erledigte zeigen"-Checkbox, Body-Textarea mit Auto-Save (400 ms debounce), Resolve/Delete-Buttons
 - [x] Bekannte MVP-Limitierung: Anker-Text muss innerhalb eines Textnodes liegen (nicht über Absatz-Grenzen) — sonst orphaned
+
+**Crash-Reporting (lokal, kein Sentry):**
+- [x] Neues Modul [src/main/crashReporter.ts](src/main/crashReporter.ts) — `setupCrashCapture()` registriert `uncaughtException` + `unhandledRejection` in Main, startet Electrons nativen `crashReporter` (Chromium / V8), aktiviert `process.setSourceMapsEnabled(true)` fuer lesbare Stack-Traces
+- [x] **Renderer-Capture** in [src/renderer/main.ts](src/renderer/main.ts) — `window.error` + `unhandledrejection` schicken Payload via IPC `crash:report` an Main
+- [x] **Plaintext-Reports** nach `<userData>/crash-reports/<timestamp>-<ms>-<rand>.txt` — Slug mit Millisekunden + 4-char Random damit zwei Crashes derselben Sekunde sich nicht ueberschreiben. Rotation auf max 10 Files
+- [x] **Path-Scrubbing** vor dem Schreiben — `/Users/<name>/`, `/home/<user>/`, `C:\Users\<name>\` werden alle durch `<redacted>` ersetzt. Damit ist der Bericht ohne weitere Bearbeitung verschicktbar
+- [x] **Breadcrumb-Ringpuffer** (max 50) — `addBreadcrumb(kind, message)` an Schluesselstellen instrumentiert: Lifecycle (started, window created), Project (opened, closed), File (saved success/fail, opened success/fail). Nur Event-Typen, keine Inhalte
+- [x] **Boot-Detection** via mtime-Vergleich gegen `<crash-reports>/.last-shown` Marker — Marker speichert die mtime-Float korrekt via `Number()` (parseInt-Bug abgewehrt: haette Fraktionalmillisekunden abgeschnitten und denselben Crash bei jedem Boot wieder gezeigt)
+- [x] **CrashReportDialog** ([src/renderer/components/CrashReportDialog.svelte](src/renderer/components/CrashReportDialog.svelte)) zeigt Plaintext-Report mit Buttons: „In Zwischenablage", „E-Mail vorbereiten" (`mailto:feedback@vswrite.com` via `shell.openExternal`, Body bei > 1500 chars gekuerzt mit Hinweis auf vollstaendige Datei), „Ordner oeffnen", „Verwerfen", „Schliessen"
+- [x] **6 Crash-IPC-Channels** in [preload-entry.ts](src/main/preload-entry.ts) whitelisted: `crash:report`, `:getLatest`, `:markShown`, `:deleteAll`, `:openFolder`, `:copyToClipboard`, `:openMail`
+- [x] **24/24 Smoke-Test gruen** — esbuild-bundled Standalone-Test mit gestubbtem Electron deckt: Capture+Read-Roundtrip, Path-Scrubbing fuer drei Plattformen, Marker-Roundtrip, Renderer-Payload mit Breadcrumb-Merge, Rotation auf max 10, deleteAllReports
+- [x] **Datenschutz first:** Reports verlassen das Geraet nur durch aktive User-Action — kein Account, kein Server, keine DSGVO-Komplikationen. Passt zum Trust-Profil von Schreibsoftware
+- [x] Doku in [handbuch.md](handbuch.md) + [handbook.md](handbook.md) mit eigenem Abschnitt „Crash-Berichte"
 
 **Persistenz (electron-store + projekt-lokal):**
 - [x] Window-Bounds (Position, Groesse, Maximized) — global
@@ -211,16 +241,12 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 
 ### Noch offen vor Launch
 
-- [ ] **DOCX-Iteration:** `#raw("…")` inline aufdröseln, `#outline()` als Word-TOC-Field, weitere Typst-Konstrukte nach Bedarf (iterativ — fundamentaler Refactor via Typst→HTML→DOCX optional später)
-- [ ] **Crash-Telemetrie (Sentry)** mit Opt-out-Toggle — kritischster Launch-Enabler
-- [ ] **Shortcut-Cheat-Sheet** (`Cmd+/` Overlay) — Discovery-Problem (nativen "Keyboard Shortcuts"-Menueeintrag gibt es seit Session 11)
-- [ ] **"Open Sample Project"** im StartScreen — Conversion-Hebel
-- [ ] **Bestaetigungsdialoge** bei destruktiven Versions-Operationen (Wiederherstellen alter Versionen mit Warndialog ist da; Cloud-Sync-Konflikte fehlen)
+- [ ] **„Open Sample Project"** im StartScreen — Conversion-Hebel: ein Beispielprojekt das die App selbst dokumentiert (Meta-Idee: das Sample-Projekt ist eine kleine Anleitung zu vswrite, geschrieben in vswrite). Wir bauen das gegen Ende
 - [ ] **Auto-Updater** (electron-updater) einbinden + Firebase-Hosting einrichten + E2E-Test
 - [ ] **DMG-Build & Notarization** real durchziehen
-- [ ] **QA auf echter 100-Seiten-Thesis** (nicht nur die 8 Test-Chapters)
+- [ ] **QA auf echter 100-Seiten-Thesis** (nicht nur die 8 Test-Chapters); Writer-Features-Smoke auf `/Users/renejesser/Desktop/test_thesis`
 - [ ] **Netlify-Hosting fuer Handbuch** (de + en) live
-- [ ] **package.json Version auf 0.7.0 bumpen** (aktuell 0.1.0)
+- [ ] **DOCX-Iteration** (kontinuierlich, nicht launch-blocking): `#raw("…")` inline aufdröseln, `#outline()` als Word-TOC-Field, weitere Typst-Konstrukte nach Bedarf
 
 ### Writer-Features (Plan in [writer-features-plan.md](writer-features-plan.md))
 
@@ -253,6 +279,40 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 16 (2026-04-29) — Pre-Launch-Polish
+
+**MCP-Server expanded 26 → 43 Tools, Server-Version 0.5.0 → 0.9.0:**
+- **Tier 1 (Writer-Features):** `list_comments` / `add_comment` / `resolve_comment` / `delete_comment`, `list_labels`, `insert_reference` (Label-Existenz-Check + Vorschlaege fuer aehnliche Labels, Auto-Space wenn vorheriger Char alphanumerisch — Typst-Syntax-Zwang), `add_footnote` (Klammer-Balance-Check)
+- **Tier 2 (Discovery):** `search_project` / `replace_in_project` (lookarounds fuer whole-word, damit `@citekey`-Backlinks funktionieren), `find_source_for_citation`
+- **Tier 3 (Import / Export / Assets):** `export_docx` (echte Word-Styles), `import_markdown` (inline ODER srcPath), `add_image` (Content-Hash-Dedup auf `assets/`, Figure-Builder mit Caption + Label, optional Inline-Insert via Anchor)
+- **Versionen-Block (4):** `save_version` (auto-init Git + .gitignore), `list_versions`, `show_version` (per-File-Diff), `restore_version` — spiegelt das ProjectPanel-Vokabular im MCP
+- **Maintenance:** `vswrite_export_pdf` ging vorher mit beliebigen Absolutpfaden raus → jetzt `resolveInsideProject` + Auto-mkdir fuer `exports/`. `vswrite_compile` zum reinen Verifier vereinfacht (kein SVG, kein Output-Path, Artefakt-Schreiben uebernehmen die Export-Tools)
+- **Refactors als Beifang:** `projectLabels` + `projectSearch` nehmen jetzt einen optionalen `projectDir`-Parameter (dual-tauglich fuer IPC und MCP), `findSourceForCitation` aus `ipcHandlers.ts` ausgelagert in eigenes Modul `citationSources.ts`, `messages.ts` bekommt `PreviewPdfUpdateMessage` + `ExportStatusMessage` (Type-Hygiene-Fix — `as unknown as`-Casts in `messageHandler.ts` weg)
+- **Gemeinsamer Helper** `findAnchorOffset()` im MCP-Server fuer das wiederkehrende Pattern „finde n-tes Vorkommen, sonst sprechende Fehlermeldung mit Treffer-Anzahl"
+
+**Skills-Overhaul (~15 Zeilen pro Skill → ~150):**
+- Inhalt aus den Inline-Strings in `projectManager.ts` raus, in neues Modul [src/shared/skillTemplates.ts](src/shared/skillTemplates.ts) (~6.500 chars pro Skill)
+- Tilde-Fences (`~~~`) statt Triple-Backticks im Source — keine Escape-Hoelle mehr in TypeScript-Strings
+- **typst:** Cross-Refs mit Praefix-Konventionen, Equation-Numbering-Voraussetzung (`#set math.equation(numbering: "(1)")`), Footnotes mit Bracket-Escaping, Source-vs-vswrite-Comments-Unterscheidung
+- **vswrite:** Drei Persistenz-Schichten, `sources/`-Naming-Konvention, `comments/`-YAML-Schema, Citation-vs-Reference-Disambiguierungs-Heuristik, Mode-Toggles, **MCP-Tool-Mapping-Tabelle** (welcher Use-Case → welches Tool)
+- **research:** 4-Phasen-Workflow (Discover / Capture / Synthesize / Integrate), Backlinks-Pattern, Bulk-Refactor mit Versions-Sicherheitsnetz, Pre-Submission-Checkliste
+- **Dual-tauglich:** jede Skill erklaert sowohl Filesystem-Pfad (Terminal Claude / VS Code Claude / Cowork mit Folder-Permission) als auch MCP-Tool-Pfad
+- `ensureClaudeSkills` jetzt **per-File-Guard** (vorher Dir-Level): User-Anpassungen bleiben erhalten, neue Skills werden bei Open nachgezogen wenn fehlend
+
+**Lokales Crash-Reporting (statt Sentry):**
+- Eigenes Konzept gewaehlt — passt zum Trust-Profil von Schreibsoftware. Daten verlassen das Geraet nur durch aktive User-Action
+- Neues Modul [src/main/crashReporter.ts](src/main/crashReporter.ts) mit `setupCrashCapture` / `addBreadcrumb` / `captureMainCrash` / `captureRendererCrash` / `getLatestUnshownReport` / `markLatestAsShown` / `deleteAllReports`
+- Boot-Dialog [CrashReportDialog.svelte](src/renderer/components/CrashReportDialog.svelte) mit zwei Views (Intro + Detail), Buttons fuer Copy / Mail / Folder / Discard / Close
+- Path-Scrubbing fuer macOS / Linux / Windows User-Pfade vor dem Schreiben
+- Help-Menue: „Crash-Berichte oeffnen" oeffnet den Ordner direkt
+- **Smoke-Test (24/24 gruen)** mit esbuild-bundled Standalone-Test + gestubbtem Electron — hat zwei echte Bugs vor Production gefangen: (1) Filename-Kollision bei zwei Crashes derselben Sekunde (Fix: ms + 4-char Random im Slug), (2) `parseInt` schnitt Marker-Float ab → derselbe Crash haette bei jedem Boot wieder hochgekommen (Fix: `Number()` mit `Number.isFinite()`-Guard)
+
+**Polish + Bestaetigungsdialog:**
+- [ShortcutCheatsheet.svelte](src/editor/components/ShortcutCheatsheet.svelte) refresh: 15 → ~30 Eintraege in 7 Gruppen, alle Sessions-12-15-Shortcuts (`Cmd+Alt+M` / `L` / `R`, `Cmd+Shift+F`) ergaenzt, `Cmd`/`Ctrl`-Switch via `navigator.platform`
+- `Cmd+/`-Accelerator auf Help → Keyboard Shortcuts ([menuBuilder.ts](src/main/menuBuilder.ts))
+- `cloudPull()` bekommt einen Confirm im Versionen-Vokabular („Cloud-Backup wird mit dem aktuellen Stand zusammengefuehrt … Tipp: Speichere vorher den aktuellen Stand als eigene Version … Fortfahren?"). Push-Error-Toast auch entgittert
+- `package.json` 0.1.0 → 0.7.0 (About-Dialog liest via `app.getVersion()` automatisch)
 
 ### Session 15 (2026-04-29) — Cross-References
 
@@ -497,26 +557,31 @@ Siehe [done/electron-migration-log.md](done/electron-migration-log.md) — Port 
 
 Die Monolith-Dateien wurden erfolgreich aufgeteilt:
 
-**Main Process** (urspruenglich `index.ts` 1.699 -> 220 Zeilen):
+**Main Process** (urspruenglich `index.ts` 1.699 -> 230 Zeilen):
 
 | Modul | Zeilen | Inhalt |
 |-------|--------|--------|
-| `appState.ts` | 48 | Zentrales State-Objekt (leaf module) |
-| `index.ts` | 220 | Entry Point: Window, Terminal, Lifecycle, Protocol |
-| `ipcHandlers.ts` | ~510 | Central IPC message router |
-| `fileManager.ts` | ~400 | File I/O, Auto-Save, Compiler, File Watcher |
+| `appState.ts` | 50 | Zentrales State-Objekt (leaf module) |
+| `index.ts` | 230 | Entry Point: Window, Terminal, Lifecycle, Protocol, Crash-Capture-Setup |
+| `ipcHandlers.ts` | ~570 | Central IPC message router (inkl. `crash:*`) |
+| `fileManager.ts` | ~410 | File I/O, Auto-Save, Compiler, File Watcher (mit Breadcrumbs) |
 | `importExport.ts` | ~310 | PDF, DOCX, Markdown, Zotero, Style Templates |
-| `projectManager.ts` | ~290 | New Project, File Tree, Claude Skills, Images |
+| `projectManager.ts` | ~250 | New Project, File Tree, Images — Skills jetzt aus `skillTemplates.ts` |
 | `persistenceManager.ts` | ~220 | electron-store + safeStorage fuer Lizenz |
+| `crashReporter.ts` | ~310 | **Neu (Session 16):** Lokales Crash-Reporting + Breadcrumbs |
 | `licenseManager.ts` | 160 | Polar SDK |
 | `lockManager.ts` | 157 | File Locking fuer Shared Folders |
-| `menuBuilder.ts` | ~145 | Native Menu (macOS/Windows/Linux) |
-| `typstCompiler.ts` | ~130 | Async SVG/PDF Compilation |
+| `menuBuilder.ts` | ~150 | Native Menu (mit `Cmd+/` Cheatsheet-Accelerator + Crash-Berichte oeffnen) |
+| `typstCompiler.ts` | ~130 | Async PDF Compilation (SVG entfernt in Session 9) |
+| `commentManager.ts` | ~370 | YAML-Frontmatter-Parser + Comment-CRUD + Reanchoring |
+| `projectLabels.ts` | ~200 | Label-Scanner mit optionalem `projectDir`-Parameter (dual-tauglich) |
+| `projectSearch.ts` | ~280 | Whole-Word per Lookarounds; optional `projectDir` (dual-tauglich) |
+| `citationSources.ts` | 70 | **Neu (Session 16):** PDF-Lookup in `sources/<citekey>*.pdf` (aus ipcHandlers ausgelagert) |
+| `gitManager.ts` | ~280 | Git IPC + High-Level „Versionen"-API |
 | `typstPath.ts` | ~30 | Bundled Typst Binary Resolver |
-| `gitManager.ts` | ~100 | Git IPC Handlers |
 | `terminalManager.ts` | 78 | node-pty Wrapper |
-| `pathSecurity.ts` | 40 | **Neu:** Realpath-basierte Path-Validierung |
-| `preload-entry.ts` | 77 | IPC-Whitelist |
+| `pathSecurity.ts` | 47 | Realpath-basierte Path-Validierung |
+| `preload-entry.ts` | 95 | IPC-Whitelist (~70 Channels) |
 
 **Renderer** (`App.svelte` 1.067 -> ~840 Zeilen):
 
@@ -565,3 +630,12 @@ Die Monolith-Dateien wurden erfolgreich aufgeteilt:
 | Stil-Wechsel in Kapitel-Datei korrumpierte die Datei | Native Block-Dialog wenn currentFile ≠ Root-File |
 | Hamburger-Hub als Auffangbecken — alles zwei Klicks tief versteckt, doppelte Wege fuer File-Aktionen | CommandHub geloescht; native Menueleiste auf fuenf Top-Level-Menues (File/Edit/View/Document/Help) ausgebaut; Slash-Commands fuer In-Text-Inserts |
 | Schreibende sehen ihre Wortzahl nicht | `wordStats` derived in der Status Bar, live, codefiltert, mit Lesezeit-Schaetzung bei 200 wpm |
+| MCP-Tool-Surface deckte die Sessions-12-15-Editor-Features nicht ab — externe Agents konnten Cross-Refs / Comments / Footnotes nicht ansprechen | 17 neue Tools (Tier 1: Writer-Features, Tier 2: Discovery, Tier 3: Import/Export/Assets) plus High-Level-Versionen-API mit User-Vokabular |
+| `vswrite_export_pdf` erlaubte beliebige Output-Pfade (Sicherheitsluecke) | `resolveInsideProject` + Auto-mkdir analog zu `compile`; Konvention `exports/<name>.pdf` |
+| `vswrite_compile` mit `format: 'svg'` war veraltet (SVG in App entfernt, im MCP funktionierte es noch via direkten typst-CLI-Call — verwirrender Doppelpfad) | Compile zum reinen Verifier vereinfacht; Artefakt-Schreiben nur via `export_pdf` / `export_docx` |
+| Sentry-Integration fuehlt sich tonal falsch fuer ein Writing-Tool, plus DSGVO-Ueberhang | Lokales Crash-Reporting: Plaintext nach `<userData>/crash-reports/`, Boot-Dialog beim naechsten Start, User entscheidet ueber Weitergabe — kein externer Service |
+| Filename-Kollision: zwei Crashes innerhalb einer Sekunde wuerden sich ueberschreiben | Slug bekommt Millisekunden + 4-char Random-Suffix |
+| `parseInt` schnitt mtime-Float auf den Marker ab → derselbe Crash wurde bei jedem Boot wieder gezeigt | `Number()` mit `Number.isFinite()`-Guard fuer den Marker-Roundtrip |
+| Inline-Skills mit Backtick-Escape-Hoelle in `projectManager.ts` | Inhalt nach `src/shared/skillTemplates.ts` ausgelagert, Tilde-Fences (`~~~`) statt Triple-Backticks im Source |
+| `cloudPull()` ueberschrieb Local-Changes ohne Confirm | Confirm-Dialog im Versionen-Vokabular, gleiches Format wie Restore Version + Apply Backup |
+| Cheatsheet-Inhalt veraltet (15 Eintraege, Handbuch hatte 30) | Sieben Gruppen mit allen Sessions-12-15-Shortcuts + `Cmd`/`Ctrl`-Switch |

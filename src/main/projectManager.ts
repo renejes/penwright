@@ -12,6 +12,7 @@ import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile } from '../shared/rootFinder';
 import { TYPST_SKILL, VSWRITE_SKILL, RESEARCH_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
+import { addBreadcrumb } from './crashReporter';
 
 const GITIGNORE_TEMPLATE = `# vswrite
 .vswrite/
@@ -227,6 +228,7 @@ export async function openProject(projectDir?: string): Promise<string | null> {
     appState.mainWindow?.webContents.send('vswrite', { type: 'projectOpened', dir: projectDir });
   }
 
+  addBreadcrumb('project', `opened ${entry ? '(with entry file)' : '(empty)'}`);
   return projectDir;
 }
 

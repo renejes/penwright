@@ -848,6 +848,25 @@ Auf Windows/Linux jeweils `Ctrl` statt `Cmd`.
 
 ---
 
+## Crash-Berichte
+
+Sollte vswrite einmal abstuerzen, schreibt die App lokal einen Bericht im Klartext:
+
+- Was fuer ein Fehler aufgetreten ist
+- Stack-Trace mit Datei + Zeile
+- Deine letzten Aktionen (Bearbeitungs-Schritte, keine Inhalte)
+- App-, OS- und Versions-Informationen
+
+Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du entscheidest selbst, was passiert: **In Zwischenablage kopieren**, **E-Mail vorbereiten** (oeffnet deinen Mail-Client mit `feedback@vswrite.com` vorausgefuellt), **Ordner oeffnen** (zeigt alle gespeicherten Berichte im Finder) oder **Verwerfen** (loescht sie).
+
+**Was vswrite NICHT tut:** Daten automatisch ins Internet senden. Es gibt keine externe Crash-Telemetrie, keinen Account-Login, keinen Server der mitliest. Berichte bleiben auf deinem Rechner, bis du sie aktiv weitergibst.
+
+**Was anonymisiert wird:** Pfade wie `/Users/<Vorname>/...` werden vor dem Schreiben durch `/Users/<redacted>/...` ersetzt. Datei-Inhalte landen nie in den Berichten — nur Datei-**Endungen** und Aktions-Typen (etwa „Datei gespeichert", „Projekt geoeffnet").
+
+**Spaeter wieder oeffnen:** Help → Crash-Berichte oeffnen oeffnet den Ordner mit allen gespeicherten Berichten.
+
+---
+
 ## Updates
 
 Die App prueft bei jedem Start, ob eine neue Version verfuegbar ist (5 s nach Start, dann alle 4 Stunden). Wenn ja, erscheint ein nativer Dialog mit der Option, das Update herunterzuladen und beim naechsten Start zu installieren.

@@ -73,6 +73,13 @@ const INVOKE_CHANNELS = [
   'license:deactivate',
   'license:getStatus',
   'license:openCheckout',
+  'crash:report',
+  'crash:getLatest',
+  'crash:markShown',
+  'crash:deleteAll',
+  'crash:openFolder',
+  'crash:copyToClipboard',
+  'crash:openMail',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {

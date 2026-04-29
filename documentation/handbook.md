@@ -848,6 +848,25 @@ On Windows/Linux use `Ctrl` instead of `Cmd`.
 
 ---
 
+## Crash Reports
+
+If vswrite ever crashes, the app writes a plaintext report locally containing:
+
+- The error type and message
+- A stack trace with file + line
+- Your recent actions (event types only — no document content)
+- App, OS, and version info
+
+On next launch, a dialog opens automatically with the report — you decide what happens: **Copy to clipboard**, **Prepare e-mail** (opens your mail client pre-filled to `feedback@vswrite.com`), **Open folder** (shows all stored reports in Finder), or **Discard** (deletes them).
+
+**What vswrite does NOT do:** automatically send data over the internet. There is no external crash telemetry, no account login, no server reading along. Reports stay on your machine until you actively share them.
+
+**What gets anonymized:** Paths like `/Users/<firstname>/...` are replaced with `/Users/<redacted>/...` before the report is written. Document content never enters reports — only file **extensions** and action types (e.g. "file saved", "project opened").
+
+**Later access:** Help → Crash-Berichte oeffnen opens the reports folder.
+
+---
+
 ## Updates
 
 The app checks for new versions on each start (5 seconds after start, then every 4 hours). When a new version is available, a native dialog asks whether to download it now and install on next launch.

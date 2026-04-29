@@ -22,6 +22,7 @@
   import ExportDialog from './components/ExportDialog.svelte';
   import CitationHoverCard from './components/CitationHoverCard.svelte';
   import ReferencePicker from './components/ReferencePicker.svelte';
+  import CrashReportDialog from './components/CrashReportDialog.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
@@ -133,8 +134,37 @@
     setState(_state: unknown) {},
   };
 
+  // ─── Crash-report dialog state ─────────────────────
+  // On boot we ask main if there's a fresh, unshown crash report. If yes,
+  // we display it once, then mark it shown so it won't reappear next boot.
+  // Reports stay on disk in <userData>/crash-reports/ until the user
+  // explicitly discards them via the dialog.
+  type CrashReport = { content: string; filename: string; ts: number };
+  let pendingCrash: CrashReport | null = $state(null);
+
+  async function dismissCrashDialog() {
+    pendingCrash = null;
+    try {
+      await (window as unknown as { electronAPI: { invoke: (c: string) => Promise<unknown> } })
+        .electronAPI.invoke('crash:markShown');
+    } catch {
+      /* ignore */
+    }
+  }
+
   onMount(() => {
     (window as unknown as Record<string, unknown>).vswriteApi = vscodeBridge;
+
+    // Check for a previous-session crash before doing anything else.
+    (async () => {
+      try {
+        const api = (window as unknown as { electronAPI: { invoke: (c: string) => Promise<unknown> } }).electronAPI;
+        const report = await api.invoke('crash:getLatest') as CrashReport | null;
+        if (report) pendingCrash = report;
+      } catch {
+        /* ignore — never block boot on crash detection */
+      }
+    })();
 
     editorRef.current = createEditor(editorElement, {
       onTransaction() {
@@ -875,6 +905,13 @@
     {#if uiState.showAbout}
       <AboutDialog
         onClose={() => { uiState.showAbout = false; }}
+      />
+    {/if}
+    {#if pendingCrash}
+      <CrashReportDialog
+        content={pendingCrash.content}
+        filename={pendingCrash.filename}
+        onClose={dismissCrashDialog}
       />
     {/if}
     {#if exportDialogState.show && exportDialogState.sections}

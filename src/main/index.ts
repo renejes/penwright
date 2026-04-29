@@ -18,6 +18,12 @@ import { releaseLock } from './lockManager';
 import { getWindowBounds, saveWindowBounds } from './persistenceManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
+import { setupCrashCapture, addBreadcrumb } from './crashReporter';
+
+// Set up crash capture as the very first thing so even early-startup
+// errors land in a report. This installs uncaughtException /
+// unhandledRejection handlers and starts Electron's native crash dumper.
+setupCrashCapture();
 
 // ─── Window Creation ──────────────────────────────────
 
@@ -192,6 +198,7 @@ app.whenReady().then(() => {
   createWindow();
   setupTerminal();
   setupGitIPC();
+  addBreadcrumb('lifecycle', 'window created');
 
   // Open project from command-line arg if a .typ file path was passed
   // (e.g. "Open With vswrite" from Finder). The parent folder becomes the

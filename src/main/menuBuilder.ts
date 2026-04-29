@@ -9,6 +9,7 @@
 
 import { app, Menu, shell } from 'electron';
 import type { AppState } from './appState';
+import { getReportsDir } from './crashReporter';
 
 export function buildMenu(state: AppState): void {
   const isMac = process.platform === 'darwin';
@@ -255,6 +256,11 @@ export function buildMenu(state: AppState): void {
           click: () => {
             shell.openExternal('https://github.com/renejes/vswrite-desktop/issues');
           },
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Crash-Berichte oeffnen',
+          click: () => { shell.openPath(getReportsDir()); },
         },
         ...(isMac
           ? []

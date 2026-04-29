@@ -21,6 +21,7 @@ import {
   getBackupConfig,
   aiSnapshotsDir,
 } from './persistenceManager';
+import { addBreadcrumb } from './crashReporter';
 
 let compiler: TypstCompiler | null = null;
 let fileWatcher: FSWatcher | null = null;
@@ -270,7 +271,10 @@ export async function openFile(filePath?: string): Promise<void> {
       addRecentProject(appState.projectDir, path.basename(appState.projectDir));
       saveLastProjectPath(appState.projectDir);
     }
+
+    addBreadcrumb('file', `opened ${path.extname(appState.currentFilePath)}`);
   } catch (err) {
+    addBreadcrumb('file', `open failed: ${err instanceof Error ? err.message : String(err)}`);
     dialog.showErrorBox(
       'Could not open file',
       `${err instanceof Error ? err.message : String(err)}`,
@@ -294,8 +298,10 @@ export async function saveFile(): Promise<boolean> {
       saved: true,
       file: appState.currentFilePath,
     });
+    addBreadcrumb('file', `saved ${path.extname(appState.currentFilePath)} (${appState.currentContent.length} chars)`);
     return true;
   } catch (err) {
+    addBreadcrumb('file', `save failed: ${err instanceof Error ? err.message : String(err)}`);
     dialog.showErrorBox(
       'Could not save file',
       `${err instanceof Error ? err.message : String(err)}`,
@@ -345,6 +351,7 @@ export function closeProject(): void {
 
   updateTitle();
   appState.mainWindow?.webContents.send('vswrite', { type: 'projectClosed' });
+  addBreadcrumb('project', 'closed');
 }
 
 /**
