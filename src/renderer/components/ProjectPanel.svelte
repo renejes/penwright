@@ -234,13 +234,19 @@
 
   async function cloudPush() {
     cloudBusy = true;
-    try { await api.invoke('git:push'); } catch (err) { alert('Push fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err))); }
+    try { await api.invoke('git:push'); } catch (err) { alert('Mit Cloud synchronisieren fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err))); }
     cloudBusy = false;
   }
 
   async function cloudPull() {
+    const confirmed = confirm(
+      'Cloud-Backup wird mit dem aktuellen Stand zusammengeführt. Lokale Änderungen können dabei überschrieben werden.\n\n' +
+      'Tipp: Speichere vorher den aktuellen Stand als eigene Version, falls du nichts verlieren willst.\n\n' +
+      'Fortfahren?',
+    );
+    if (!confirmed) return;
     cloudBusy = true;
-    try { await api.invoke('git:pull'); await refreshAll(); } catch (err) { alert('Pull fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err))); }
+    try { await api.invoke('git:pull'); await refreshAll(); } catch (err) { alert('Cloud-Backup konnte nicht geladen werden: ' + (err instanceof Error ? err.message : String(err))); }
     cloudBusy = false;
   }
 

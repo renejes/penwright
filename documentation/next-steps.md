@@ -112,7 +112,7 @@ Offen fuer den tatsaechlichen Launch sind: **Distribution einrichten** (Firebase
 | Spell Check | Electron-native + Sync aus Typst-`lang`-Setting | - |
 | Find/Replace | Funktional | DOM-basiert statt TipTap-aware, kann bei Edge Cases Treffer uebersehen |
 | i18n/Lokalisierung | Handbuch 2-sprachig (handbuch.md + handbook.md) | UI-Strings nicht extrahiert, komplett auf Englisch |
-| Bestaetigungsdialoge | Meist vorhanden | Fehlen bei destruktiven Git-Operationen (unstage, reset) |
+| Bestaetigungsdialoge | Vorhanden bei Restore Version, Apply Backup, Cloud-Backup laden (Pull) | — |
 
 ### 2.5 Nice-to-Have (nach v1.0)
 
@@ -129,7 +129,7 @@ Offen fuer den tatsaechlichen Launch sind: **Distribution einrichten** (Firebase
 - [ ] **Crash-Telemetrie (Sentry)** — am Launch-Tag gibt es Bugs, ohne Telemetrie keine Reproduktion. Opt-out-Toggle in Settings. **Kritischster Launch-Enabler.**
 - [x] **Shortcut-Cheat-Sheet** (`Cmd+/`) — Help → Keyboard Shortcuts oeffnet das Overlay. Sieben Gruppen mit allen ~30 Shortcuts aus dem Handbuch.
 - [ ] **"Open Sample Project"** im StartScreen — neuer User vs. leerer WYSIWYG = Bounce. Ein-Klick-Beispielprojekt zeigt Typst-Vibe.
-- [ ] **Bestaetigungsdialog bei Git-unstage / Reset**
+- [x] **Bestaetigungsdialog bei destruktiven Cloud-Ops** — Cloud-Backup laden (Pull) bekommt einen Confirm im Versionen-Vokabular. Restore Version + Apply Backup hatten bereits einen. Unstage / Reset gibt's in der UI gar nicht mehr (mit dem ProjectPanel-Rewrite retired).
 - [x] **Package.json Version bumpen auf 0.7.0**
 
 ---
@@ -410,7 +410,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Crash-Telemetrie (Sentry) mit Opt-out-Toggle
 - [x] Shortcut-Cheat-Sheet-Overlay (`Cmd+/`)
 - [ ] "Open Sample Project" im StartScreen
-- [ ] Bestaetigungsdialog bei destruktiven Git-Ops
+- [x] Bestaetigungsdialog bei destruktiven Cloud-Ops
 - [x] package.json Version -> 0.7.0
 
 ### Phase 4: Distribution
