@@ -248,7 +248,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [ ] **Netlify-Hosting fuer Handbuch** (de + en) live
 - [ ] **DOCX-Iteration** (kontinuierlich, nicht launch-blocking): `#raw("…")` inline aufdröseln, `#outline()` als Word-TOC-Field, weitere Typst-Konstrukte nach Bedarf
 
-### Writer-Features (Plan in [writer-features-plan.md](writer-features-plan.md))
+### Writer-Features (Plan archiviert unter [done/writer-features-plan.md](done/writer-features-plan.md))
 
 Funktionale Reife als Writing-Tool — neun Features mit Implementierungsdetails dokumentiert:
 

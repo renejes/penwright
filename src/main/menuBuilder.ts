@@ -259,7 +259,7 @@ export function buildMenu(state: AppState): void {
         },
         { type: 'separator' as const },
         {
-          label: 'Crash-Berichte oeffnen',
+          label: 'Open Crash Reports',
           click: () => { shell.openPath(getReportsDir()); },
         },
         ...(isMac

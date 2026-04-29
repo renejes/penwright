@@ -103,7 +103,7 @@ All project-level and document-level actions live in the **native menu bar** (to
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus standard window/zoom roles
 - **Document** — Document Settings, Style Templates submenu (7 predefined + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
-- **Help** — User Guide, Keyboard Shortcuts, Report Issue (and About on Windows / Linux)
+- **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
 
 In-text content insertions (image, table, math, citation, divider, page break, etc.) are reachable via [slash commands](#slash-commands) — type `/` at an empty line in the editor.
 
@@ -676,18 +676,16 @@ vswrite ships a built-in MCP server (Model Context Protocol) that lets external 
 
 ### What can the MCP server do?
 
-Over MCP (26 tools) the AI can:
-- Open, read and edit Typst documents
-- Change document settings (font, size, language, margins, etc.)
-- Apply style templates (7 predefined styles)
-- Compile Typst and analyze errors
-- Export PDFs
-- Manage chapters (read, reorder, add, remove, merge, split)
-- Manage bibliography and citations (add BibTeX entries)
-- Manage project files (read, write, list)
-- Create new projects from templates
-- Run Git operations (status, commit, push)
-- Switch between projects
+Over MCP (43 tools) the AI can:
+- Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
+- Change document settings (font, size, language, margins, …) and apply style templates
+- Manage chapters and bibliography end-to-end (incl. anchor-based comment / footnote / cross-reference inserts)
+- Run project-wide search and replace with a versions-safety-net (whole-word lookarounds work for `@citekey` backlinks)
+- Look up source PDFs in `sources/` by citekey
+- Save / list / show / restore versions in the writer-vocabulary used by the Project panel
+- Export PDF and DOCX (DOCX uses real Word styles + live multilevel numbering)
+- Import Markdown and add images (with content-hash dedup + figure builder)
+- Switch between projects, run Git operations, and pull Skill Prompts (typst-reference / vswrite-conventions / research-workflow)
 
 ### Setup: Claude Desktop
 
@@ -758,58 +756,28 @@ You don't need to edit the config every time you switch projects. Just tell Clau
 
 Claude will call `vswrite_set_project` and work with the new project from there on.
 
-### Available tools (26)
+### Available tools (43)
 
-**Document & Project:**
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). Quick overview by category:
 
-| Tool | Description |
-|------|-------------|
-| `vswrite_set_project` | Set/switch the project directory |
-| `vswrite_get_document` | Read the current document |
-| `vswrite_open_file` | Open a .typ file |
-| `vswrite_update_document` | Edit the document and save |
-| `vswrite_compile` | Compile Typst (SVG/PDF) |
-| `vswrite_export_pdf` | Export PDF |
-| `vswrite_create_project` | Create a new project from a template |
-| `vswrite_list_files` | Show the file tree |
-| `vswrite_read_file` | Read a file |
-| `vswrite_write_file` | Write a file |
+| Category | Count | Tools |
+|---|---|---|
+| Project & files | 5 | `set_project`, `list_files`, `read_file`, `write_file`, `create_project` |
+| Document operations | 4 | `get_document`, `open_file`, `update_document`, `compile` (verifier — PDF-only) |
+| Settings & styling | 4 | `get_settings`, `update_settings`, `list_styles`, `apply_style` |
+| Chapters & structure | 6 | `get_chapters`, `reorder_chapters`, `add_chapter`, `remove_chapter`, `merge_document`, `split_document` |
+| Bibliography | 3 | `get_citations`, `add_citation`, `ensure_bibliography` |
+| Cross-refs & footnotes | 3 | `list_labels`, `insert_reference` (validates + suggests close labels), `add_footnote` (bracket-balance check) |
+| Comments | 4 | `list_comments`, `add_comment` (anchor-based), `resolve_comment`, `delete_comment` |
+| Versions | 4 | `save_version` (auto-init Git when missing), `list_versions`, `show_version`, `restore_version` |
+| Discovery | 3 | `search_project`, `replace_in_project`, `find_source_for_citation` |
+| Export | 2 | `export_pdf` (project-only paths), `export_docx` (Word styles + multilevel numbering) |
+| Import & assets | 2 | `import_markdown`, `add_image` (content-hash dedup, figure builder, optional inline insert) |
+| Git low-level | 3 | `git_status`, `git_commit`, `git_push` |
 
-**Settings & styling:**
+All file-touching tools route paths through `resolveInsideProject` — symlink-aware, blocks `../`-traversal. Anchor-based tools (`add_comment` / `insert_reference` / `add_footnote` / `add_image`) take an `afterText`/`anchor` plus an optional 1-based `occurrence` when the anchor appears multiple times — the agent never has to compute offsets.
 
-| Tool | Description |
-|------|-------------|
-| `vswrite_get_settings` | Read document settings |
-| `vswrite_update_settings` | Change settings |
-| `vswrite_list_styles` | List available style templates |
-| `vswrite_apply_style` | Apply a style template |
-
-**Chapters:**
-
-| Tool | Description |
-|------|-------------|
-| `vswrite_get_chapters` | Read the chapter structure |
-| `vswrite_reorder_chapters` | Change chapter order |
-| `vswrite_add_chapter` | Create a new chapter |
-| `vswrite_remove_chapter` | Remove a chapter |
-| `vswrite_merge_document` | Merge all chapters |
-| `vswrite_split_document` | Split the document by heading |
-
-**Bibliography:**
-
-| Tool | Description |
-|------|-------------|
-| `vswrite_get_citations` | Read all citations from .bib |
-| `vswrite_add_citation` | Add a BibTeX entry |
-| `vswrite_ensure_bibliography` | Ensure bibliography is set up |
-
-**Git:**
-
-| Tool | Description |
-|------|-------------|
-| `vswrite_git_status` | Show git status |
-| `vswrite_git_commit` | Commit changes |
-| `vswrite_git_push` | Push to remote |
+The MCP server also exposes three **prompts** (`typst-reference`, `vswrite-conventions`, `research-workflow`) backed by the deployed `.claude/skills/<name>/SKILL.md` content.
 
 ---
 
@@ -864,7 +832,7 @@ On next launch, a dialog opens automatically with the report — you decide what
 
 **What gets anonymized:** Paths like `/Users/<firstname>/...` are replaced with `/Users/<redacted>/...` before the report is written. Document content never enters reports — only file **extensions** and action types (e.g. "file saved", "project opened").
 
-**Later access:** Help → Crash-Berichte oeffnen opens the reports folder.
+**Later access:** Help → Open Crash Reports opens the reports folder.
 
 ---
 

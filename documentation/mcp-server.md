@@ -1,6 +1,6 @@
 # vswrite MCP Server — AI Integration
 
-> **26 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **43 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
 
 ---
 
@@ -440,7 +440,7 @@ Der MCP Server erfordert eine **Pro-Lizenz**. Ohne Lizenz sind die Tools nicht v
 Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft `typst` CLI fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts      <- Alle 26 Tools in einer Datei (~800 Zeilen)
+src/mcp/server.ts      <- Alle 43 Tools in einer Datei (~1.700 Zeilen)
 esbuild.mcp.mjs        <- Build-Script (ESM, Node 20)
 dist/mcp/server.mjs    <- Gebundelte Ausgabe
 ```
