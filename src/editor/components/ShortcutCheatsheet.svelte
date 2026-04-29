@@ -11,35 +11,73 @@
     entries: ShortcutEntry[];
   }
 
+  const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
+  const mod = isMac ? 'Cmd' : 'Ctrl';
+  const alt = isMac ? 'Alt' : 'Alt';
+
   const groups: ShortcutGroup[] = [
+    {
+      title: 'Project & Files',
+      entries: [
+        { action: 'New Project', shortcut: `${mod}+N` },
+        { action: 'Open Project', shortcut: `${mod}+O` },
+        { action: 'Close Project', shortcut: `${mod}+Shift+W` },
+        { action: 'Save', shortcut: `${mod}+S` },
+        { action: 'Save As', shortcut: `${mod}+Shift+S` },
+      ],
+    },
+    {
+      title: 'Search',
+      entries: [
+        { action: 'Find in Current File', shortcut: `${mod}+F` },
+        { action: 'Find & Replace (Current File)', shortcut: `${mod}+H` },
+        { action: 'Find in Project', shortcut: `${mod}+Shift+F` },
+      ],
+    },
+    {
+      title: 'Writer Features',
+      entries: [
+        { action: 'Add Comment', shortcut: `${mod}+${alt}+M` },
+        { action: 'Insert Cross-Reference', shortcut: `${mod}+${alt}+L` },
+        { action: 'Reading Mode', shortcut: `${mod}+${alt}+R` },
+      ],
+    },
     {
       title: 'Formatting',
       entries: [
-        { action: 'Bold', shortcut: 'Cmd+B' },
-        { action: 'Italic', shortcut: 'Cmd+I' },
-        { action: 'Strikethrough', shortcut: 'Cmd+Shift+X' },
-        { action: 'Inline Code', shortcut: 'Cmd+E' },
-        { action: 'Link', shortcut: 'Cmd+K' },
+        { action: 'Bold', shortcut: `${mod}+B` },
+        { action: 'Italic', shortcut: `${mod}+I` },
+        { action: 'Strikethrough', shortcut: `${mod}+Shift+X` },
+        { action: 'Inline Code', shortcut: `${mod}+E` },
+        { action: 'Link', shortcut: `${mod}+K` },
       ],
     },
     {
       title: 'Blocks',
       entries: [
-        { action: 'Heading 1', shortcut: 'Cmd+Alt+1' },
-        { action: 'Heading 2', shortcut: 'Cmd+Alt+2' },
-        { action: 'Heading 3', shortcut: 'Cmd+Alt+3' },
-        { action: 'Bullet List', shortcut: 'Cmd+Shift+8' },
-        { action: 'Numbered List', shortcut: 'Cmd+Shift+7' },
-        { action: 'Quote', shortcut: 'Cmd+Shift+B' },
-        { action: 'Code Block', shortcut: 'Cmd+Alt+C' },
+        { action: 'Heading 1 / 2 / 3', shortcut: `${mod}+${alt}+1 / 2 / 3` },
+        { action: 'Bullet List', shortcut: `${mod}+Shift+8` },
+        { action: 'Numbered List', shortcut: `${mod}+Shift+7` },
+        { action: 'Code Block', shortcut: `${mod}+${alt}+C` },
+      ],
+    },
+    {
+      title: 'View',
+      entries: [
+        { action: 'Toggle Sidebar', shortcut: `${mod}+B` },
+        { action: 'Toggle Preview', shortcut: `${mod}+Shift+P` },
+        { action: 'Toggle Terminal', shortcut: `${mod}+\`` },
+        { action: 'Exit Focus Mode', shortcut: 'Esc' },
       ],
     },
     {
       title: 'General',
       entries: [
-        { action: 'Undo', shortcut: 'Cmd+Z' },
-        { action: 'Redo', shortcut: 'Cmd+Shift+Z' },
+        { action: 'Undo', shortcut: `${mod}+Z` },
+        { action: 'Redo', shortcut: `${mod}+Shift+Z` },
         { action: 'Slash Commands', shortcut: '/' },
+        { action: 'Citation Autocomplete', shortcut: '@' },
+        { action: 'This Cheat Sheet', shortcut: `${mod}+/` },
       ],
     },
   ];

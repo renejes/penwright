@@ -247,6 +247,7 @@ export function buildMenu(state: AppState): void {
         },
         {
           label: 'Keyboard Shortcuts',
+          accelerator: 'CmdOrCtrl+/',
           click: () => send('showShortcuts'),
         },
         {

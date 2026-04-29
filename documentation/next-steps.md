@@ -1,6 +1,6 @@
 # vswrite Desktop — Next Steps bis zum Release
 
-> Audit-Datum: 2026-04-17 (zuletzt erweitert 2026-04-29 fuer Writer-Features-QA) | App-Version (Doku): 0.7.0 (Pre-Release) | package.json: 0.1.0 — vor dem ersten Release auf 0.7.0 hochzaehlen.
+> Audit-Datum: 2026-04-17 (zuletzt erweitert 2026-04-29 fuer Writer-Features-QA) | App-Version (Doku & package.json): 0.7.0 (Pre-Release).
 
 ---
 
@@ -127,10 +127,10 @@ Offen fuer den tatsaechlichen Launch sind: **Distribution einrichten** (Firebase
 ### 2.6 Vor Launch noch einbauen
 
 - [ ] **Crash-Telemetrie (Sentry)** — am Launch-Tag gibt es Bugs, ohne Telemetrie keine Reproduktion. Opt-out-Toggle in Settings. **Kritischster Launch-Enabler.**
-- [ ] **Shortcut-Cheat-Sheet** (`Cmd+/` oder `?`) — aktuell kennen User die 20 Shortcuts nicht, bis sie das Handbuch lesen. Discovery-Problem.
+- [x] **Shortcut-Cheat-Sheet** (`Cmd+/`) — Help → Keyboard Shortcuts oeffnet das Overlay. Sieben Gruppen mit allen ~30 Shortcuts aus dem Handbuch.
 - [ ] **"Open Sample Project"** im StartScreen — neuer User vs. leerer WYSIWYG = Bounce. Ein-Klick-Beispielprojekt zeigt Typst-Vibe.
 - [ ] **Bestaetigungsdialog bei Git-unstage / Reset**
-- [ ] **Package.json Version bumpen auf 0.7.0** (aktuell 0.1.0)
+- [x] **Package.json Version bumpen auf 0.7.0**
 
 ---
 
@@ -408,10 +408,10 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 ### Phase 3: Vor Launch (TODO)
 
 - [ ] Crash-Telemetrie (Sentry) mit Opt-out-Toggle
-- [ ] Shortcut-Cheat-Sheet-Overlay (`Cmd+/`)
+- [x] Shortcut-Cheat-Sheet-Overlay (`Cmd+/`)
 - [ ] "Open Sample Project" im StartScreen
 - [ ] Bestaetigungsdialog bei destruktiven Git-Ops
-- [ ] package.json Version -> 0.7.0
+- [x] package.json Version -> 0.7.0
 
 ### Phase 4: Distribution
 

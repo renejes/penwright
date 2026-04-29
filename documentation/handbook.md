@@ -842,6 +842,7 @@ Claude will call `vswrite_set_project` and work with the new project from there 
 | Bullet list | `Cmd+Shift+8` |
 | Numbered list | `Cmd+Shift+7` |
 | Code block | `Cmd+Alt+C` |
+| Keyboard shortcuts overview | `Cmd+/` |
 
 On Windows/Linux use `Ctrl` instead of `Cmd`.
 

@@ -842,6 +842,7 @@ Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen 
 | Bullet List | `Cmd+Shift+8` |
 | Numbered List | `Cmd+Shift+7` |
 | Code-Block | `Cmd+Alt+C` |
+| Shortcut-Uebersicht | `Cmd+/` |
 
 Auf Windows/Linux jeweils `Ctrl` statt `Cmd`.
 
