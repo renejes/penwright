@@ -93,7 +93,7 @@ Without \`#set math.equation(numbering: …)\`, every \`@eq:…\` reference reje
 ) <tbl:methods>
 ~~~
 
-Image paths are resolved relative to the file containing the \`#image\` call; \`#include\`d chapter files inherit the resolution from the root, so use \`assets/foo.png\` as if you were in the project root.
+Image paths are resolved relative to the file containing the \`#image\` call. In a chapter file (e.g. \`chapters/03-method.typ\`), reference assets as \`../assets/foo.png\`. From \`main.typ\` at the project root, use \`assets/foo.png\` directly.
 
 ## Cross-References
 
@@ -161,6 +161,7 @@ These are **not** vswrite comments. vswrite annotations live as separate Markdow
 - Block constructs like \`#figure(...)\` need their own paragraph (blank lines around) — pasting them mid-sentence breaks layout.
 - Heading-number renumbering when chapters are reordered is automatic because Typst processes the merged document.
 - Citekeys are bare slugs (no colon); label names use the prefix conventions above. Mixing them up confuses both Typst and vswrite's badge classifier.
+- Image paths in \`#include\`d chapter files: use \`../assets/foo.png\`, not \`assets/foo.png\` — Typst resolves paths from the file containing the \`#image\` call, not the root.
 `;
 
 export const VSWRITE_SKILL = `---
