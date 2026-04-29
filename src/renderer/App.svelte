@@ -608,6 +608,11 @@
     api.invoke('project:open');
   }
 
+  function handleStartOpenSample() {
+    const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+    api.invoke('project:openSample');
+  }
+
   function handleStartOpenRecent(folderPath: string) {
     const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
     api.invoke('project:open', folderPath);
@@ -721,6 +726,7 @@
       <StartScreen
         onNewProject={handleStartNewProject}
         onOpenProject={handleStartOpenProject}
+        onOpenSample={handleStartOpenSample}
         onOpenRecent={handleStartOpenRecent}
       />
     {/if}

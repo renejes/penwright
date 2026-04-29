@@ -11,12 +11,11 @@
 Die App ist inhaltlich release-ready. Was zwischen heute und v1.0 noch fehlt:
 
 1. **Distribution einrichten** — Firebase-Hosting + electron-updater + DMG-Build & Notarization
-2. **„Open Sample Project"** im StartScreen (Conversion-Hebel fuer neue User)
-3. **Handbuch-Online-Hosting** auf Netlify
-4. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters)
-5. **DOCX-Iteration** kontinuierlich — `#raw("…")` inline, `#outline()` als Word-TOC, weitere Typst-Konstrukte
+2. **Handbuch-Online-Hosting** auf Netlify
+3. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters)
+4. **DOCX-Iteration** kontinuierlich — `#raw("…")` inline, `#outline()` als Word-TOC, weitere Typst-Konstrukte
 
-Reihenfolge sinnvoll: **Distribution → Handbuch-Hosting → Sample Project → QA → DMG**.
+Reihenfolge sinnvoll: **Distribution → Handbuch-Hosting → QA → DMG**.
 
 ---
 
@@ -298,7 +297,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] `electron-updater` installieren + in `src/main/index.ts` einbinden
 - [ ] `publish`-Config in `package.json` hinzufuegen
 - [ ] Handbuch-Hosting auf Netlify eingerichtet (de/en)
-- [ ] „Open Sample Project"-Logik im StartScreen + Sample-Projekt-Inhalt (eine Mini-Anleitung zu vswrite, geschrieben in vswrite — Meta-Demo)
+- [x] „Open Sample Project"-Logik im StartScreen — Sample lebt unter `resources/sample-project/`, wird via `extraResources` mitgebundelt; `project:openSample` IPC kopiert nach `~/Documents/vswrite-sample-thesis` (mit Suffix-Counter falls vorhanden), `git init` + initialer Version, oeffnet als Projekt
 - [ ] macOS DMG bauen, signieren, notarisieren
 - [ ] Artefakte deployen
 - [ ] Download-Link auf vswrite.com einbinden

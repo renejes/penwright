@@ -5,10 +5,12 @@
   let {
     onNewProject,
     onOpenProject,
+    onOpenSample,
     onOpenRecent,
   }: {
     onNewProject: () => void;
     onOpenProject: () => void;
+    onOpenSample: () => void;
     onOpenRecent: (folderPath: string) => void;
   } = $props();
 
@@ -84,6 +86,16 @@
           <strong>New Project</strong>
           <span class="action-desc"
             >Document, Thesis, Paper, Letter, or Book</span
+          >
+        </div>
+      </button>
+
+      <button class="action-card" onclick={onOpenSample}>
+        <span class="action-icon">&#9733;</span>
+        <div>
+          <strong>Open Sample Project</strong>
+          <span class="action-desc"
+            >A guided thesis on AI-assisted writing — every feature in one place</span
           >
         </div>
       </button>

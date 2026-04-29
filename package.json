@@ -82,6 +82,10 @@
         "from": "resources/bin/",
         "to": "bin/",
         "filter": ["typst-*"]
+      },
+      {
+        "from": "resources/sample-project/",
+        "to": "sample-project/"
       }
     ],
     "mac": {

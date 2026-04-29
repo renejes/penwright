@@ -20,7 +20,7 @@ function isPathWithinProject(filePath: string): boolean {
   return isPathWithin(filePath, projectRoot);
 }
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, type ExportConfig } from './importExport';
-import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, handleNewFolder, handleAddAssets } from './projectManager';
+import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
 import {
   getPanelState,
   savePanelState,
@@ -652,6 +652,11 @@ export function setupIPC(): void {
 
   ipcMain.handle('project:open', async (_event, projectDir?: string) => {
     const result = await openProject(projectDir);
+    return { ok: !!result, projectDir: result };
+  });
+
+  ipcMain.handle('project:openSample', async () => {
+    const result = await openSampleProject();
     return { ok: !!result, projectDir: result };
   });
 

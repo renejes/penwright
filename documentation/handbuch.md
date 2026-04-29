@@ -34,6 +34,7 @@ vswrite arbeitet projekt-basiert: ein Projekt ist ein Ordner mit mindestens eine
 
 - **File -> New Project…** (`Cmd+N`) — Neues Projekt aus Template
 - **File -> Open Project…** (`Cmd+O`) — Ordner waehlen
+- **„Open Sample Project"** auf dem Start Screen — kopiert eine kommentierte Mini-Thesis ueber AI-gestuetztes wissenschaftliches Arbeiten an einen Speicherort deiner Wahl (Default: `~/Documents/vswrite-sample-thesis`). Inkl. fuenf realer Open-Access-Quellen (PDFs in `sources/`), drei Beispiel-Comments und einer initialen Version im Verlauf. Jedes Feature mindestens einmal demonstriert
 - **Recent Projects** auf dem Start Screen — letzte Projekte mit einem Klick wieder oeffnen
 
 Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** (`Cmd+Shift+W`) — du kommst zum Start Screen zurueck und kannst ein anderes Projekt oeffnen.

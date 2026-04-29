@@ -314,6 +314,13 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 - `cloudPull()` bekommt einen Confirm im Versionen-Vokabular („Cloud-Backup wird mit dem aktuellen Stand zusammengefuehrt … Tipp: Speichere vorher den aktuellen Stand als eigene Version … Fortfahren?"). Push-Error-Toast auch entgittert
 - `package.json` 0.1.0 → 0.7.0 (About-Dialog liest via `app.getVersion()` automatisch)
 
+**Sample Project — „Open Sample Project" auf dem StartScreen:**
+- Sample lebt unter `resources/sample-project/` (~8 MB, 14 PDF-Seiten kompiliert): Thesis-style Mini-Arbeit ueber AI-gestuetztes wissenschaftliches Schreiben, jedes Feature mindestens 1× demonstriert (Cross-Refs, Figures, Tables, Math, Footnotes, Comments, Code-Blocks, Citations); 5 echte Open-Access-PDFs in `sources/` (chen2021codex, bender2021parrots, weidinger2021risks, ji2022hallucination, liu2023chatgpt)
+- Bundling via `extraResources` in [package.json](package.json) → in Production unter `process.resourcesPath/sample-project/`, in Dev unter `resources/sample-project/`
+- `openSampleProject()` in [projectManager.ts](src/main/projectManager.ts): Resolver mit Production+Dev-Fallback, rekursive Copy nach User-Wahl-Pfad (Save-Dialog mit Default `~/Documents/vswrite-sample-thesis`, Suffix-Counter bei Konflikt), `git init` + `.gitignore` + Initial-Version "Sample 0.7.0 — initial state", dann normales `openProject`
+- IPC-Handler `project:openSample` in [ipcHandlers.ts](src/main/ipcHandlers.ts), Preload-whitelisted
+- StartScreen-Button zwischen „New Project" und „Open Project" mit Stern-Icon, eigene Beschreibung „A guided thesis on AI-assisted writing — every feature in one place"
+
 ### Session 15 (2026-04-29) — Cross-References
 
 **Backend:**

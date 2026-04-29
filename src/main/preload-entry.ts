@@ -50,6 +50,7 @@ const INVOKE_CHANNELS = [
   'project:findSourceForCitation',
   'project:getInfo',
   'project:open',
+  'project:openSample',
   'project:close',
   'project:newFolder',
   'project:addAssets',

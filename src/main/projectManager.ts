@@ -3,7 +3,7 @@
  * New Project, File Tree, Claude Skills, Image Handlers, Settings
  */
 
-import { dialog, shell } from 'electron';
+import { app, dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import simpleGit from 'simple-git';
@@ -230,6 +230,141 @@ export async function openProject(projectDir?: string): Promise<string | null> {
 
   addBreadcrumb('project', `opened ${entry ? '(with entry file)' : '(empty)'}`);
   return projectDir;
+}
+
+// ─── Sample Project ──────────────────────────────────
+
+/**
+ * Resolves the bundled sample-project directory. In production this lives
+ * under `process.resourcesPath/sample-project/`; in development we walk
+ * up from `__dirname` to find `resources/sample-project/`.
+ */
+function findBundledSampleDir(): string | null {
+  const candidates: string[] = [];
+
+  // Production: bundled via electron-builder extraResources
+  if (process.resourcesPath) {
+    candidates.push(path.join(process.resourcesPath, 'sample-project'));
+  }
+
+  // Development: repo path. __dirname is dist/main/, walk up to repo root.
+  candidates.push(path.resolve(__dirname, '..', '..', 'resources', 'sample-project'));
+  candidates.push(path.resolve(process.cwd(), 'resources', 'sample-project'));
+
+  for (const c of candidates) {
+    if (fs.existsSync(c) && fs.statSync(c).isDirectory()) return c;
+  }
+  return null;
+}
+
+/**
+ * Recursive copy with no symlink following — keeps things simple and
+ * predictable for a vendored asset directory we control.
+ */
+function copyDirRecursive(src: string, dest: string): void {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, entry.name);
+    const d = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(s, d);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(s, d);
+    }
+  }
+}
+
+/**
+ * Picks a target directory for the sample copy. Strategy: ask the user
+ * where to put the new folder via a save-dialog, default base is the
+ * platform's Documents folder, default name is `vswrite-sample-thesis`,
+ * with `-2`, `-3` suffixes if the name is already taken.
+ */
+async function pickSampleTargetDir(): Promise<string | null> {
+  if (!appState.mainWindow) return null;
+
+  const documents = app.getPath('documents');
+  let baseName = 'vswrite-sample-thesis';
+  let candidate = path.join(documents, baseName);
+  let counter = 2;
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(documents, `${baseName}-${counter}`);
+    counter++;
+  }
+
+  const result = await dialog.showSaveDialog(appState.mainWindow, {
+    title: 'Where should the sample project be saved?',
+    defaultPath: candidate,
+    buttonLabel: 'Create here',
+    properties: ['createDirectory'],
+  });
+  if (result.canceled || !result.filePath) return null;
+  return result.filePath;
+}
+
+/**
+ * Copies the bundled sample project into a user-chosen location, runs
+ * `git init` plus an initial "Sample 0.7.0 - initial state" version so
+ * the Verlauf is non-empty on first open, then opens the project.
+ *
+ * Why copy: the bundled folder lives inside the .app bundle on macOS
+ * and is read-only / wiped on app update. The user gets a real working
+ * copy in their own Documents folder.
+ */
+export async function openSampleProject(): Promise<string | null> {
+  const bundled = findBundledSampleDir();
+  if (!bundled) {
+    if (appState.mainWindow) {
+      await dialog.showMessageBox(appState.mainWindow, {
+        type: 'error',
+        message: 'Sample project not found.',
+        detail: 'The bundled sample-project resource is missing from this build.',
+      });
+    }
+    return null;
+  }
+
+  // Tear down any currently-open project before we copy + open.
+  const { closeProjectInteractive } = await import('./fileManager');
+  if (appState.projectDir) {
+    const closed = await closeProjectInteractive();
+    if (!closed) return null;
+  }
+
+  const targetDir = await pickSampleTargetDir();
+  if (!targetDir) return null;
+
+  try {
+    copyDirRecursive(bundled, targetDir);
+  } catch (err) {
+    if (appState.mainWindow) {
+      await dialog.showMessageBox(appState.mainWindow, {
+        type: 'error',
+        message: 'Could not create the sample project.',
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return null;
+  }
+
+  // Initialize Git + first version so the Verlauf shows one entry from
+  // the start. Errors here are non-fatal — the project still opens.
+  try {
+    const git = simpleGit(targetDir);
+    await git.init();
+    try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
+    // .gitignore for vswrite-local state — match what ensureProjectInfrastructure does.
+    const gitignorePath = path.join(targetDir, '.gitignore');
+    if (!fs.existsSync(gitignorePath)) {
+      fs.writeFileSync(gitignorePath, '# vswrite\n.vswrite/\n*.pdf\n\n# OS\n.DS_Store\nThumbs.db\n', 'utf-8');
+    }
+    await git.add('-A');
+    await git.commit('Sample 0.7.0 — initial state');
+  } catch (err) {
+    console.warn('[vswrite] sample-project git init failed (non-fatal):', err);
+  }
+
+  return openProject(targetDir);
 }
 
 // ─── Folder Creation ─────────────────────────────────
