@@ -12,6 +12,7 @@
   import IncludesPanel from './components/IncludesPanel.svelte';
   import ProjectPanel from './components/ProjectPanel.svelte';
   import CommentsPanel from './components/CommentsPanel.svelte';
+  import DesignPanel from './components/DesignPanel.svelte';
   import PreviewPanel from './components/PreviewPanel.svelte';
   import TerminalPanel from './components/TerminalPanel.svelte';
   import TextFileViewer from './components/TextFileViewer.svelte';
@@ -844,6 +845,7 @@
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'includes'} onclick={() => panelState.sidebarTab = 'includes'} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label="Chapters panel">Chapters</button>
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'git'} onclick={() => panelState.sidebarTab = 'git'} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Project panel">Project</button>
             <button class="sidebar-tab" class:active={panelState.sidebarTab === 'comments'} onclick={() => panelState.sidebarTab = 'comments'} role="tab" aria-selected={panelState.sidebarTab === 'comments'} aria-label="Comments panel">Comments</button>
+            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'design'} onclick={() => panelState.sidebarTab = 'design'} role="tab" aria-selected={panelState.sidebarTab === 'design'} aria-label="Design panel">Design</button>
           </div>
           <div class="sidebar-body">
             {#if panelState.sidebarTab === 'files'}
@@ -856,6 +858,8 @@
               <ProjectPanel />
             {:else if panelState.sidebarTab === 'comments'}
               <CommentsPanel />
+            {:else if panelState.sidebarTab === 'design'}
+              <DesignPanel />
             {/if}
           </div>
         </div>

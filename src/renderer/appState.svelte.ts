@@ -43,7 +43,7 @@ export let panelState = $state({
   showSidebar: true,
   showPreview: false,
   showTerminal: false,
-  sidebarTab: 'files' as 'files' | 'outline' | 'includes' | 'git' | 'comments',
+  sidebarTab: 'files' as 'files' | 'outline' | 'includes' | 'git' | 'comments' | 'design',
   sidebarWidth: 220,
   previewWidth: 400,
   terminalHeight: 200,

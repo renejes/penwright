@@ -33,6 +33,7 @@
     "@codemirror/state": "^6.6.0",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.40.0",
+    "@melloware/coloris": "^0.25.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@polar-sh/sdk": "^0.46.7",
     "@tiptap/core": "^3.0.0",
@@ -87,7 +88,9 @@
       {
         "from": "resources/bin/",
         "to": "bin/",
-        "filter": ["typst-*"]
+        "filter": [
+          "typst-*"
+        ]
       },
       {
         "from": "resources/sample-project/",
@@ -96,12 +99,18 @@
       {
         "from": "dist/mcp/bin/",
         "to": "mcp/bin/",
-        "filter": ["vswrite-mcp-*"]
+        "filter": [
+          "vswrite-mcp-*"
+        ]
       },
       {
         "from": "resources/typst-packages/",
         "to": "typst-packages/",
-        "filter": ["preview/**", "manifest.json", "bundle-licenses.json"]
+        "filter": [
+          "preview/**",
+          "manifest.json",
+          "bundle-licenses.json"
+        ]
       }
     ],
     "mac": {
