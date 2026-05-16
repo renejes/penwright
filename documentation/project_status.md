@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-17 (nach Session 21: Design-Editor Phase A — Style-JSON-Schema, JSON↔Typst-Generator, Settings-Tab mit Color/Font/Scale/Layout/Heading-Slots)
+> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phase B Foundation — Color-Palette + Coloris, 7 OFL-Fonts gebündelt, Font-Browser, Schema-Konsolidierung mit Custom-Code-Escape-Hatch, Document Settings auf lang+bib reduziert)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -278,6 +278,52 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 22 (2026-05-17) — Design-Editor Phase B: Foundation + Konsolidierung
+
+**Phase B Round 1 ausgeliefert + Style-Surface konsolidiert.** Vier Commits, jeweils eigenständig reverbar:
+
+**1. Color-Palette + Coloris (`dc0f5dd`):**
+- Neuer Sidebar-Tab "Design" ([DesignPanel.svelte](src/renderer/components/DesignPanel.svelte)), `panelState.sidebarTab` Union erweitert um `'design'`
+- [@melloware/coloris](https://github.com/melloware/coloris) (10 KB MIT) für Color-Picker — bewusste Library-Wahl statt Eigenbau, weil Designer-Standard
+- 5 semantische Slots (primary / accent / text / background / muted), 8 kuratierte Palette-Presets in [palettePresets.ts](src/shared/palettePresets.ts) (Modern Tech, Editorial, Earth Tones, High Contrast, Minimal Mono, Forest Deep, Sunset Warm, Ocean Classic — alle WCAG-AA-geprüft)
+- Debounced `style:save` (300ms) → style.typ regeneration → recompile
+
+**2. 7 OFL-Fonts gebündelt + Font-Browser (`08f6742`):**
+- Static-TTF-Bundle: Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro, Spectral (~6.6 MB total). Static gewählt weil Typst 0.14.2 bei Variable-Fonts warnt
+- [scripts/fetch-typst-fonts.mjs](scripts/fetch-typst-fonts.mjs) — direkte GitHub-Quellen + Inter-Release-ZIP-Extraktion. Idempotent. Wirft 24 Files in `resources/fonts/<Family>/`
+- [scripts/audit-bundled-deps.mjs](scripts/audit-bundled-deps.mjs) erweitert: walkt `resources/fonts/`, klassifiziert OFL.txt-Dateien, generiert `fonts`-Section in `THIRD_PARTY_LICENSES.md` + `bundle-licenses.json`. Build failed auf Deny-List-Hit
+- [typstPath.ts](src/main/typstPath.ts) `getTypstFontPath()` + `buildTypstCompileArgs()` praependiert `--font-path`. MCP-Server kriegt `TYPST_FONT_PATH` env-Var via [mcpSetup.ts](src/main/mcpSetup.ts) (MCP_SETUP_VERSION 0.4.0 → 0.5.0)
+- `vswrite-font://` Custom-Protokoll in [index.ts](src/main/index.ts) — path-validierter Zugriff aus dem Renderer für @font-face live preview
+- DesignPanel Font-Browser: Cards gruppiert nach Sans/Serif/Mono, jede Card rendert Family-Name + Beispiel-Satz in eigener Schrift, Apply-Buttons für Body/Heading/Code, Active-Pills bei aktueller Zuweisung
+- AcknowledgmentsDialog zeigt Fonts in eigener Section neben Packages
+
+**3. Custom-Code-Escape-Hatch (`2b64813`):**
+- ProjectStyle.custom.preamble — free-form Typst-Source der ans Ende von style.typ angehängt wird. Wrapped in fenced markers, sodass Round-Trip-Regenerierung den Block niemals zerstört
+- `extractCustomBlock()` parsed den Block beim Laden zurück. style:get IPC fällt auf disk-style.typ zurück, wenn style.json leer ist aber on-disk-edits existieren — manuelle Edits an style.typ überleben den nächsten Designer-Save
+- DesignPanel-Section "Custom Typst-Code" (collapsible) mit CodeMirror via [CodeEditor.svelte](src/renderer/components/CodeEditor.svelte) — Typst-Syntax-Highlighting, Zeilenzahl-Badge bei nicht-leerem Block
+
+**4. Schema-Erweiterung + Konsolidierung (`5363f12` + `1d63f82`):**
+- Schema absorbiert Layout (pageNumbering / pageHeader / pageFooter / pageFill), Scale (paragraphSpacing / firstLineIndent), Headings.numbering. Sanitizer mit `pickLenOrEmpty` und `pickFreeString` für die neuen Free-Form-Felder
+- DesignPanel um Sections Scale / Layout / Headings (inkl. H1/H2-Subgruppen) erweitert
+- Document Settings Dialog **vollständig entrümpelt**: war 320 Zeilen mit 14 Feldern in 5 Sections, ist jetzt 130 Zeilen mit `lang` + `bibliographyStyle`. Blue Info-Hinweis: "Typografie und Design leben jetzt im Design-Tab"
+- [settingsParser.ts](src/shared/settingsParser.ts): DocumentSettings auf zwei Felder reduziert, alte balanced-paren/bracket-arg Helpers entfernt (~120 LOC weg)
+- QuickSettings-Toolbar-Popover schreibt jetzt scale.base/scale.leading in style.json + triggert style.typ regen
+- docxSerializer akzeptiert optionalen `ProjectStyle`-Parameter, resolveConfig liest Typografie aus style, lang weiterhin aus DocumentSettings. importExport.ts lädt style.json und reicht es durch
+- Konflikt-Banner (Phase A Hack für "manuelle #set Rules in main.typ") entfernt — kein Pfad mehr konkurriert
+- Legacy "Style Templates"-Submenu aus dem Document-Menü entfernt. IPC-Handler + `applyStyleTemplate` bleiben für die MCP-Tools `vswrite_list_styles` / `vswrite_apply_style`, bis das neue Theme-Preset-Format steht
+
+**Verifikation:**
+- Build: 3.72 MB Renderer-Bundle (Coloris + DesignPanel + CodeMirror-Wiederverwendung)
+- svelte-check: 0 Errors (4 vor-existente pdfjs/CSS-Errors als Bonus mitbehoben)
+- End-to-end Compile: Editorial-Palette + Crimson Pro + IBM Plex Sans + JetBrains Mono + #set page numbering/header + style.json roundtrip → 23 KB PDF, Null Typst-Warnings
+
+**Was bewusst draußen blieb (kommt in Phase B Round 2+):**
+- Theme-Presets im neuen ProjectStyle-Format (ersetzen die 7 alten Templates später)
+- H1-H6 Heading-Style-Designer mit Live-Preview-Cards (aktuell nur H1/H2 strukturiert, H3+ via custom.preamble)
+- Special-Elements (Blockquote/Code-Block/Figure/Table/Callout-Editor)
+- Cover-Page-Builder + Brochure/Magazine/Business-Card/Poster-Layout-Presets
+- Image-Color-Extraction (gestrichen)
 
 ### Session 21 (2026-05-17) — Design-Editor Phase A: Style Variables
 
