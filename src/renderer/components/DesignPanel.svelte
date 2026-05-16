@@ -26,6 +26,7 @@
     cloneProjectStyle,
   } from '../../shared/styleTypes';
   import { PALETTE_PRESETS } from '../../shared/palettePresets';
+  import { THEME_PRESETS } from '../../shared/themePresets';
   import CodeEditor from './CodeEditor.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
@@ -182,6 +183,23 @@
     const preset = PALETTE_PRESETS.find(p => p.id === presetId);
     if (!preset) return;
     style.colors = { ...preset.colors };
+  }
+
+  /**
+   * Applies a full theme — overwrites every branch of `style` except
+   * `custom.preamble`, which we preserve because the user's escape-hatch
+   * code is project-specific and not part of any theme. Custom code is
+   * additive (appended below generated rules), so keeping it works with
+   * any theme.
+   */
+  function applyTheme(themeId: string): void {
+    const t = THEME_PRESETS.find(p => p.id === themeId);
+    if (!t) return;
+    const preservedCustom = style.custom?.preamble ?? '';
+    style = cloneProjectStyle({
+      ...t.style,
+      custom: { preamble: preservedCustom },
+    });
   }
 
   function setFont(slot: FontSlot, family: string): void {
@@ -347,6 +365,7 @@
   <section class="design-section">
     <header class="design-section-header">
       <h3>Paletten-Presets</h3>
+      <span class="design-section-hint">Klick = nur die fünf Farb-Slots übernehmen. Fonts und Layout bleiben unverändert.</span>
     </header>
 
     <div class="preset-grid">
@@ -365,6 +384,39 @@
             <span style="background: {preset.colors.background}; border: 1px solid #ddd"></span>
           </div>
           <div class="preset-name">{preset.name}</div>
+        </button>
+      {/each}
+    </div>
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <h3>Themes</h3>
+      <span class="design-section-hint">Klick = komplettes Design übernehmen (Farben + Fonts + Scale + Layout + Headings + Elements). Dein Custom-Code-Block bleibt erhalten.</span>
+    </header>
+
+    <div class="theme-grid">
+      {#each THEME_PRESETS as preset}
+        <button
+          type="button"
+          class="theme-card"
+          onclick={() => applyTheme(preset.id)}
+          title={preset.description}
+        >
+          <div class="theme-swatches">
+            <span style="background: {preset.style.colors.primary}"></span>
+            <span style="background: {preset.style.colors.accent}"></span>
+            <span style="background: {preset.style.colors.text}"></span>
+            <span style="background: {preset.style.colors.muted}"></span>
+            <span style="background: {preset.style.colors.background}; border: 1px solid #ddd"></span>
+          </div>
+          <div class="theme-name">{preset.name}</div>
+          <div class="theme-fonts">
+            <span style="font-family: {JSON.stringify(preset.style.fonts.body)}">Aa</span>
+            <span style="font-family: {JSON.stringify(preset.style.fonts.heading)}; font-weight: 600">H</span>
+            <span class="theme-fonts-code" style="font-family: {JSON.stringify(preset.style.fonts.code)}">{'{}'}</span>
+          </div>
+          <div class="theme-best">{preset.bestFor}</div>
         </button>
       {/each}
     </div>
@@ -1052,6 +1104,88 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Theme cards (full ProjectStyle apply) — wider than palette cards
+     because each one needs to fit a font preview and a "best for" line. */
+
+  .theme-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .theme-card {
+    appearance: none;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "swatches name"
+      "swatches fonts"
+      "best     best";
+    gap: 4px 10px;
+    text-align: left;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    font-family: inherit;
+  }
+
+  .theme-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
+  }
+
+  .theme-swatches {
+    grid-area: swatches;
+    display: flex;
+    gap: 0;
+    height: 36px;
+    width: 36px;
+    flex-direction: column;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .theme-swatches span {
+    flex: 1 1 0;
+    display: block;
+    width: 100%;
+  }
+
+  .theme-name {
+    grid-area: name;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .theme-fonts {
+    grid-area: fonts;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+    color: #4b5563;
+  }
+
+  .theme-fonts-code {
+    font-size: 11px;
+    color: #6b7280;
+  }
+
+  .theme-best {
+    grid-area: best;
+    font-size: 10.5px;
+    color: #999;
+    line-height: 1.4;
+    padding-top: 2px;
+    border-top: 1px solid #f0f0f0;
+    margin-top: 2px;
   }
 
   /* Fonts */
