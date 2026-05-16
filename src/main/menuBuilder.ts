@@ -19,11 +19,6 @@ export function buildMenu(state: AppState): void {
 
   const showAbout = () => send('showAbout');
 
-  const styleTemplate = (id: string, label: string): Electron.MenuItemConstructorOptions => ({
-    label,
-    click: () => send('applyStyle', { styleId: id }),
-  });
-
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
       ? [
@@ -239,24 +234,14 @@ export function buildMenu(state: AppState): void {
           click: () => send('requestSettings'),
         },
         { type: 'separator' },
-        {
-          label: 'Style Templates',
-          submenu: [
-            styleTemplate('classic', 'Classic Academic'),
-            styleTemplate('modern', 'Modern Clean'),
-            styleTemplate('minimal', 'Minimal'),
-            styleTemplate('vibrant', 'Vibrant'),
-            styleTemplate('elegant', 'Elegant'),
-            styleTemplate('professional', 'Professional Report'),
-            styleTemplate('artsy', 'Artsy'),
-            { type: 'separator' },
-            {
-              label: 'Import Custom Template…',
-              click: () => send('importStyleTemplate'),
-            },
-          ],
-        },
-        { type: 'separator' },
+        // The legacy "Style Templates" submenu (Classic / Modern / Minimal /
+        // Vibrant / Elegant / Professional / Artsy) has been removed from the
+        // in-app menu. Style editing now happens in the Design sidebar tab,
+        // which writes into .vswrite/style.json instead of injecting raw
+        // preamble into main.typ. The applyStyleTemplate / handleImportStyleTemplate
+        // IPC handlers stay in importExport.ts as legacy entry points for
+        // the MCP tools `vswrite_list_styles` / `vswrite_apply_style` until
+        // those are migrated to the new theme-preset format.
         {
           label: 'Merge Document',
           click: () => send('mergeDocument'),

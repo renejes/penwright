@@ -373,6 +373,212 @@
 
   <section class="design-section">
     <header class="design-section-header">
+      <h3>Scale</h3>
+    </header>
+
+    <div class="design-fields">
+      <label class="design-field">
+        <span>Base size</span>
+        <input
+          type="text"
+          bind:value={style.scale.base}
+          placeholder="11pt"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="design-field">
+        <span>Leading</span>
+        <input
+          type="text"
+          bind:value={style.scale.leading}
+          placeholder="0.65em"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="design-field">
+        <span>Paragraph spacing</span>
+        <input
+          type="text"
+          bind:value={style.scale.paragraphSpacing}
+          placeholder="z.B. 1.2em (leer = default)"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="design-field">
+        <span>First-line indent</span>
+        <input
+          type="text"
+          bind:value={style.scale.firstLineIndent}
+          placeholder="z.B. 1em (leer = kein Einzug)"
+          spellcheck="false"
+        />
+      </label>
+    </div>
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <h3>Layout</h3>
+      <span class="design-section-hint">Seite, Margins, Header/Footer, Seitenzahlen. Header/Footer akzeptieren Typst-Markup wie <code>*Bold*</code> oder <code>#counter(page).display()</code>.</span>
+    </header>
+
+    <div class="design-fields">
+      <label class="design-field">
+        <span>Paper</span>
+        <select bind:value={style.layout.paper}>
+          <option value="a4">a4</option>
+          <option value="a5">a5</option>
+          <option value="a3">a3</option>
+          <option value="us-letter">us-letter</option>
+          <option value="us-legal">us-legal</option>
+        </select>
+      </label>
+
+      <label class="design-field">
+        <span>Margin</span>
+        <input
+          type="text"
+          bind:value={style.layout.margin}
+          placeholder="2.5cm"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="design-field">
+        <span>Columns</span>
+        <select bind:value={style.layout.columns}>
+          <option value={1}>1</option>
+          <option value={2}>2</option>
+          <option value={3}>3</option>
+        </select>
+      </label>
+
+      <label class="design-field">
+        <span>Page numbering</span>
+        <select bind:value={style.layout.pageNumbering}>
+          <option value="">None</option>
+          <option value="1">1, 2, 3</option>
+          <option value="1 / 1">1 / 1 (with total)</option>
+          <option value="— 1 —">— 1 —</option>
+          <option value="i">i, ii, iii (roman)</option>
+          <option value="I">I, II, III (Roman)</option>
+        </select>
+      </label>
+
+      <label class="design-field">
+        <span>Header</span>
+        <input
+          type="text"
+          bind:value={style.layout.pageHeader}
+          placeholder="z.B. My Document Title"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="design-field">
+        <span>Footer</span>
+        <input
+          type="text"
+          bind:value={style.layout.pageFooter}
+          placeholder="z.B. #counter(page).display()"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="design-field">
+        <span>Page background</span>
+        <select bind:value={style.layout.pageFill}>
+          <option value="">— Background color slot —</option>
+          <option value="luma(252)">Light gray</option>
+          <option value="luma(245)">Medium gray</option>
+          <option value="rgb(&quot;#FFFFF0&quot;)">Ivory</option>
+          <option value="rgb(&quot;#FFF8F0&quot;)">Warm cream</option>
+          <option value="rgb(&quot;#F0F4FF&quot;)">Cool blue</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <h3>Headings</h3>
+    </header>
+
+    <div class="design-fields">
+      <label class="design-field">
+        <span>Numbering</span>
+        <select bind:value={style.headings.numbering}>
+          <option value="">None</option>
+          <option value="1.">1. 2. 3.</option>
+          <option value="1.1">1.1 1.2 2.1</option>
+          <option value="1.a">1.a 1.b 2.a</option>
+          <option value="I.">I. II. III.</option>
+        </select>
+      </label>
+
+      <div class="design-subgroup">
+        <div class="design-subgroup-label">H1</div>
+        <label class="design-field">
+          <span>Size</span>
+          <input type="text" bind:value={style.headings.h1.size} placeholder="24pt" spellcheck="false" />
+        </label>
+        <label class="design-field">
+          <span>Weight</span>
+          <select bind:value={style.headings.h1.weight}>
+            <option value="regular">Regular</option>
+            <option value="medium">Medium</option>
+            <option value="semibold">Semi-Bold</option>
+            <option value="bold">Bold</option>
+            <option value="extrabold">Extra Bold</option>
+          </select>
+        </label>
+        <label class="design-field">
+          <span>Color</span>
+          <select bind:value={style.headings.h1.color}>
+            {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+          </select>
+        </label>
+        <label class="design-field">
+          <span>Margin top</span>
+          <input type="text" bind:value={style.headings.h1.marginTop} placeholder="2em" spellcheck="false" />
+        </label>
+      </div>
+
+      <div class="design-subgroup">
+        <div class="design-subgroup-label">H2</div>
+        <label class="design-field">
+          <span>Size</span>
+          <input type="text" bind:value={style.headings.h2.size} placeholder="18pt" spellcheck="false" />
+        </label>
+        <label class="design-field">
+          <span>Weight</span>
+          <select bind:value={style.headings.h2.weight}>
+            <option value="regular">Regular</option>
+            <option value="medium">Medium</option>
+            <option value="semibold">Semi-Bold</option>
+            <option value="bold">Bold</option>
+            <option value="extrabold">Extra Bold</option>
+          </select>
+        </label>
+        <label class="design-field">
+          <span>Color</span>
+          <select bind:value={style.headings.h2.color}>
+            {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+          </select>
+        </label>
+        <label class="design-field">
+          <span>Margin top</span>
+          <input type="text" bind:value={style.headings.h2.marginTop} placeholder="1.6em" spellcheck="false" />
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
       <button
         type="button"
         class="custom-toggle"
@@ -730,6 +936,65 @@
     border-color: #3b82f6;
     color: #1d4ed8;
     background: #eff6ff;
+  }
+
+  /* Generic design-field rows (used by Scale / Layout / Headings) */
+
+  .design-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .design-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+  }
+
+  .design-field > span {
+    flex: 0 0 96px;
+    color: #4b5563;
+    font-size: 11px;
+  }
+
+  .design-field input[type="text"],
+  .design-field select {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 5px 7px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #1a1a1a;
+    background: #fff;
+    font-family: inherit;
+  }
+
+  .design-field input[type="text"]:focus,
+  .design-field select:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: -1px;
+    border-color: transparent;
+  }
+
+  .design-subgroup {
+    border-left: 2px solid #eee;
+    padding-left: 10px;
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .design-subgroup-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 2px;
   }
 
   /* Custom code section */

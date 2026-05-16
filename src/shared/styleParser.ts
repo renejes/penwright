@@ -49,6 +49,15 @@ function fontLiteral(name: string): string {
 }
 
 /**
+ * Escapes a value for safe inclusion in a Typst double-quoted string —
+ * just the bare minimum (`"` and `\` need backslash-escapes). The sanitizer
+ * caps these inputs at short lengths, so we don't need to deal with newlines.
+ */
+function escapeQuotedString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
  * Converts an arbitrary hex color (#rgb or #rrggbb, case-insensitive) into
  * a Typst rgb literal. Falls back to white on parse failure — the schema
  * sanitizer already restricts inputs to hex, so this is defensive.
@@ -85,23 +94,47 @@ export function generateStyleTypst(style: ProjectStyle): string {
   push();
 
   // ─── Page ───
+  // Order matters when reading the generated style.typ: paper / margin /
+  // columns are the universally-set ones, fill+numbering+header+footer are
+  // only emitted when non-empty so a blank style.typ stays minimal.
   const pageProps: string[] = [
     `paper: "${style.layout.paper}"`,
     `margin: ${style.layout.margin}`,
-    `fill: style-colors.background`,
   ];
   if (style.layout.columns > 1) pageProps.push(`columns: ${style.layout.columns}`);
+  if (style.layout.pageFill.trim()) {
+    pageProps.push(`fill: ${style.layout.pageFill.trim()}`);
+  } else {
+    pageProps.push(`fill: style-colors.background`);
+  }
+  if (style.layout.pageNumbering.trim()) {
+    pageProps.push(`numbering: "${escapeQuotedString(style.layout.pageNumbering)}"`);
+  }
+  if (style.layout.pageHeader.trim()) {
+    pageProps.push(`header: [${style.layout.pageHeader}]`);
+  }
+  if (style.layout.pageFooter.trim()) {
+    pageProps.push(`footer: [${style.layout.pageFooter}]`);
+  }
   push(`#set page(${pageProps.join(', ')})`);
 
   // ─── Text ───
   push(`#set text(font: ${fontLiteral(style.fonts.body)}, size: ${style.scale.base}, fill: style-colors.text)`);
 
   // ─── Paragraph ───
-  push(`#set par(leading: ${style.scale.leading})`);
+  const parProps: string[] = [`leading: ${style.scale.leading}`];
+  if (style.scale.paragraphSpacing.trim()) parProps.push(`spacing: ${style.scale.paragraphSpacing.trim()}`);
+  if (style.scale.firstLineIndent.trim()) parProps.push(`first-line-indent: ${style.scale.firstLineIndent.trim()}`);
+  push(`#set par(${parProps.join(', ')})`);
 
   // ─── Code / raw ───
   push(`#show raw: set text(font: ${fontLiteral(style.fonts.code)})`);
   push();
+
+  // ─── Heading numbering (separate #set call before the per-level show rules) ───
+  if (style.headings.numbering.trim()) {
+    push(`#set heading(numbering: "${escapeQuotedString(style.headings.numbering)}")`);
+  }
 
   // ─── Headings ───
   for (const [levelName, level] of [['h1', 1], ['h2', 2]] as const) {

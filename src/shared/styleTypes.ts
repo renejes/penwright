@@ -42,6 +42,10 @@ export interface StyleScale {
   base: string;
   /** Paragraph leading — Typst length (e.g. "0.65em"). */
   leading: string;
+  /** Paragraph spacing between blocks — Typst length (e.g. "1.2em"). Empty = Typst default. */
+  paragraphSpacing: string;
+  /** First-line indent — Typst length (e.g. "1em"). Empty = no indent. */
+  firstLineIndent: string;
 }
 
 export interface StyleLayout {
@@ -51,6 +55,19 @@ export interface StyleLayout {
   margin: string;
   /** Column count, 1–3. */
   columns: number;
+  /** Page-number pattern — Typst pattern like "1", "1 / 1", "i", "I", "— 1 —". Empty = none. */
+  pageNumbering: string;
+  /** Page-header markup placed inside `header: [...]`. Empty = no header. */
+  pageHeader: string;
+  /** Page-footer markup placed inside `footer: [...]`. Empty = no footer (page-number footer still works). */
+  pageFooter: string;
+  /**
+   * Page background fill expression — Typst color value like `luma(252)` or
+   * `rgb("#FFFFF0")`. Empty = use `colors.background`. Kept as raw Typst
+   * expression rather than hex so users can pick e.g. `luma(245)` from a
+   * dropdown without us round-tripping it through hex.
+   */
+  pageFill: string;
 }
 
 export interface StyleHeading {
@@ -67,6 +84,8 @@ export interface StyleHeading {
 export interface StyleHeadings {
   h1: StyleHeading;
   h2: StyleHeading;
+  /** Numbering pattern applied via `#set heading(numbering: "...")` — e.g. "1.1", "1.", "I.". Empty = unnumbered. */
+  numbering: string;
 }
 
 /**
@@ -113,15 +132,22 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
   scale: {
     base: '11pt',
     leading: '0.65em',
+    paragraphSpacing: '',
+    firstLineIndent: '',
   },
   layout: {
     paper: 'a4',
     margin: '2.5cm',
     columns: 1,
+    pageNumbering: '',
+    pageHeader: '',
+    pageFooter: '',
+    pageFill: '',
   },
   headings: {
     h1: { size: '24pt', weight: 'bold',     color: 'primary', marginTop: '2em'   },
     h2: { size: '18pt', weight: 'semibold', color: 'primary', marginTop: '1.6em' },
+    numbering: '',
   },
   custom: { preamble: '' },
 };
@@ -157,6 +183,32 @@ function pickPaper(raw: unknown, fallback: string): string {
 
 function pickWeight(raw: unknown, fallback: string): string {
   if (typeof raw === 'string' && WEIGHT.test(raw.trim())) return raw.trim();
+  return fallback;
+}
+
+/**
+ * Length-or-empty: same as pickLen but allows an empty string explicitly.
+ * Used for optional layout/scale fields where "" means "Typst default —
+ * don't emit a #set arg at all". Anything else must validate as a length.
+ */
+function pickLenOrEmpty(raw: unknown, fallback: string): string {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed === '') return '';
+    if (TYPST_LEN.test(trimmed)) return trimmed;
+  }
+  return fallback;
+}
+
+/**
+ * Free-form short string (~200 char cap). Used for things like page-numbering
+ * patterns and header/footer markup where we trust the user to write valid
+ * Typst. We don't sanitize the contents because the user can already paste
+ * arbitrary Typst into the custom-code section — this is just a length cap
+ * to keep style.json reasonable.
+ */
+function pickFreeString(raw: unknown, fallback: string, maxLen = 200): string {
+  if (typeof raw === 'string' && raw.length <= maxLen) return raw;
   return fallback;
 }
 
@@ -221,17 +273,24 @@ export function sanitizeProjectStyle(raw: unknown): ProjectStyle {
       code:    pickFont(fonts.code,    D.fonts.code),
     },
     scale: {
-      base:    pickLen(scale.base,    D.scale.base),
-      leading: pickLen(scale.leading, D.scale.leading),
+      base:             pickLen(scale.base, D.scale.base),
+      leading:          pickLen(scale.leading, D.scale.leading),
+      paragraphSpacing: pickLenOrEmpty(scale.paragraphSpacing, D.scale.paragraphSpacing),
+      firstLineIndent:  pickLenOrEmpty(scale.firstLineIndent, D.scale.firstLineIndent),
     },
     layout: {
-      paper:   pickPaper(layout.paper, D.layout.paper),
-      margin:  pickLen(layout.margin,  D.layout.margin),
-      columns: pickInt(layout.columns, 1, 3, D.layout.columns),
+      paper:         pickPaper(layout.paper, D.layout.paper),
+      margin:        pickLen(layout.margin, D.layout.margin),
+      columns:       pickInt(layout.columns, 1, 3, D.layout.columns),
+      pageNumbering: pickFreeString(layout.pageNumbering, D.layout.pageNumbering, 32),
+      pageHeader:    pickFreeString(layout.pageHeader, D.layout.pageHeader),
+      pageFooter:    pickFreeString(layout.pageFooter, D.layout.pageFooter),
+      pageFill:      pickFreeString(layout.pageFill, D.layout.pageFill, 100),
     },
     headings: {
-      h1: sanitizeHeading(headings.h1, D.headings.h1),
-      h2: sanitizeHeading(headings.h2, D.headings.h2),
+      h1:        sanitizeHeading(headings.h1, D.headings.h1),
+      h2:        sanitizeHeading(headings.h2, D.headings.h2),
+      numbering: pickFreeString(headings.numbering, D.headings.numbering, 32),
     },
     custom: sanitizeCustom(r.custom),
   };
