@@ -24,12 +24,16 @@ Typst is a modern typesetting system. This skill covers the syntax and construct
 
 A Typst document starts with optional **#set / #show / #let** rules (the preamble), followed by the body. In multi-chapter projects (vswrite default), the preamble lives in \`main.typ\` and chapters are pulled in via \`#include\`.
 
+### vswrite-projects: \`style.typ\` + \`apply-style\` instead of inline \`#set\`
+
+vswrite generates a \`style.typ\` file from the project's \`.vswrite/style.json\` (the Design panel's source of truth). \`main.typ\` pulls it in with this two-line preamble:
+
 ~~~typst
 // main.typ
-#set text(font: "Libertinus Serif", size: 11pt, lang: "de")
-#set page(paper: "a4", margin: 2.5cm, numbering: "1")
-#set par(justify: true, leading: 0.65em)
-#set heading(numbering: "1.1")
+#import "style.typ": *
+#show: apply-style
+
+#set text(lang: "de")    // only language stays here
 
 #include "chapters/01-introduction.typ"
 #include "chapters/02-method.typ"
@@ -37,7 +41,29 @@ A Typst document starts with optional **#set / #show / #let** rules (the preambl
 #bibliography("references.bib", style: "apa")
 ~~~
 
-Chapter files contain only body content — no preamble. Applying a style template to a chapter file is blocked because it would silently inject preamble into the wrong place.
+\`apply-style\` is a generated function that contains every \`#set page\` / \`#set text\` / \`#show heading.where(...)\` rule the schema produces. \`#import "style.typ": *\` brings \`style-colors\` (the palette dict) into scope.
+
+**Critical gotcha:** \`#include "style.typ"\` was an earlier (broken) pattern. In Typst, \`#set\` rules inside an \`#include\`d file apply only to content within that file's own evaluation — they do NOT propagate to the includer's scope. \`#show: apply-style\` is the correct way.
+
+### Other (non-vswrite-managed) projects
+
+A plain Typst project without vswrite's Design panel uses the classic inline preamble:
+
+~~~typst
+#set text(font: "Libertinus Serif", size: 11pt, lang: "de")
+#set page(paper: "a4", margin: 2.5cm, numbering: "1")
+#set par(justify: true, leading: 0.65em)
+#set heading(numbering: "1.1")
+
+= My document
+…
+~~~
+
+When editing such a project from the MCP server, decide on intent: if the user wants the Design panel to manage their styling going forward, call \`vswrite_apply_style\` or \`vswrite_update_style\` and let it generate \`style.typ\` for them. If they don't want the structured surface, leave their inline preamble alone.
+
+### Chapter files
+
+Chapter files contain only body content — no preamble. \`apply-style\`'s set/show rules propagate into included chapters automatically. If a chapter needs to reference \`style-colors\` directly (e.g. for a custom Pull-Quote block), add a per-chapter import header: \`#import "../style.typ": style-colors\`.
 
 ## Markup
 
@@ -421,11 +447,64 @@ In the editor:
 
 These are display-only — toggling them never modifies \`.typ\` files.
 
-## Style Templates
+## Design surface — \`style.json\` + \`style.typ\` + \`apply-style\`
 
-Seven predefined preambles + custom imports. Apply only to the **root file** (\`main.typ\`). Applying to a chapter is blocked at the IPC level — would silently inject preamble code into the chapter and break the build.
+vswrite projects keep all visual design tokens in a single typed file: \`<project>/.vswrite/style.json\`. The vswrite app regenerates \`<project>/style.typ\` from that JSON whenever the user (or an MCP tool) writes to it, then ensures the root \`.typ\` file has:
 
-Available IDs: \`classic\`, \`modern\`, \`minimal\`, \`vibrant\`, \`elegant\`, \`professional\`, \`artsy\`. From MCP: \`vswrite_list_styles\` / \`vswrite_apply_style\`.
+~~~typst
+#import "style.typ": *
+#show: apply-style
+~~~
+
+at the top. \`apply-style\` is a generated function that wraps the whole document with every \`#set\` / \`#show\` rule the schema defines. The \`#import\` brings \`style-colors\` (a dict with the five palette slots) into scope so body content can reference colours directly — handy for hand-rolled blocks like Hero / Pull-Quote.
+
+**Why this pattern, not \`#include "style.typ"\`**: in Typst, \`#set\` rules inside an \`#include\`d file apply only to content within that file's own evaluation — they do NOT propagate to the includer's scope. \`#show: apply-style\` is the idiomatic way to apply a rule set to the rest of the document.
+
+**Chapter files that reference \`style-colors\` directly** need their own import header:
+
+~~~typst
+#import "../style.typ": style-colors
+~~~
+
+Set / show rules from \`apply-style\` propagate into included chapters automatically; only direct identifier references need re-importing.
+
+### What lives in \`style.json\`
+
+The schema (full shape in \`src/shared/styleTypes.ts\`) covers seven branches:
+
+- \`colors\` — five semantic slots (\`primary\`, \`accent\`, \`text\`, \`background\`, \`muted\`)
+- \`fonts\` — \`body\`, \`heading\`, \`code\`
+- \`scale\` — \`base\`, \`leading\`, \`paragraphSpacing\`, \`firstLineIndent\`
+- \`layout\` — \`paper\`, \`orientation\`, \`margin\`, \`columns\`, \`pageNumbering\`, \`pageHeader\`, \`pageFooter\`, \`pageFill\`
+- \`headings\` — h1–h6 each with \`size\` / \`weight\` / \`color\` (slot name) / \`marginTop\`, plus a single \`numbering\` pattern
+- \`elements\` — \`blockquote\` / \`codeBlock\` / \`figure\` / \`table\` per-element design tokens
+- \`custom.preamble\` — free-form Typst escape hatch, inserted at the bottom of \`apply-style\` between fence-marker comments. Use this for things the schema doesn't expose (custom \`#show heading.where(level: 1)\` rules with line decorations, \`#set math.equation(numbering: …)\`, helper \`#let\` bindings, etc.).
+
+### Theme presets (replaces the seven retired style-templates)
+
+Six full \`ProjectStyle\` snapshots ship in \`src/shared/themePresets.ts\`:
+
+| ID | Look |
+|---|---|
+| \`classic-academic\` | Crimson Pro body, IBM Plex Sans headings, navy primary, 1.1 numbering |
+| \`modern-tech\` | Inter throughout, electric-blue accent, no first-line indent |
+| \`editorial-magazine\` | Spectral body on warm cream, terracotta accent, large display H1 |
+| \`minimal\` | Inter only, monochrome, generous margins, light heading weights |
+| \`marketing-brochure\` | Bold IBM Plex Sans, navy + orange, two-column layout |
+| \`thesis\` | Crimson Pro everywhere, full hierarchical numbering, binding-friendly |
+
+Apply via MCP: \`vswrite_apply_style({ styleId: "modern-tech" })\` or in-app from the Design sidebar tab's *Themes* section. Applying a theme overwrites every branch of \`style.json\` **except \`custom.preamble\`** — the user's escape-hatch code survives.
+
+### Six layout presets (geometry only)
+
+Layout presets only swap \`layout.*\` (and optionally \`scale.base\`) — typography stays intact. Use after a theme to switch geometry: theme \`editorial-magazine\` + layout \`magazine-2col\`. IDs: \`a4-portrait-standard\`, \`a4-landscape-presentation\`, \`magazine-2col\`, \`newsletter-3col\`, \`a5-booklet\`, \`a2-poster\`. From MCP: \`vswrite_list_layouts\` / \`vswrite_apply_layout\`.
+
+### When NOT to write Typst preamble by hand
+
+If the user has a populated \`style.json\`, **don't** hand-edit \`#set\` / \`#show\` blocks in their root \`.typ\` file. Those edits will be silently overridden by the next \`apply-style\` call (which re-emits everything from the JSON). Either:
+
+- Patch \`style.json\` via \`vswrite_update_style\` (deep-merge), or
+- Append the rule to \`style.custom.preamble\` (escape hatch) so it ends up inside \`apply-style\` and survives regeneration.
 
 ## Working with vswrite — Two Paths
 
@@ -440,7 +519,7 @@ If you have read/write access to the project folder (Terminal Claude, VS Code Cl
 
 ### MCP tools (Claude Desktop, Codex Desktop, …)
 
-When connected via the vswrite MCP server, you have **43 dedicated tools** instead of raw filesystem access. They enforce project boundaries (every path validated against the project root, symlink-aware), generate ids and YAML, validate cross-reference labels, etc.
+When connected via the vswrite MCP server, you have **52 dedicated tools** instead of raw filesystem access. They enforce project boundaries (every path validated against the project root, symlink-aware), generate ids and YAML, validate cross-reference labels, regenerate \`style.typ\` from \`style.json\`, etc.
 
 **Prefer the dedicated tool over raw \`vswrite_write_file\`** when one exists:
 
@@ -454,9 +533,36 @@ When connected via the vswrite MCP server, you have **43 dedicated tools** inste
 | Insert footnote | \`vswrite_add_footnote\` (bracket-balance check) |
 | Insert image | \`vswrite_add_image\` (asset dedup + figure builder) |
 | Bulk rename | \`vswrite_save_version\` → \`vswrite_replace_in_project\` |
-| Apply style | \`vswrite_apply_style\` (root-file guard) |
-| Verify build | \`vswrite_compile\` (errors with file/line) |
+| **Read style** | \`vswrite_get_style\` (full JSON) |
+| **Patch style** | \`vswrite_update_style({ patch })\` (deep-merge, sanitised) |
+| **Apply theme** | \`vswrite_apply_style({ styleId })\` (preserves \`custom.preamble\`) |
+| **Apply layout** | \`vswrite_apply_layout({ layoutId })\` (geometry only) |
+| **Apply palette** | \`vswrite_apply_palette({ presetId or slot hex })\` |
+| **List bundled fonts** | \`vswrite_list_fonts\` (7 OFL families always available) |
+| **Insert design element** | \`vswrite_insert_design_element\` (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider, anchor-based) |
+| **Generate layout** | \`vswrite_generate_layout({ intent })\` (one-shot theme + layout + optional hero) |
+| Verify build | \`vswrite_compile\` (errors with **file + line + hints**) |
 | Export | \`vswrite_export_pdf\` / \`vswrite_export_docx\` |
+
+### Edit → Compile → Fix loop
+
+After any non-trivial edit, **call \`vswrite_compile\` and inspect the result**. The tool returns either:
+
+~~~json
+{ "success": true, "rootFile": "...", "sizeBytes": 23456 }
+~~~
+
+or, on failure:
+
+~~~json
+{ "success": false, "rootFile": "...", "errors": [
+  { "message": "cannot reference equation without numbering (hint: enable equation numbering with #set math.equation(numbering: \\"1.\\"))",
+    "file": "/abs/path/to/chapters/03-foo.typ",
+    "line": 60 }
+] }
+~~~
+
+Use the \`file\` + \`line\` to scope your fix. The \`hint:\` annotations from Typst are appended to the message so you get the suggested remediation in one shot. Don't guess — open the file at the reported line, fix the immediate cause, and re-compile. Two-line edits + a recompile is faster and safer than scanning the whole project.
 
 See the \`research-workflow\` skill for end-to-end recipes.
 

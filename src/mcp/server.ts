@@ -498,17 +498,59 @@ server.tool(
   },
 );
 
-function parseCompileErrors(stderr: string): { message: string; line?: number }[] {
-  const errors: { message: string; line?: number }[] = [];
-  for (const line of stderr.split('\n')) {
-    const match = line.match(/error:?\s*(.*)/i);
-    if (match) {
-      const lineMatch = line.match(/:(\d+):/);
-      errors.push({
-        message: match[1],
-        line: lineMatch ? parseInt(lineMatch[1]) : undefined,
-      });
+/**
+ * Parses Typst's stderr into structured errors. A single Typst error
+ * spans multiple lines:
+ *
+ *   error: cannot reference equation without numbering
+ *     ┌─ /abs/path/to/chapters/03-foo.typ:60:0
+ *      │
+ *   60 │ @eq:mle is, in some sense, …
+ *      │ ^^^^^^^
+ *      │
+ *      = hint: try `#set math.equation(numbering: …)`
+ *
+ * We pair each `error:` line with the next `┌─` line beneath it to
+ * extract the file path and line number — without that pairing, agents
+ * editing multi-chapter projects can't tell which file to fix.
+ *
+ * Returns `{ message, file?, line? }` per diagnostic. Hints attached
+ * to the error are appended to `message` so the agent sees them.
+ */
+function parseCompileErrors(stderr: string): { message: string; file?: string; line?: number }[] {
+  const errors: { message: string; file?: string; line?: number }[] = [];
+  const lines = stderr.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const errMatch = lines[i].match(/^error:?\s*(.+?)\s*$/i);
+    if (!errMatch) continue;
+
+    const entry: { message: string; file?: string; line?: number } = { message: errMatch[1] };
+
+    // Look ahead for the file:line marker (Typst draws it with `┌─`).
+    // Allowed window: ~4 lines, since the path line is usually directly
+    // after the error: line.
+    for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+      const locMatch = lines[j].match(/┌─\s*(.+?):(\d+):\d+\s*$/);
+      if (locMatch) {
+        entry.file = locMatch[1];
+        entry.line = parseInt(locMatch[2], 10);
+        break;
+      }
     }
+
+    // Optional `= hint:` lines that follow within ~10 lines — append them
+    // to the message so the agent sees the suggested fix.
+    const hints: string[] = [];
+    for (let j = i + 1; j < Math.min(i + 12, lines.length); j++) {
+      const hintMatch = lines[j].match(/^\s*=\s*hint:\s*(.+?)\s*$/);
+      if (hintMatch) hints.push(hintMatch[1]);
+      // Stop scanning when we hit the next error block.
+      if (/^error:?\s/i.test(lines[j])) break;
+    }
+    if (hints.length > 0) entry.message += ` (hint: ${hints.join('; ')})`;
+
+    errors.push(entry);
   }
   return errors;
 }
