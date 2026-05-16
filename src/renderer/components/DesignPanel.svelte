@@ -27,6 +27,7 @@
   } from '../../shared/styleTypes';
   import { PALETTE_PRESETS } from '../../shared/palettePresets';
   import { THEME_PRESETS } from '../../shared/themePresets';
+  import { LAYOUT_PRESETS } from '../../shared/layoutPresets';
   import CodeEditor from './CodeEditor.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
@@ -200,6 +201,19 @@
       ...t.style,
       custom: { preamble: preservedCustom },
     });
+  }
+
+  /**
+   * Applies a layout preset: replaces `style.layout` and optionally
+   * `style.scale.base`. Everything else stays — themes/colors/fonts/headings/
+   * elements/custom are left alone. Lets the user combine a theme with a
+   * layout swap without losing typography choices.
+   */
+  function applyLayout(layoutId: string): void {
+    const p = LAYOUT_PRESETS.find(x => x.id === layoutId);
+    if (!p) return;
+    style.layout = { ...p.layout };
+    if (p.baseSize) style.scale.base = p.baseSize;
   }
 
   function setFont(slot: FontSlot, family: string): void {
@@ -424,6 +438,50 @@
 
   <section class="design-section">
     <header class="design-section-header">
+      <h3>Layout-Presets</h3>
+      <span class="design-section-hint">Tauscht nur Paper / Orientation / Margin / Columns (und ggf. Base-Size). Theme und Farben bleiben.</span>
+    </header>
+
+    <div class="theme-grid">
+      {#each LAYOUT_PRESETS as preset}
+        <button
+          type="button"
+          class="layout-card"
+          onclick={() => applyLayout(preset.id)}
+          title={preset.description}
+        >
+          <div
+            class="layout-icon"
+            class:layout-icon-landscape={preset.layout.orientation === 'landscape'}
+            class:layout-icon-cols-2={preset.layout.columns === 2}
+            class:layout-icon-cols-3={preset.layout.columns === 3}
+            aria-hidden="true"
+          >
+            {#if preset.layout.columns === 1}
+              <span class="layout-bar"></span>
+              <span class="layout-bar"></span>
+              <span class="layout-bar layout-bar-short"></span>
+            {:else if preset.layout.columns === 2}
+              <span class="layout-col"></span>
+              <span class="layout-col"></span>
+            {:else}
+              <span class="layout-col"></span>
+              <span class="layout-col"></span>
+              <span class="layout-col"></span>
+            {/if}
+          </div>
+          <div class="layout-name">{preset.name}</div>
+          <div class="layout-meta">
+            {preset.layout.paper.toUpperCase()} · {preset.layout.orientation === 'landscape' ? 'Landscape' : 'Portrait'} · {preset.layout.columns} col{preset.layout.columns > 1 ? 's' : ''}{preset.baseSize ? ` · ${preset.baseSize}` : ''}
+          </div>
+          <div class="layout-best">{preset.bestFor}</div>
+        </button>
+      {/each}
+    </div>
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
       <h3>Fonts</h3>
       <span class="design-section-hint">
         Sieben OFL-Schriften sind gebündelt — kein System-Install nötig. Jede Karte hat drei Buttons, um sie auf Body, Heading oder Code zu mappen.
@@ -545,11 +603,20 @@
       <label class="design-field">
         <span>Paper</span>
         <select bind:value={style.layout.paper}>
+          <option value="a3">a3</option>
           <option value="a4">a4</option>
           <option value="a5">a5</option>
-          <option value="a3">a3</option>
+          <option value="a2">a2</option>
           <option value="us-letter">us-letter</option>
           <option value="us-legal">us-legal</option>
+        </select>
+      </label>
+
+      <label class="design-field">
+        <span>Orientation</span>
+        <select bind:value={style.layout.orientation}>
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Landscape</option>
         </select>
       </label>
 
@@ -1185,6 +1252,100 @@
     line-height: 1.4;
     padding-top: 2px;
     border-top: 1px solid #f0f0f0;
+    margin-top: 2px;
+  }
+
+  /* Layout cards — slimmer than theme cards because they only swap layout,
+     not full design. Mini page-icon on the left, metadata stack on the right. */
+
+  .layout-card {
+    appearance: none;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "icon name"
+      "icon meta"
+      "icon best";
+    gap: 2px 12px;
+    text-align: left;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    font-family: inherit;
+  }
+
+  .layout-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
+  }
+
+  .layout-icon {
+    grid-area: icon;
+    width: 28px;
+    height: 38px;
+    border: 1.5px solid #cbd5f5;
+    border-radius: 2px;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 3px;
+    align-self: center;
+  }
+
+  .layout-icon-landscape {
+    width: 38px;
+    height: 28px;
+    flex-direction: column;
+  }
+
+  .layout-icon-cols-2,
+  .layout-icon-cols-3 {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .layout-bar {
+    height: 2px;
+    background: #cbd5f5;
+    border-radius: 1px;
+  }
+
+  .layout-bar-short {
+    width: 60%;
+  }
+
+  .layout-col {
+    flex: 1;
+    background: #dbeafe;
+    border-radius: 1px;
+  }
+
+  .layout-name {
+    grid-area: name;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .layout-meta {
+    grid-area: meta;
+    font-size: 10.5px;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .layout-best {
+    grid-area: best;
+    font-size: 10.5px;
+    color: #999;
+    line-height: 1.4;
     margin-top: 2px;
   }
 

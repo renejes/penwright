@@ -51,6 +51,12 @@ export interface StyleScale {
 export interface StyleLayout {
   /** Paper size — Typst paper string (e.g. "a4", "us-letter"). */
   paper: string;
+  /**
+   * Page orientation. Landscape rotates the paper via `#set page(flipped: true)`
+   * — chosen over a separate `<paper>-landscape` string to keep `paper`
+   * a clean Typst paper identifier.
+   */
+  orientation: 'portrait' | 'landscape';
   /** Page margin — Typst length (e.g. "2.5cm"). */
   margin: string;
   /** Column count, 1–3. */
@@ -217,6 +223,7 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
   },
   layout: {
     paper: 'a4',
+    orientation: 'portrait',
     margin: '2.5cm',
     columns: 1,
     pageNumbering: '',
@@ -455,6 +462,7 @@ export function sanitizeProjectStyle(raw: unknown): ProjectStyle {
     },
     layout: {
       paper:         pickPaper(layout.paper, D.layout.paper),
+      orientation:   pickEnum(layout.orientation, ['portrait', 'landscape'] as const, D.layout.orientation),
       margin:        pickLen(layout.margin, D.layout.margin),
       columns:       pickInt(layout.columns, 1, 3, D.layout.columns),
       pageNumbering: pickFreeString(layout.pageNumbering, D.layout.pageNumbering, 32),

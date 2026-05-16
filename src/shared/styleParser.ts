@@ -101,6 +101,7 @@ export function generateStyleTypst(style: ProjectStyle): string {
     `paper: "${style.layout.paper}"`,
     `margin: ${style.layout.margin}`,
   ];
+  if (style.layout.orientation === 'landscape') pageProps.push(`flipped: true`);
   if (style.layout.columns > 1) pageProps.push(`columns: ${style.layout.columns}`);
   if (style.layout.pageFill.trim()) {
     pageProps.push(`fill: ${style.layout.pageFill.trim()}`);
