@@ -97,6 +97,77 @@ export const HEADING_LEVELS: ReadonlyArray<keyof Pick<StyleHeadings, 'h1' | 'h2'
   ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
 
 /**
+ * Per-element design tokens for the recurring "non-heading" block types.
+ * Each element produces one or two `#show` rules in style.typ that wrap
+ * the Typst element with the configured colors / spacing. Anything that
+ * doesn't fit into these structured fields belongs in `custom.preamble`.
+ *
+ * Out of scope here: callouts. Use the bundled `gentle-clues` package
+ * (`#import "@preview/gentle-clues:1.3.1": *` then `#info[…]` /
+ * `#warning[…]` / etc.) via the custom-code escape hatch.
+ */
+
+export interface StyleBlockquote {
+  /** Left-border accent color — references a key from StyleColors. */
+  borderColor: keyof StyleColors;
+  /** Left-border thickness — Typst length (e.g. "3pt"). */
+  borderWidth: string;
+  /** Inset between the left border and the quoted text — Typst length. */
+  paddingLeft: string;
+  /** Body text color slot. */
+  textColor: keyof StyleColors;
+  /** Whether the quote text is italicised. */
+  italic: boolean;
+}
+
+export interface StyleCodeBlock {
+  /**
+   * Background fill — raw Typst color expression (e.g. `luma(245)`,
+   * `rgb("#f5f5f5")`, `style-colors.muted`). Empty = no background.
+   */
+  background: string;
+  /** Horizontal padding — Typst length. */
+  paddingX: string;
+  /** Vertical padding — Typst length. */
+  paddingY: string;
+  /** Corner radius — Typst length. */
+  borderRadius: string;
+}
+
+export interface StyleFigure {
+  /** Where the caption sits relative to the figure. */
+  captionPosition: 'top' | 'bottom';
+  /** Caption font size — Typst length. */
+  captionSize: string;
+  /** Caption color slot. */
+  captionColor: keyof StyleColors;
+  /** Caption horizontal alignment. */
+  captionAlign: 'left' | 'center' | 'right';
+  /** Separator between the auto-numbering and the caption text — e.g. ": ", " — ". */
+  captionSeparator: string;
+}
+
+export interface StyleTable {
+  /** Header-row background color slot. */
+  headerBackground: keyof StyleColors;
+  /** Header-row text color slot. */
+  headerTextColor: keyof StyleColors;
+  /** Whether to alternate-shade body rows. */
+  alternateRowFill: boolean;
+  /** Border color slot. */
+  borderColor: keyof StyleColors;
+  /** Cell inset — Typst length. */
+  cellPadding: string;
+}
+
+export interface StyleElements {
+  blockquote: StyleBlockquote;
+  codeBlock: StyleCodeBlock;
+  figure: StyleFigure;
+  table: StyleTable;
+}
+
+/**
  * Free-form Typst code that the user (or an imported style template) wants
  * appended to the generated `style.typ`. This is the escape hatch for things
  * the structured schema can't express yet: custom `#show heading` blocks
@@ -120,6 +191,7 @@ export interface ProjectStyle {
   scale: StyleScale;
   layout: StyleLayout;
   headings: StyleHeadings;
+  elements: StyleElements;
   custom: StyleCustom;
 }
 
@@ -160,6 +232,35 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
     h5: { size: '11pt', weight: 'bold',     color: 'text',    marginTop: '1em'   },
     h6: { size: '10pt', weight: 'bold',     color: 'muted',   marginTop: '0.8em' },
     numbering: '',
+  },
+  elements: {
+    blockquote: {
+      borderColor: 'accent',
+      borderWidth: '3pt',
+      paddingLeft: '1em',
+      textColor: 'text',
+      italic: true,
+    },
+    codeBlock: {
+      background: 'luma(245)',
+      paddingX: '1em',
+      paddingY: '0.6em',
+      borderRadius: '4pt',
+    },
+    figure: {
+      captionPosition: 'bottom',
+      captionSize: '9pt',
+      captionColor: 'muted',
+      captionAlign: 'left',
+      captionSeparator: ': ',
+    },
+    table: {
+      headerBackground: 'primary',
+      headerTextColor: 'background',
+      alternateRowFill: false,
+      borderColor: 'muted',
+      cellPadding: '6pt',
+    },
   },
   custom: { preamble: '' },
 };
@@ -256,6 +357,68 @@ function sanitizeCustom(raw: unknown): StyleCustom {
   return { preamble };
 }
 
+function pickBool(raw: unknown, fallback: boolean): boolean {
+  return typeof raw === 'boolean' ? raw : fallback;
+}
+
+function pickEnum<T extends string>(raw: unknown, allowed: ReadonlyArray<T>, fallback: T): T {
+  return typeof raw === 'string' && (allowed as readonly string[]).includes(raw) ? (raw as T) : fallback;
+}
+
+function sanitizeBlockquote(raw: unknown, fallback: StyleBlockquote): StyleBlockquote {
+  const r = (raw ?? {}) as Partial<StyleBlockquote>;
+  return {
+    borderColor: pickColorSlot(r.borderColor, fallback.borderColor),
+    borderWidth: pickLen(r.borderWidth, fallback.borderWidth),
+    paddingLeft: pickLen(r.paddingLeft, fallback.paddingLeft),
+    textColor:   pickColorSlot(r.textColor,   fallback.textColor),
+    italic:      pickBool(r.italic, fallback.italic),
+  };
+}
+
+function sanitizeCodeBlock(raw: unknown, fallback: StyleCodeBlock): StyleCodeBlock {
+  const r = (raw ?? {}) as Partial<StyleCodeBlock>;
+  return {
+    background:   pickFreeString(r.background, fallback.background, 100),
+    paddingX:     pickLenOrEmpty(r.paddingX, fallback.paddingX),
+    paddingY:     pickLenOrEmpty(r.paddingY, fallback.paddingY),
+    borderRadius: pickLenOrEmpty(r.borderRadius, fallback.borderRadius),
+  };
+}
+
+function sanitizeFigure(raw: unknown, fallback: StyleFigure): StyleFigure {
+  const r = (raw ?? {}) as Partial<StyleFigure>;
+  return {
+    captionPosition:  pickEnum(r.captionPosition, ['top', 'bottom'] as const, fallback.captionPosition),
+    captionSize:      pickLen(r.captionSize, fallback.captionSize),
+    captionColor:     pickColorSlot(r.captionColor, fallback.captionColor),
+    captionAlign:     pickEnum(r.captionAlign, ['left', 'center', 'right'] as const, fallback.captionAlign),
+    captionSeparator: pickFreeString(r.captionSeparator, fallback.captionSeparator, 16),
+  };
+}
+
+function sanitizeTable(raw: unknown, fallback: StyleTable): StyleTable {
+  const r = (raw ?? {}) as Partial<StyleTable>;
+  return {
+    headerBackground:    pickColorSlot(r.headerBackground, fallback.headerBackground),
+    headerTextColor:     pickColorSlot(r.headerTextColor,  fallback.headerTextColor),
+    alternateRowFill:    pickBool(r.alternateRowFill, fallback.alternateRowFill),
+    borderColor:         pickColorSlot(r.borderColor, fallback.borderColor),
+    cellPadding:         pickLen(r.cellPadding, fallback.cellPadding),
+  };
+}
+
+function sanitizeElements(raw: unknown): StyleElements {
+  const r = (raw ?? {}) as Partial<StyleElements>;
+  const D = DEFAULT_PROJECT_STYLE.elements;
+  return {
+    blockquote: sanitizeBlockquote(r.blockquote, D.blockquote),
+    codeBlock:  sanitizeCodeBlock(r.codeBlock, D.codeBlock),
+    figure:     sanitizeFigure(r.figure, D.figure),
+    table:      sanitizeTable(r.table, D.table),
+  };
+}
+
 /**
  * Coerces an arbitrary JSON value into a valid ProjectStyle.
  * Missing or invalid fields fall back to defaults. Always returns a fresh
@@ -308,6 +471,7 @@ export function sanitizeProjectStyle(raw: unknown): ProjectStyle {
       h6:        sanitizeHeading(headings.h6, D.headings.h6),
       numbering: pickFreeString(headings.numbering, D.headings.numbering, 32),
     },
+    elements: sanitizeElements(r.elements),
     custom: sanitizeCustom(r.custom),
   };
 }

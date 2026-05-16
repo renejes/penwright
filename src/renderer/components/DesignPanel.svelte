@@ -235,6 +235,49 @@
     return `${h.size} · ${h.weight} · ${h.color}`;
   }
 
+  // ─── Elements (Blockquote / Code-Block / Figure / Table) ─────
+  type ElementKey = 'blockquote' | 'codeBlock' | 'figure' | 'table';
+
+  const ELEMENT_LABELS: Record<ElementKey, string> = {
+    blockquote: 'Blockquote',
+    codeBlock:  'Code-Block',
+    figure:     'Figure',
+    table:      'Table',
+  };
+
+  let elementsExpanded = $state<Record<ElementKey, boolean>>({
+    blockquote: false, codeBlock: false, figure: false, table: false,
+  });
+
+  function toggleElement(key: ElementKey): void {
+    elementsExpanded[key] = !elementsExpanded[key];
+  }
+
+  // One-line collapsed summary per element — gives a quick at-a-glance
+  // read of the configured key so users don't have to expand to remember.
+  // Each case pulls its element through the typed key so TypeScript narrows
+  // correctly (a single `style.elements[key]` lookup keeps the union type).
+  function elementSummary(key: ElementKey): string {
+    switch (key) {
+      case 'blockquote': {
+        const el = style.elements.blockquote;
+        return `${el.borderWidth} ${el.borderColor}${el.italic ? ' · italic' : ''}`;
+      }
+      case 'codeBlock': {
+        const el = style.elements.codeBlock;
+        return el.background ? `bg ${el.background}` : 'no background';
+      }
+      case 'figure': {
+        const el = style.elements.figure;
+        return `${el.captionPosition} · ${el.captionAlign}`;
+      }
+      case 'table': {
+        const el = style.elements.table;
+        return `header ${el.headerBackground}${el.alternateRowFill ? ' · zebra' : ''}`;
+      }
+    }
+  }
+
   function onCustomCodeChange(value: string): void {
     if (style.custom) {
       style.custom.preamble = value;
@@ -591,6 +634,203 @@
           {/if}
         </div>
       {/each}
+    </div>
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <h3>Elements</h3>
+      <span class="design-section-hint">Blockquote, Code-Block, Figure, Table. Komplexere Effekte (Callouts, Pull-Quotes, etc.) gehen in den Custom-Code-Block unten — das Paket <code>gentle-clues</code> deckt z.B. Info/Warning/Tip-Boxen ab.</span>
+    </header>
+
+    <div class="design-fields">
+      <!-- Blockquote -->
+      <div class="heading-card" class:open={elementsExpanded.blockquote}>
+        <button
+          type="button"
+          class="heading-card-head"
+          onclick={() => toggleElement('blockquote')}
+          aria-expanded={elementsExpanded.blockquote}
+        >
+          <span class="heading-card-chev">{elementsExpanded.blockquote ? '▾' : '▸'}</span>
+          <span class="heading-card-level">BQ</span>
+          <span class="heading-card-preview">{ELEMENT_LABELS.blockquote}</span>
+          {#if !elementsExpanded.blockquote}
+            <span class="heading-card-summary">{elementSummary('blockquote')}</span>
+          {/if}
+        </button>
+        {#if elementsExpanded.blockquote}
+          <div class="heading-card-body">
+            <label class="design-field">
+              <span>Border color</span>
+              <select bind:value={style.elements.blockquote.borderColor}>
+                {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+              </select>
+            </label>
+            <label class="design-field">
+              <span>Border width</span>
+              <input type="text" bind:value={style.elements.blockquote.borderWidth} placeholder="3pt" spellcheck="false" />
+            </label>
+            <label class="design-field">
+              <span>Padding left</span>
+              <input type="text" bind:value={style.elements.blockquote.paddingLeft} placeholder="1em" spellcheck="false" />
+            </label>
+            <label class="design-field">
+              <span>Text color</span>
+              <select bind:value={style.elements.blockquote.textColor}>
+                {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+              </select>
+            </label>
+            <label class="design-field design-field-checkbox">
+              <span>Italic</span>
+              <input type="checkbox" bind:checked={style.elements.blockquote.italic} />
+            </label>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Code Block -->
+      <div class="heading-card" class:open={elementsExpanded.codeBlock}>
+        <button
+          type="button"
+          class="heading-card-head"
+          onclick={() => toggleElement('codeBlock')}
+          aria-expanded={elementsExpanded.codeBlock}
+        >
+          <span class="heading-card-chev">{elementsExpanded.codeBlock ? '▾' : '▸'}</span>
+          <span class="heading-card-level">CB</span>
+          <span class="heading-card-preview">{ELEMENT_LABELS.codeBlock}</span>
+          {#if !elementsExpanded.codeBlock}
+            <span class="heading-card-summary">{elementSummary('codeBlock')}</span>
+          {/if}
+        </button>
+        {#if elementsExpanded.codeBlock}
+          <div class="heading-card-body">
+            <label class="design-field">
+              <span>Background</span>
+              <select bind:value={style.elements.codeBlock.background}>
+                <option value="">— none —</option>
+                <option value="luma(245)">Light gray</option>
+                <option value="luma(240)">Medium gray</option>
+                <option value="luma(232)">Darker gray</option>
+                <option value="rgb(&quot;#f5f5f5&quot;)">Neutral 50</option>
+                <option value="rgb(&quot;#fef9c3&quot;)">Highlight yellow</option>
+                <option value="rgb(&quot;#dbeafe&quot;)">Cool blue</option>
+                <option value="style-colors.muted.lighten(80%)">Muted (tinted)</option>
+              </select>
+            </label>
+            <label class="design-field">
+              <span>Padding X</span>
+              <input type="text" bind:value={style.elements.codeBlock.paddingX} placeholder="1em" spellcheck="false" />
+            </label>
+            <label class="design-field">
+              <span>Padding Y</span>
+              <input type="text" bind:value={style.elements.codeBlock.paddingY} placeholder="0.6em" spellcheck="false" />
+            </label>
+            <label class="design-field">
+              <span>Corner radius</span>
+              <input type="text" bind:value={style.elements.codeBlock.borderRadius} placeholder="4pt" spellcheck="false" />
+            </label>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Figure -->
+      <div class="heading-card" class:open={elementsExpanded.figure}>
+        <button
+          type="button"
+          class="heading-card-head"
+          onclick={() => toggleElement('figure')}
+          aria-expanded={elementsExpanded.figure}
+        >
+          <span class="heading-card-chev">{elementsExpanded.figure ? '▾' : '▸'}</span>
+          <span class="heading-card-level">FIG</span>
+          <span class="heading-card-preview">{ELEMENT_LABELS.figure}</span>
+          {#if !elementsExpanded.figure}
+            <span class="heading-card-summary">{elementSummary('figure')}</span>
+          {/if}
+        </button>
+        {#if elementsExpanded.figure}
+          <div class="heading-card-body">
+            <label class="design-field">
+              <span>Caption position</span>
+              <select bind:value={style.elements.figure.captionPosition}>
+                <option value="bottom">Below figure</option>
+                <option value="top">Above figure</option>
+              </select>
+            </label>
+            <label class="design-field">
+              <span>Caption size</span>
+              <input type="text" bind:value={style.elements.figure.captionSize} placeholder="9pt" spellcheck="false" />
+            </label>
+            <label class="design-field">
+              <span>Caption color</span>
+              <select bind:value={style.elements.figure.captionColor}>
+                {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+              </select>
+            </label>
+            <label class="design-field">
+              <span>Caption align</span>
+              <select bind:value={style.elements.figure.captionAlign}>
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label class="design-field">
+              <span>Separator</span>
+              <input type="text" bind:value={style.elements.figure.captionSeparator} placeholder=": " spellcheck="false" />
+            </label>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Table -->
+      <div class="heading-card" class:open={elementsExpanded.table}>
+        <button
+          type="button"
+          class="heading-card-head"
+          onclick={() => toggleElement('table')}
+          aria-expanded={elementsExpanded.table}
+        >
+          <span class="heading-card-chev">{elementsExpanded.table ? '▾' : '▸'}</span>
+          <span class="heading-card-level">TBL</span>
+          <span class="heading-card-preview">{ELEMENT_LABELS.table}</span>
+          {#if !elementsExpanded.table}
+            <span class="heading-card-summary">{elementSummary('table')}</span>
+          {/if}
+        </button>
+        {#if elementsExpanded.table}
+          <div class="heading-card-body">
+            <label class="design-field">
+              <span>Header bg</span>
+              <select bind:value={style.elements.table.headerBackground}>
+                {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+              </select>
+            </label>
+            <label class="design-field">
+              <span>Header text</span>
+              <select bind:value={style.elements.table.headerTextColor}>
+                {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+              </select>
+            </label>
+            <label class="design-field design-field-checkbox">
+              <span>Zebra rows</span>
+              <input type="checkbox" bind:checked={style.elements.table.alternateRowFill} />
+            </label>
+            <label class="design-field">
+              <span>Border color</span>
+              <select bind:value={style.elements.table.borderColor}>
+                {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+              </select>
+            </label>
+            <label class="design-field">
+              <span>Cell padding</span>
+              <input type="text" bind:value={style.elements.table.cellPadding} placeholder="6pt" spellcheck="false" />
+            </label>
+          </div>
+        {/if}
+      </div>
     </div>
   </section>
 
@@ -994,6 +1234,12 @@
     outline: 2px solid #3b82f6;
     outline-offset: -1px;
     border-color: transparent;
+  }
+
+  .design-field-checkbox input[type="checkbox"] {
+    margin-left: 0;
+    cursor: pointer;
+    flex: 0 0 auto;
   }
 
   .design-subgroup {

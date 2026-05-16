@@ -148,6 +148,56 @@ export function generateStyleTypst(style: ProjectStyle): string {
   });
   push();
 
+  // ─── Block-level elements ────────────────────────────
+  // One #show rule per element. Each rule is independent — Typst's later-wins
+  // means the user can override anything via custom.preamble below.
+  const e = style.elements;
+
+  // Blockquote (#quote[...] and markdown >). Typst's `quote` element has a
+  // `block: true` variant for the standalone block-quote we care about.
+  {
+    const b = e.blockquote;
+    const italicStyle = b.italic ? `, style: "italic"` : '';
+    push(`#show quote.where(block: true): it => block(stroke: (left: ${b.borderWidth} + style-colors.${b.borderColor}), inset: (left: ${b.paddingLeft}, top: 0.4em, bottom: 0.4em), text(fill: style-colors.${b.textColor}${italicStyle}, it.body))`);
+  }
+
+  // Code-block (block-level raw, i.e. fenced code). Inline `code` keeps the
+  // font-only #show raw rule from the Fonts section above.
+  {
+    const c = e.codeBlock;
+    const fillProp = c.background.trim() ? `, fill: ${c.background.trim()}` : '';
+    const radiusProp = c.borderRadius.trim() ? `, radius: ${c.borderRadius.trim()}` : '';
+    const insetProp = (c.paddingX.trim() || c.paddingY.trim())
+      ? `, inset: (x: ${c.paddingX.trim() || '0pt'}, y: ${c.paddingY.trim() || '0pt'})`
+      : '';
+    push(`#show raw.where(block: true): it => block(width: 100%${fillProp}${radiusProp}${insetProp}, it)`);
+  }
+
+  // Figure caption styling. Position + alignment go via `#set figure.caption`;
+  // text styling (size + color) via the `#show figure.caption` rule.
+  {
+    const f = e.figure;
+    const sepLiteral = `"${escapeQuotedString(f.captionSeparator)}"`;
+    push(`#set figure.caption(position: ${f.captionPosition}, separator: ${sepLiteral})`);
+    push(`#show figure.caption: it => align(${f.captionAlign}, text(size: ${f.captionSize}, fill: style-colors.${f.captionColor}, it))`);
+  }
+
+  // Table styling.
+  {
+    const t = e.table;
+    const stroke = `0.5pt + style-colors.${t.borderColor}`;
+    if (t.alternateRowFill) {
+      // (col, row) → alternate by row index, skipping the header (y == 0).
+      push(`#set table(stroke: ${stroke}, inset: ${t.cellPadding}, fill: (col, row) => if row == 0 { style-colors.${t.headerBackground} } else if calc.rem(row, 2) == 0 { style-colors.muted.lighten(85%) } else { none })`);
+    } else {
+      push(`#set table(stroke: ${stroke}, inset: ${t.cellPadding}, fill: (col, row) => if row == 0 { style-colors.${t.headerBackground} } else { none })`);
+    }
+    // Header row text colour. We bias on `y == 0` (first row) — works for
+    // both `#table(header: ...)` and plain `#table(...)` usage.
+    push(`#show table.cell.where(y: 0): it => text(fill: style-colors.${t.headerTextColor}, weight: "bold", it.body)`);
+  }
+  push();
+
   // ─── Custom additions (escape-hatch) ─────────────────
   // Always emit the fenced block — even when empty — so future regenerations
   // can locate and preserve the user's manual additions in-place. The fence
