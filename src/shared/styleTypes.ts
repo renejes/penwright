@@ -69,6 +69,23 @@ export interface StyleHeadings {
   h2: StyleHeading;
 }
 
+/**
+ * Free-form Typst code that the user (or an imported style template) wants
+ * appended to the generated `style.typ`. This is the escape hatch for things
+ * the structured schema can't express yet: custom `#show heading` blocks
+ * with line decorations, `#import` of bundled packages, helper `#let`s,
+ * page-break-after-h1 rules, etc.
+ *
+ * Lives BELOW the generated rules in style.typ, so it can override anything
+ * the Designer set. Wraps in a clearly-marked block so style.typ stays
+ * regenerable: re-running the generator only touches the generated section,
+ * never the custom block.
+ */
+export interface StyleCustom {
+  /** Typst source appended to style.typ after the generated rules. */
+  preamble: string;
+}
+
 export interface ProjectStyle {
   version: typeof STYLE_SCHEMA_VERSION;
   colors: StyleColors;
@@ -76,6 +93,7 @@ export interface ProjectStyle {
   scale: StyleScale;
   layout: StyleLayout;
   headings: StyleHeadings;
+  custom: StyleCustom;
 }
 
 export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
@@ -105,6 +123,7 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
     h1: { size: '24pt', weight: 'bold',     color: 'primary', marginTop: '2em'   },
     h2: { size: '18pt', weight: 'semibold', color: 'primary', marginTop: '1.6em' },
   },
+  custom: { preamble: '' },
 };
 
 /** Strict color-slot validator — Phase C MCP tools rely on this. */
@@ -164,6 +183,15 @@ function sanitizeHeading(raw: unknown, fallback: StyleHeading): StyleHeading {
   };
 }
 
+const MAX_CUSTOM_PREAMBLE_LEN = 64 * 1024;
+
+function sanitizeCustom(raw: unknown): StyleCustom {
+  const r = (raw ?? {}) as Partial<StyleCustom>;
+  let preamble = typeof r.preamble === 'string' ? r.preamble : '';
+  if (preamble.length > MAX_CUSTOM_PREAMBLE_LEN) preamble = preamble.slice(0, MAX_CUSTOM_PREAMBLE_LEN);
+  return { preamble };
+}
+
 /**
  * Coerces an arbitrary JSON value into a valid ProjectStyle.
  * Missing or invalid fields fall back to defaults. Always returns a fresh
@@ -205,6 +233,7 @@ export function sanitizeProjectStyle(raw: unknown): ProjectStyle {
       h1: sanitizeHeading(headings.h1, D.headings.h1),
       h2: sanitizeHeading(headings.h2, D.headings.h2),
     },
+    custom: sanitizeCustom(r.custom),
   };
 }
 

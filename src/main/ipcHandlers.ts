@@ -47,6 +47,7 @@ import {
   generateStyleTypst,
   ensureStyleInclude,
   detectStylePreambleConflicts,
+  extractCustomBlock,
 } from '../shared/styleParser';
 import { findRootFile } from '../shared/rootFinder';
 import { getCompiler } from './fileManager';
@@ -734,8 +735,33 @@ export function setupIPC(): void {
 
   ipcMain.handle('style:get', () => {
     if (!appState.projectDir) return null;
+    const style = getProjectStyle(appState.projectDir);
+
+    // If a `style.typ` exists on disk with manual edits inside the fenced
+    // custom block but `style.json.custom.preamble` is empty (e.g. someone
+    // hand-edited style.typ between sessions), pull the on-disk version in
+    // so the Designer doesn't silently overwrite it on next save.
+    if (!style.custom?.preamble) {
+      try {
+        const rootFile = appState.currentFilePath
+          ? findRootFile(appState.currentFilePath)
+          : path.join(appState.projectDir, 'main.typ');
+        const styleTyp = path.join(
+          fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir,
+          'style.typ',
+        );
+        if (fs.existsSync(styleTyp)) {
+          const onDisk = fs.readFileSync(styleTyp, 'utf-8');
+          const extracted = extractCustomBlock(onDisk);
+          if (extracted && extracted.trim().length > 0) {
+            style.custom = { preamble: extracted };
+          }
+        }
+      } catch {}
+    }
+
     return {
-      style: getProjectStyle(appState.projectDir),
+      style,
       initialized: hasProjectStyle(appState.projectDir),
     };
   });

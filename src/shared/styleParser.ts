@@ -27,6 +27,15 @@ export const STYLE_TYPST_MARKER = '// vswrite:generated-style — edit via Setti
 export const STYLE_INCLUDE_LINE = '#include "style.typ"';
 
 /**
+ * Fence markers that wrap the user-editable custom-code block inside
+ * `style.typ`. We re-parse them on round-trip so manual edits to that
+ * block survive a regeneration (Designer changes only touch the
+ * generated section above the START fence).
+ */
+export const CUSTOM_BLOCK_START = '// ─── vswrite:custom — your free-form Typst goes here ───';
+export const CUSTOM_BLOCK_END   = '// ─── vswrite:custom-end ───';
+
+/**
  * Quotes a font name for Typst. Phase A keeps this single-string — Typst's
  * `text(font: ...)` accepts a tuple for explicit fallbacks (e.g.
  * `("Inter", "Helvetica")`), but CSS-style generic-family aliases like
@@ -102,7 +111,34 @@ export function generateStyleTypst(style: ProjectStyle): string {
   }
   push();
 
+  // ─── Custom additions (escape-hatch) ─────────────────
+  // Always emit the fenced block — even when empty — so future regenerations
+  // can locate and preserve the user's manual additions in-place. The fence
+  // markers are also what the round-trip parser looks for when re-loading.
+  push(CUSTOM_BLOCK_START);
+  if (style.custom?.preamble && style.custom.preamble.trim().length > 0) {
+    push(style.custom.preamble.replace(/\r\n/g, '\n').trimEnd());
+  }
+  push(CUSTOM_BLOCK_END);
+  push();
+
   return lines.join('\n');
+}
+
+/**
+ * Extracts the user-editable custom-code block from an existing style.typ.
+ * Returns the raw content between CUSTOM_BLOCK_START and CUSTOM_BLOCK_END,
+ * or null if the file doesn't have the fence markers (older style.typ
+ * versions, or a hand-written one).
+ */
+export function extractCustomBlock(styleTypstSource: string): string | null {
+  const startIdx = styleTypstSource.indexOf(CUSTOM_BLOCK_START);
+  if (startIdx === -1) return null;
+  const endIdx = styleTypstSource.indexOf(CUSTOM_BLOCK_END, startIdx);
+  if (endIdx === -1) return null;
+  const sliced = styleTypstSource.slice(startIdx + CUSTOM_BLOCK_START.length, endIdx);
+  // Strip leading + trailing newlines but preserve internal whitespace.
+  return sliced.replace(/^\n+/, '').replace(/\n+$/, '');
 }
 
 /**

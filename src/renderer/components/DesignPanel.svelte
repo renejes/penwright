@@ -24,6 +24,7 @@
     cloneProjectStyle,
   } from '../../shared/styleTypes';
   import { PALETTE_PRESETS } from '../../shared/palettePresets';
+  import CodeEditor from './CodeEditor.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
   type FontSlot = keyof ProjectStyle['fonts'];
@@ -213,6 +214,16 @@
     return result;
   }
 
+  function onCustomCodeChange(value: string): void {
+    if (style.custom) {
+      style.custom.preamble = value;
+    } else {
+      style.custom = { preamble: value };
+    }
+  }
+
+  let customExpanded = $state(false);
+
   // The hex-input keeps a synchronized text representation. We accept any
   // three- or six-digit hex; longer strings get truncated.
   function onHexInput(slot: keyof StyleColors, raw: string): void {
@@ -356,6 +367,38 @@
     {#if fonts.length === 0}
       <div class="design-section-hint">
         Konnte die gebündelten Fonts nicht laden. Stelle sicher, dass <code>npm run fetch:fonts</code> einmal lief.
+      </div>
+    {/if}
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <button
+        type="button"
+        class="custom-toggle"
+        onclick={() => (customExpanded = !customExpanded)}
+        aria-expanded={customExpanded}
+      >
+        <span class="custom-toggle-chev">{customExpanded ? '▾' : '▸'}</span>
+        <h3>Custom Typst-Code</h3>
+        {#if style.custom?.preamble && style.custom.preamble.trim().length > 0}
+          <span class="custom-toggle-badge">{style.custom.preamble.split(/\r?\n/).length} Zeilen</span>
+        {/if}
+      </button>
+      {#if customExpanded}
+        <span class="design-section-hint">
+          Wird ans Ende von <code>style.typ</code> angehängt — überschreibt alles oben. Hier kommen <code>#show heading.where(level: 1): it =&gt; …</code> mit Linien, <code>#import</code>-Statements und alles, was der Designer noch nicht kann.
+        </span>
+      {/if}
+    </header>
+
+    {#if customExpanded}
+      <div class="custom-editor-wrap">
+        <CodeEditor
+          content={style.custom?.preamble ?? ''}
+          fileExt="typ"
+          onChange={onCustomCodeChange}
+        />
       </div>
     {/if}
   </section>
@@ -687,6 +730,59 @@
     border-color: #3b82f6;
     color: #1d4ed8;
     background: #eff6ff;
+  }
+
+  /* Custom code section */
+
+  .custom-toggle {
+    appearance: none;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    width: 100%;
+    text-align: left;
+  }
+
+  .custom-toggle h3 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #999;
+  }
+
+  .custom-toggle-chev {
+    color: #999;
+    font-size: 11px;
+    width: 12px;
+    flex-shrink: 0;
+  }
+
+  .custom-toggle-badge {
+    margin-left: auto;
+    font-size: 10px;
+    color: #1d4ed8;
+    background: #dbeafe;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .custom-editor-wrap {
+    height: 280px;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fafafa;
+    font-size: 12px;
   }
 
   /* Coloris theme override — vswrite uses a slightly lighter chrome than the
