@@ -325,9 +325,9 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [x] Konsolidierung: Document Settings auf `lang` + `bibliographyStyle` reduziert (Style-Tab raus), QuickSettings schreibt jetzt in style.json, Konflikt-Banner entfernt, Legacy "Style Templates"-Submenu aus dem Menü gezogen (MCP-Tools `vswrite_list_styles` / `vswrite_apply_style` bleiben als Legacy-Path bis das neue Theme-Format steht)
 
 **Phase B — Offene Sub-Bereiche**
+- [x] Heading-Style-Designer mit H1–H6 + collapsible Cards mit Live-Preview-Lines (Session 22)
+- [x] Special-Elements-Editor: Blockquote / Code-Block / Figure / Table (Session 22). Callouts bewusst draußen — via gentle-clues + Custom-Code-Block lösbar
 - [ ] Theme-Presets im neuen ProjectStyle-Format (ersetzen die 7 alten Style-Templates)
-- [ ] Heading-Style-Designer (H1–H6 mit Live-Preview-Cards statt H1/H2-Felder)
-- [ ] Special-Elements-Editor (Blockquote, Code-Block, Figure, Table, Callout)
 - [ ] Layout-Presets: Cover-Builder, Brochure, Magazine, Business-Card, Poster, Thesis
 
 **Phase C — Design-MCP-Tools**

@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phase B Foundation — Color-Palette + Coloris, 7 OFL-Fonts gebündelt, Font-Browser, Schema-Konsolidierung mit Custom-Code-Escape-Hatch, Document Settings auf lang+bib reduziert)
+> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phase B Foundation — Color-Palette + Coloris, 7 OFL-Fonts gebündelt, Font-Browser, Schema-Konsolidierung mit Custom-Code-Escape-Hatch, Document Settings auf lang+bib reduziert, H1–H6 Heading-Designer + Special-Elements Editor (Blockquote / Code-Block / Figure / Table))
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -318,12 +318,16 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 - svelte-check: 0 Errors (4 vor-existente pdfjs/CSS-Errors als Bonus mitbehoben)
 - End-to-end Compile: Editorial-Palette + Crimson Pro + IBM Plex Sans + JetBrains Mono + #set page numbering/header + style.json roundtrip → 23 KB PDF, Null Typst-Warnings
 
-**Was bewusst draußen blieb (kommt in Phase B Round 2+):**
-- Theme-Presets im neuen ProjectStyle-Format (ersetzen die 7 alten Templates später)
-- H1-H6 Heading-Style-Designer mit Live-Preview-Cards (aktuell nur H1/H2 strukturiert, H3+ via custom.preamble)
-- Special-Elements (Blockquote/Code-Block/Figure/Table/Callout-Editor)
+**Phase B Round 2 (gleicher Session 22 Tag, nach den vier Foundation-Commits):**
+
+- **H1–H6 Heading-Designer (`922e2f7`):** StyleHeadings auf alle sechs Level erweitert mit progressive size reduction (24pt → 10pt). Generator loopt über HEADING_LEVELS statt hardcoded H1/H2. DesignPanel-Cards sind collapsible (H1+H2 default offen, H3-H6 zu) mit Live-Preview-Sample in der eigenen Heading-Font + Weight + Color-Slot, plus Summary-Line "size · weight · color" wenn collapsed.
+- **Special-Elements (`890d5fc`):** Strukturierte Tokens für vier Block-Elemente. Blockquote (Border-Slot/Width, Padding, Text-Slot, Italic), Code-Block (Background als raw Typst color expr mit kurzer Dropdown-Curation, Padding X/Y, Border-Radius), Figure (Caption position/size/color/align/separator), Table (Header-BG/Text-Color-Slots, optionale Zebra-Rows via `calc.rem` + `style-colors.muted.lighten(85%)`, Border-Slot, Cell-Padding). Generator emittet pro Element ein `#show`-Rule. Callouts bewusst draußen — `gentle-clues`-Paket übernimmt das via Custom-Code-Block.
+
+**Was noch offen ist (Phase B Round 3 oder Phase C):**
+- Theme-Presets im neuen ProjectStyle-Format (ersetzen die 7 alten Templates)
 - Cover-Page-Builder + Brochure/Magazine/Business-Card/Poster-Layout-Presets
-- Image-Color-Extraction (gestrichen)
+- Phase C Design-MCP-Tools (6 Tools: get_style, update_style, list_fonts, apply_palette, insert_design_element, generate_layout)
+- Phase D Design-Skill
 
 ### Session 21 (2026-05-17) — Design-Editor Phase A: Style Variables
 
