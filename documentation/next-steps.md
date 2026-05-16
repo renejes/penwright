@@ -324,28 +324,29 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [x] Schema-Erweiterung: `custom.preamble` Escape-Hatch (CodeMirror-Editor im Design-Panel) + Round-Trip via `extractCustomBlock()`. Layout (Numbering / Header / Footer / Fill), Scale (paragraphSpacing / firstLineIndent), Headings.numbering ins style.json migriert. DesignPanel um Scale / Layout / Headings Sections erweitert
 - [x] Konsolidierung: Document Settings auf `lang` + `bibliographyStyle` reduziert (Style-Tab raus), QuickSettings schreibt jetzt in style.json, Konflikt-Banner entfernt, Legacy "Style Templates"-Submenu aus dem Menü gezogen (MCP-Tools `vswrite_list_styles` / `vswrite_apply_style` bleiben als Legacy-Path bis das neue Theme-Format steht)
 
-**Phase B — Offene Sub-Bereiche**
-- [x] Heading-Style-Designer mit H1–H6 + collapsible Cards mit Live-Preview-Lines (Session 22)
-- [x] Special-Elements-Editor: Blockquote / Code-Block / Figure / Table (Session 22). Callouts bewusst draußen — via gentle-clues + Custom-Code-Block lösbar
-- [ ] Theme-Presets im neuen ProjectStyle-Format (ersetzen die 7 alten Style-Templates)
-- [ ] Layout-Presets: Cover-Builder, Brochure, Magazine, Business-Card, Poster, Thesis
+**Phase B Round 2 (Session 22 — komplett)**
+- [x] Heading-Style-Designer mit H1–H6 + collapsible Cards mit Live-Preview-Lines
+- [x] Special-Elements-Editor: Blockquote / Code-Block / Figure / Table. Callouts bewusst draußen — via `gentle-clues` + Custom-Code-Block lösbar
+- [x] 6 Theme-Presets im neuen ProjectStyle-Format (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis). Ersetzen die 7 alten Style-Templates
+- [x] 6 Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster) inkl. `layout.orientation` Schema-Erweiterung
 
-**Phase C — Design-MCP-Tools**
+**Phase C — Design-MCP-Tools** (Session 22 — komplett)
 
-- [ ] `vswrite_get_style` / `vswrite_update_style` (strukturiertes Style-JSON statt raw Typst)
-- [ ] `vswrite_list_fonts` (System-Fonts mit Variable-Achsen-Info)
-- [ ] `vswrite_apply_palette` (Smart-Mapping Primary/Accent/Muted → Document-Roles)
-- [ ] `vswrite_insert_design_element` (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider aus Library)
-- [ ] `vswrite_generate_layout` (High-Level: NL-Description → vollstaendiger Layout-Vorschlag)
-- [ ] Design-Element-Library als Typst-Snippet-Sammlung in `src/shared/designElements.ts`
-- [ ] MCP-Server-Version-Bump (1.0.0)
+- [x] `vswrite_get_style` / `vswrite_update_style` (deep-merge mit Sanitizer)
+- [x] `vswrite_list_fonts` (gebündelte OFL-Fonts mit family / category / description)
+- [x] `vswrite_apply_palette` (presetId ODER per-slot hex overrides, kombinierbar)
+- [x] `vswrite_list_layouts` / `vswrite_apply_layout` — Layout-Swaps via MCP
+- [x] `vswrite_apply_style` migriert auf THEME_PRESETS
+- [x] `vswrite_list_design_elements` / `vswrite_insert_design_element` mit Library (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider) — Anchor-basiert wie `add_image`
+- [x] `vswrite_generate_layout` (NL-Intent → Theme + Layout + optionaler Hero)
+- [x] Design-Element-Library in `src/shared/designElements.ts`
+- [x] MCP_SETUP_VERSION bumped 0.5.0 → 0.6.0
 
-**Phase D — Design-Skill**
+**Phase D — Design-Skill** (Session 22 — komplett)
 
-- [ ] `DESIGN_SKILL` in `skillTemplates.ts` — Layout-Pattern, Color-Theory, Typografie-Pairing, "Modern Looks 2026", Anti-Patterns
-- [ ] In `ensureClaudeSkills` registrieren (jetzt 5 Skills)
-- [ ] MCP-Prompt `design-conventions` einbinden
-- [ ] Doku in CLAUDE.md + Handbuechern
+- [x] `DESIGN_SKILL` in `skillTemplates.ts` — Color-Theory, Typografie-Pairing, Heading-Hierarchy, Layout-Patterns, "Modern Looks 2026", WCAG-Kontrast-Regeln, Anti-Patterns, Workflow-Rezept
+- [x] In `ensureClaudeSkills` registriert (jetzt 5 Skills)
+- [x] MCP-Prompt `design-conventions` eingebunden
 
 ### Phase 4: Distribution
 

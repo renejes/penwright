@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phase B Foundation — Color-Palette + Coloris, 7 OFL-Fonts gebündelt, Font-Browser, Schema-Konsolidierung mit Custom-Code-Escape-Hatch, Document Settings auf lang+bib reduziert, H1–H6 Heading-Designer + Special-Elements Editor (Blockquote / Code-Block / Figure / Table))
+> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phasen B+C+D komplett — Color-Palette + 7 OFL-Fonts, Konsolidierung, H1–H6 + Special-Elements, 6 Theme-Presets, 6 Layout-Presets inkl. orientation, 9 MCP-Design-Tools, Design-Element-Library, 5. Skill `design-conventions`)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -323,11 +323,30 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 - **H1–H6 Heading-Designer (`922e2f7`):** StyleHeadings auf alle sechs Level erweitert mit progressive size reduction (24pt → 10pt). Generator loopt über HEADING_LEVELS statt hardcoded H1/H2. DesignPanel-Cards sind collapsible (H1+H2 default offen, H3-H6 zu) mit Live-Preview-Sample in der eigenen Heading-Font + Weight + Color-Slot, plus Summary-Line "size · weight · color" wenn collapsed.
 - **Special-Elements (`890d5fc`):** Strukturierte Tokens für vier Block-Elemente. Blockquote (Border-Slot/Width, Padding, Text-Slot, Italic), Code-Block (Background als raw Typst color expr mit kurzer Dropdown-Curation, Padding X/Y, Border-Radius), Figure (Caption position/size/color/align/separator), Table (Header-BG/Text-Color-Slots, optionale Zebra-Rows via `calc.rem` + `style-colors.muted.lighten(85%)`, Border-Slot, Cell-Padding). Generator emittet pro Element ein `#show`-Rule. Callouts bewusst draußen — `gentle-clues`-Paket übernimmt das via Custom-Code-Block.
 
-**Was noch offen ist (Phase B Round 3 oder Phase C):**
-- Theme-Presets im neuen ProjectStyle-Format (ersetzen die 7 alten Templates)
-- Cover-Page-Builder + Brochure/Magazine/Business-Card/Poster-Layout-Presets
-- Phase C Design-MCP-Tools (6 Tools: get_style, update_style, list_fonts, apply_palette, insert_design_element, generate_layout)
-- Phase D Design-Skill
+**Phase B Round 3 — Themes + Layout-Presets (Session 22, später am Tag):**
+
+- **6 Theme-Presets (`aee6b79`):** Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis. Jedes ist ein vollständiger ProjectStyle-Snapshot. Apply überschreibt alle Branches außer `custom.preamble` (Escape-Hatch-Code bleibt). [themePresets.ts](src/shared/themePresets.ts) mit `theme(overlay)`-Helper für kompakte Definition als Overlay über Defaults. Im DesignPanel neue "Themes"-Section mit Cards: 5-Stripe-Swatch + body/heading/code-Sample + "best for"-Zeile.
+- **6 Layout-Presets + `layout.orientation` Schema (`ac443a3`):** A4 Portrait Standard, A4 Landscape, Magazine 2-Column, Newsletter 3-Column, A5 Booklet, A2 Poster. Schema um `orientation: 'portrait' | 'landscape'` erweitert; Generator emittiert `flipped: true` für Landscape. Manche Presets passen Base-Size an (A5 → 10pt, A2 → 14pt, Newsletter → 9.5pt). DesignPanel "Layout-Presets"-Section mit Mini-Page-Icon (orientation-aware: 1-col = horizontale Bars, 2/3-col = vertikale Spalten). [layoutPresets.ts](src/shared/layoutPresets.ts).
+
+**Phase C — 9 Design-MCP-Tools (`7c46333`):**
+
+- **Migration:** `vswrite_list_styles` und `vswrite_apply_style` zeigen jetzt auf THEME_PRESETS statt der retired Preamble-String-Templates. apply_style schreibt in style.json, regeneriert style.typ, ensure-includes; preserviert `custom.preamble`.
+- **Neu:** `vswrite_get_style` (full ProjectStyle JSON), `vswrite_update_style` (deep-merge mit Per-Leaf-Sanitizer — partial wie `{ colors: { primary: "..." } }` reicht), `vswrite_list_fonts` (liest fonts/manifest.json, gibt family/category/description), `vswrite_apply_palette` (presetId ODER per-slot hex, kombinierbar), `vswrite_list_layouts` / `vswrite_apply_layout`, `vswrite_list_design_elements` / `vswrite_insert_design_element` mit 6-Element-Library (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider — alle referenzieren `style-colors.*` so dass sie automatisch re-themen), `vswrite_generate_layout` (NL-Intent → Theme + Layout + optionaler Hero — z.B. "brochure" → marketing-brochure + magazine-2col mit Hero).
+- **Helpers:** `readProjectStyle`, `writeProjectStyleAndRegenerate`, `deepMergeStyle` in [mcp/server.ts](src/mcp/server.ts). MCP-Server ist separater Prozess, schreibt also style.json und style.typ direkt und ensure-included die root-file.
+- **Design-Element-Library in [designElements.ts](src/shared/designElements.ts)** mit parametrischen Snippets. `renderDesignElement(element, params)` substituiert `{name}` Placeholders + conditional sub-blocks (optionale Subtitle, Attribution, Callout-Title).
+- MCP_SETUP_VERSION 0.5.0 → 0.6.0 (existierende Pro-User müssen Wizard re-runnen für neue Tools).
+
+**Phase D — Design-Skill (`f71c196`):**
+
+- [DESIGN_SKILL](src/shared/skillTemplates.ts) ergänzt: Color Theory (5-Slot-Verständnis, WCAG-Regeln, Palette-Combination), Typography Pairing (Bundled-Font-Cheat-Sheet, Working-Combos, Anti-Pairs), Heading Hierarchy (≥20% Size-Reduction, Numbering-Conventions), Layout Patterns (Single/Multi-Column, Don'ts), Elements (per-Element Design-Regeln), "Modern Looks 2026" (high contrast, tight tracking, single accent), Anti-Patterns (Word-Default-Look, Font Proliferation, Sub-Pixel-Tracking, Centered-Body, Decorative-Divider-Overuse), Workflow-Rezept für "make this look like X".
+- In `ensureClaudeSkills` als 5. Skill registriert → `.claude/skills/design/SKILL.md` in jedem neuen Projekt.
+- MCP-Prompt `design-conventions` im Server registriert.
+
+**Phasen B + C + D damit komplett.** Stand des Design-Editors: Designer im DesignPanel kann Color/Font/Scale/Layout/Heading/Elements/Custom-Code editieren; Themes und Layout-Presets als One-Click-Apply; Claude kann über MCP-Tools strukturiert manipulieren; Design-Skill gibt der KI die Vokabel zum Reasoning.
+
+**Was noch offen ist:**
+- Cover-Page-Builder (Title / Logo / Hero-Image-Overlay) — bewusst nicht gebaut, zu spezifisch
+- v1.0 Distribution-Pipeline (Firebase + DMG + Notarization) — siehe `next-steps.md` Phase 4
 
 ### Session 21 (2026-05-17) — Design-Editor Phase A: Style Variables
 
