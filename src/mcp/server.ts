@@ -23,6 +23,26 @@ import { promisify } from 'util';
 import { parseSettings, applySettings, generateSetBlocks, type DocumentSettings } from '../shared/settingsParser.js';
 import { findRootFile } from '../shared/rootFinder.js';
 import { styleTemplates } from '../shared/styleTemplates.js';
+import {
+  sanitizeProjectStyle,
+  DEFAULT_PROJECT_STYLE,
+  COLOR_SLOTS,
+  type ProjectStyle,
+  type StyleColors,
+} from '../shared/styleTypes.js';
+import {
+  generateStyleTypst,
+  ensureStyleInclude,
+  extractCustomBlock,
+} from '../shared/styleParser.js';
+import { THEME_PRESETS } from '../shared/themePresets.js';
+import { LAYOUT_PRESETS } from '../shared/layoutPresets.js';
+import { PALETTE_PRESETS } from '../shared/palettePresets.js';
+import {
+  DESIGN_ELEMENTS,
+  getDesignElement,
+  renderDesignElement,
+} from '../shared/designElements.js';
 import { parseBibFile } from '../shared/bibParser.js';
 import { resolveIncludes } from '../shared/mergeDocument.js';
 import { splitIntoChapters, slugify } from '../shared/splitDocument.js';
@@ -52,6 +72,96 @@ function typstCompileArgs(extra: string[]): string[] {
   const fontPath = process.env.TYPST_FONT_PATH;
   if (fontPath) args.push('--font-path', fontPath);
   return args.concat(extra);
+}
+
+// ─── Style helpers (MCP-side mirror of the main process) ────────
+// The MCP server is a separate process from the Electron app — it
+// reads / writes the project's `.vswrite/style.json` directly, then
+// regenerates `style.typ` and ensures `#include "style.typ"` is at the
+// top of the root file. This keeps Claude's edits in lockstep with
+// what the Design panel in vswrite would have written.
+
+function styleJsonPath(projectDir: string): string {
+  return path.join(projectDir, '.vswrite', 'style.json');
+}
+
+function readProjectStyle(projectDir: string): ProjectStyle {
+  const file = styleJsonPath(projectDir);
+  if (!fs.existsSync(file)) return sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
+  try {
+    return sanitizeProjectStyle(JSON.parse(fs.readFileSync(file, 'utf-8')));
+  } catch {
+    return sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
+  }
+}
+
+/**
+ * Writes style.json + regenerates style.typ + ensures the root file's
+ * `#include "style.typ"`. Returns the sanitised style that was actually
+ * persisted (after coercion / clamping) so the caller can report it.
+ */
+function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): ProjectStyle {
+  const style = sanitizeProjectStyle(raw);
+  const vswriteDir = path.dirname(styleJsonPath(projectDir));
+  if (!fs.existsSync(vswriteDir)) fs.mkdirSync(vswriteDir, { recursive: true });
+  fs.writeFileSync(styleJsonPath(projectDir), JSON.stringify(style, null, 2), 'utf-8');
+
+  // Write style.typ next to the root file.
+  const candidates = ['main.typ', 'document.typ', 'index.typ'];
+  let rootFile: string | null = null;
+  for (const name of candidates) {
+    const p = path.join(projectDir, name);
+    if (fs.existsSync(p)) { rootFile = p; break; }
+  }
+  if (!rootFile && state.currentFile && fs.existsSync(state.currentFile)) {
+    rootFile = findRootFile(state.currentFile);
+  }
+  const projectRootDir = rootFile ? path.dirname(rootFile) : projectDir;
+  fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(style), 'utf-8');
+
+  if (rootFile && fs.existsSync(rootFile)) {
+    const before = fs.readFileSync(rootFile, 'utf-8');
+    const after = ensureStyleInclude(before);
+    if (after !== before) fs.writeFileSync(rootFile, after, 'utf-8');
+  }
+
+  return style;
+}
+
+/** Deep-merges `patch` into `base`. Used by vswrite_update_style. */
+function deepMergeStyle(base: ProjectStyle, patch: unknown): ProjectStyle {
+  if (typeof patch !== 'object' || patch === null) return base;
+  const p = patch as Record<string, unknown>;
+  return sanitizeProjectStyle({
+    ...base,
+    colors:   typeof p.colors   === 'object' && p.colors   !== null ? { ...base.colors,   ...(p.colors   as object) } : base.colors,
+    fonts:    typeof p.fonts    === 'object' && p.fonts    !== null ? { ...base.fonts,    ...(p.fonts    as object) } : base.fonts,
+    scale:    typeof p.scale    === 'object' && p.scale    !== null ? { ...base.scale,    ...(p.scale    as object) } : base.scale,
+    layout:   typeof p.layout   === 'object' && p.layout   !== null ? { ...base.layout,   ...(p.layout   as object) } : base.layout,
+    headings: typeof p.headings === 'object' && p.headings !== null
+      ? {
+          ...base.headings,
+          ...(p.headings as object),
+          // Per-level merge so a partial { h1: { color: 'accent' } } only
+          // overrides h1.color instead of replacing the whole h1 record.
+          h1: { ...base.headings.h1, ...((p.headings as Record<string, object>).h1 ?? {}) },
+          h2: { ...base.headings.h2, ...((p.headings as Record<string, object>).h2 ?? {}) },
+          h3: { ...base.headings.h3, ...((p.headings as Record<string, object>).h3 ?? {}) },
+          h4: { ...base.headings.h4, ...((p.headings as Record<string, object>).h4 ?? {}) },
+          h5: { ...base.headings.h5, ...((p.headings as Record<string, object>).h5 ?? {}) },
+          h6: { ...base.headings.h6, ...((p.headings as Record<string, object>).h6 ?? {}) },
+        }
+      : base.headings,
+    elements: typeof p.elements === 'object' && p.elements !== null
+      ? {
+          blockquote: { ...base.elements.blockquote, ...((p.elements as Record<string, object>).blockquote ?? {}) },
+          codeBlock:  { ...base.elements.codeBlock,  ...((p.elements as Record<string, object>).codeBlock  ?? {}) },
+          figure:     { ...base.elements.figure,     ...((p.elements as Record<string, object>).figure     ?? {}) },
+          table:      { ...base.elements.table,      ...((p.elements as Record<string, object>).table      ?? {}) },
+        }
+      : base.elements,
+    custom: typeof p.custom === 'object' && p.custom !== null ? { ...base.custom, ...(p.custom as object) } : base.custom,
+  });
 }
 
 // ─── State ───────────────────────────────────────────
@@ -588,54 +698,371 @@ server.tool(
 // Phase 3 Tools
 // ═══════════════════════════════════════════════════════
 
-// ─── Tool: vswrite_list_styles ───────────────────────
+// ─── Tool: vswrite_list_styles (migrated to themes) ───
+//
+// Historic tool name kept for API stability. The seven legacy
+// preamble-string templates that lived here have been retired; this
+// tool now returns the new structured `THEME_PRESETS`. The previous
+// in-doc preamble-injection has been replaced by writing through
+// `style.json`.
 
 server.tool(
   'vswrite_list_styles',
-  'Returns all available style templates with id, label, and description.',
+  'Returns all available theme presets (id, name, description, best-for). Each theme is a complete ProjectStyle that the user can apply via vswrite_apply_style.',
   async () => {
-    const styles = styleTemplates.map(t => ({ id: t.id, label: t.label, description: t.description }));
-    return { content: [{ type: 'text' as const, text: JSON.stringify(styles, null, 2) }] };
+    const themes = THEME_PRESETS.map(t => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      bestFor: t.bestFor,
+    }));
+    return { content: [{ type: 'text' as const, text: JSON.stringify(themes, null, 2) }] };
   },
 );
 
 // ─── Tool: vswrite_apply_style ───────────────────────
+// Applies a built-in theme to the current project's style.json. Preserves
+// the user's custom.preamble (their escape-hatch code).
 
 server.tool(
   'vswrite_apply_style',
-  'Applies a predefined style template to the current document. Replaces the existing #set/#show preamble. Use vswrite_list_styles to see available styles.',
-  { styleId: z.string().describe('Style template ID (e.g. "classic", "modern", "minimal")') },
+  'Applies a built-in theme preset to the current project. Overwrites style.json (colors, fonts, layout, headings, elements) but preserves the custom.preamble field so user escape-hatch code survives. Use vswrite_list_styles to see available themes.',
+  { styleId: z.string().describe('Theme preset ID — see vswrite_list_styles for available IDs') },
   async ({ styleId }) => {
-    try {
-      const template = styleTemplates.find(t => t.id === styleId);
-      if (!template) {
-        const ids = styleTemplates.map(t => t.id).join(', ');
-        return { content: [{ type: 'text' as const, text: `Error: Unknown style "${styleId}". Available: ${ids}` }], isError: true };
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const t = THEME_PRESETS.find(x => x.id === styleId);
+    if (!t) {
+      const ids = THEME_PRESETS.map(x => x.id).join(', ');
+      return { content: [{ type: 'text' as const, text: `Error: Unknown theme "${styleId}". Available: ${ids}` }], isError: true };
+    }
+    const current = readProjectStyle(state.projectDir);
+    const next = sanitizeProjectStyle({ ...t.style, custom: { preamble: current.custom?.preamble ?? '' } });
+    writeProjectStyleAndRegenerate(state.projectDir, next);
+    return { content: [{ type: 'text' as const, text: `Applied theme "${t.name}" — style.json + style.typ regenerated. Run vswrite_compile to verify.` }] };
+  },
+);
+
+// ─── Tool: vswrite_get_style ─────────────────────────
+
+server.tool(
+  'vswrite_get_style',
+  'Returns the project\'s current ProjectStyle as JSON — colors, fonts, scale, layout, headings, elements, and the custom.preamble escape hatch. Use this before vswrite_update_style so you know what\'s already set.',
+  async () => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const style = readProjectStyle(state.projectDir);
+    return { content: [{ type: 'text' as const, text: JSON.stringify(style, null, 2) }] };
+  },
+);
+
+// ─── Tool: vswrite_update_style ──────────────────────
+
+server.tool(
+  'vswrite_update_style',
+  'Deep-merges a partial ProjectStyle into style.json. Only the keys you provide change — others stay. Example: { colors: { primary: "#0f172a" } } updates just the primary slot. The patch is sanitized (invalid hex, unknown weights, out-of-range columns etc. fall back to existing values).',
+  {
+    patch: z.unknown().describe('Partial ProjectStyle JSON object. Top-level keys: colors, fonts, scale, layout, headings, elements, custom.'),
+  },
+  async ({ patch }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const current = readProjectStyle(state.projectDir);
+    const merged = deepMergeStyle(current, patch);
+    const written = writeProjectStyleAndRegenerate(state.projectDir, merged);
+    return { content: [{ type: 'text' as const, text: `Style updated. Current state:\n${JSON.stringify(written, null, 2)}` }] };
+  },
+);
+
+// ─── Tool: vswrite_list_fonts ────────────────────────
+
+server.tool(
+  'vswrite_list_fonts',
+  'Returns the OFL fonts bundled with vswrite — family name, category (sans/serif/mono), and a short description. These are always available; reference any of them in fonts.body / fonts.heading / fonts.code without checking system installation.',
+  async () => {
+    // Resolve the bundled fonts manifest. TYPST_FONT_PATH points to the
+    // resources/fonts directory in the running .app (set by mcpSetup) —
+    // fall back to the repo path so the tool also works from a dev shell.
+    const fontPathEnv = process.env.TYPST_FONT_PATH;
+    const candidates: string[] = [];
+    if (fontPathEnv) candidates.push(path.join(fontPathEnv, 'manifest.json'));
+    candidates.push(path.resolve(process.cwd(), 'resources', 'fonts', 'manifest.json'));
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        try {
+          const manifest = JSON.parse(fs.readFileSync(candidate, 'utf-8'));
+          const fonts = (manifest.fonts ?? []).map((f: { family: string; category: string; description: string }) => ({
+            family: f.family,
+            category: f.category,
+            description: f.description,
+          }));
+          return { content: [{ type: 'text' as const, text: JSON.stringify(fonts, null, 2) }] };
+        } catch {}
       }
+    }
+    return { content: [{ type: 'text' as const, text: 'Error: bundled fonts manifest not found.' }], isError: true };
+  },
+);
+
+// ─── Tool: vswrite_apply_palette ─────────────────────
+
+server.tool(
+  'vswrite_apply_palette',
+  'Applies a 5-color palette to style.colors. Pass either a `presetId` (see id list returned by an empty-args call) OR explicit color hex codes for any of the five slots. Other branches of the style stay unchanged.',
+  {
+    presetId: z.string().optional().describe('Optional palette preset id (e.g. "modern-tech", "editorial", "earth-tones").'),
+    primary:    z.string().optional().describe('Optional hex for the primary slot (e.g. "#0f172a"). Falls back to current value.'),
+    accent:     z.string().optional().describe('Optional hex for the accent slot.'),
+    text:       z.string().optional().describe('Optional hex for the body-text slot.'),
+    background: z.string().optional().describe('Optional hex for the page-background slot.'),
+    muted:      z.string().optional().describe('Optional hex for the muted slot.'),
+  },
+  async ({ presetId, primary, accent, text, background, muted }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+
+    // No args at all → list available presets so Claude can discover them.
+    if (!presetId && !primary && !accent && !text && !background && !muted) {
+      const presets = PALETTE_PRESETS.map(p => ({ id: p.id, name: p.name, description: p.description, colors: p.colors }));
+      return { content: [{ type: 'text' as const, text: `Pass either presetId or per-slot hex. Available presets:\n${JSON.stringify(presets, null, 2)}` }] };
+    }
+
+    const current = readProjectStyle(state.projectDir);
+    let palette: Partial<StyleColors> = {};
+    if (presetId) {
+      const preset = PALETTE_PRESETS.find(p => p.id === presetId);
+      if (!preset) {
+        const ids = PALETTE_PRESETS.map(p => p.id).join(', ');
+        return { content: [{ type: 'text' as const, text: `Error: Unknown palette "${presetId}". Available: ${ids}` }], isError: true };
+      }
+      palette = { ...preset.colors };
+    }
+    // Per-slot overrides — work in combination with a preset (or solo).
+    if (primary)    palette.primary    = primary;
+    if (accent)     palette.accent     = accent;
+    if (text)       palette.text       = text;
+    if (background) palette.background = background;
+    if (muted)      palette.muted      = muted;
+
+    const written = writeProjectStyleAndRegenerate(state.projectDir, {
+      ...current,
+      colors: { ...current.colors, ...palette },
+    });
+    return { content: [{ type: 'text' as const, text: `Palette applied. Resulting colors:\n${JSON.stringify(written.colors, null, 2)}` }] };
+  },
+);
+
+// ─── Tool: vswrite_list_layouts ──────────────────────
+
+server.tool(
+  'vswrite_list_layouts',
+  'Returns the built-in layout presets (id, name, description, best-for, paper, orientation, columns, base-size). Apply one via vswrite_apply_layout.',
+  async () => {
+    const layouts = LAYOUT_PRESETS.map(p => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      bestFor: p.bestFor,
+      paper: p.layout.paper,
+      orientation: p.layout.orientation,
+      columns: p.layout.columns,
+      baseSize: p.baseSize ?? null,
+    }));
+    return { content: [{ type: 'text' as const, text: JSON.stringify(layouts, null, 2) }] };
+  },
+);
+
+// ─── Tool: vswrite_apply_layout ──────────────────────
+
+server.tool(
+  'vswrite_apply_layout',
+  'Applies a layout preset — swaps paper / orientation / margin / columns / pageNumbering (and base font-size for large papers). Other style branches stay. Use this after vswrite_apply_style if you want to keep a theme\'s typography but switch geometry (e.g. theme=editorial-magazine + layout=magazine-2col).',
+  { layoutId: z.string().describe('Layout preset ID — see vswrite_list_layouts') },
+  async ({ layoutId }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const preset = LAYOUT_PRESETS.find(p => p.id === layoutId);
+    if (!preset) {
+      const ids = LAYOUT_PRESETS.map(p => p.id).join(', ');
+      return { content: [{ type: 'text' as const, text: `Error: Unknown layout "${layoutId}". Available: ${ids}` }], isError: true };
+    }
+    const current = readProjectStyle(state.projectDir);
+    const next = {
+      ...current,
+      layout: { ...preset.layout },
+      scale: { ...current.scale, base: preset.baseSize ?? current.scale.base },
+    };
+    const written = writeProjectStyleAndRegenerate(state.projectDir, next);
+    return { content: [{ type: 'text' as const, text: `Applied layout "${preset.name}" — ${written.layout.paper}/${written.layout.orientation}/${written.layout.columns}col, base ${written.scale.base}.` }] };
+  },
+);
+
+// ─── Tool: vswrite_list_design_elements ──────────────
+
+server.tool(
+  'vswrite_list_design_elements',
+  'Returns the design-element library — six recurring Typst blocks (Banner, Sidebar, Pull-Quote, Callout, Hero, Divider) that vswrite_insert_design_element can drop into a document. Each entry lists the parameters it accepts.',
+  async () => {
+    const list = DESIGN_ELEMENTS.map(e => ({
+      id: e.id,
+      name: e.name,
+      description: e.description,
+      params: e.params,
+    }));
+    return { content: [{ type: 'text' as const, text: JSON.stringify(list, null, 2) }] };
+  },
+);
+
+// ─── Tool: vswrite_insert_design_element ─────────────
+
+server.tool(
+  'vswrite_insert_design_element',
+  'Inserts a design element (Banner, Sidebar, Pull-Quote, Callout, Hero, Divider) into the current file. The element references the project palette so it auto-themes with whatever style is active. Anchor pattern matches `vswrite_add_image`: pass `afterText` and the element is spliced after the Nth occurrence of that text.',
+  {
+    elementId: z.string().describe('Design element id — see vswrite_list_design_elements'),
+    afterText: z.string().describe('Anchor text. Element is inserted on a new line after this match. Pass empty string to insert at the document end.'),
+    occurrence: z.number().int().min(1).optional().default(1).describe('Which 1-based occurrence of `afterText` to target if it appears multiple times.'),
+    params: z.record(z.string()).optional().describe('Element-specific values. e.g. { title: "Welcome", subtitle: "..." } for the Hero element. See vswrite_list_design_elements for each element\'s param list.'),
+  },
+  async ({ elementId, afterText, occurrence, params }) => {
+    try {
+      const element = getDesignElement(elementId);
+      if (!element) {
+        const ids = DESIGN_ELEMENTS.map(e => e.id).join(', ');
+        return { content: [{ type: 'text' as const, text: `Error: Unknown element "${elementId}". Available: ${ids}` }], isError: true };
+      }
+      // Fail fast on missing required params so Claude can self-correct.
+      const supplied = params ?? {};
+      const missing = element.params.filter(p => p.required && !supplied[p.name] && !p.defaultValue);
+      if (missing.length > 0) {
+        return { content: [{ type: 'text' as const, text: `Error: Missing required params for "${elementId}": ${missing.map(m => m.name).join(', ')}` }], isError: true };
+      }
+
+      const snippet = renderDesignElement(element, supplied);
       const { content, filePath } = readCurrentDocument();
 
-      // Remove existing preamble (#set, #show, #import, #let lines at the top)
-      const lines = content.split('\n');
-      let bodyStart = 0;
-      for (let i = 0; i < lines.length; i++) {
-        const trimmed = lines[i].trim();
-        if (trimmed === '' || trimmed.startsWith('//') || trimmed.startsWith('#set ') ||
-            trimmed.startsWith('#show ') || trimmed.startsWith('#import ') || trimmed.startsWith('#let ')) {
-          bodyStart = i + 1;
-        } else {
-          break;
+      let insertAt: number;
+      if (afterText.length === 0) {
+        insertAt = content.length;
+      } else {
+        // Find the Nth occurrence of `afterText` and insert at the end of
+        // that line (mirrors the existing add_image / add_footnote helpers).
+        let from = -1;
+        for (let i = 0; i < occurrence; i++) {
+          from = content.indexOf(afterText, from + 1);
+          if (from === -1) {
+            return { content: [{ type: 'text' as const, text: `Error: afterText not found at occurrence ${occurrence}. (Only ${i} match${i === 1 ? '' : 'es'} found.)` }], isError: true };
+          }
         }
+        const lineEnd = content.indexOf('\n', from);
+        insertAt = lineEnd === -1 ? content.length : lineEnd;
       }
-      const body = lines.slice(bodyStart).join('\n').trimStart();
-      const updated = template.preamble + '\n\n' + body;
+
+      const updated = content.slice(0, insertAt) + '\n\n' + snippet + '\n' + content.slice(insertAt);
       fs.writeFileSync(filePath, updated, 'utf-8');
 
       return {
-        content: [{ type: 'text' as const, text: `Applied style "${template.label}" to ${path.basename(filePath)}` }],
+        content: [{
+          type: 'text' as const,
+          text: `Inserted "${element.name}" into ${path.basename(filePath)} at offset ${insertAt}.`,
+        }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
     }
+  },
+);
+
+// ─── Tool: vswrite_generate_layout ───────────────────
+//
+// Composite high-level call. Given a natural-language design brief, this
+// applies a sensible theme + layout combo plus a starter set of design
+// elements (banner / hero / divider) at the top of the document. The
+// matching heuristics live entirely in this tool — Claude can also
+// orchestrate the individual tools (apply_style + apply_layout +
+// insert_design_element) for finer control.
+
+server.tool(
+  'vswrite_generate_layout',
+  'Picks and applies a theme + layout combo for a given high-level intent ("brochure", "thesis", "article", "report", "magazine"). Returns the chosen IDs so Claude can verify / iterate. Use as a quick scaffolding step before fine-tuning with vswrite_update_style.',
+  {
+    intent: z.string().describe('What kind of document — "brochure", "thesis", "article", "report", "magazine", "essay", "spec". Free text; the tool maps to the closest preset combo.'),
+    title: z.string().optional().describe('Optional title — when provided, the tool drops a Hero element at the start of the file.'),
+    subtitle: z.string().optional().describe('Optional subtitle for the Hero.'),
+  },
+  async ({ intent, title, subtitle }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+
+    // Intent → (theme, layout) mapping. Conservative: leans on the
+    // built-in presets rather than synthesizing combinations from scratch.
+    const it = intent.toLowerCase().trim();
+    let themeId = 'modern-tech';
+    let layoutId = 'a4-portrait-standard';
+    let addHero = false;
+
+    if (/brochure|sales|marketing|product/.test(it))      { themeId = 'marketing-brochure'; layoutId = 'magazine-2col';            addHero = true; }
+    else if (/thesis|dissertation/.test(it))               { themeId = 'thesis';             layoutId = 'a4-portrait-standard';    }
+    else if (/magazine|editorial|article|essay/.test(it))  { themeId = 'editorial-magazine'; layoutId = 'magazine-2col';            addHero = !!title; }
+    else if (/report|whitepaper|business/.test(it))        { themeId = 'classic-academic';   layoutId = 'a4-portrait-standard';     }
+    else if (/spec|api|docs|documentation|technical/.test(it)) { themeId = 'modern-tech';     layoutId = 'a4-portrait-standard';     }
+    else if (/minimal|simple|essay|personal/.test(it))     { themeId = 'minimal';            layoutId = 'a4-portrait-standard';     }
+    else if (/newsletter|news/.test(it))                   { themeId = 'editorial-magazine'; layoutId = 'newsletter-3col';          }
+    else if (/poster|conference/.test(it))                 { themeId = 'modern-tech';        layoutId = 'a2-poster';                }
+    else if (/booklet|programme|guide/.test(it))           { themeId = 'editorial-magazine'; layoutId = 'a5-booklet';               }
+    else if (/slide|presentation|deck/.test(it))           { themeId = 'modern-tech';        layoutId = 'a4-landscape-presentation'; addHero = !!title; }
+
+    const theme = THEME_PRESETS.find(t => t.id === themeId)!;
+    const layout = LAYOUT_PRESETS.find(l => l.id === layoutId)!;
+    const currentStyle = readProjectStyle(state.projectDir);
+    const preservedCustom = currentStyle.custom?.preamble ?? '';
+    writeProjectStyleAndRegenerate(state.projectDir, {
+      ...theme.style,
+      layout: { ...layout.layout },
+      scale: { ...theme.style.scale, base: layout.baseSize ?? theme.style.scale.base },
+      custom: { preamble: preservedCustom },
+    });
+
+    let heroInserted = false;
+    if (addHero && title && state.currentFile) {
+      try {
+        const element = getDesignElement('hero')!;
+        const snippet = renderDesignElement(element, { title, subtitle: subtitle ?? '' });
+        const content = fs.readFileSync(state.currentFile, 'utf-8');
+        // Insert at top, after any existing #include "style.typ" line.
+        const includeLine = '#include "style.typ"';
+        const idx = content.indexOf(includeLine);
+        const insertAt = idx === -1
+          ? 0
+          : content.indexOf('\n', idx + includeLine.length) + 1;
+        const updated = content.slice(0, insertAt) + '\n' + snippet + '\n' + content.slice(insertAt);
+        fs.writeFileSync(state.currentFile, updated, 'utf-8');
+        heroInserted = true;
+      } catch (err) {
+        // Non-fatal — the theme + layout still applied.
+        console.warn('[mcp] hero insert failed:', err);
+      }
+    }
+
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          intent,
+          appliedTheme: { id: theme.id, name: theme.name },
+          appliedLayout: { id: layout.id, name: layout.name },
+          heroInserted,
+          nextSteps: 'Inspect with vswrite_get_style, fine-tune with vswrite_update_style, or vswrite_compile to verify.',
+        }, null, 2),
+      }],
+    };
   },
 );
 
