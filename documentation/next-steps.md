@@ -2,20 +2,24 @@
 
 > Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-16 | App-Version: **0.7.0** (package.json + Doku synchron)
 >
-> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (43 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (4: typst / vswrite / research / writing-style), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen.
+> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (43 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (4: typst / vswrite / research / writing-style), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [third-party-licensing.md](third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
 
 ---
 
 ## 0. Stand
 
-Die App ist inhaltlich release-ready. Was zwischen heute und v1.0 noch fehlt:
+Die App ist inhaltlich release-ready fuer den akademischen Schreib-Use-Case. **Strategische Entscheidung 2026-05-16:** vswrite startet nicht nur als Akademik-Tool, sondern als Design-Tool fuer beliebige PDF-Outputs (Brochures, Magazines, Reports, CVs, Poster). Der Design-Editor + Typst-Package-Bundling werden noch vor v1.0 eingebaut — der Launch verschiebt sich dadurch um ~6 Wochen, ist es aber wert weil vswrite damit als breitestes positioniertes Tool startet.
 
-1. **Distribution einrichten** — Firebase-Hosting + electron-updater + DMG-Build & Notarization
-2. **Handbuch-Online-Hosting** auf Netlify
-3. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters)
-4. **DOCX-Iteration** kontinuierlich — `#raw("…")` inline, `#outline()` als Word-TOC, weitere Typst-Konstrukte
+Was zwischen heute und v1.0 noch fehlt:
 
-Reihenfolge sinnvoll: **Distribution → Handbuch-Hosting → QA → DMG**.
+1. **Typst-Package-Bundling-Setup** — Hybrid-Strategie aus [third-party-licensing.md](third-party-licensing.md); Bundle-Liste finalisieren, Audit-Script + Acknowledgments-Dialog (~4–6 Tage)
+2. **Design-Editor + MCP-Tools** — Phasen A bis D aus [design-editor-plan.md](design-editor-plan.md) (~7 Wochen)
+3. **Distribution einrichten** — Firebase-Hosting + electron-updater + DMG-Build & Notarization
+4. **Handbuch-Online-Hosting** auf Netlify
+5. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters) **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread)
+6. **DOCX-Iteration** kontinuierlich — `#raw("…")` inline, `#outline()` als Word-TOC, weitere Typst-Konstrukte
+
+Reihenfolge sinnvoll: **Bundling → Design-Editor → Distribution → Handbuch-Hosting → QA → DMG**.
 
 ---
 
@@ -286,6 +290,55 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 ---
 
 ## 5. Release-Checkliste
+
+### Phase 3.5: Design-Editor + Bundled Packages (pre-1.0, neu)
+
+> Vollstaendige Spezifikation in [design-editor-plan.md](design-editor-plan.md) und [third-party-licensing.md](third-party-licensing.md). Aufwand: ~7–8 Wochen Vollzeit.
+
+**Vorgelagert: Typst-Package-Bundling**
+
+- [ ] Bundle-Liste finalisieren (Kandidaten in [third-party-licensing.md](third-party-licensing.md): `wrap-it`, `cetz`, `fletcher`, `cetz-plot`, `glossarium`, `subpar`, `oxifmt`, `lovelace`, `marge`, optional CV-Template-Basis)
+- [ ] Pro Package LICENSE-Check + Eintrag in `THIRD_PARTY_LICENSES.md`
+- [ ] Bundle-Fonts finalisieren (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL)
+- [ ] `resources/typst-packages/` + `resources/fonts/` Strukturen anlegen, in `package.json` `extraResources` aufnehmen
+- [ ] `scripts/audit-bundled-deps.mjs` schreiben — generiert `THIRD_PARTY_LICENSES.md` + `resources/bundle-licenses.json` aus den LICENSE-Files; failed bei unbekannter Lizenz
+- [ ] Main-Process anpassen: Typst-Compiler kennt den gebundleten Package-Pfad (`TYPST_PACKAGE_PATH` env oder `--package-path`)
+- [ ] `AcknowledgmentsDialog.svelte` + Hook im About-Dialog
+- [ ] **Einmalige Rechtsberatung** (DACH-Anwalt mit OSS-Erfahrung, ~30–60 min)
+
+**Phase A — Style Variables (Datenmodell + Settings-Dialog-Erweiterung)**
+
+- [ ] `<project>/.vswrite/style.json` Schema-Implementierung in `persistenceManager.ts`
+- [ ] `src/shared/styleParser.ts` — JSON ↔ Typst-Preamble Round-Trip
+- [ ] `SettingsPanel.svelte` Erweiterung: Color-Picker, Font-Dropdown, Scale-Inputs, Layout-Picker
+- [ ] Live-Preview-Pipeline mit debouncedem Recompile (300 ms)
+- [ ] Tests fuer Round-Trip-Parser
+
+**Phase B — Visual Style Editor (eigener Sidebar-Tab)**
+
+- [ ] Color-Palette-Tool (Hex/HSL/OKLCH, Presets, Image-Color-Extraction)
+- [ ] Font-Browser mit System-Font-Enumeration und Previews
+- [ ] Heading-Style-Designer (H1-H6 mit Live-Preview-Cards)
+- [ ] Page-Layout-Editor (Margins, Columns, Header/Footer, Background)
+- [ ] Special-Elements-Editor (Blockquote, Code-Block, Figure, Table, Callout)
+- [ ] Layout-Presets: Cover-Builder, Brochure, Magazine, Business-Card, Poster, Thesis
+
+**Phase C — Design-MCP-Tools**
+
+- [ ] `vswrite_get_style` / `vswrite_update_style` (strukturiertes Style-JSON statt raw Typst)
+- [ ] `vswrite_list_fonts` (System-Fonts mit Variable-Achsen-Info)
+- [ ] `vswrite_apply_palette` (Smart-Mapping Primary/Accent/Muted → Document-Roles)
+- [ ] `vswrite_insert_design_element` (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider aus Library)
+- [ ] `vswrite_generate_layout` (High-Level: NL-Description → vollstaendiger Layout-Vorschlag)
+- [ ] Design-Element-Library als Typst-Snippet-Sammlung in `src/shared/designElements.ts`
+- [ ] MCP-Server-Version-Bump (1.0.0)
+
+**Phase D — Design-Skill**
+
+- [ ] `DESIGN_SKILL` in `skillTemplates.ts` — Layout-Pattern, Color-Theory, Typografie-Pairing, "Modern Looks 2026", Anti-Patterns
+- [ ] In `ensureClaudeSkills` registrieren (jetzt 5 Skills)
+- [ ] MCP-Prompt `design-conventions` einbinden
+- [ ] Doku in CLAUDE.md + Handbuechern
 
 ### Phase 4: Distribution
 
