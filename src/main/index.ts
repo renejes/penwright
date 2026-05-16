@@ -18,6 +18,7 @@ import { releaseLock } from './lockManager';
 import { getWindowBounds, saveWindowBounds } from './persistenceManager';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
+import { getTypstFontPath } from './typstPath';
 import { setupCrashCapture, addBreadcrumb } from './crashReporter';
 
 // Set up crash capture as the very first thing so even early-startup
@@ -191,6 +192,24 @@ app.whenReady().then(() => {
     }
 
     return net.fetch(`file://${path.resolve(filePath)}`);
+  });
+
+  // ─── Bundled fonts protocol ─────────────────────────
+  // `vswrite-font://<Family>/<file>.ttf` resolves to the bundled OFL fonts
+  // shipped under resources/fonts/. The Design panel @font-face-loads them
+  // for live preview without copying the binary across the IPC boundary.
+  // Path validation: the request must resolve inside the bundled font
+  // directory; anything else is forbidden so a compromised renderer can't
+  // read arbitrary files via this protocol.
+  protocol.handle('vswrite-font', (request) => {
+    const requested = decodeURIComponent(request.url.replace('vswrite-font://', ''));
+    const fontRoot = getTypstFontPath();
+    if (!fontRoot) return new Response('Not configured', { status: 404 });
+    const resolved = path.resolve(fontRoot, requested);
+    if (!resolved.startsWith(fontRoot + path.sep) && resolved !== fontRoot) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return net.fetch(`file://${resolved}`);
   });
 
   buildMenu(appState);

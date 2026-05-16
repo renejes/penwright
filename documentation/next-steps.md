@@ -315,10 +315,13 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [x] Live-Preview-Pipeline: `style:save` IPC schreibt `style.typ` + sichert `#include "style.typ"` im Root-File + ruft Compiler — kein zusätzliches Debounce nötig, weil Apply-Klick der Trigger ist
 - [x] End-to-End-Verifikation: Typst-CLI kompiliert den generierten `style.typ` ohne Warnungen; svelte-check + electron-vite build clean (4 vor-existente Fehler ebenfalls mitbehoben)
 
-**Phase B — Visual Style Editor (eigener Sidebar-Tab)**
+**Phase B — Visual Style Editor (eigener Sidebar-Tab)** (Round 1 abgeschlossen, Session 21–22, 2026-05-17)
 
-- [ ] Color-Palette-Tool (Hex/HSL/OKLCH, Presets, Image-Color-Extraction)
-- [ ] Font-Browser mit System-Font-Enumeration und Previews
+- [x] Sidebar-Tab "Design" angelegt (DesignPanel.svelte), `panelState.sidebarTab` Union erweitert
+- [x] Color-Palette-Tool: 5 Slots mit @melloware/coloris-Picker, 8 kuratierte Presets, debouncedem `style:save`
+- [x] Font-Browser: 7 OFL-Schriften gebündelt (Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro, Spectral), Cards mit Live-Preview via `vswrite-font://` Protokoll + @font-face, Buttons zum Mapping auf Body/Heading/Code
+- [x] Bundling-Pipeline: `scripts/fetch-typst-fonts.mjs` (direkte GitHub-Quellen + Inter-Release-ZIP), `scripts/audit-bundled-deps.mjs` erweitert um Font-OFL-Check, `--font-path` in `buildTypstCompileArgs()` und MCP-Server `typstCompileArgs()`, `TYPST_FONT_PATH` Env-Var via Setup-Wizard, `AcknowledgmentsDialog.svelte` zeigt Fonts neben Packages
+- [ ] Image-Color-Extraction (Drop-Zone → 5 dominante Farben)
 - [ ] Heading-Style-Designer (H1-H6 mit Live-Preview-Cards)
 - [ ] Page-Layout-Editor (Margins, Columns, Header/Footer, Background)
 - [ ] Special-Elements-Editor (Blockquote, Code-Block, Figure, Table, Callout)

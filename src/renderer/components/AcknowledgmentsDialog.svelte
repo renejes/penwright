@@ -27,10 +27,24 @@
     licenseText: string;
   }
 
+  interface FontAcknowledgment {
+    family: string;
+    slug: string;
+    category: string;
+    description: string;
+    license: string;
+    licenseNotes: string | null;
+    source: string;
+    fileCount: number;
+    licenseText: string;
+  }
+
   interface BundleManifest {
     generatedAt: string;
     totalPackages: number;
+    totalFonts?: number;
     packages: Acknowledgment[];
+    fonts?: FontAcknowledgment[];
   }
 
   const api = (window as unknown as {
@@ -96,11 +110,17 @@
     {:else}
       <div class="summary">
         <span class="total">{manifest.totalPackages} Pakete</span>
+        {#if manifest.fonts && manifest.fonts.length > 0}
+          <span class="total">{manifest.fonts.length} Fonts</span>
+        {/if}
         {#each licenseSummary as item}
           <span class="chip">{item.license} · {item.count}</span>
         {/each}
       </div>
 
+      {#if manifest.fonts && manifest.fonts.length > 0}
+        <h3 class="section-title">Typst-Pakete</h3>
+      {/if}
       <ul class="pkg-list">
         {#each manifest.packages as pkg (pkgKey(pkg))}
           <li class="pkg-card">
@@ -138,6 +158,42 @@
           </li>
         {/each}
       </ul>
+
+      {#if manifest.fonts && manifest.fonts.length > 0}
+        <h3 class="section-title">Gebündelte Fonts</h3>
+        <ul class="pkg-list">
+          {#each manifest.fonts as font (font.slug)}
+            <li class="pkg-card">
+              <div class="pkg-head">
+                <div class="pkg-id">
+                  <span class="pkg-name">{font.family}</span>
+                  <span class="pkg-version">{font.category}</span>
+                  <span class="pkg-license">{font.license}</span>
+                </div>
+                <button
+                  class="expand-btn"
+                  onclick={() => (expanded['font:' + font.slug] = !expanded['font:' + font.slug])}
+                  aria-expanded={!!expanded['font:' + font.slug]}
+                >
+                  {expanded['font:' + font.slug] ? 'Lizenz schliessen' : 'Lizenz anzeigen'}
+                </button>
+              </div>
+              {#if font.description}
+                <p class="pkg-desc">{font.description}</p>
+              {/if}
+              <div class="pkg-meta">
+                <span>{font.fileCount} Schnitte</span>
+                {#if font.source}
+                  <button class="repo-link" onclick={() => openExternal(font.source)}>Quelle →</button>
+                {/if}
+              </div>
+              {#if expanded['font:' + font.slug]}
+                <pre class="pkg-license-text">{font.licenseText}</pre>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
     {/if}
 
     <footer>
@@ -216,6 +272,15 @@
     color: #374151;
     font-weight: 600;
   }
+  .section-title {
+    margin: 8px 24px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+  }
+
   .chip {
     background: #eef2ff;
     color: #4f46e5;

@@ -26,6 +26,15 @@
   import { PALETTE_PRESETS } from '../../shared/palettePresets';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
+  type FontSlot = keyof ProjectStyle['fonts'];
+
+  interface BundledFont {
+    family: string;
+    slug: string;
+    category: 'sans' | 'serif' | 'mono' | string;
+    description: string;
+    files: string[];      // populated from manifest.json; ordered Regular / Italic / Bold / BoldItalic
+  }
 
   const api = (window as unknown as {
     electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
@@ -34,6 +43,8 @@
   let style: ProjectStyle = $state(cloneProjectStyle(DEFAULT_PROJECT_STYLE));
   let initialized = $state(false);
   let status: Status = $state('idle');
+  let fonts: BundledFont[] = $state([]);
+  let fontFaceStyles = $state('');
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   // Set when we mutate `style` programmatically (preset / extraction). Keeps
   // the $effect-driven save from firing during the initial load.
@@ -69,6 +80,33 @@
       }
     } catch (err) {
       console.warn('[DesignPanel] style:get failed:', err);
+    }
+
+    // Load the bundled fonts manifest so the font browser shows real
+    // names + lets us @font-face the preview text in each card.
+    try {
+      const bundle = await api.invoke('app:getBundleLicenses') as
+        { fonts?: BundledFont[] } | { error: string };
+      if (bundle && 'fonts' in bundle && Array.isArray(bundle.fonts)) {
+        fonts = bundle.fonts.map(f => ({
+          family: f.family,
+          slug: f.slug,
+          category: f.category,
+          description: f.description,
+          files: f.files ?? [],
+        }));
+        // Generate @font-face rules so font cards render their own family
+        // for preview. We register the first .ttf/.otf per family as the
+        // regular weight — that's enough for the card heading + body line.
+        fontFaceStyles = fonts.map(f => {
+          const regular = f.files.find(name => /-Regular\.(ttf|otf)$/i.test(name)) ?? f.files[0];
+          if (!regular) return '';
+          const url = `vswrite-font://${encodeURIComponent(f.slug)}/${encodeURIComponent(regular)}`;
+          return `@font-face { font-family: ${JSON.stringify(f.family)}; src: url("${url}"); font-display: swap; }`;
+        }).join('\n');
+      }
+    } catch (err) {
+      console.warn('[DesignPanel] app:getBundleLicenses failed:', err);
     }
 
     // Coloris attaches itself to inputs matching the selector. We pass an
@@ -141,6 +179,38 @@
     const preset = PALETTE_PRESETS.find(p => p.id === presetId);
     if (!preset) return;
     style.colors = { ...preset.colors };
+  }
+
+  function setFont(slot: FontSlot, family: string): void {
+    style.fonts[slot] = family;
+  }
+
+  // Group fonts for display by category so the user sees sans / serif / mono
+  // in a stable order; cards inside each group keep manifest order.
+  const FONT_CATEGORIES: ReadonlyArray<{ id: 'sans' | 'serif' | 'mono'; label: string }> = [
+    { id: 'sans',  label: 'Sans-Serif' },
+    { id: 'serif', label: 'Serif' },
+    { id: 'mono',  label: 'Monospace' },
+  ];
+
+  function fontsIn(category: 'sans' | 'serif' | 'mono'): BundledFont[] {
+    return fonts.filter(f => f.category === category);
+  }
+
+  // Compact label for the slot-pill that shows which font is currently
+  // assigned to each role.
+  const SLOT_PILL_LABEL: Record<FontSlot, string> = {
+    body: 'Body',
+    heading: 'Heading',
+    code: 'Code',
+  };
+
+  function activeSlotsFor(family: string): FontSlot[] {
+    const result: FontSlot[] = [];
+    (['body', 'heading', 'code'] as FontSlot[]).forEach(slot => {
+      if (style.fonts[slot] === family) result.push(slot);
+    });
+    return result;
   }
 
   // The hex-input keeps a synchronized text representation. We accept any
@@ -224,7 +294,79 @@
       {/each}
     </div>
   </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <h3>Fonts</h3>
+      <span class="design-section-hint">
+        Sieben OFL-Schriften sind gebündelt — kein System-Install nötig. Jede Karte hat drei Buttons, um sie auf Body, Heading oder Code zu mappen.
+      </span>
+    </header>
+
+    <div class="font-active">
+      <div class="font-active-row">
+        <span class="font-active-label">Body</span>
+        <span class="font-active-value" style="font-family: {style.fonts.body}">{style.fonts.body}</span>
+      </div>
+      <div class="font-active-row">
+        <span class="font-active-label">Heading</span>
+        <span class="font-active-value" style="font-family: {style.fonts.heading}">{style.fonts.heading}</span>
+      </div>
+      <div class="font-active-row">
+        <span class="font-active-label">Code</span>
+        <span class="font-active-value font-active-code" style="font-family: {style.fonts.code}">{style.fonts.code}</span>
+      </div>
+    </div>
+
+    {#each FONT_CATEGORIES as category}
+      {@const list = fontsIn(category.id)}
+      {#if list.length > 0}
+        <div class="font-category">
+          <div class="font-category-label">{category.label}</div>
+
+          {#each list as font}
+            {@const activeSlots = activeSlotsFor(font.family)}
+            <div class="font-card" class:font-card-active={activeSlots.length > 0}>
+              <div class="font-card-head">
+                <div class="font-card-name" style="font-family: {JSON.stringify(font.family)}">{font.family}</div>
+                {#if activeSlots.length > 0}
+                  <div class="font-card-pills">
+                    {#each activeSlots as slot}
+                      <span class="font-card-pill">{SLOT_PILL_LABEL[slot]}</span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+              <div class="font-card-sample" style="font-family: {JSON.stringify(font.family)}">
+                The quick brown fox jumps over the lazy dog.
+              </div>
+              <div class="font-card-actions">
+                <button type="button" class="font-action" onclick={() => setFont('body', font.family)}>Body</button>
+                <button type="button" class="font-action" onclick={() => setFont('heading', font.family)}>Heading</button>
+                {#if category.id === 'mono'}
+                  <button type="button" class="font-action" onclick={() => setFont('code', font.family)}>Code</button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/each}
+
+    {#if fonts.length === 0}
+      <div class="design-section-hint">
+        Konnte die gebündelten Fonts nicht laden. Stelle sicher, dass <code>npm run fetch:fonts</code> einmal lief.
+      </div>
+    {/if}
+  </section>
 </div>
+
+<!-- @font-face injection for the bundled fonts. Lives outside the panel
+     element so it isn't scoped — Svelte's <style> blocks only allow static
+     CSS, and we need this dynamic at runtime. -->
+{#if fontFaceStyles}
+  {@html `<style>${fontFaceStyles}</style>`}
+{/if}
 
 <style>
   .design-panel {
@@ -404,6 +546,147 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Fonts */
+
+  .font-active {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: #f9fafb;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  .font-active-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 11px;
+  }
+
+  .font-active-label {
+    width: 56px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    color: #999;
+    font-size: 10px;
+  }
+
+  .font-active-value {
+    flex: 1 1 auto;
+    color: #1a1a1a;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .font-active-code {
+    font-size: 12px;
+  }
+
+  .font-category {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .font-category-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #999;
+    margin-top: 4px;
+  }
+
+  .font-card {
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .font-card-active {
+    border-color: #3b82f6;
+    background: #f5f9ff;
+  }
+
+  .font-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .font-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .font-card-pills {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .font-card-pill {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #1d4ed8;
+    background: #dbeafe;
+    border-radius: 3px;
+    padding: 2px 5px;
+    font-weight: 600;
+  }
+
+  .font-card-sample {
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .font-card-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .font-action {
+    appearance: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    color: #555;
+    font-size: 10px;
+    padding: 3px 7px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+
+  .font-action:hover {
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    background: #eff6ff;
   }
 
   /* Coloris theme override — vswrite uses a slightly lighter chrome than the

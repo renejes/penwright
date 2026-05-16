@@ -39,15 +39,18 @@ import simpleGit from 'simple-git';
 const execFileAsync = promisify(execFile);
 
 /**
- * Builds the `typst compile` arg list, prepending `--package-path` when
- * the host process exposes `TYPST_PACKAGE_PATH` (set by mcpSetup so
- * Claude Desktop's spawn environment carries the bundled package
- * directory). When unset, Typst falls back to its default CDN-fetch.
+ * Builds the `typst compile` arg list, prepending `--package-path` and
+ * `--font-path` when the host process exposes the corresponding env vars
+ * (`TYPST_PACKAGE_PATH` and `TYPST_FONT_PATH`, both set by mcpSetup so
+ * Claude Desktop's spawn environment carries the bundled directories).
+ * When unset, Typst falls back to its default CDN-fetch / system fonts.
  */
 function typstCompileArgs(extra: string[]): string[] {
   const args: string[] = ['compile'];
   const pkgPath = process.env.TYPST_PACKAGE_PATH;
   if (pkgPath) args.push('--package-path', pkgPath);
+  const fontPath = process.env.TYPST_FONT_PATH;
+  if (fontPath) args.push('--font-path', fontPath);
   return args.concat(extra);
 }
 

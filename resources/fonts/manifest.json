@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-05-16T21:39:13.407Z",
+  "fonts": [
+    {
+      "family": "Inter",
+      "category": "sans",
+      "description": "Variable sans-serif by Rasmus Andersson. Modern, readable, screen-friendly.",
+      "files": [
+        "Inter-Regular.ttf",
+        "Inter-Italic.ttf",
+        "Inter-Bold.ttf",
+        "Inter-BoldItalic.ttf"
+      ],
+      "license": "OFL-1.1",
+      "source": "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "category": "sans",
+      "description": "IBM's corporate humanist sans. Balanced, neutral, broadly compatible.",
+      "files": [
+        "IBMPlexSans-Regular.ttf",
+        "IBMPlexSans-Italic.ttf",
+        "IBMPlexSans-Bold.ttf",
+        "IBMPlexSans-BoldItalic.ttf"
+      ],
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexsans"
+    },
+    {
+      "family": "IBM Plex Serif",
+      "category": "serif",
+      "description": "Slab serif counterpart to IBM Plex Sans. Workhorse for body copy.",
+      "files": [
+        "IBMPlexSerif-Regular.ttf",
+        "IBMPlexSerif-Italic.ttf",
+        "IBMPlexSerif-Bold.ttf",
+        "IBMPlexSerif-BoldItalic.ttf"
+      ],
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexserif"
+    },
+    {
+      "family": "IBM Plex Mono",
+      "category": "mono",
+      "description": "Monospace member of the IBM Plex family. Distinctive, clean code rendering.",
+      "files": [
+        "IBMPlexMono-Regular.ttf",
+        "IBMPlexMono-Italic.ttf",
+        "IBMPlexMono-Bold.ttf",
+        "IBMPlexMono-BoldItalic.ttf"
+      ],
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono"
+    },
+    {
+      "family": "JetBrains Mono",
+      "category": "mono",
+      "description": "Monospace by JetBrains. Designed for source code with strong ligatures.",
+      "files": [
+        "JetBrainsMono-Regular.ttf",
+        "JetBrainsMono-Italic.ttf",
+        "JetBrainsMono-Bold.ttf",
+        "JetBrainsMono-BoldItalic.ttf"
+      ],
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/tree/main/ofl/jetbrainsmono"
+    },
+    {
+      "family": "Crimson Pro",
+      "category": "serif",
+      "description": "Old-style serif. Elegant for long-form reading.",
+      "files": [
+        "CrimsonPro-Regular.ttf",
+        "CrimsonPro-Italic.ttf",
+        "CrimsonPro-Bold.ttf",
+        "CrimsonPro-BoldItalic.ttf"
+      ],
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/tree/main/ofl/crimsonpro"
+    },
+    {
+      "family": "Spectral",
+      "category": "serif",
+      "description": "Transitional serif by Production Type. Versatile editorial workhorse.",
+      "files": [
+        "Spectral-Regular.ttf",
+        "Spectral-Italic.ttf",
+        "Spectral-Bold.ttf",
+        "Spectral-BoldItalic.ttf"
+      ],
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/tree/main/ofl/spectral"
+    }
+  ]
+}

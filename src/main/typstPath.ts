@@ -113,14 +113,54 @@ export function getTypstPackagePath(): string | null {
 }
 
 /**
+ * Absolute path to the directory that holds the bundled OFL fonts.
+ *
+ * Layout: `<this>/<Family>/<file>.ttf`. Passed to the typst CLI as
+ * `compile --font-path <this>` so the eight bundled families (Inter,
+ * IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro, Spectral) are
+ * always available, even if the user has none of them installed system-
+ * wide. Typst scans the directory tree recursively and registers each
+ * font under its own family name.
+ *
+ * Production: `<.app>/Contents/Resources/fonts/`
+ * Development: `<repo>/resources/fonts/` (after running
+ *   `node scripts/fetch-typst-fonts.mjs` once)
+ */
+let resolvedFontPath: string | null = null;
+export function getTypstFontPath(): string | null {
+  if (resolvedFontPath !== null) return resolvedFontPath || null;
+
+  const candidates: string[] = [];
+  if (app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, 'fonts'));
+  } else {
+    candidates.push(path.resolve(__dirname, '..', '..', 'resources', 'fonts'));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isDirectory()) {
+        resolvedFontPath = candidate;
+        return candidate;
+      }
+    } catch {}
+  }
+
+  resolvedFontPath = '';
+  return null;
+}
+
+/**
  * Builds the typst CLI args list for a `compile` invocation, prepending
- * `--package-path` when a bundled package directory is available. All
- * callers should use this helper so the package-path is consistent
+ * `--package-path` and `--font-path` when bundled directories are
+ * available. All callers should use this helper so paths are consistent
  * (typstCompiler, importExport, ad-hoc compile sites).
  */
 export function buildTypstCompileArgs(extraArgs: string[]): string[] {
   const args: string[] = ['compile'];
   const pkgPath = getTypstPackagePath();
   if (pkgPath) args.push('--package-path', pkgPath);
+  const fontPath = getTypstFontPath();
+  if (fontPath) args.push('--font-path', fontPath);
   return args.concat(extraArgs);
 }

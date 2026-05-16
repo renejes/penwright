@@ -21,14 +21,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { getLicenseData } from './persistenceManager';
-import { getTypstPackagePath } from './typstPath';
+import { getTypstPackagePath, getTypstFontPath } from './typstPath';
 
 /**
  * Bump when the bundled MCP binary or the config schema changes. Persisted
  * setup version in electron-store is compared against this; mismatch =>
  * the wizard prompts again so updates re-install the binary.
  */
-export const MCP_SETUP_VERSION = '0.4.0';
+export const MCP_SETUP_VERSION = '0.5.0';
 
 /** Key used in Claude Desktop's `mcpServers` map. */
 const MCP_SERVER_KEY = 'vswrite';
@@ -218,14 +218,18 @@ export async function setupMcpServer(): Promise<SetupResult> {
   // and isn't displayed alongside the command path. The config file
   // itself sits in the user-only-readable Library directory.
   //
-  // We also pass `TYPST_PACKAGE_PATH` so the MCP server's `typst compile`
-  // calls find the bundled Typst packages (cetz, fletcher, showybox,
-  // codly, …) without needing internet. The path points into the
-  // currently-installed .app's Resources — re-running the wizard after
-  // the user moves vswrite refreshes the entry.
+  // We also pass `TYPST_PACKAGE_PATH` and `TYPST_FONT_PATH` so the MCP
+  // server's `typst compile` calls find the bundled Typst packages
+  // (cetz, fletcher, showybox, codly, …) and the bundled OFL fonts
+  // (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Spectral, …) without
+  // needing internet or system-installed fonts. The paths point into
+  // the currently-installed .app's Resources — re-running the wizard
+  // after the user moves vswrite refreshes the entry.
   const env: Record<string, string> = { VSWRITE_LICENSE_KEY: license.licenseKey };
   const pkgPath = getTypstPackagePath();
   if (pkgPath) env['TYPST_PACKAGE_PATH'] = pkgPath;
+  const fontPath = getTypstFontPath();
+  if (fontPath) env['TYPST_FONT_PATH'] = fontPath;
 
   const newEntry: Record<string, unknown> = {
     command: installed,
