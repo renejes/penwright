@@ -19,8 +19,10 @@
   import {
     type ProjectStyle,
     type StyleColors,
+    type StyleHeadings,
     DEFAULT_PROJECT_STYLE,
     COLOR_SLOTS,
+    HEADING_LEVELS,
     cloneProjectStyle,
   } from '../../shared/styleTypes';
   import { PALETTE_PRESETS } from '../../shared/palettePresets';
@@ -212,6 +214,25 @@
       if (style.fonts[slot] === family) result.push(slot);
     });
     return result;
+  }
+
+  type HeadingLevelKey = keyof Pick<StyleHeadings, 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'>;
+
+  // Track which heading cards are open. Default H1+H2 expanded (the
+  // 80 % case) and H3-H6 collapsed so the section doesn't dominate the panel.
+  let headingExpanded = $state<Record<HeadingLevelKey, boolean>>({
+    h1: true, h2: true, h3: false, h4: false, h5: false, h6: false,
+  });
+
+  function toggleHeading(level: HeadingLevelKey): void {
+    headingExpanded[level] = !headingExpanded[level];
+  }
+
+  // Compact summary line shown on collapsed cards — gives the user a quick
+  // read of what the level looks like without expanding everything.
+  function headingSummary(level: HeadingLevelKey): string {
+    const h = style.headings[level];
+    return `${h.size} · ${h.weight} · ${h.color}`;
   }
 
   function onCustomCodeChange(value: string): void {
@@ -519,61 +540,57 @@
         </select>
       </label>
 
-      <div class="design-subgroup">
-        <div class="design-subgroup-label">H1</div>
-        <label class="design-field">
-          <span>Size</span>
-          <input type="text" bind:value={style.headings.h1.size} placeholder="24pt" spellcheck="false" />
-        </label>
-        <label class="design-field">
-          <span>Weight</span>
-          <select bind:value={style.headings.h1.weight}>
-            <option value="regular">Regular</option>
-            <option value="medium">Medium</option>
-            <option value="semibold">Semi-Bold</option>
-            <option value="bold">Bold</option>
-            <option value="extrabold">Extra Bold</option>
-          </select>
-        </label>
-        <label class="design-field">
-          <span>Color</span>
-          <select bind:value={style.headings.h1.color}>
-            {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
-          </select>
-        </label>
-        <label class="design-field">
-          <span>Margin top</span>
-          <input type="text" bind:value={style.headings.h1.marginTop} placeholder="2em" spellcheck="false" />
-        </label>
-      </div>
+      {#each HEADING_LEVELS as level (level)}
+        {@const h = style.headings[level]}
+        {@const isOpen = headingExpanded[level]}
+        <div class="heading-card" class:open={isOpen}>
+          <button
+            type="button"
+            class="heading-card-head"
+            onclick={() => toggleHeading(level)}
+            aria-expanded={isOpen}
+          >
+            <span class="heading-card-chev">{isOpen ? '▾' : '▸'}</span>
+            <span class="heading-card-level">{level.toUpperCase()}</span>
+            <span
+              class="heading-card-preview"
+              style="font-family: {JSON.stringify(style.fonts.heading)}; font-weight: {h.weight === 'bold' ? 700 : h.weight === 'semibold' ? 600 : h.weight === 'extrabold' ? 800 : h.weight === 'medium' ? 500 : 400}; color: {style.colors[h.color]}"
+            >Heading sample</span>
+            {#if !isOpen}
+              <span class="heading-card-summary">{headingSummary(level)}</span>
+            {/if}
+          </button>
 
-      <div class="design-subgroup">
-        <div class="design-subgroup-label">H2</div>
-        <label class="design-field">
-          <span>Size</span>
-          <input type="text" bind:value={style.headings.h2.size} placeholder="18pt" spellcheck="false" />
-        </label>
-        <label class="design-field">
-          <span>Weight</span>
-          <select bind:value={style.headings.h2.weight}>
-            <option value="regular">Regular</option>
-            <option value="medium">Medium</option>
-            <option value="semibold">Semi-Bold</option>
-            <option value="bold">Bold</option>
-            <option value="extrabold">Extra Bold</option>
-          </select>
-        </label>
-        <label class="design-field">
-          <span>Color</span>
-          <select bind:value={style.headings.h2.color}>
-            {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
-          </select>
-        </label>
-        <label class="design-field">
-          <span>Margin top</span>
-          <input type="text" bind:value={style.headings.h2.marginTop} placeholder="1.6em" spellcheck="false" />
-        </label>
-      </div>
+          {#if isOpen}
+            <div class="heading-card-body">
+              <label class="design-field">
+                <span>Size</span>
+                <input type="text" bind:value={h.size} placeholder="24pt" spellcheck="false" />
+              </label>
+              <label class="design-field">
+                <span>Weight</span>
+                <select bind:value={h.weight}>
+                  <option value="regular">Regular</option>
+                  <option value="medium">Medium</option>
+                  <option value="semibold">Semi-Bold</option>
+                  <option value="bold">Bold</option>
+                  <option value="extrabold">Extra Bold</option>
+                </select>
+              </label>
+              <label class="design-field">
+                <span>Color</span>
+                <select bind:value={h.color}>
+                  {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
+                </select>
+              </label>
+              <label class="design-field">
+                <span>Margin top</span>
+                <input type="text" bind:value={h.marginTop} placeholder="2em" spellcheck="false" />
+              </label>
+            </div>
+          {/if}
+        </div>
+      {/each}
     </div>
   </section>
 
@@ -995,6 +1012,76 @@
     text-transform: uppercase;
     color: #999;
     margin-bottom: 2px;
+  }
+
+  /* Heading cards (H1–H6 in the Headings section) */
+
+  .heading-card {
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    background: #fff;
+    overflow: hidden;
+    margin-top: 4px;
+    transition: border-color 0.15s ease;
+  }
+
+  .heading-card.open {
+    border-color: #cbd5f5;
+    background: #f8fafc;
+  }
+
+  .heading-card-head {
+    appearance: none;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+  }
+
+  .heading-card-chev {
+    color: #999;
+    font-size: 11px;
+    width: 12px;
+    flex-shrink: 0;
+  }
+
+  .heading-card-level {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    width: 22px;
+    flex-shrink: 0;
+  }
+
+  .heading-card-preview {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .heading-card-summary {
+    font-size: 10px;
+    color: #999;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    flex-shrink: 0;
+  }
+
+  .heading-card-body {
+    border-top: 1px solid #e5e7eb;
+    padding: 8px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   /* Custom code section */

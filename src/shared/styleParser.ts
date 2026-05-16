@@ -18,7 +18,7 @@
  *  - explanatory header comment so users opening style.typ understand it
  */
 
-import { ProjectStyle } from './styleTypes';
+import { HEADING_LEVELS, ProjectStyle } from './styleTypes';
 
 /** Marker line at top of generated style.typ — used to detect ownership. */
 export const STYLE_TYPST_MARKER = '// vswrite:generated-style — edit via Settings → Style';
@@ -136,12 +136,16 @@ export function generateStyleTypst(style: ProjectStyle): string {
     push(`#set heading(numbering: "${escapeQuotedString(style.headings.numbering)}")`);
   }
 
-  // ─── Headings ───
-  for (const [levelName, level] of [['h1', 1], ['h2', 2]] as const) {
+  // ─── Headings (six levels) ───
+  // Two #show rules per level: one to style the heading text, one to add a
+  // top-margin block around it. Both are needed because Typst can't merge
+  // `set text(...)` and the wrapping block into a single rule.
+  HEADING_LEVELS.forEach((levelName, idx) => {
+    const level = idx + 1;
     const h = style.headings[levelName];
     push(`#show heading.where(level: ${level}): set text(font: ${fontLiteral(style.fonts.heading)}, size: ${h.size}, weight: "${h.weight}", fill: style-colors.${h.color})`);
     push(`#show heading.where(level: ${level}): it => block(above: ${h.marginTop}, it)`);
-  }
+  });
   push();
 
   // ─── Custom additions (escape-hatch) ─────────────────

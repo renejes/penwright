@@ -84,9 +84,17 @@ export interface StyleHeading {
 export interface StyleHeadings {
   h1: StyleHeading;
   h2: StyleHeading;
+  h3: StyleHeading;
+  h4: StyleHeading;
+  h5: StyleHeading;
+  h6: StyleHeading;
   /** Numbering pattern applied via `#set heading(numbering: "...")` — e.g. "1.1", "1.", "I.". Empty = unnumbered. */
   numbering: string;
 }
+
+/** Stable list of heading-level keys for loops over the headings object. */
+export const HEADING_LEVELS: ReadonlyArray<keyof Pick<StyleHeadings, 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'>> =
+  ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
 
 /**
  * Free-form Typst code that the user (or an imported style template) wants
@@ -147,6 +155,10 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
   headings: {
     h1: { size: '24pt', weight: 'bold',     color: 'primary', marginTop: '2em'   },
     h2: { size: '18pt', weight: 'semibold', color: 'primary', marginTop: '1.6em' },
+    h3: { size: '14pt', weight: 'semibold', color: 'primary', marginTop: '1.3em' },
+    h4: { size: '12pt', weight: 'semibold', color: 'text',    marginTop: '1.1em' },
+    h5: { size: '11pt', weight: 'bold',     color: 'text',    marginTop: '1em'   },
+    h6: { size: '10pt', weight: 'bold',     color: 'muted',   marginTop: '0.8em' },
     numbering: '',
   },
   custom: { preamble: '' },
@@ -290,6 +302,10 @@ export function sanitizeProjectStyle(raw: unknown): ProjectStyle {
     headings: {
       h1:        sanitizeHeading(headings.h1, D.headings.h1),
       h2:        sanitizeHeading(headings.h2, D.headings.h2),
+      h3:        sanitizeHeading(headings.h3, D.headings.h3),
+      h4:        sanitizeHeading(headings.h4, D.headings.h4),
+      h5:        sanitizeHeading(headings.h5, D.headings.h5),
+      h6:        sanitizeHeading(headings.h6, D.headings.h6),
       numbering: pickFreeString(headings.numbering, D.headings.numbering, 32),
     },
     custom: sanitizeCustom(r.custom),
