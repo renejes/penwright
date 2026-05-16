@@ -1012,3 +1012,195 @@ This copies the asset into \`assets/\` (with content-hash dedup), builds the \`#
 - **Don't bypass \`vswrite_save_version\` before bulk operations.** A 4-file replace that breaks the compile is much easier to fix when there's a named version to restore from.
 - **Don't manually create \`comments/<id>.md\`.** Use \`vswrite_add_comment\` — it gets the id, frontmatter, and offset math right.
 `;
+
+export const DESIGN_SKILL = `---
+name: design
+description: Visual design conventions for vswrite — palette / typography pairing, layout patterns, modern aesthetics 2026, accessibility & contrast, anti-patterns. Load when picking themes, applying palettes, composing layouts, or making "this should look like X" decisions.
+---
+
+# Design
+
+A working reference for visual decisions in a vswrite project. Focused on the structured surface vswrite exposes (\`style.json\` colors / fonts / scale / layout / headings / elements) and the design-element library. Not a comprehensive design treatise — short rules with reasoning, so an agent can decide without searching elsewhere.
+
+## Mental Model
+
+vswrite's design surface is built around **semantic slots** and **presets that fill them**. Five color slots (\`primary\`, \`accent\`, \`text\`, \`background\`, \`muted\`), three font slots (\`body\`, \`heading\`, \`code\`), six heading levels, four block elements (Blockquote / Code-Block / Figure / Table). Apply a theme, then tune slots — don't hand-pick every value from scratch.
+
+Always ask: **what is this document for?** "Brochure" / "Thesis" / "Magazine" / "Tech docs" / "Essay" map to different decisions. The wrong question is "what would look cool here" — the right one is "what will the reader expect of this kind of document, and how do I deliver it crisply?"
+
+## Color Theory — Five Slots, One Job Each
+
+| Slot | Job |
+|---|---|
+| **primary** | Dominant brand color. Used for top-level headings and the main visual identity. Should pass WCAG AA contrast (4.5:1) against \`background\`. |
+| **accent** | Secondary color — links, emphasis, callout bars, divider lines. One accent, never two. Should pass 3:1 contrast against \`background\` (large/decorative use). |
+| **text** | Body type. Near-black on light backgrounds, near-white on dark. Must pass 4.5:1 contrast against \`background\`. |
+| **background** | Page fill. White for academic / formal, warm cream (\`#fbf7f1\`) for editorial, very-light gray (\`#fafafa\`) for minimal. |
+| **muted** | Captions, secondary metadata, table borders, divider lines. Mid-gray with enough contrast to read but enough recession to not compete with body text. |
+
+### Combination rules
+
+- **Max two strong colors per document.** Primary + accent. Everything else is text / background / muted.
+- **Tonal palettes beat rainbow palettes.** Picking a single hue and varying its lightness (primary + accent both in the navy family with different lightness) reads as "considered". Picking unrelated hues (navy + lime + magenta) reads as "trying".
+- **The background determines everything.** A light background needs dark text, period. Dark backgrounds for headings only (banner blocks) — never for body. Cream backgrounds invite serif body fonts; bright-white invites sans.
+- **Accent appears 3–5 times per page max.** It loses meaning if it's everywhere.
+
+### When to use which preset
+
+- **Modern Tech** (slate + electric blue): API docs, internal specs, anything Inter-friendly. Reads as "competent and current".
+- **Editorial** (cream + terracotta): long-form articles, newsletters, essays where the reader sits for >10 minutes. Warm and inviting.
+- **Earth Tones** (olive + rust): humanities, sustainability themes, anything that wants to feel grounded.
+- **High Contrast** (pure black + cobalt): accessibility-first, dense reference docs, anything where readability under poor light matters.
+- **Minimal Mono**: when the words have to carry everything. Essays, manifestos, poems.
+- **Sunset Warm** (aubergine + coral): marketing-adjacent, lifestyle content, anything that needs to feel alive.
+- **Ocean Classic** (navy + teal): corporate, conservative, professional services.
+- **Forest Deep** (deep green + amber): outdoor / heritage / craft-oriented content.
+
+## Typography Pairing
+
+### Rules of thumb
+
+- **Two fonts maximum** for body + heading. A third for code-monospace is fine because it's contextually separate.
+- **Match the contrast level to the use case.** Strong contrast (serif body + sans heading) suits long-form. Same-family contrast (Inter body + Inter heading, weight does the work) suits modern and minimal. Same-font everywhere (Crimson Pro thesis) suits formal academic — old-school, classical, intentionally monotone.
+- **Don't pair two similar fonts.** Two sans-serifs that look 80 % the same look like a mistake. Either pair contrasting (serif + sans) or commit to a single family with weight variation.
+- **Mono for code only.** Don't use JetBrains Mono for body text "to look technical". It's exhausting to read past a paragraph.
+
+### Bundled-font cheat sheet
+
+| Font | Category | Best for |
+|---|---|---|
+| **Inter** | Sans (humanist) | Modern / Tech / Marketing / Minimal. Default choice when in doubt. |
+| **IBM Plex Sans** | Sans (corporate) | Brochures, reports, branded docs. Slightly more character than Inter. |
+| **IBM Plex Serif** | Serif (slab) | Body type for modern editorial. Pairs cleanly with IBM Plex Sans. |
+| **IBM Plex Mono** | Mono | Code blocks. Distinctive without being noisy. |
+| **JetBrains Mono** | Mono | Code-heavy documents (specs, dev docs). Strong ligatures. |
+| **Crimson Pro** | Serif (old-style) | Academic body. Theses, journal submissions. Elegant for long reading. |
+| **Spectral** | Serif (transitional) | Editorial body. Magazines, newsletters, mid-length pieces. |
+
+### Combinations that work
+
+- Inter body + Inter heading (weight contrast does the work) — Modern Tech default.
+- Crimson Pro body + IBM Plex Sans heading — Classic Academic. Serif body in heading gives a "newspaper" feel.
+- Spectral body + Inter display heading — Editorial Magazine. Big display heads carry the visual identity.
+- Crimson Pro everywhere — Thesis. Formal, monotone, classical.
+
+### Combinations to avoid
+
+- Two sans-serifs (Inter + IBM Plex Sans together). Confuses without contrast.
+- Display font in body. Display faces are designed for large sizes — at 11 pt they get fragile or unreadable.
+- Italic / cursive scripts as body. Always bad for reading.
+
+## Heading Hierarchy
+
+Headings exist to **make scanning possible**. If the reader can't scan and find the section they need, the hierarchy failed.
+
+### Sizing rule
+
+Each level should be clearly smaller than the previous one — at least 20 % size reduction is the comfortable minimum. The defaults follow this:
+
+- H1: 24 pt — page-section anchor
+- H2: 18 pt (-25 %) — main subsections
+- H3: 14 pt (-22 %) — sub-subsections
+- H4: 12 pt — body-near, used sparingly
+- H5: 11 pt — same size as body but bold
+- H6: 10 pt — barely-headings, almost never used in academic writing
+
+### When to break the typography hierarchy
+
+- **Marketing brochures**: H1 can go up to 32–48 pt. The visual hierarchy is the message.
+- **Theses & books**: tighter sizes (H1 22 pt, H2 16 pt) because page real estate matters.
+- **Slide handouts (landscape)**: bigger H1 (28–32 pt) because they're meant to be scanned from a meter away.
+
+### Numbering rules
+
+- **\`1.1\`** for academic / thesis / formal reports. Readers expect it; cross-references depend on it.
+- **\`1.\`** for shorter papers, articles where the structure is shallow.
+- **No numbering** for marketing / editorial / essays. Reads as "this isn't a manual".
+- **Roman** (\`I.\`, \`II.\`) for prefaces, forewords, parts of a book — not regular body chapters.
+
+## Layout Patterns
+
+| Pattern | When |
+|---|---|
+| **Single column A4 portrait, 2.5 cm margin** | Default. Articles, essays, reports, theses. Whenever a wall of text is acceptable. |
+| **A4 landscape** | Slide handouts, wide figure spreads, code-listing-heavy docs (room for line continuation). |
+| **2-column A4** | Newsletters, multi-article magazine spreads, brochure interior. Narrow columns invite shorter sentences. |
+| **3-column A4** | Newspaper-style newsletters, dense reports. Body type drops to 9.5 pt. Use bold pull-quotes to break monotony. |
+| **A5 booklet** | Pocket guides, programme booklets. Smaller paper → bigger relative body type → tighter margins. |
+| **A2 poster** | Conference posters. 14 pt body, 4 cm margins, vertical reading flow. |
+
+### Layout don'ts
+
+- **Don't centre body text** for anything longer than 2 lines. Centered body is unreadable past a few words.
+- **Don't fully justify** narrow columns (3-col newsletters). The river-of-spaces problem is severe. Use left-aligned (ragged-right) instead.
+- **Don't shrink margins below 1.5 cm** for body documents. Eye-tracking can't recover when lines exceed ~75 characters comfortably.
+
+## Elements (Special Blocks)
+
+### Blockquote
+
+- Use sparingly — one or two per article max.
+- 3 pt accent-color left border is the safe default.
+- Italic is fine for short quotes (1–2 lines). For longer quotes, drop italic and use a slightly larger size or muted text color.
+
+### Code-Block
+
+- Background should be **slightly different from page background**, not strongly contrasting. \`luma(245)\` on white page works almost everywhere.
+- Padding > 0.6 em. Tight code blocks feel cramped.
+- Border radius is a style signal: 0 pt = formal/technical, 4 pt = modern, 8 pt = playful/marketing.
+
+### Figure
+
+- Caption position: **below** for figures, **above** for tables. Convention readers expect.
+- Caption color: muted slot, never primary. Captions are secondary — they shouldn't compete with the figure.
+- Separator: \`": "\` is universal. \`" — "\` reads as editorial. Avoid colon-only (\`":"\`) — looks broken.
+- Alignment: left for documents, center for posters / brochures.
+
+### Table
+
+- **Header always darker than body.** Use \`primary\` background + \`background\` text for strong tables, or \`muted\` background + dark text for subtle.
+- **Zebra rows** help with wide tables (>5 columns) but distract on narrow ones. Default off.
+- **6–8 pt cell padding** is the comfortable range. Less feels cramped, more wastes space.
+
+## Modern Looks (2026)
+
+What "current" means right now:
+
+- **High contrast, low decoration.** Strong primary color, generous whitespace, minimal borders / shadows.
+- **Tight letter-spacing on display headings** (\`tracking: -0.02em\`). Reads as confident, designed.
+- **Sans-serif body for tech, serif body for editorial**. The split is sharper than it was five years ago.
+- **Single accent color, used everywhere consistently.** No more "every link in a different color".
+- **Generous H1 sizes** (24–32 pt for body documents, larger for marketing). Owning vertical space is in.
+- **Muted gray captions and metadata.** Don't compete with body text.
+- **OKLCH color-thinking** when picking custom palettes — even spacing in perceptual color space gives more harmonious palettes than equal RGB / HSL steps.
+
+## Anti-Patterns
+
+- **Word-default look** (Times New Roman + 1.5 line height + ragged left margin): looks like a 1995 college paper. If targeting modern audiences, anything is better.
+- **More than three fonts in one document.** Always a mistake. If you're tempted, use weight + size variation within one family instead.
+- **Sub-pixel letter-spacing** on body text (\`tracking: 0.01em\`). Imperceptible improvement, looks fiddly.
+- **Background-color text** that doesn't pass WCAG AA. Light-gray text on white is the most common offender (\`#999\` on \`#fff\` = 2.85:1, fails AA).
+- **Centered body paragraphs.** Already mentioned. Don't.
+- **Decorative dividers between every section.** Use whitespace instead; reserve dividers for soft breaks within a section.
+- **Heading that says "Introduction" for a 3-paragraph piece.** If the piece is short enough that the reader will see the start anyway, the heading is redundant.
+
+## Workflow — Composing a Design Decision
+
+When a user asks "make this look like a brochure" (or similar):
+
+1. Run \`vswrite_generate_layout({ intent: "brochure" })\`. Gets a sensible theme + layout starting point applied in one shot.
+2. Inspect the result: \`vswrite_get_style()\`. Decide what to adjust.
+3. Apply targeted refinements: \`vswrite_update_style({ colors: { primary: "#0c2340" } })\` for the brand color, or \`vswrite_apply_palette({ presetId: "ocean-classic" })\` to swap the whole palette.
+4. Optional: drop in design elements at top of the document — \`vswrite_insert_design_element({ elementId: "hero", afterText: "", params: { title: "Q3 Report", subtitle: "Operations Review" } })\`.
+5. Verify: \`vswrite_compile()\`. If it warns, fix; if it errors, restore via \`vswrite_list_versions\` + \`vswrite_restore_version\`.
+
+Don't reach for \`vswrite_update_style\` with a giant patch. Make one change, recompile, iterate. The PDF preview is your feedback loop.
+
+## Don't
+
+- **Don't redesign without reason.** "What does this document need to do?" comes before "how should it look?".
+- **Don't ignore the user's existing custom-code block.** It's in \`style.custom.preamble\` — applying a theme preserves it; applying an inline \`update_style\` patch preserves it. Read \`vswrite_get_style\` first to know what's there.
+- **Don't hard-code colors in the design-element library.** Elements should always reference \`style-colors.<slot>\` so they re-theme automatically when the palette changes.
+- **Don't use design elements as headings.** A Banner element is for visual emphasis, not for hierarchy. Headings should stay headings — that's what the H1–H6 surface is for.
+- **Don't apply contradictory presets in sequence.** "Marketing Brochure theme" + "A2 Poster layout" works if intentional; "Thesis theme" + "Brochure layout" usually doesn't. The presets are starting points, not building blocks.
+`;

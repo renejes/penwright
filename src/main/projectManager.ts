@@ -10,7 +10,7 @@ import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile } from '../shared/rootFinder';
-import { TYPST_SKILL, VSWRITE_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL } from '../shared/skillTemplates';
+import { TYPST_SKILL, VSWRITE_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
 import { addBreadcrumb } from './crashReporter';
 
@@ -550,6 +550,7 @@ const SKILL_FILES: Array<{ slug: string; content: string }> = [
   { slug: 'vswrite', content: VSWRITE_SKILL },
   { slug: 'research', content: RESEARCH_SKILL },
   { slug: 'writing-style', content: WRITING_STYLE_SKILL },
+  { slug: 'design', content: DESIGN_SKILL },
 ];
 
 /**

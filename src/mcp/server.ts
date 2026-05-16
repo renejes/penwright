@@ -320,6 +320,11 @@ const SKILL_PROMPTS: Array<{ name: string; description: string; skillDir: string
     description: "Prose conventions for academic / nonfiction writing — source discipline (never invent citations, never type BibTeX from memory, match the source's confidence, pre-submission audit), anti-AI-tells (em-dash inflation, three-list reflex, vague hedging, AI buzzwords), active prose principles, academic tense/hedging/citation conventions. Bilingual: English + German.",
     skillDir: 'writing-style',
   },
+  {
+    name: 'design-conventions',
+    description: 'Visual design conventions for vswrite documents — five-slot color theory, typography pairing, heading hierarchy, layout patterns, modern 2026 aesthetics, accessibility & contrast rules, anti-patterns. Load when picking themes, applying palettes, composing layouts, or making "this should look like X" calls.',
+    skillDir: 'design',
+  },
 ];
 
 for (const prompt of SKILL_PROMPTS) {
