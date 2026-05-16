@@ -1,5 +1,6 @@
 <script lang="ts">
   import PdfPreviewPanel from './PdfPreviewPanel.svelte';
+  import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom } from '../appState.svelte';
 
   let {
     pdfData = null,
@@ -21,6 +22,11 @@
       {:else if error}
         <span class="badge error">Error</span>
       {/if}
+      <div class="zoom-controls" role="group" aria-label="Preview zoom">
+        <button class="zoom-btn" onclick={zoomPdfOut} title="Zoom Out" aria-label="Zoom out">−</button>
+        <button class="zoom-percent" onclick={resetPdfZoom} title="Reset zoom" aria-label="Reset zoom">{Math.round(zoomState.pdf * 100)}%</button>
+        <button class="zoom-btn" onclick={zoomPdfIn} title="Zoom In" aria-label="Zoom in">+</button>
+      </div>
     </div>
   </div>
 
@@ -63,4 +69,46 @@
 
   .badge.compiling { color: #4f7df9; }
   .badge.error { color: #e55; }
+
+  .zoom-controls {
+    display: flex;
+    align-items: center;
+  }
+
+  .zoom-btn {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 4px;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .zoom-btn:hover {
+    background: #f0f0f0;
+    color: #444;
+  }
+
+  .zoom-percent {
+    min-width: 42px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+
+  .zoom-percent:hover {
+    background: #f0f0f0;
+    color: #444;
+  }
 </style>

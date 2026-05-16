@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import * as pdfjsLib from 'pdfjs-dist';
   import { TextLayer } from 'pdfjs-dist';
+  import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom } from '../appState.svelte';
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
@@ -28,7 +29,28 @@
   let observer: IntersectionObserver | null = null;
   let pageElements: HTMLDivElement[] = [];
 
-  const SCALE = 1.5;
+  const BASE_SCALE = 1.5;
+
+  // Re-render pages whenever the shared pdfZoom changes so the file viewer
+  // and the live preview stay in sync.
+  let lastZoom = zoomState.pdf;
+  $effect(() => {
+    const z = zoomState.pdf;
+    if (z !== lastZoom && currentPdf) {
+      lastZoom = z;
+      void rebuildAtCurrentZoom();
+    } else {
+      lastZoom = z;
+    }
+  });
+
+  async function rebuildAtCurrentZoom() {
+    renderedPages.clear();
+    observer?.disconnect();
+    await tick();
+    setupPlaceholders();
+    setupIntersectionObserver();
+  }
 
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -79,12 +101,14 @@
     canvasContainer.innerHTML = '';
     pageElements = [];
 
+    const baseWidth = Math.max(120, canvasContainer.clientWidth - 32);
+    const width = Math.round(baseWidth * zoomState.pdf);
+
     for (let i = 0; i < pageCount; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-page';
       wrapper.dataset.pageIndex = String(i);
 
-      const width = canvasContainer.clientWidth - 32;
       wrapper.style.width = `${width}px`;
       wrapper.style.height = `${Math.round(width * 1.414)}px`;
 
@@ -120,7 +144,7 @@
 
     try {
       const page = await currentPdf.getPage(index + 1);
-      const viewport = page.getViewport({ scale: SCALE });
+      const viewport = page.getViewport({ scale: BASE_SCALE * zoomState.pdf });
 
       const wrapper = pageElements[index];
       if (!wrapper) return;
@@ -175,6 +199,11 @@
       {/if}
     </div>
     <div class="header-right">
+      <div class="zoom-controls" role="group" aria-label="PDF zoom">
+        <button class="zoom-btn" onclick={zoomPdfOut} title="Zoom Out" aria-label="Zoom out">−</button>
+        <button class="zoom-percent" onclick={resetPdfZoom} title="Reset zoom" aria-label="Reset zoom">{Math.round(zoomState.pdf * 100)}%</button>
+        <button class="zoom-btn" onclick={zoomPdfIn} title="Zoom In" aria-label="Zoom in">+</button>
+      </div>
       <button class="close-btn" onclick={onClose} title="Close">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
@@ -220,7 +249,54 @@
   .header-right {
     display: flex;
     align-items: center;
+    gap: 8px;
     flex-shrink: 0;
+  }
+
+  .zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .zoom-btn {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .zoom-btn:hover {
+    background: #f0f0f0;
+    color: #444;
+  }
+
+  .zoom-percent {
+    min-width: 42px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+
+  .zoom-percent:hover {
+    background: #f0f0f0;
+    color: #444;
   }
 
   .file-badge {
@@ -270,14 +346,44 @@
 
   .pdf-scroll {
     flex: 1;
-    overflow-y: auto;
+    overflow: auto;
     padding: 16px;
+    scrollbar-gutter: stable;
+  }
+
+  .pdf-scroll::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.32);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   .pdf-pages {
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* Let the column be as wide as its widest child so horizontal scroll
+       kicks in cleanly when the zoom pushes pages past the panel width. */
+    min-width: min-content;
   }
 
   .pdf-pages :global(.pdf-page) {

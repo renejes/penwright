@@ -18,6 +18,13 @@ import {
   tabState,
   newProjectState,
   panelState,
+  zoomState,
+  zoomEditorIn,
+  zoomEditorOut,
+  resetEditorZoom,
+  zoomPdfIn,
+  zoomPdfOut,
+  resetPdfZoom,
   isUpdatingFromExtension,
   openTab,
 } from './appState.svelte';
@@ -202,9 +209,26 @@ export function handleMessage(message: ExtensionMessage): void {
     tabState.currentFile = '';
     tabState.currentContent = '';
     tabState.isSaved = true;
+    zoomState.editor = 1.0;
+    zoomState.pdf = 1.0;
     if (editorRef.current) {
       try { editorRef.current.commands.setContent(''); } catch {}
     }
+    window.dispatchEvent(new CustomEvent('vswrite:project-closed'));
+  }
+
+  // Renderer-side hooks for the zoom menu items.
+  if (msg.type === 'zoomEditorIn') zoomEditorIn();
+  if (msg.type === 'zoomEditorOut') zoomEditorOut();
+  if (msg.type === 'zoomEditorReset') resetEditorZoom();
+  if (msg.type === 'zoomPdfIn') zoomPdfIn();
+  if (msg.type === 'zoomPdfOut') zoomPdfOut();
+  if (msg.type === 'zoomPdfReset') resetPdfZoom();
+
+  // Help menu → "Mit Claude Desktop verbinden…". The wizard mounts on a
+  // window event so App.svelte's listener owns the visibility state.
+  if (msg.type === 'showMcpSetupWizard') {
+    window.dispatchEvent(new CustomEvent('vswrite:show-mcp-wizard'));
   }
 }
 

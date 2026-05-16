@@ -189,6 +189,11 @@ const SKILL_PROMPTS: Array<{ name: string; description: string; skillDir: string
     description: 'Deep web research workflow — search for academic sources, synthesize findings, manage citations and bibliography.',
     skillDir: 'research',
   },
+  {
+    name: 'writing-style',
+    description: "Prose conventions for academic / nonfiction writing — source discipline (never invent citations, never type BibTeX from memory, match the source's confidence, pre-submission audit), anti-AI-tells (em-dash inflation, three-list reflex, vague hedging, AI buzzwords), active prose principles, academic tense/hedging/citation conventions. Bilingual: English + German.",
+    skillDir: 'writing-style',
+  },
 ];
 
 for (const prompt of SKILL_PROMPTS) {

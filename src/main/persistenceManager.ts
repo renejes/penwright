@@ -64,6 +64,8 @@ interface StoreSchema {
   /** Encrypted (OS keychain) base64 blob containing the full LicenseData payload. */
   licenseBlob: string | null;
   backupConfig: BackupConfig;
+  /** Last MCP_SETUP_VERSION the user ran the Claude-Desktop setup for. */
+  mcpSetupVersion: string | null;
 }
 
 const DEFAULT_BACKUP_CONFIG: BackupConfig = {
@@ -95,6 +97,7 @@ const store = new Store<StoreSchema>({
     zoteroBibPath: null,
     licenseBlob: null,
     backupConfig: DEFAULT_BACKUP_CONFIG,
+    mcpSetupVersion: null,
   },
 });
 
@@ -169,6 +172,16 @@ export function isOnboardingSeen(): boolean {
 
 export function setOnboardingSeen(seen: boolean): void {
   store.set('onboardingSeen', seen);
+}
+
+// ─── MCP Setup Version ──────────────────────────
+
+export function getMcpSetupVersion(): string | null {
+  return store.get('mcpSetupVersion');
+}
+
+export function saveMcpSetupVersion(version: string | null): void {
+  store.set('mcpSetupVersion', version);
 }
 
 // ─── Zotero ──────────────────────────────────────
@@ -484,6 +497,57 @@ export function checkForFileRecovery(
   if (latest.timestampMs <= diskMtime) return null;
 
   return { snapshot: latest, backupContent };
+}
+
+// ─── Project-Local Preferences ──────────────────
+// Per-project knobs (zoom levels etc.) live in `<project>/.vswrite/preferences.json`
+// so they travel with the project folder, just like backups and snapshots.
+
+export interface ProjectPreferences {
+  editorZoom: number;
+  pdfZoom: number;
+}
+
+const DEFAULT_PROJECT_PREFERENCES: ProjectPreferences = {
+  editorZoom: 1.0,
+  pdfZoom: 1.0,
+};
+
+function preferencesPath(projectDir: string): string {
+  return path.join(vswriteDir(projectDir), 'preferences.json');
+}
+
+function clampZoom(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 1.0;
+  return Math.max(0.5, Math.min(2.0, Math.round(v * 100) / 100));
+}
+
+export function getProjectPreferences(projectDir: string): ProjectPreferences {
+  const file = preferencesPath(projectDir);
+  if (!fs.existsSync(file)) return { ...DEFAULT_PROJECT_PREFERENCES };
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return {
+      editorZoom: clampZoom(raw?.editorZoom),
+      pdfZoom: clampZoom(raw?.pdfZoom),
+    };
+  } catch {
+    return { ...DEFAULT_PROJECT_PREFERENCES };
+  }
+}
+
+export function saveProjectPreferences(projectDir: string, prefs: ProjectPreferences): void {
+  if (!fs.existsSync(projectDir)) return;
+  ensureDir(vswriteDir(projectDir));
+  const sanitized: ProjectPreferences = {
+    editorZoom: clampZoom(prefs.editorZoom),
+    pdfZoom: clampZoom(prefs.pdfZoom),
+  };
+  try {
+    fs.writeFileSync(preferencesPath(projectDir), JSON.stringify(sanitized, null, 2), 'utf-8');
+  } catch {
+    // best-effort
+  }
 }
 
 /** Deletes the project's `.vswrite` folder entirely. */

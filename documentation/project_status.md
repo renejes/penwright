@@ -268,7 +268,6 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 
 - [ ] Dark Mode
 - [ ] Deutsche UI-Uebersetzung (UI-Strings extrahieren, i18n-Framework)
-- [ ] Dokumenten-Zoom (Slider 15-200 %)
 - [ ] Linux AppImage + `.rpm` + Windows Installer deployen
 - [ ] Offline-Bundling des Handbuchs (via `extraResources` in electron-builder)
 - [ ] "Publish to GitHub"-Button (aktuell nur via Terminal + `gh` CLI)
@@ -279,6 +278,117 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 19 (2026-05-16) — Writing-Style Skill
+
+**Vierter Skill neben typst / vswrite / research:** [WRITING_STYLE_SKILL](src/shared/skillTemplates.ts) — Prosa-Checkliste fuer akademisches und nicht-fiktives Schreiben. Ziel ist nicht "schreib anders als die KI", sondern "revidiere, was die KI (oder du an einem muden Tag) geschrieben hat". Zweisprachig EN + DE, weil AI-Tells nicht symmetrisch sind: deutsche Akademiker neigen zu Schachtelsaetzen mit "es zeigt sich, dass…", englische zu Triplets und "delve into" — die KI macht beide.
+
+**Vier Sektionen:**
+- **A) Anti-AI-Tells (9 Pattern):** Em-Dash-Inflation, "Not just X, but Y" / "Nicht nur X, sondern Y" (laut Skill der staerkste Marker), Dreierlisten-Reflex, vague hedging (`various`/`moeglicherweise` kumulativ), Buzzword-Konzentration (`delve into`, `tapestry`, `Landschaft`, `nahtlos`), Closing-Statement-Reflex (`In conclusion`/`Abschliessend laesst sich sagen`), Furthermore-by-default, symmetrische Parallelismen, Throat-Clearing-Openers. Jedes Pattern mit before/after-Beispielen in beiden Sprachen.
+- **B) Aktiv-Prinzipien:** Konkret > abstrakt (Zahlen + Namen statt "various studies"), Aktiv-Default (Methoden-Sektionen ausgenommen), Satz-Rhythmus-Variation, Trust-the-Reader (Cross-References statt Prosa-Meta-Talk), Voice-Preservation nach AI-Revision.
+- **C) Akademik-Konventionen:** Tempus-Map nach Sektion (Abstract/Intro/Method/Results/Discussion, EN + DE), Hedging gehoert in Discussion + Limitations nicht in Methods/Results, Citation-Integration (`@chen2021codex` Badge statt prose-form "(Chen et al., 2021)"), Listen-vs-Prosa-Faustregel, deutsche vs. englische akademische Register-Unterschiede.
+- **D) Source Discipline (Anti-Hallucination)** — vom Skill explizit als hoechster Hebel markiert: nie Citekeys oder BibTeX-Eintraege oder Zitate erfinden (\`vswrite_get_citations\` zuerst, dann entweder mit \`vswrite_add_citation\` aus echter Quelle anlegen oder ohne Citation + `needs source`-Comment schreiben), Verb-Inflation vermeiden (`suggests` → `proves` ist Fabrikation), Zitate verbatim aus geoeffneter PDF (\`vswrite_find_source_for_citation\` zuerst), Seitenzahlen verifizieren, Multi-Source-Claims brauchen echte Mehrzahl, kein Citation-Laundering (Survey-Quellen offenlegen), Pre-Submission-Audit-Workflow ueber alle Citekeys.
+
+Abschluss: Revisions-Checkliste in zwei Bloecken (Integrity zuerst — fuenf Source-Verification-Schritte —, dann Style mit acht Stil-Schritten) plus erweiterte "Don't"-Liste mit drei expliziten Anti-Fabrikations-Geboten zu Beginn.
+
+**Verkabelung:**
+- [skillTemplates.ts](src/shared/skillTemplates.ts) — neuer `WRITING_STYLE_SKILL` String-Konstante
+- [projectManager.ts](src/main/projectManager.ts) — `ensureClaudeSkills` deployed jetzt vier Skills, neuer wird beim naechsten Open neu angelegter Projekte gezogen (per-file-guard, also keine Ueberschreibung bestehender Skills in alten Projekten)
+- [mcp/server.ts](src/mcp/server.ts) — `SKILL_PROMPTS` erweitert um `writing-style`, gespeist aus `.claude/skills/writing-style/SKILL.md`
+- Handbuecher (DE+EN) listen den neuen Prompt unter "Verfuegbare Prompts"; CLAUDE.md aktualisiert ("drei → vier skill prompts")
+
+**Bestandsprojekte:** der `per-file-guard` in `ensureClaudeSkills` schreibt das SKILL.md nur wenn nicht vorhanden — alte Projekte bekommen den Writing-Style-Skill bei naechstem Open automatisch dazu. Pre-existierende Skills bleiben unangetastet.
+
+### Session 18 (2026-05-16) — Auto-Discover MCP Server
+
+**Problem:** Nutzer mussten den MCP-Server manuell in `claude_desktop_config.json` eintragen — abschreckend, error-prone. Erster Wurf war zudem an die Electron-App gekoppelt (Path zeigte auf vswrite-Binary mit `ELECTRON_RUN_AS_NODE=1`), was zwei Symptome erzeugte: vswrite musste vor Claude starten, und Quittieren von vswrite killte den MCP-Child. Fix: synova-style Setup-Wizard + Bun-compiled Standalone-Binary, vollstaendig entkoppelt.
+
+**Standalone-Binary via Bun --compile:**
+- Neues Script [scripts/build-mcp-binary.mjs](scripts/build-mcp-binary.mjs) — kompiliert `src/mcp/server.ts` mit `bun build --compile --minify` zu single-file Native-Binary (~64 MB, JavaScriptCore-Runtime eingebacken). Default: Host-Arch nur; `--all` produziert `aarch64-apple-darwin` + `x86_64-apple-darwin`. Drop-in `vswrite-mcp` alias auf Host-Build fuer manuelles Testen.
+- npm-Scripts: `build:mcp-binary` (host) + `build:mcp-binary:all` (arm64 + x86)
+- Output: `dist/mcp/bin/vswrite-mcp-<triple>`
+- esbuild-`.mjs`-Pfad bleibt fuer den Fall dass jemand den Server doch lieber unter eigenem Node fahren will, wird aber nicht mehr vom Wizard verwendet
+
+**Setup-Wizard ([McpSetupWizard.svelte](src/renderer/components/McpSetupWizard.svelte)):**
+- Opt-in Modal, States `intro (probing) → no_claude | unsupported | ready → running → done | error`
+- Wird 2 s nach Boot automatisch aufgemacht wenn `mcpSetupVersion !== MCP_SETUP_VERSION` (electron-store) und `process.platform === 'darwin'` und kein Crash-Dialog ansteht
+- Auch manuell ueber `Help → Mit Claude Desktop verbinden…`
+- "Spaeter"-Button stasht die aktuelle Version damit der Wizard nicht bei jedem Boot kommt; manuelle Re-Trigger ueber das Menue bleiben moeglich
+
+**Setup-Logik ([mcp/src/main/mcpSetup.ts](src/main/mcpSetup.ts)):**
+- `MCP_SETUP_VERSION = '0.3.0'` — bei Bump triggert der Wizard automatisch wieder
+- `checkClaudeDesktopInstalled()` probt `/Applications/Claude.app` + `~/Applications/Claude.app`
+- `setupMcpServer()` — pre-flight Pro-Lizenz-Check (Pull aus electron-store via `getLicenseData()`), Binary-Copy `<resources>/mcp/bin/vswrite-mcp-<triple>` → `~/Library/Application Support/vswrite/mcp-server/vswrite-mcp`, `chmod 755`, dann Merge in `claude_desktop_config.json` (idempotent + preserved-servers + timestamped Backup)
+- Resultierender Config-Eintrag: `{ command: "<copied-path>", env: { VSWRITE_LICENSE_KEY: <key> } }` — kein Node noetig, keine args, kein Path-Hassle. Lizenz-Key in env statt args damit er nicht in `ps`-Output auftaucht
+- Refuses-to-overwrite-invalid-JSON, refuses-non-object-mcpServers — defensives Merging gegen verkorkste User-Configs
+
+**Hardened Runtime + Notarization:**
+- Bun-Binary braucht `disable-library-validation` zusaetzlich zu den `allow-jit` Entitlements der Main-App. Loesung: separate Entitlements-File [build/entitlements.mac.mcp.plist](build/entitlements.mac.mcp.plist) NUR fuer die Binary, Main-App behaelt strengere Entitlements
+- electron-builder `afterPack`-Hook [scripts/afterPack-sign-mcp.mjs](scripts/afterPack-sign-mcp.mjs) re-signiert die Binary nach electron-builders Default-Sign mit der MCP-Entitlements-Datei. Skipped auf non-macOS und auf unsigned Dev-Builds
+- `package.json` `afterPack`-Eintrag verkabelt den Hook in den Build-Flow
+
+**Bundling ([package.json](package.json)):**
+- `extraResources` erweitert um `dist/mcp/bin/` mit Filter `vswrite-mcp-*` → Binary landet unter `Contents/Resources/mcp/bin/` im signierten + notarized .app
+- `dist/mcp/**` aus dem `files`-Pattern excluded, da via extraResources ausgeliefert (vermeidet Duplikat in asar)
+
+**IPC-Surface ([ipcHandlers.ts](src/main/ipcHandlers.ts), [preload-entry.ts](src/main/preload-entry.ts)):**
+- 5 neue Channels: `mcp:checkClaudeDesktop`, `mcp:setup`, `mcp:openClaude`, `mcp:getSetupStatus`, `mcp:skipSetup`
+- `mcp:skipSetup` stasht die aktuelle Version damit ein Dismiss persistent ist
+
+**Persistence ([persistenceManager.ts](src/main/persistenceManager.ts)):**
+- Neuer `mcpSetupVersion`-Key im StoreSchema + `getMcpSetupVersion` / `saveMcpSetupVersion`
+
+**Menue ([menuBuilder.ts](src/main/menuBuilder.ts)):**
+- Help-Menue bekommt „Mit Claude Desktop verbinden…" als separaten Eintrag
+
+**Verifikation:**
+- Bun-Compile durchgelaufen (303 module bundled, ~152 ms compile, 64 MB Binary)
+- Smoke-Test der Binary: stdio-aufruf liefert sauberen License-Required-Error (Runtime + License-Check leben)
+- Im laufenden Setup wurde das Tool-Listing im Claude-Code-Agent ad-hoc um alle 43 `mcp__vswrite__*` Tools erweitert — der MCP-Server laeuft also wirklich Standalone und wird parallel von Claude Desktop wie auch von Claude Code aufgegriffen
+
+**Bug-Fixes beim Implementieren:**
+- Erster Wurf hatte `command = process.execPath` mit `ELECTRON_RUN_AS_NODE` env — bedeutet jeder Quit von vswrite killte den MCP-Child. Bun-Binary loest das endgueltig: separater Prozess, separater Filesystem-Pfad, keine geteilte Identitaet.
+- Bei den ersten Tests hat der Server immer mit „License required" abgebrochen. Behoben durch License-Pull aus electron-store + Schreiben als env in den Config-Eintrag. Wenn die User-Lizenz nicht Pro ist, blockt der Wizard mit verstaendlicher Fehlermeldung bevor er die Config anfasst.
+
+### Session 17 (2026-05-15) — Document Zoom
+
+**Per-Dokument-Zoom fuer Editor + PDF-Vorschau (50–200 %, Schritt 10 %):**
+- Beide Zoom-Levels unabhaengig, **pro Projekt persistiert** in `<project>/.vswrite/preferences.json` — vierte Persistenz-Schicht neben Git-Versionen, Auto-Backups und AI-Snapshots, faellt in den bestehenden „alles im Projektordner"-Vertrag
+- Neuer State [zoomState](src/renderer/appState.svelte.ts) `{ editor, pdf }` + Helper (`setEditorZoom`/`zoomEditorIn`/`resetEditorZoom`, dito `Pdf*`), Konstanten `ZOOM_MIN=0.5` / `ZOOM_MAX=2.0` / `ZOOM_STEP=0.1`, `clampZoom()` rundet auf 2 Nachkommastellen
+
+**Editor-Zoom:**
+- CSS `zoom: var(--editor-zoom, 1)` auf `.editor` — Chromium reflowt das Layout korrekt, ProseMirror-Cursor / Selection-Koordinaten bleiben praezise (im Gegensatz zu `transform: scale()`, das die Click-Koordinaten verschiebt)
+- CSS-Variable wird inline auf `.editor-container` gesetzt: `style="--editor-zoom: {zoomState.editor}"`
+- Status-Bar bekommt rechts eine **Prozent-Anzeige** als Button; Klick oeffnet ein Popover mit Slider (`min/max` aus ZOOM_*-Konstanten, Step 0.05 fuer Feinkontrolle) + `−` / `+` Buttons + Reset
+- Popover hat eigenes `zoom-popover-overlay` (fixed, z-index 199) zum Click-outside-Schliessen
+
+**PDF-Zoom (PreviewPanel + PdfFileViewer teilen sich denselben `pdfZoom`-Wert):**
+- pdfjs-Viewport-Skalierung wird mit `BASE_SCALE (1.5) * zoomState.pdf` multipliziert — der Canvas rasterisiert bei hoeherem Zoom mit hoeherer DPI, also keine verwaschene Bitmap
+- Placeholder-Wrapper-Width = `(container.clientWidth - 32) * zoomState.pdf`; bei Zoom > 100 % wird die Seite breiter als der Container, horizontaler Scroll greift
+- `$effect(zoomState.pdf)` triggert `rebuildAtCurrentZoom()`: `renderedPages.clear()` + Observer disconnect + neue Placeholders + Observer wieder anhaengen — der bereits geladene `currentPdf` bleibt erhalten, nur die Page-Canvas werden re-rasterisiert
+- Beide Viewer haben einen schmalen Zoom-Header (`− 100% +`, Prozent klickbar zum Reset)
+
+**Menu + Shortcuts:**
+- View-Menue bekommt zwei Submenues: **Editor Zoom** (In `Cmd+Alt+=`, Out `Cmd+Alt+-`, Reset `Cmd+Alt+0`) und **Preview Zoom** (`Cmd+Shift+=` / `-` / `0`)
+- Native Browser-Zoom (`Cmd+=` / `-` / `0`) bleibt erhalten, aber unter neuen Labels „Zoom Window In/Out/Reset Window Zoom" — fuer eine Writing-App selten sinnvoll, aber nicht entfernt um keine Erwartungen zu brechen
+- Menu sendet IPC `vswrite { type: 'zoomEditorIn' / ... }`, [messageHandler.ts](src/renderer/messageHandler.ts) ruft direkt die Helper aus appState
+
+**Per-Projekt-Preferences (neue Persistenz-Schicht):**
+- [getProjectPreferences/saveProjectPreferences](src/main/persistenceManager.ts) liest/schreibt `<project>/.vswrite/preferences.json` mit `{ editorZoom, pdfZoom }`-Schema, `clampZoom`-Sanitisierung beim Laden und Speichern
+- IPC `project:getPreferences` / `project:setPreferences` in [ipcHandlers.ts](src/main/ipcHandlers.ts), Preload-whitelisted
+- [App.svelte](src/renderer/App.svelte) loadt Prefs beim ersten `currentFile`-Event eines neuen Projekts (cached `loadedPrefsForProject` damit Datei-Wechsel innerhalb des Projekts keinen Re-Load triggert); debouncedes `setPreferences` (400 ms) bei jeder Zoom-Aenderung
+- Bei `projectClosed` werden beide Zooms auf 1.0 zurueckgesetzt und `loadedPrefsForProject` durch Window-Event `vswrite:project-closed` geleert — sonst wuerde ein erneutes Oeffnen desselben Projekts die Prefs nicht neu laden
+- `.vswrite/preferences.json` wird vom Backup-Ignore-Set + chokidar-Watcher schon abgedeckt (`.vswrite/**`), keine zusaetzlichen Ausnahmen noetig
+
+**Scrollbars (always visible):**
+- `.pdf-scroll` und `.editor-container` bekommen `overflow: auto` (vorher nur `overflow-y: auto` — verhinderte Horizontal-Scroll bei Zoom > 100 %)
+- `::-webkit-scrollbar` (12 px, abgerundeter grauer Thumb mit 3 px transparent Border fuers Padding-Look) + `scrollbar-gutter: stable`, weil macOS' default Hide-on-Idle dem Nutzer nicht zeigt dass beim Zoom mehr Inhalt verfuegbar ist
+
+**Bug-Fix beim Implementieren entdeckt:**
+- PdfPreviewPanel rief urspruenglich `renderPdf(pdfData)` beim Zoom-Aenderung auf — das warf `DataCloneError: ArrayBuffer at index 0 is already detached` weil pdfjs den Buffer beim ersten Laden zum Worker transferiert (Zero-Copy-Optimierung, danach im Main-Thread leer). Fix: PDF-Dokument bleibt geladen, nur Placeholders + Observer werden rebuildet
+- Worktree-Setup-Issue gefixt: `node_modules` im Worktree ist leer, pdfjs liegt im Parent-Repo. Vites Dev-Server-Allowlist liess das pdf.worker.mjs urspruenglich nicht durch → `renderer.server.fs.allow` in [electron.vite.config.mts](electron.vite.config.mts) zeigt auf das Parent-Repo-Root
+
+**Geaenderte Dateien:** [appState.svelte.ts](src/renderer/appState.svelte.ts) (+~30 Zeilen), [App.svelte](src/renderer/App.svelte) (Editor-Zoom CSS + Status-Bar-Popover + Prefs-Load/Save), [PdfPreviewPanel.svelte](src/renderer/components/PdfPreviewPanel.svelte) + [PdfFileViewer.svelte](src/renderer/components/PdfFileViewer.svelte) (reaktiver Zoom + Header-Controls + Scrollbars), [PreviewPanel.svelte](src/renderer/components/PreviewPanel.svelte) (Zoom-Header), [messageHandler.ts](src/renderer/messageHandler.ts) (Menu-Dispatcher + Zoom-Reset bei projectClosed), [persistenceManager.ts](src/main/persistenceManager.ts) (Prefs-API), [ipcHandlers.ts](src/main/ipcHandlers.ts) (`project:getPreferences/setPreferences`), [preload-entry.ts](src/main/preload-entry.ts) (Whitelist), [menuBuilder.ts](src/main/menuBuilder.ts) (View-Submenues), [electron.vite.config.mts](electron.vite.config.mts) (Worktree-Allow-List).
 
 ### Session 16 (2026-04-29) — Pre-Launch-Polish
 

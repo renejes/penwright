@@ -49,6 +49,8 @@ const INVOKE_CHANNELS = [
   'project:showInFinder',
   'project:findSourceForCitation',
   'project:getInfo',
+  'project:getPreferences',
+  'project:setPreferences',
   'project:open',
   'project:openSample',
   'project:close',
@@ -81,6 +83,11 @@ const INVOKE_CHANNELS = [
   'crash:openFolder',
   'crash:copyToClipboard',
   'crash:openMail',
+  'mcp:checkClaudeDesktop',
+  'mcp:setup',
+  'mcp:openClaude',
+  'mcp:getSetupStatus',
+  'mcp:skipSetup',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {

@@ -1,8 +1,8 @@
 # vswrite Desktop — Next Steps bis zum Release
 
-> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-04-29 | App-Version: **0.7.0** (package.json + Doku synchron)
+> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-16 | App-Version: **0.7.0** (package.json + Doku synchron)
 >
-> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (43 Tools), Skills-Overhaul, Crash-Reporting, Cheatsheet, Bestaetigungsdialoge etc. — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen.
+> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (43 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (4: typst / vswrite / research / writing-style), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen.
 
 ---
 
@@ -37,7 +37,6 @@ Optional vor 1.0; nicht launch-blocking.
 
 | Feature | Status | Was fehlt |
 |---------|--------|-----------|
-| Zoom | Browser-Zoom via Menue vorhanden | Dokumenten-Zoom (Slider 15-200 %) fehlt |
 | Find/Replace (Single-File) | Funktional | DOM-basiert statt TipTap-aware, kann bei Edge Cases Treffer uebersehen |
 | i18n / Lokalisierung | Handbuch 2-sprachig | UI-Strings nicht extrahiert, App komplett auf Englisch |
 
@@ -298,7 +297,9 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] `publish`-Config in `package.json` hinzufuegen
 - [ ] Handbuch-Hosting auf Netlify eingerichtet (de/en)
 - [x] „Open Sample Project"-Logik im StartScreen — Sample lebt unter `resources/sample-project/`, wird via `extraResources` mitgebundelt; `project:openSample` IPC kopiert nach `~/Documents/vswrite-sample-thesis` (mit Suffix-Counter falls vorhanden), `git init` + initialer Version, oeffnet als Projekt
-- [ ] macOS DMG bauen, signieren, notarisieren
+- [x] MCP-Binary-Build in den Package-Workflow eingebaut — `package:mac` ruft jetzt `build:mcp-binary:all` (beide Mac-Archs) vorab; `afterPack`-Hook re-signed die Binary mit JIT-Entitlements aus `build/entitlements.mac.mcp.plist`
+- [ ] **macOS DMG bauen, signieren, notarisieren** — wichtigster offener Punkt. Identity (`Developer ID Application: Rene Jesser`) + Notarize-Plugin (`electron-builder-notarize`) sind in `package.json` verkabelt; bisher nie real durchlaufen. Bekannte Stolperkanten: Hardened-Runtime fuer das gebundlete `typst-*`-Binary, JIT-Entitlements fuer das Bun-compiled `vswrite-mcp-<arch>` (via `afterPack-sign-mcp.mjs`), Notarize-Wartezeiten von Apple
+- [ ] Auto-Discover-Wizard auf notarisiertem DMG E2E testen — `mcp:setup` muss aus `Contents/Resources/mcp/bin/` korrekt nach `~/Library/Application Support/vswrite/mcp-server/` kopieren und chmod+x setzen, Claude Desktop muss die kopierte signierte Binary spawnen koennen
 - [ ] Artefakte deployen
 - [ ] Download-Link auf vswrite.com einbinden
 - [ ] Auto-Updater End-to-End testen (alte Version installieren -> Update)
@@ -400,14 +401,35 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] **DOCX:** `vswrite_export_docx({ outputPath: "exports/test.docx" })` produziert ein in Word oeffenbares Dokument mit Multilevel-Numbering
 - [ ] **Markdown-Import:** `vswrite_import_markdown({ markdown: "# Test\n…", destPath: "chapters/06-test.typ" })` schreibt korrekt; `srcPath` mit absolutem Pfad ausserhalb des Projekts funktioniert (read-only)
 - [ ] **Add-Image:** `vswrite_add_image({ srcPath: "/path/to/chart.png", caption: "X", label: "fig:test", file: "chapters/01.typ", afterText: "..." })` kopiert Asset, baut Figure-Snippet, fuegt nach Anker ein, eine Round-Trip statt drei
-- [ ] **Skill-Prompts:** `prompts/get` lieferte alle drei Skills (`typst-reference`, `vswrite-conventions`, `research-workflow`) aus den deployed `.claude/skills/<name>/SKILL.md`
+- [ ] **Skill-Prompts:** `prompts/get` lieferte alle vier Skills (`typst-reference`, `vswrite-conventions`, `research-workflow`, `writing-style`) aus den deployed `.claude/skills/<name>/SKILL.md`
+
+#### Dokument-Zoom (Session 17)
+
+- [ ] Editor-Zoom: Status-Bar-Prozent (`100 %`) klicken → Slider-Popover; Slider verschieben skaliert den Editor reaktiv
+- [ ] `Cmd+Alt+=` / `Cmd+Alt+-` / `Cmd+Alt+0` funktionieren als Editor-Zoom-Shortcuts (View-Menue „Editor Zoom"-Submenu)
+- [ ] PDF-Zoom: `−` / `+` im Preview-Header und in geoeffneten PDF-Tabs skalieren das PDF crisp (pdfjs-Viewport-Scale, kein verwaschenes Bitmap)
+- [ ] `Cmd+Shift+=` / `Cmd+Shift+-` / `Cmd+Shift+0` als PDF-Zoom-Shortcuts (View-Menue „Preview Zoom"-Submenu)
+- [ ] Scrollbars sichtbar auch bei Zoom > 100 % (horizontal + vertikal)
+- [ ] Zoom-Levels werden in `<project>/.vswrite/preferences.json` persistiert — Projekt schliessen + wieder oeffnen restored die Werte
+- [ ] Browser-Zoom (`Cmd+=` etc.) bleibt erhalten unter „Zoom Window In/Out" — separat von Dokument-Zoom
+
+#### MCP Auto-Discover-Wizard (Session 18)
+
+- [ ] Erster Boot mit aktivierter Pro-Lizenz: Wizard erscheint ~2 s nach Start
+- [ ] „Spaeter"-Button stasht die Version — Wizard kommt nicht beim naechsten Boot wieder
+- [ ] „Mit Claude Desktop verbinden…" im Hilfe-Menue triggert den Wizard manuell
+- [ ] Klick auf „Jetzt verbinden": Binary wird nach `~/Library/Application Support/vswrite/mcp-server/vswrite-mcp` kopiert, `chmod 755`, in `claude_desktop_config.json` eingetragen
+- [ ] Andere bestehende `mcpServers`-Eintraege bleiben unangetastet, Backup `.claude_desktop_config.vswrite-bak.<ts>.json` wird angelegt
+- [ ] Ohne Pro-Lizenz: Wizard zeigt verstaendliche Fehlermeldung und schreibt keine Config
+- [ ] Ohne Claude Desktop: Wizard erkennt das und bietet Download-Link, keine Config-Aenderung
+- [ ] Idempotenz: Wizard zweimal aufrufen → kein Duplikat-Eintrag, `alreadyConfigured: true`
+- [ ] **End-to-End** (auf notarisiertem DMG): nach Wizard-Run Claude Desktop neu starten, vswrite-Tools sind sichtbar, MCP-Server laeuft weiter wenn vswrite gequittet wird
 
 ### Phase 6: Post-Release / Nice-to-Have
 
 - [ ] Linux AppImage + Windows Installer deployen (je nach Nachfrage)
 - [ ] Dark Mode
 - [ ] Deutsche UI-Uebersetzung (UI-Strings extrahieren, i18n-Framework)
-- [ ] Dokumenten-Zoom (Slider 15-200 %)
 - [ ] „Publish to GitHub"-Button (aktuell nur via Terminal + `gh` CLI)
 - [ ] Bundeled Offline-Handbuch (v1.1)
 - [ ] Vollstaendiges WCAG 2.1 AA Accessibility-Audit

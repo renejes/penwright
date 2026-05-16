@@ -419,6 +419,18 @@ Both triggers feed into the standard [Find in Project](#find-in-project), so the
 
 ---
 
+## Zoom (Editor + Preview)
+
+The editor and the PDF preview zoom independently, from 50 % to 200 % in 10 % steps:
+
+- **Editor zoom:** the current `100 %` shows as a button in the bottom-right status bar. Click it to open a small popover with `−` / `+` and a reset button. From the keyboard: `Cmd+Alt+=` (in), `Cmd+Alt+-` (out), `Cmd+Alt+0` (back to 100 %).
+- **PDF preview zoom:** a slim `− 100 % +` strip sits at the top of the preview panel. Click the percentage to reset. From the keyboard: `Cmd+Shift+=` (in), `Cmd+Shift+-` (out), `Cmd+Shift+0` (reset). The same PDF zoom applies to opened source PDFs (e.g. via citation hover → "Open PDF").
+- **Scrollbars** are always visible — once you zoom past 100 %, the page is wider than the panel and you can scroll horizontally.
+- **Saved per project:** the next time you open the same project, your zoom levels are restored. The values live in `<project>/.vswrite/preferences.json` and travel with the folder if you copy it.
+- **Window zoom** (`Cmd+=` / `Cmd+-` / `Cmd+0`) zooms the entire window and stays available in the View menu as "Zoom Window In/Out" — rarely needed, but untouched.
+
+---
+
 ## Import & Export
 
 ### Markdown import
@@ -687,12 +699,45 @@ Over MCP (43 tools) the AI can:
 - Import Markdown and add images (with content-hash dedup + figure builder)
 - Switch between projects, run Git operations, and pull Skill Prompts (typst-reference / vswrite-conventions / research-workflow)
 
-### Setup: Claude Desktop
+### Setup: auto-discover wizard (macOS)
 
-**Step 1:** build the MCP server (once, in the vswrite directory):
+On macOS, vswrite offers to connect Claude Desktop automatically — no JSON editing required. Requirements:
+
+- **Pro license activated** (see [License Management](#license-management)) — the MCP server rejects spawn otherwise
+- **Claude Desktop installed** at `/Applications/Claude.app` or `~/Applications/Claude.app`
+
+**Flow:**
+
+1. The wizard pops up a few seconds after launch (or via `Help → "Connect to Claude Desktop…"`)
+2. Click **"Connect now"**
+3. Behind the scenes:
+   - The server binary is copied from the .app bundle to `~/Library/Application Support/vswrite/mcp-server/vswrite-mcp`
+   - `~/Library/Application Support/Claude/claude_desktop_config.json` gets a `vswrite` entry — any pre-existing MCP servers are preserved untouched, and a timestamped backup of your old config is written first
+   - Your Pro license key is written as an environment variable (`VSWRITE_LICENSE_KEY`) into the entry
+4. **Restart Claude Desktop** — the vswrite tools appear automatically
+
+**Standalone:** the MCP server runs as an independent process, **decoupled from the vswrite app**. You can quit vswrite, keep using Claude, open vswrite again later — the launch order is irrelevant.
+
+**Idempotent:** running setup again is safe — no duplicate entry. If you activate a new license later, re-run the wizard from the Help menu so the new key lands in the config.
+
+### Setup: manual (Windows, Linux, or power users)
+
+The wizard is currently macOS-only. You can also configure manually on macOS if you prefer:
+
+**Step 1:** build the server binary (once, in the vswrite repo):
 
 ```bash
-npm run build:mcp
+npm run build:mcp-binary       # host arch only
+# or
+npm run build:mcp-binary:all   # arm64 + x86_64
+```
+
+Output: `dist/mcp/bin/vswrite-mcp-<arch>` (~64 MB single-file binary, no Node required).
+
+Alternatively use the classic Node path (requires Node ≥ 20):
+
+```bash
+npm run build:mcp   # → dist/mcp/server.mjs
 ```
 
 **Step 2:** open the configuration file:
@@ -700,27 +745,20 @@ npm run build:mcp
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-Create it if it doesn't exist.
-
-**Step 3:** register vswrite as an MCP server:
+**Step 3:** register vswrite as an MCP server. With the standalone binary (recommended):
 
 ```json
 {
   "mcpServers": {
     "vswrite": {
-      "command": "node",
-      "args": [
-        "/PATH/TO/vswrite-desktop/dist/mcp/server.mjs",
-        "--license-key", "VSWRITE_PRO_xxxx..."
-      ]
+      "command": "/PATH/TO/vswrite-desktop/dist/mcp/bin/vswrite-mcp",
+      "env": { "VSWRITE_LICENSE_KEY": "VSWRITE_PRO_xxxx..." }
     }
   }
 }
 ```
 
-Replace `/PATH/TO/vswrite-desktop` with the actual install path and `VSWRITE_PRO_xxxx...` with your Pro license key.
-
-**Alternative:** use the `VSWRITE_LICENSE_KEY` env variable instead of `--license-key`:
+Or via Node + `.mjs`:
 
 ```json
 {
@@ -758,26 +796,95 @@ Claude will call `vswrite_set_project` and work with the new project from there 
 
 ### Available tools (43)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). Quick overview by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 43 tools with one-line descriptions, grouped by category:
 
-| Category | Count | Tools |
-|---|---|---|
-| Project & files | 5 | `set_project`, `list_files`, `read_file`, `write_file`, `create_project` |
-| Document operations | 4 | `get_document`, `open_file`, `update_document`, `compile` (verifier — PDF-only) |
-| Settings & styling | 4 | `get_settings`, `update_settings`, `list_styles`, `apply_style` |
-| Chapters & structure | 6 | `get_chapters`, `reorder_chapters`, `add_chapter`, `remove_chapter`, `merge_document`, `split_document` |
-| Bibliography | 3 | `get_citations`, `add_citation`, `ensure_bibliography` |
-| Cross-refs & footnotes | 3 | `list_labels`, `insert_reference` (validates + suggests close labels), `add_footnote` (bracket-balance check) |
-| Comments | 4 | `list_comments`, `add_comment` (anchor-based), `resolve_comment`, `delete_comment` |
-| Versions | 4 | `save_version` (auto-init Git when missing), `list_versions`, `show_version`, `restore_version` |
-| Discovery | 3 | `search_project`, `replace_in_project`, `find_source_for_citation` |
-| Export | 2 | `export_pdf` (project-only paths), `export_docx` (Word styles + multilevel numbering) |
-| Import & assets | 2 | `import_markdown`, `add_image` (content-hash dedup, figure builder, optional inline insert) |
-| Git low-level | 3 | `git_status`, `git_commit`, `git_push` |
+**Project & files (5)**
+
+- `vswrite_set_project` — Set the active project directory; auto-detects `main.typ` / `document.typ`. Call first.
+- `vswrite_list_files` — Return the project file tree (`.typ`, `.bib`, `.md`, `.yaml`, `.json`, `.pdf`, images).
+- `vswrite_read_file` — Read a file from the project; text content as string, binaries as Base64.
+- `vswrite_write_file` — Write content to a project file; creates parent directories as needed.
+- `vswrite_create_project` — Create a new Typst project from a template (`document`, `thesis`, `paper`, `letter`, `book`).
+
+**Document operations (4)**
+
+- `vswrite_get_document` — Return the current document (content, path, project dir, word count).
+- `vswrite_open_file` — Open a `.typ` file as the current document; path absolute or project-relative.
+- `vswrite_update_document` — Replace the current document content and save to disk.
+- `vswrite_compile` — Verify that the document compiles cleanly; PDF-only, artifact removed afterwards — use `export_pdf` / `export_docx` for real output.
+
+**Settings & styling (4)**
+
+- `vswrite_get_settings` — Read `#set` settings (font, size, language, margins, page numbering, bibliography style).
+- `vswrite_update_settings` — Update `#set` settings; only passed keys are modified.
+- `vswrite_list_styles` — Return all available style templates with id, label, and description.
+- `vswrite_apply_style` — Apply a style template to the root document; replaces the `#set`/`#show` preamble.
+
+**Chapters & structure (6)**
+
+- `vswrite_get_chapters` — Return the `#include` structure (order, paths, file-exists flag).
+- `vswrite_reorder_chapters` — Reorder the `#include` statements in the root document.
+- `vswrite_add_chapter` — Create a new chapter file in `chapters/` and add an `#include`.
+- `vswrite_remove_chapter` — Remove an `#include` entry from the root document; the file itself is kept.
+- `vswrite_merge_document` — Resolve all `#include` statements recursively and return the merged document as a string (read-only).
+- `vswrite_split_document` — Split the current document at `=` Heading-1 boundaries into individual chapter files.
+
+**Bibliography & citations (3)**
+
+- `vswrite_get_citations` — Return all BibTeX entries from the project's `.bib` files.
+- `vswrite_add_citation` — Add a BibTeX entry to `references.bib`; creates the file and `#bibliography` statement if missing.
+- `vswrite_ensure_bibliography` — Ensure the project has a `references.bib` and a `#bibliography` statement.
+
+**Cross-references & footnotes (3)**
+
+- `vswrite_list_labels` — Return all `<label>` definitions in the project with type classification (figure / table / equation / heading / other) and caption preview.
+- `vswrite_insert_reference` — Insert a Typst cross-reference (`@label`) at an anchor; validates the label exists and suggests close matches if not.
+- `vswrite_add_footnote` — Insert a Typst footnote (`#footnote[…]`) at an anchor; bracket-balance check on the body.
+
+**Comments & annotations (4)**
+
+- `vswrite_list_comments` — List vswrite comments (or just those of one file); comments live as `.md` files in `comments/` and never compile.
+- `vswrite_add_comment` — Create a comment anchored to a verbatim text snippet; generates id, frontmatter, offset hints.
+- `vswrite_resolve_comment` — Mark a comment as resolved (or un-resolve it); the entry stays in the project.
+- `vswrite_delete_comment` — Permanently delete a comment (removes the `.md` file).
+
+**Versions (4) — matches the Project panel's vocabulary**
+
+- `vswrite_save_version` — Save a named version (Git commit); auto-initialises the repo if missing; local-only, never pushes.
+- `vswrite_list_versions` — Return the version history (max. 200, newest first) including an `isAuto` flag for vswrite-internal auto-versions.
+- `vswrite_show_version` — Return the per-file diff for one version (added/modified/deleted/renamed + unified-diff hunks).
+- `vswrite_restore_version` — Restore files from a historical version into the working tree; save a version first!
+
+**Discovery — search & sources (3)**
+
+- `vswrite_search_project` — Search across all `.typ` (optionally `.bib`) files; whole-word uses lookarounds so it works for `@citekey` backlinks; capped at 1000 matches.
+- `vswrite_replace_in_project` — Replace all matches of a query project-wide; **destructive** — call `save_version` first.
+- `vswrite_find_source_for_citation` — Look up a PDF in `sources/` matching a citekey (`<citekey>.pdf` preferred, suffix variants allowed).
+
+**Export (2)**
+
+- `vswrite_export_pdf` — Compile and export as PDF; output path must lie inside the project — convention is `exports/<name>.pdf`.
+- `vswrite_export_docx` — Export as DOCX with real Word styles (Heading1-6, Quote, CodeBlock …) and live multilevel-numbering — supervisors can reorder in Word and the numbers refresh.
+
+**Import & assets (2)**
+
+- `vswrite_import_markdown` — Convert Markdown to Typst and write into a project file; inline markdown or `srcPath` to an `.md` file.
+- `vswrite_add_image` — Import an image into `assets/` (content-hash dedup), build the Typst snippet (with optional caption + label → `#figure(…)`), and optionally insert it at an anchor.
+
+**Git low-level (3) — for syncing with a remote**
+
+- `vswrite_git_status` — Return branch, ahead/behind, and changed files.
+- `vswrite_git_commit` — Stage all changes and commit with the given message.
+- `vswrite_git_push` — Push commits to the remote repository.
 
 All file-touching tools route paths through `resolveInsideProject` — symlink-aware, blocks `../`-traversal. Anchor-based tools (`add_comment` / `insert_reference` / `add_footnote` / `add_image`) take an `afterText`/`anchor` plus an optional 1-based `occurrence` when the anchor appears multiple times — the agent never has to compute offsets.
 
-The MCP server also exposes three **prompts** (`typst-reference`, `vswrite-conventions`, `research-workflow`) backed by the deployed `.claude/skills/<name>/SKILL.md` content.
+The MCP server also exposes four **prompts** backed by the deployed `.claude/skills/<name>/SKILL.md` content:
+
+- **typst-reference** — Typst language reference (syntax, math, layout, cross-references, footnotes, bibliography).
+- **vswrite-conventions** — Project conventions (folder structure, persistence layers, comments, cross-references, mode toggles).
+- **research-workflow** — Four-phase workflow (discover / capture / synthesize / integrate) plus end-to-end recipes with MCP tools.
+- **writing-style** — Prose checklist for academic writing with four sections: **Source Discipline** (never invent citations / BibTeX entries / quotes, pre-submission audit), **Anti-AI-Tells** (em-dash inflation, "not just X but Y", three-list reflex, buzzwords like `delve into` / `Landschaft`), **Active Prose Principles**, **Academic Conventions** (tense, hedging, citation integration). Bilingual (English + German).
 
 ---
 

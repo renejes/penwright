@@ -32,9 +32,20 @@ import {
   loadProjectBackup,
   getBackupConfig,
   setBackupConfig,
+  getProjectPreferences,
+  saveProjectPreferences,
+  getMcpSetupVersion,
+  saveMcpSetupVersion,
   type PanelState,
   type BackupConfig,
+  type ProjectPreferences,
 } from './persistenceManager';
+import {
+  checkClaudeDesktopInstalled,
+  setupMcpServer,
+  openClaudeDesktop,
+  MCP_SETUP_VERSION,
+} from './mcpSetup';
 import { activateLicense, validateLicense, deactivateLicense } from './licenseManager';
 import { getLicenseData } from './persistenceManager';
 import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
@@ -522,6 +533,30 @@ export function setupIPC(): void {
   ipcMain.handle('persist:isOnboardingSeen', () => isOnboardingSeen());
   ipcMain.handle('persist:getZoteroBibPath', () => getZoteroBibPath());
 
+  // ─── MCP Setup (Claude Desktop integration) ───
+  ipcMain.handle('mcp:checkClaudeDesktop', () => checkClaudeDesktopInstalled());
+  ipcMain.handle('mcp:setup', async () => {
+    const result = await setupMcpServer();
+    saveMcpSetupVersion(MCP_SETUP_VERSION);
+    return result;
+  });
+  ipcMain.handle('mcp:openClaude', async () => {
+    await openClaudeDesktop();
+    return { ok: true };
+  });
+  ipcMain.handle('mcp:getSetupStatus', () => ({
+    current: MCP_SETUP_VERSION,
+    installed: getMcpSetupVersion(),
+    needsSetup: getMcpSetupVersion() !== MCP_SETUP_VERSION,
+    supported: process.platform === 'darwin',
+  }));
+  ipcMain.handle('mcp:skipSetup', () => {
+    // User dismissed the wizard — stash the current version so we don't
+    // nag again until the next bump.
+    saveMcpSetupVersion(MCP_SETUP_VERSION);
+    return { ok: true };
+  });
+
   // ─── License Handlers ──────────────────────────
   ipcMain.handle('license:activate', async (_event, key: string) => {
     try {
@@ -648,6 +683,17 @@ export function setupIPC(): void {
       currentFilePath: appState.currentFilePath,
       projectName: appState.projectDir ? path.basename(appState.projectDir) : null,
     };
+  });
+
+  ipcMain.handle('project:getPreferences', () => {
+    if (!appState.projectDir) return null;
+    return getProjectPreferences(appState.projectDir);
+  });
+
+  ipcMain.handle('project:setPreferences', (_event, prefs: ProjectPreferences) => {
+    if (!appState.projectDir) return { ok: false };
+    saveProjectPreferences(appState.projectDir, prefs);
+    return { ok: true };
   });
 
   ipcMain.handle('project:open', async (_event, projectDir?: string) => {

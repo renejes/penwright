@@ -23,6 +23,7 @@
   import CitationHoverCard from './components/CitationHoverCard.svelte';
   import ReferencePicker from './components/ReferencePicker.svelte';
   import CrashReportDialog from './components/CrashReportDialog.svelte';
+  import McpSetupWizard from './components/McpSetupWizard.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
@@ -41,6 +42,16 @@
     newProjectState,
     exportDialogState,
     projectSearchPreset,
+    zoomState,
+    ZOOM_MIN,
+    ZOOM_MAX,
+    setEditorZoom,
+    zoomEditorIn,
+    zoomEditorOut,
+    resetEditorZoom,
+    zoomPdfIn,
+    zoomPdfOut,
+    resetPdfZoom,
     openTab,
     closeTab,
     tabName,
@@ -72,6 +83,55 @@
   // Cross-reference picker — shown via slash command (`/Reference`),
   // menu (`Edit → Insert Reference…` / `Cmd+Alt+L`), or window event.
   let showReferencePicker = $state(false);
+
+  // Editor-zoom popover shown when the user clicks the "100%" badge in the
+  // status bar. The popover is a sibling of the badge, positioned via flex.
+  let showEditorZoomPopover = $state(false);
+
+  // ─── Per-project preferences (zoom levels) ──────
+  // Loaded when a project's first file opens; saved (debounced) whenever
+  // either zoom level changes. Tracked by projectDir so reopening a project
+  // restores its last-used zoom and switching files within a project doesn't
+  // re-load.
+  let loadedPrefsForProject = '';
+  let prefsSaveTimer: ReturnType<typeof setTimeout>;
+
+  async function loadProjectPreferences(projectDir: string) {
+    if (!projectDir || projectDir === loadedPrefsForProject) return;
+    loadedPrefsForProject = projectDir;
+    try {
+      const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+      const prefs = await api.invoke('project:getPreferences') as { editorZoom?: number; pdfZoom?: number } | null;
+      if (prefs) {
+        if (typeof prefs.editorZoom === 'number') zoomState.editor = prefs.editorZoom;
+        if (typeof prefs.pdfZoom === 'number') zoomState.pdf = prefs.pdfZoom;
+      }
+    } catch (err) {
+      console.warn('[vswrite] loadProjectPreferences failed:', err);
+    }
+  }
+
+  // Debounced save: any change to either zoom persists to the current project.
+  $effect(() => {
+    const snapshot = { editorZoom: zoomState.editor, pdfZoom: zoomState.pdf };
+    if (!loadedPrefsForProject) return;
+    clearTimeout(prefsSaveTimer);
+    prefsSaveTimer = setTimeout(() => {
+      const api = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+      api?.invoke('project:setPreferences', snapshot);
+    }, 400);
+  });
+
+  // Trigger preference load when the current file's project changes.
+  $effect(() => {
+    void tabState.currentFile;
+    if (!tabState.currentFile) return;
+    const api = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+    api?.invoke('project:getInfo').then((info) => {
+      const projectDir = (info as { projectDir?: string } | null)?.projectDir || '';
+      if (projectDir) void loadProjectPreferences(projectDir);
+    });
+  });
 
   // Debounced panel state persistence
   $effect(() => {
@@ -142,6 +202,10 @@
   type CrashReport = { content: string; filename: string; ts: number };
   let pendingCrash: CrashReport | null = $state(null);
 
+  // MCP setup wizard — auto-shown on first launch (or after MCP_SETUP_VERSION
+  // bumps); also opens via Help → "Mit Claude Desktop verbinden…".
+  let showMcpWizard = $state(false);
+
   async function dismissCrashDialog() {
     pendingCrash = null;
     try {
@@ -191,6 +255,8 @@
     window.addEventListener('vswrite:citation-hover', handleCitationHover as EventListener);
     window.addEventListener('vswrite:open-reference-picker', handleOpenReferencePicker as EventListener);
     window.addEventListener('vswrite:comment-created', onCommentCreatedAtApp as EventListener);
+    window.addEventListener('vswrite:project-closed', onProjectClosed as EventListener);
+    window.addEventListener('vswrite:show-mcp-wizard', () => { showMcpWizard = true; });
 
     // Drag & Drop images into the editor
     document.addEventListener('dragover', (e) => e.preventDefault());
@@ -246,6 +312,18 @@
           uiState.licenseMessage = r.message || '';
         }
       });
+
+      // MCP setup probe — show the wizard if the user hasn't completed setup
+      // for the current MCP_SETUP_VERSION. Delayed 2s so it never competes
+      // with the crash dialog or other boot UI for attention.
+      setTimeout(() => {
+        electronAPI.invoke('mcp:getSetupStatus').then((status) => {
+          const s = status as { needsSetup: boolean; supported: boolean };
+          if (s?.needsSetup && s?.supported && !pendingCrash) {
+            showMcpWizard = true;
+          }
+        }).catch(() => { /* ignore */ });
+      }, 2000);
     }
 
     ipc.send({ type: 'ready' });
@@ -504,6 +582,10 @@
     void refreshCommentMarks();
   }
 
+  function onProjectClosed() {
+    loadedPrefsForProject = '';
+  }
+
   function openPdfTabFromHover(filePath: string) {
     const api = (window as unknown as {
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
@@ -657,6 +739,7 @@
     window.removeEventListener('vswrite:citation-hover', handleCitationHover as EventListener);
     window.removeEventListener('vswrite:open-reference-picker', handleOpenReferencePicker as EventListener);
     window.removeEventListener('vswrite:comment-created', onCommentCreatedAtApp as EventListener);
+    window.removeEventListener('vswrite:project-closed', onProjectClosed as EventListener);
     editorRef.current?.destroy();
   });
 </script>
@@ -816,7 +899,7 @@
             }}
           />
         {/if}
-        <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile}>
+        <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile} style="--editor-zoom: {zoomState.editor}">
           <div class="editor" bind:this={editorElement}></div>
         </div>
       </div>
@@ -920,6 +1003,9 @@
         onClose={dismissCrashDialog}
       />
     {/if}
+    {#if showMcpWizard}
+      <McpSetupWizard onClose={() => (showMcpWizard = false)} />
+    {/if}
     {#if exportDialogState.show && exportDialogState.sections}
       <ExportDialog
         initialFormat={exportDialogState.format}
@@ -982,6 +1068,44 @@
         <span class="status-info" title="Word count · estimated reading time at 200 wpm">
           {wordStats.words.toLocaleString()} {wordStats.words === 1 ? 'word' : 'words'} · {wordStats.minutes} min read
         </span>
+      {/if}
+      {#if hasFileOpen}
+        <div class="zoom-status-wrapper">
+          <button
+            class="zoom-status-btn"
+            class:active={showEditorZoomPopover}
+            onclick={() => (showEditorZoomPopover = !showEditorZoomPopover)}
+            title="Editor zoom · click to adjust"
+            aria-label="Editor zoom"
+            aria-haspopup="true"
+            aria-expanded={showEditorZoomPopover}
+          >
+            {Math.round(zoomState.editor * 100)}%
+          </button>
+          {#if showEditorZoomPopover}
+            <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+            <div class="zoom-popover-overlay" onclick={() => (showEditorZoomPopover = false)}></div>
+            <div class="zoom-popover" role="dialog" aria-label="Editor zoom">
+              <div class="zoom-popover-row">
+                <button class="zoom-btn-sq" onclick={zoomEditorOut} aria-label="Zoom out">−</button>
+                <input
+                  type="range"
+                  min={ZOOM_MIN}
+                  max={ZOOM_MAX}
+                  step="0.05"
+                  value={zoomState.editor}
+                  oninput={(e) => setEditorZoom(parseFloat((e.currentTarget as HTMLInputElement).value))}
+                  aria-label="Editor zoom slider"
+                />
+                <button class="zoom-btn-sq" onclick={zoomEditorIn} aria-label="Zoom in">+</button>
+              </div>
+              <div class="zoom-popover-footer">
+                <span class="zoom-popover-value">{Math.round(zoomState.editor * 100)}%</span>
+                <button class="zoom-reset-btn" onclick={resetEditorZoom}>Reset</button>
+              </div>
+            </div>
+          {/if}
+        </div>
       {/if}
       {#if uiState.exporting}
         <span class="status-info status-exporting" aria-live="polite">Exporting {uiState.exportFormat.toUpperCase()}...</span>
@@ -1157,12 +1281,39 @@
 
   .panel-editor :global(.editor-container) {
     flex: 1;
-    overflow-y: auto;
+    overflow: auto;
     padding: 56px 72px;
+    scrollbar-gutter: stable;
   }
 
   .panel-editor :global(.editor-container.hidden) {
     display: none;
+  }
+
+  .panel-editor :global(.editor-container::-webkit-scrollbar) {
+    width: 12px;
+    height: 12px;
+  }
+
+  .panel-editor :global(.editor-container::-webkit-scrollbar-track) {
+    background: transparent;
+  }
+
+  .panel-editor :global(.editor-container::-webkit-scrollbar-thumb) {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .panel-editor :global(.editor-container::-webkit-scrollbar-thumb:hover) {
+    background: rgba(0, 0, 0, 0.28);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+  }
+
+  .panel-editor :global(.editor-container::-webkit-scrollbar-corner) {
+    background: transparent;
   }
 
   /* ─── Tab Bar ─── */
@@ -1266,6 +1417,11 @@
     margin: 0 auto;
     min-height: 100%;
     outline: none;
+    /* CSS zoom triggers proper layout reflow in Chromium (unlike transform:
+       scale), so the cursor and selection coordinates stay correct under
+       ProseMirror. Defined as a custom property so the menu/status bar can
+       update it without touching the editor itself. */
+    zoom: var(--editor-zoom, 1);
   }
 
   /* ─── Preview ─── */
@@ -1381,4 +1537,100 @@
   .status-toggle.licensed {
     color: #2e7d32;
   }
+
+  /* ─── Editor Zoom Indicator + Popover ─── */
+  .zoom-status-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .zoom-status-btn {
+    height: 22px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    transition: all 0.15s;
+  }
+
+  .zoom-status-btn:hover { background: #f5f5f5; color: #666; }
+  .zoom-status-btn.active { background: #eef4ff; color: #4f7df9; }
+
+  .zoom-popover-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+  }
+
+  .zoom-popover {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    z-index: 200;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    padding: 10px 12px;
+    min-width: 220px;
+  }
+
+  .zoom-popover-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .zoom-popover-row input[type='range'] {
+    flex: 1;
+    accent-color: #4f7df9;
+  }
+
+  .zoom-btn-sq {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    background: #fafafa;
+    color: #555;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .zoom-btn-sq:hover { background: #f0f0f0; }
+
+  .zoom-popover-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 11px;
+    color: #999;
+  }
+
+  .zoom-popover-value {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .zoom-reset-btn {
+    height: 22px;
+    padding: 0 10px;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    background: #fafafa;
+    color: #555;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+  }
+
+  .zoom-reset-btn:hover { background: #f0f0f0; }
 </style>

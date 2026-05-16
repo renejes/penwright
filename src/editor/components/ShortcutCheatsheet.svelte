@@ -71,6 +71,13 @@
       ],
     },
     {
+      title: 'Zoom',
+      entries: [
+        { action: 'Editor Zoom In / Out / Reset', shortcut: `${mod}+${alt}+= / − / 0` },
+        { action: 'Preview Zoom In / Out / Reset', shortcut: `${mod}+Shift+= / − / 0` },
+      ],
+    },
+    {
       title: 'General',
       entries: [
         { action: 'Undo', shortcut: `${mod}+Z` },

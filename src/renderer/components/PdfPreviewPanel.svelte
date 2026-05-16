@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import * as pdfjsLib from 'pdfjs-dist';
   import { TextLayer } from 'pdfjs-dist';
+  import { zoomState } from '../appState.svelte';
 
   // Set up worker from pdfjs-dist
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -28,13 +29,41 @@
   let observer: IntersectionObserver | null = null;
   let pageElements: HTMLDivElement[] = [];
 
-  const SCALE = 1.5;
+  // Base scale chosen for crispness at 100% zoom. The pdfZoom multiplier is
+  // applied to pdfjs' viewport scale (rather than via CSS transform) so the
+  // canvas rasterizes at the correct DPI — no blurriness when zooming in.
+  const BASE_SCALE = 1.5;
 
   $effect(() => {
     if (pdfData) {
       renderPdf(pdfData);
     }
   });
+
+  // Re-render whenever the PDF zoom changes. We MUST NOT re-call
+  // pdfjsLib.getDocument(): the ArrayBuffer was transferred to the worker on
+  // first load and is detached. Instead, keep the loaded `currentPdf` and
+  // just rebuild placeholders (with the new width) — the IntersectionObserver
+  // re-renders visible pages at the new viewport scale.
+  let lastZoom = zoomState.pdf;
+  $effect(() => {
+    const z = zoomState.pdf;
+    if (z !== lastZoom && currentPdf) {
+      lastZoom = z;
+      void rebuildAtCurrentZoom();
+    } else {
+      lastZoom = z;
+    }
+  });
+
+  async function rebuildAtCurrentZoom() {
+    if (scrollContainer) lastScrollTop = scrollContainer.scrollTop;
+    renderedPages.clear();
+    observer?.disconnect();
+    await tick();
+    setupPlaceholders();
+    setupIntersectionObserver();
+  }
 
   async function renderPdf(data: Uint8Array) {
     // Save scroll position
@@ -75,13 +104,17 @@
     canvasContainer.innerHTML = '';
     pageElements = [];
 
+    // Width fills the scroll container at 100% zoom; higher zoom grows
+    // beyond it (horizontal scroll kicks in via the parent's overflow).
+    const baseWidth = Math.max(120, canvasContainer.clientWidth - 32);
+    const width = Math.round(baseWidth * zoomState.pdf);
+
     for (let i = 0; i < pageCount; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-page';
       wrapper.dataset.pageIndex = String(i);
 
       // Set a placeholder height based on A4 ratio (1:1.414)
-      const width = canvasContainer.clientWidth - 32; // padding
       wrapper.style.width = `${width}px`;
       wrapper.style.height = `${Math.round(width * 1.414)}px`;
       wrapper.style.background = '#fff';
@@ -122,7 +155,7 @@
 
     try {
       const page = await currentPdf.getPage(index + 1); // pdf.js pages are 1-based
-      const viewport = page.getViewport({ scale: SCALE });
+      const viewport = page.getViewport({ scale: BASE_SCALE * zoomState.pdf });
 
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
@@ -200,14 +233,45 @@
 
   .pdf-scroll {
     flex: 1;
-    overflow-y: auto;
+    overflow: auto;
     padding: 16px;
+    /* Always show scrollbars so users can tell that zoomed content is
+       scrollable in both directions, even on macOS where the default is to
+       hide them. */
+    scrollbar-gutter: stable;
+  }
+
+  .pdf-scroll::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.32);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+  }
+
+  .pdf-scroll::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   .pdf-pages {
     display: flex;
     flex-direction: column;
     align-items: center;
+    min-width: min-content;
   }
 
   .pdf-empty {

@@ -9,10 +9,12 @@
     "dev": "unset ELECTRON_RUN_AS_NODE && electron-vite dev",
     "build": "unset ELECTRON_RUN_AS_NODE && electron-vite build",
     "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview",
-    "package:mac": "electron-builder --mac",
-    "package:win": "electron-builder --win",
-    "package:linux": "electron-builder --linux",
+    "package:mac": "npm run build && npm run build:mcp-binary:all && electron-builder --mac",
+    "package:win": "npm run build && electron-builder --win",
+    "package:linux": "npm run build && electron-builder --linux",
     "build:mcp": "node esbuild.mcp.mjs",
+    "build:mcp-binary": "node scripts/build-mcp-binary.mjs",
+    "build:mcp-binary:all": "node scripts/build-mcp-binary.mjs --all",
     "mcp": "node dist/mcp/server.mjs"
   },
   "bin": {
@@ -71,8 +73,10 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*"
+      "dist/**/*",
+      "!dist/mcp/**"
     ],
+    "afterPack": "scripts/afterPack-sign-mcp.mjs",
     "extraResources": [
       {
         "from": "documentation/vswrite-logo.svg",
@@ -86,6 +90,11 @@
       {
         "from": "resources/sample-project/",
         "to": "sample-project/"
+      },
+      {
+        "from": "dist/mcp/bin/",
+        "to": "mcp/bin/",
+        "filter": ["vswrite-mcp-*"]
       }
     ],
     "mac": {

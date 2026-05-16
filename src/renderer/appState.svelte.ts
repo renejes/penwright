@@ -46,6 +46,35 @@ export let panelState = $state({
   terminalHeight: 200,
 });
 
+// ─── Document Zoom ──────────────────────────────
+// Independent zoom levels for the editor (CSS zoom on .editor) and PDF
+// rendering (passed to pdfjs viewport scale, so output stays crisp).
+// Per-project: loaded from <project>/.vswrite/preferences.json on file open,
+// reset to 1.0 when the project closes.
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 2.0;
+export const ZOOM_STEP = 0.1;
+
+export let zoomState = $state({
+  editor: 1.0,
+  pdf: 1.0,
+});
+
+function clampZoom(v: number): number {
+  if (!Number.isFinite(v)) return 1.0;
+  const rounded = Math.round(v * 100) / 100;
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, rounded));
+}
+
+export function setEditorZoom(value: number) { zoomState.editor = clampZoom(value); }
+export function setPdfZoom(value: number) { zoomState.pdf = clampZoom(value); }
+export function zoomEditorIn() { setEditorZoom(zoomState.editor + ZOOM_STEP); }
+export function zoomEditorOut() { setEditorZoom(zoomState.editor - ZOOM_STEP); }
+export function resetEditorZoom() { setEditorZoom(1.0); }
+export function zoomPdfIn() { setPdfZoom(zoomState.pdf + ZOOM_STEP); }
+export function zoomPdfOut() { setPdfZoom(zoomState.pdf - ZOOM_STEP); }
+export function resetPdfZoom() { setPdfZoom(1.0); }
+
 // ─── Preview State ──────────────────────────────
 export let previewState = $state({
   pdfData: null as Uint8Array | null,

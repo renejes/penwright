@@ -178,12 +178,53 @@ export function buildMenu(state: AppState): void {
           click: () => send('toggleReadingMode'),
         },
         { type: 'separator' },
+        {
+          label: 'Editor Zoom',
+          submenu: [
+            {
+              label: 'Zoom In',
+              accelerator: 'CmdOrCtrl+Alt+=',
+              click: () => send('zoomEditorIn'),
+            },
+            {
+              label: 'Zoom Out',
+              accelerator: 'CmdOrCtrl+Alt+-',
+              click: () => send('zoomEditorOut'),
+            },
+            {
+              label: 'Reset',
+              accelerator: 'CmdOrCtrl+Alt+0',
+              click: () => send('zoomEditorReset'),
+            },
+          ],
+        },
+        {
+          label: 'Preview Zoom',
+          submenu: [
+            {
+              label: 'Zoom In',
+              accelerator: 'CmdOrCtrl+Shift+=',
+              click: () => send('zoomPdfIn'),
+            },
+            {
+              label: 'Zoom Out',
+              accelerator: 'CmdOrCtrl+Shift+-',
+              click: () => send('zoomPdfOut'),
+            },
+            {
+              label: 'Reset',
+              accelerator: 'CmdOrCtrl+Shift+0',
+              click: () => send('zoomPdfReset'),
+            },
+          ],
+        },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        { role: 'resetZoom', label: 'Reset Window Zoom' },
+        { role: 'zoomIn', label: 'Zoom Window In' },
+        { role: 'zoomOut', label: 'Zoom Window Out' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
       ],
@@ -256,6 +297,11 @@ export function buildMenu(state: AppState): void {
           click: () => {
             shell.openExternal('https://github.com/renejes/vswrite-desktop/issues');
           },
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Mit Claude Desktop verbinden…',
+          click: () => send('showMcpSetupWizard'),
         },
         { type: 'separator' as const },
         {

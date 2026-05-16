@@ -33,5 +33,14 @@ export default defineConfig({
         '@editor': path.resolve(__dirname, 'src/editor'),
       },
     },
+    server: {
+      fs: {
+        // Allow serving files from the host repo root when running inside a
+        // git worktree. The worktree's node_modules is empty; dependencies
+        // like pdfjs-dist's worker script live under the parent project's
+        // node_modules, so Vite's default cwd-only allowlist blocks them.
+        allow: [path.resolve(__dirname, '..', '..', '..')],
+      },
+    },
   },
 });
