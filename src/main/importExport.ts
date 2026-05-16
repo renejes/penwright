@@ -7,7 +7,7 @@ import { dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
-import { getTypstPath } from './typstPath';
+import { getTypstPath, buildTypstCompileArgs } from './typstPath';
 import { watch, type FSWatcher } from 'chokidar';
 import { deserializeTypst } from './deserializer-bridge';
 import { serializeDocx } from '../shared/docxSerializer';
@@ -162,7 +162,7 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
   appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: true, format: config.format });
   try {
     if (config.format === 'pdf') {
-      execFileSync(getTypstPath(), ['compile', sourceFile, result.filePath]);
+      execFileSync(getTypstPath(), buildTypstCompileArgs([sourceFile, result.filePath]));
     } else {
       // DOCX: resolve includes manually, then run the serializer on the merged content.
       const mergedContent = resolveIncludes(sourceFile);

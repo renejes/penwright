@@ -9,12 +9,14 @@
     "dev": "unset ELECTRON_RUN_AS_NODE && electron-vite dev",
     "build": "unset ELECTRON_RUN_AS_NODE && electron-vite build",
     "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview",
-    "package:mac": "npm run build && npm run build:mcp-binary:all && electron-builder --mac",
-    "package:win": "npm run build && electron-builder --win",
-    "package:linux": "npm run build && electron-builder --linux",
+    "package:mac": "npm run build && npm run build:mcp-binary:all && npm run fetch:packages && npm run audit:packages && electron-builder --mac",
+    "package:win": "npm run build && npm run fetch:packages && npm run audit:packages && electron-builder --win",
+    "package:linux": "npm run build && npm run fetch:packages && npm run audit:packages && electron-builder --linux",
     "build:mcp": "node esbuild.mcp.mjs",
     "build:mcp-binary": "node scripts/build-mcp-binary.mjs",
     "build:mcp-binary:all": "node scripts/build-mcp-binary.mjs --all",
+    "fetch:packages": "node scripts/fetch-typst-packages.mjs",
+    "audit:packages": "node scripts/audit-bundled-deps.mjs",
     "mcp": "node dist/mcp/server.mjs"
   },
   "bin": {
@@ -95,6 +97,11 @@
         "from": "dist/mcp/bin/",
         "to": "mcp/bin/",
         "filter": ["vswrite-mcp-*"]
+      },
+      {
+        "from": "resources/typst-packages/",
+        "to": "typst-packages/",
+        "filter": ["preview/**", "manifest.json", "bundle-licenses.json"]
       }
     ],
     "mac": {

@@ -75,3 +75,52 @@ export function getTypstPath(): string {
   resolvedPath = 'typst';
   return resolvedPath;
 }
+
+/**
+ * Absolute path to the directory that holds the bundled Typst packages.
+ *
+ * Layout: `<this>/preview/<name>/<version>/`. Passed to the typst CLI as
+ * `compile --package-path <this>` so users don't need internet on first
+ * compile of a document that uses any of the bundled packages.
+ *
+ * Production: `<.app>/Contents/Resources/typst-packages/`
+ * Development: `<repo>/resources/typst-packages/` (after running
+ *   `node scripts/fetch-typst-packages.mjs` once)
+ */
+let resolvedPackagePath: string | null = null;
+export function getTypstPackagePath(): string | null {
+  if (resolvedPackagePath !== null) return resolvedPackagePath || null;
+
+  const candidates: string[] = [];
+  if (app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, 'typst-packages'));
+  } else {
+    // Dev: walk up from dist/main/ to the repo root.
+    candidates.push(path.resolve(__dirname, '..', '..', 'resources', 'typst-packages'));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isDirectory()) {
+        resolvedPackagePath = candidate;
+        return candidate;
+      }
+    } catch {}
+  }
+
+  resolvedPackagePath = '';
+  return null;
+}
+
+/**
+ * Builds the typst CLI args list for a `compile` invocation, prepending
+ * `--package-path` when a bundled package directory is available. All
+ * callers should use this helper so the package-path is consistent
+ * (typstCompiler, importExport, ad-hoc compile sites).
+ */
+export function buildTypstCompileArgs(extraArgs: string[]): string[] {
+  const args: string[] = ['compile'];
+  const pkgPath = getTypstPackagePath();
+  if (pkgPath) args.push('--package-path', pkgPath);
+  return args.concat(extraArgs);
+}

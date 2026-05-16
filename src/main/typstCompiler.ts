@@ -9,7 +9,7 @@ import { execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
-import { getTypstPath } from './typstPath';
+import { getTypstPath, buildTypstCompileArgs } from './typstPath';
 
 export class TypstCompiler extends EventEmitter {
   private filePath: string;
@@ -30,9 +30,12 @@ export class TypstCompiler extends EventEmitter {
     const dir = path.dirname(this.filePath);
     const outPath = path.join(dir, '.vswrite-preview.pdf');
 
+    // Use the bundled-package-aware args helper — appends `--package-path`
+    // when the bundled Typst packages are available, so imports like
+    // `@preview/showybox:2.0.4` resolve offline.
     execFile(
       getTypstPath(),
-      ['compile', this.filePath, outPath],
+      buildTypstCompileArgs([this.filePath, outPath]),
       { cwd: dir, timeout: 30000 },
       async (error, _stdout, stderr) => {
         if (error) {

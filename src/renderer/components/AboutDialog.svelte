@@ -2,12 +2,15 @@
   import { onMount } from 'svelte';
   import { uiState } from '../appState.svelte';
   import logoUrl from '../assets/vswrite-logo.svg';
+  import AcknowledgmentsDialog from './AcknowledgmentsDialog.svelte';
 
   let {
     onClose,
   }: {
     onClose: () => void;
   } = $props();
+
+  let showAcknowledgments = $state(false);
 
   interface AboutInfo {
     version: string;
@@ -126,7 +129,14 @@
       <button class="link-btn" onclick={() => openExternal('https://github.com/renejes/vswrite-desktop/issues')}>
         Report Issue
       </button>
+      <button class="link-btn" onclick={() => (showAcknowledgments = true)}>
+        Open Source Lizenzen
+      </button>
     </div>
+
+    {#if showAcknowledgments}
+      <AcknowledgmentsDialog onClose={() => (showAcknowledgments = false)} />
+    {/if}
 
     <div class="footer">
       <button class="btn-text" onclick={copyDiagnostics}>

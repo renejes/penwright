@@ -162,6 +162,161 @@ These are **not** vswrite comments. vswrite annotations live as separate Markdow
 - Heading-number renumbering when chapters are reordered is automatic because Typst processes the merged document.
 - Citekeys are bare slugs (no colon); label names use the prefix conventions above. Mixing them up confuses both Typst and vswrite's badge classifier.
 - Image paths in \`#include\`d chapter files: use \`../assets/foo.png\`, not \`assets/foo.png\` — Typst resolves paths from the file containing the \`#image\` call, not the root.
+
+## Bundled Packages — Available Offline in Every vswrite Project
+
+vswrite ships with a curated set of Typst packages pre-installed in the app bundle. They work **offline** without first-compile downloads. Use them freely when the feature matches; reach for raw Typst only when no bundled package fits.
+
+### Layout & Page Flow
+
+**\`wrap-it\`** — text wraps around inline figures, useful for editorial layouts.
+
+~~~typst
+#import "@preview/wrap-it:0.1.1": wrap-content
+
+#wrap-content(
+  image("assets/photo.jpg", width: 4cm),
+  [Lorem ipsum dolor sit amet... (long body that flows around the image)],
+  align: right,
+)
+~~~
+
+**\`meander\`** — advanced page-layout engine: multi-column reflow, text-threading around obstacles, complex paragraph shapes. For when \`wrap-it\` is too simple.
+
+**\`drafting\`** — margin notes with auto-collision-avoidance. Editorial review or textbook annotations.
+
+~~~typst
+#import "@preview/drafting:0.2.2": margin-note
+
+The transformer architecture #margin-note[Vaswani et al., 2017] eliminated recurrence...
+~~~
+
+### Graphics, Diagrams, Charts
+
+**\`cetz\`** v0.5.2 — vector graphics, TikZ-of-Typst. Lines, shapes, paths, coordinates, transformations.
+
+~~~typst
+#import "@preview/cetz:0.5.2"
+
+#cetz.canvas({
+  import cetz.draw: *
+  circle((0, 0), radius: 1, fill: blue.lighten(70%))
+  line((-1, 0), (1, 0), stroke: red)
+})
+~~~
+
+> \`fletcher\` (below) pulls in an older \`@preview/cetz:0.3.4\` transitively. Both versions are bundled. Don't switch fletcher to \`cetz:0.5.x\` manually, it isn't compatible yet.
+
+**\`fletcher\`** — node-and-edge diagrams (flowcharts, state machines, commutative diagrams). Built on cetz.
+
+~~~typst
+#import "@preview/fletcher:0.5.8" as fletcher: diagram, node, edge
+
+#diagram(
+  node((0, 0), [Start], shape: circle),
+  edge((0, 0), (1, 0), "->", [trigger]),
+  node((1, 0), [Done], shape: rect),
+)
+~~~
+
+**\`lilaq\`** — scientific data visualization: line plots, scatter, bar charts, boxplots, contour. matplotlib-for-Typst.
+
+~~~typst
+#import "@preview/lilaq:0.6.0" as lq
+
+#lq.diagram(
+  lq.plot((1, 2, 3, 4), (1, 4, 9, 16)),
+  xlabel: [x], ylabel: [x squared],
+)
+~~~
+
+### Editorial & Decoration
+
+**\`droplet\`** — drop caps for editorial / magazine layouts.
+
+~~~typst
+#import "@preview/droplet:0.3.1": dropcap
+
+#dropcap(height: 2)[
+  Once upon a time, in a kingdom far away...
+]
+~~~
+
+**\`codly\`** + **\`codly-languages\`** — code blocks with line numbers, language icons, annotations. The companion package supplies per-language colors and icons; both are bundled.
+
+~~~typst
+#import "@preview/codly:1.3.0": codly-init, codly
+#import "@preview/codly-languages:0.1.7": codly-languages
+
+#show: codly-init
+#codly(languages: codly-languages)
+
+\\\`\\\`\\\`rust
+fn main() {
+    println!("Hello, world!");
+}
+\\\`\\\`\\\`
+~~~
+
+**\`showybox\`** — colorful customizable boxes with titles, footers, borders, shadows. Marketing / docs callouts.
+
+~~~typst
+#import "@preview/showybox:2.0.4": showybox
+
+#showybox(
+  title: "Pro Tip",
+  frame: (border-color: blue, title-color: blue.lighten(40%), body-color: blue.lighten(95%)),
+)[
+  Use \`showybox\` for emphasized tips and warnings.
+]
+~~~
+
+**\`gentle-clues\`** — pre-styled Material-Design admonitions (Info / Tip / Warning / Important / Question). Less configuration than showybox.
+
+~~~typst
+#import "@preview/gentle-clues:1.3.1": *
+
+#info[The model achieves 87 % accuracy on the holdout set.]
+#warning[Training on this dataset requires at least 16 GB of GPU memory.]
+~~~
+
+### Academic Helpers
+
+**\`glossarium\`** — glossary and acronym management with cross-referencing, pluralization, backreferences.
+
+**\`subpar\`** — sub-figures with shared main caption.
+
+~~~typst
+#import "@preview/subpar:0.2.2"
+
+#subpar.grid(
+  figure(image("plot-a.png"), caption: [Loss]),
+  figure(image("plot-b.png"), caption: [Accuracy]),
+  columns: (1fr, 1fr),
+  caption: [Training metrics],
+  label: <fig:metrics>,
+)
+~~~
+
+**\`lovelace\`** — algorithm pseudocode with line numbering and customizable keywords.
+
+~~~typst
+#import "@preview/lovelace:0.3.1": pseudocode-list
+
+#pseudocode-list[
+  + *input*: array $A$
+  + *for* $i$ *from* 1 *to* $n$ *do*
+    + swap if out of order
+  + *return* $A$
+]
+~~~
+
+## When to use a bundled package vs. fall back
+
+- **Reach for the bundled package first** when its feature matches the need. Costs zero, keeps the document offline-compileable, avoids version drift.
+- **Lazy-fetch is fine for the long tail** — packages not in this list can still be \`#import\`ed via \`@preview/<name>:<version>\`. Typst auto-downloads on first compile (requires internet). The doc won't compile offline until the cache is warm.
+- **Use the exact bundled version numbers** — vswrite ships specific pinned versions (listed above). \`@preview/cetz:0.5.0\` would not match the bundled \`0.5.2\` and would trigger a lazy-fetch.
+- **Use \`@preview/codly-languages:0.1.7\`** alongside \`codly\` for the language-icon feature.
 `;
 
 export const VSWRITE_SKILL = `---
@@ -304,6 +459,21 @@ When connected via the vswrite MCP server, you have **43 dedicated tools** inste
 | Export | \`vswrite_export_pdf\` / \`vswrite_export_docx\` |
 
 See the \`research-workflow\` skill for end-to-end recipes.
+
+## Bundled Typst Packages (Offline, Always Available)
+
+vswrite ships **13 Typst packages plus their transitive dependencies** pre-installed in the .app, so projects compile offline without first-run downloads. The high-value ones:
+
+| Category | Packages |
+|---|---|
+| Layout / page-flow | \`wrap-it\`, \`meander\`, \`drafting\` |
+| Graphics & diagrams | \`cetz\`, \`fletcher\`, \`lilaq\` |
+| Editorial decoration | \`droplet\`, \`codly\` (+ \`codly-languages\`), \`showybox\`, \`gentle-clues\` |
+| Academic helpers | \`glossarium\`, \`subpar\`, \`lovelace\` |
+
+See the **typst** skill for usage examples (each package with a copy-paste snippet) and pinned version numbers. When designing layouts, **reach for the bundled package first** — using e.g. \`showybox\` for a callout is shorter, more consistent, and offline-safe compared to hand-rolling a rectangular box with cetz.
+
+Packages outside this list still work via \`#import "@preview/<name>:<version>"\` but require a one-time lazy-fetch from the Typst Universe CDN (so the user needs internet for the first compile that touches them).
 
 ## Constraints to Remember
 

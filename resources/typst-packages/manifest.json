@@ -1,0 +1,161 @@
+{
+  "generatedAt": "2026-05-16T20:09:43.188Z",
+  "packages": [
+    {
+      "name": "wrap-it",
+      "version": "0.1.1",
+      "license": "Unlicense",
+      "tier": "primary"
+    },
+    {
+      "name": "meander",
+      "version": "0.4.2",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "cetz",
+      "version": "0.5.2",
+      "license": "LGPL-3.0-or-later",
+      "tier": "primary"
+    },
+    {
+      "name": "fletcher",
+      "version": "0.5.8",
+      "license": "MIT",
+      "tier": "primary",
+      "notes": "requires older cetz 0.3.4"
+    },
+    {
+      "name": "lilaq",
+      "version": "0.6.0",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "drafting",
+      "version": "0.2.2",
+      "license": "Unlicense",
+      "tier": "primary"
+    },
+    {
+      "name": "droplet",
+      "version": "0.3.1",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "codly",
+      "version": "1.3.0",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "showybox",
+      "version": "2.0.4",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "gentle-clues",
+      "version": "1.3.1",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "glossarium",
+      "version": "0.5.10",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "subpar",
+      "version": "0.2.2",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "lovelace",
+      "version": "0.3.1",
+      "license": "MIT",
+      "tier": "primary"
+    },
+    {
+      "name": "oxifmt",
+      "version": "1.0.0",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by cetz"
+    },
+    {
+      "name": "cetz",
+      "version": "0.3.4",
+      "license": "LGPL-3.0-or-later",
+      "tier": "transitive",
+      "notes": "required by fletcher"
+    },
+    {
+      "name": "linguify",
+      "version": "0.5.0",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by gentle-clues"
+    },
+    {
+      "name": "elembic",
+      "version": "1.1.1",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by lilaq"
+    },
+    {
+      "name": "komet",
+      "version": "0.1.0",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by lilaq (violin/contour)"
+    },
+    {
+      "name": "komet",
+      "version": "0.2.0",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by lilaq (boxplot)"
+    },
+    {
+      "name": "suiji",
+      "version": "0.5.1",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by lilaq"
+    },
+    {
+      "name": "tiptoe",
+      "version": "0.4.0",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by lilaq"
+    },
+    {
+      "name": "zero",
+      "version": "0.6.1",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by lilaq"
+    },
+    {
+      "name": "hy-dro-gen",
+      "version": "0.1.1",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "required by meander"
+    },
+    {
+      "name": "codly-languages",
+      "version": "0.1.7",
+      "license": "MIT",
+      "tier": "transitive",
+      "notes": "companion to codly"
+    }
+  ]
+}

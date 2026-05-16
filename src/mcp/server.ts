@@ -38,6 +38,19 @@ import simpleGit from 'simple-git';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Builds the `typst compile` arg list, prepending `--package-path` when
+ * the host process exposes `TYPST_PACKAGE_PATH` (set by mcpSetup so
+ * Claude Desktop's spawn environment carries the bundled package
+ * directory). When unset, Typst falls back to its default CDN-fetch.
+ */
+function typstCompileArgs(extra: string[]): string[] {
+  const args: string[] = ['compile'];
+  const pkgPath = process.env.TYPST_PACKAGE_PATH;
+  if (pkgPath) args.push('--package-path', pkgPath);
+  return args.concat(extra);
+}
+
 // ─── State ───────────────────────────────────────────
 
 const POLAR_ORG_ID = 'a5a6573b-aacf-4501-a6c1-ebc15ef67b04';
@@ -341,7 +354,7 @@ server.tool(
       const tempPath = path.join(dir, '.vswrite-compile-output.pdf');
 
       try {
-        await execFileAsync('typst', ['compile', rootFile, tempPath], { cwd: dir, timeout: 30000 });
+        await execFileAsync('typst', typstCompileArgs([rootFile, tempPath]), { cwd: dir, timeout: 30000 });
         const stat = fs.statSync(tempPath);
         try { fs.unlinkSync(tempPath); } catch {}
         return {
@@ -552,7 +565,7 @@ server.tool(
         fs.mkdirSync(outDir, { recursive: true });
       }
 
-      await execFileAsync('typst', ['compile', rootFile, absOutput], { cwd: dir, timeout: 30000 });
+      await execFileAsync('typst', typstCompileArgs([rootFile, absOutput]), { cwd: dir, timeout: 30000 });
       const stat = fs.statSync(absOutput);
 
       return {

@@ -353,6 +353,24 @@ export function setupIPC(): void {
     }
   });
 
+  ipcMain.handle('app:getBundleLicenses', () => {
+    // Reads the audit-generated `bundle-licenses.json` from extraResources
+    // (prod) or the repo path (dev). Powers the Acknowledgments dialog.
+    const candidates: string[] = [];
+    if (app.isPackaged) {
+      candidates.push(path.join(process.resourcesPath, 'typst-packages', 'bundle-licenses.json'));
+    }
+    candidates.push(path.resolve(__dirname, '..', '..', 'resources', 'typst-packages', 'bundle-licenses.json'));
+    for (const c of candidates) {
+      try {
+        if (fs.existsSync(c)) {
+          return JSON.parse(fs.readFileSync(c, 'utf-8'));
+        }
+      } catch {}
+    }
+    return { error: 'bundle-licenses.json not found — run `npm run audit:packages` to regenerate.' };
+  });
+
   ipcMain.handle('app:getAbout', () => {
     return {
       version: app.getVersion(),

@@ -295,16 +295,17 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 > Vollstaendige Spezifikation in [design-editor-plan.md](design-editor-plan.md) und [third-party-licensing.md](third-party-licensing.md). Aufwand: ~7–8 Wochen Vollzeit.
 
-**Vorgelagert: Typst-Package-Bundling**
+**Vorgelagert: Typst-Package-Bundling** (Session 20, 2026-05-17 — abgeschlossen)
 
-- [ ] Bundle-Liste finalisieren (Kandidaten in [third-party-licensing.md](third-party-licensing.md): `wrap-it`, `cetz`, `fletcher`, `cetz-plot`, `glossarium`, `subpar`, `oxifmt`, `lovelace`, `marge`, optional CV-Template-Basis)
-- [ ] Pro Package LICENSE-Check + Eintrag in `THIRD_PARTY_LICENSES.md`
-- [ ] Bundle-Fonts finalisieren (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL)
-- [ ] `resources/typst-packages/` + `resources/fonts/` Strukturen anlegen, in `package.json` `extraResources` aufnehmen
-- [ ] `scripts/audit-bundled-deps.mjs` schreiben — generiert `THIRD_PARTY_LICENSES.md` + `resources/bundle-licenses.json` aus den LICENSE-Files; failed bei unbekannter Lizenz
-- [ ] Main-Process anpassen: Typst-Compiler kennt den gebundleten Package-Pfad (`TYPST_PACKAGE_PATH` env oder `--package-path`)
-- [ ] `AcknowledgmentsDialog.svelte` + Hook im About-Dialog
-- [ ] **Einmalige Rechtsberatung** (DACH-Anwalt mit OSS-Erfahrung, ~30–60 min)
+- [x] Bundle-Liste finalisiert: 13 user-facing + 11 transitive Packages (`wrap-it`, `meander`, `cetz`, `fletcher`, `lilaq`, `drafting`, `droplet`, `codly`, `showybox`, `gentle-clues`, `glossarium`, `subpar`, `lovelace` + deren Deps)
+- [x] LICENSE-Check pro Package, dokumentiert in [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md) (auto-generiert per Audit-Script)
+- [x] `resources/typst-packages/` Struktur, in `package.json` `extraResources` aufgenommen
+- [x] `scripts/fetch-typst-packages.mjs` + `scripts/audit-bundled-deps.mjs` — failed bei Deny-List-Hit
+- [x] Main-Process + MCP-Server: `--package-path` via `buildTypstCompileArgs()` und `TYPST_PACKAGE_PATH` env-Var (Wizard schreibt sie in Claude-Config)
+- [x] `AcknowledgmentsDialog.svelte` + Hook im About-Dialog
+- [x] TYPST_SKILL + VSWRITE_SKILL ergaenzt um Bundled-Packages-Sektion mit Code-Beispielen
+- [ ] Bundle-Fonts (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL) — kommt in Phase B des [Design-Editors](design-editor-plan.md)
+- [ ] **Einmalige Rechtsberatung** (DACH-Anwalt mit OSS-Erfahrung, ~30–60 min) — wegen cetz LGPL-3.0, vor dem ersten kommerziellen Release
 
 **Phase A — Style Variables (Datenmodell + Settings-Dialog-Erweiterung)**
 

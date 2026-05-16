@@ -279,6 +279,39 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 
 ## Session-Log
 
+### Session 20 (2026-05-17) — Bundled Typst-Package Infrastructure
+
+**Hybrid-Bundling-Strategie umgesetzt:** vswrite bringt jetzt 24 Typst-Packages (13 user-facing + 11 transitive Deps) als Offline-Bundle mit. Erster Compile eines Dokuments, das `wrap-it`, `cetz`, `fletcher`, `lilaq`, `showybox`, `codly` etc. nutzt, braucht kein Internet mehr. Klar abgegrenzt vom Lazy-Fetch-Pfad: Packages ausserhalb der Whitelist gehen weiterhin ueber Typst's CDN.
+
+**Bundle-Liste (13 user-facing, MIT / Unlicense bis auf eines):**
+- **Layout/Flow:** `wrap-it` (Unlicense), `meander` (MIT), `drafting` (Unlicense)
+- **Graphics:** `cetz` 0.5.2 (LGPL-3.0-or-later — einziges Copyleft im Bundle, OK weil unmodifiziertes Bundling + Source vollstaendig accessible), `fletcher` (MIT), `lilaq` (MIT)
+- **Editorial/Decoration:** `droplet` (MIT), `codly` (MIT) + `codly-languages` (MIT), `showybox` (MIT), `gentle-clues` (MIT)
+- **Academic:** `glossarium` (MIT), `subpar` (MIT), `lovelace` (MIT)
+- **Transitive (auto-discovered aus Package-Sources):** `oxifmt`, `cetz 0.3.4` (fuer fletcher — andere Version als die user-facing 0.5.2, beide Versionen koexistieren), `linguify`, `elembic`, `komet 0.1.0` + `komet 0.2.0`, `suiji`, `tiptoe`, `zero`, `hy-dro-gen`
+
+**Build-Pipeline:**
+- [scripts/fetch-typst-packages.mjs](scripts/fetch-typst-packages.mjs) — laedt alle 24 Packages aus dem offiziellen `packages.typst.org` CDN nach `resources/typst-packages/preview/<name>/<version>/`. Idempotent. LICENSE-Fallback per `licenseFetch: <URL>`-Override im Manifest fuer Packages mit fehlenden / Placeholder LICENSE-Files (tiptoe, elembic, oxifmt liefern leere oder dual-license Stub-Texte — wir holen die echten MIT-Texte direkt von GitHub).
+- [scripts/audit-bundled-deps.mjs](scripts/audit-bundled-deps.mjs) — klassifiziert jede LICENSE per Fingerprint-Matching, cross-checked gegen typst.toml-Declaration, failed auf Deny-List (GPL/AGPL — bei uns NICHT vorhanden), generiert [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) + `resources/typst-packages/bundle-licenses.json` (fuettert die In-App-Acknowledgments).
+- [package.json](package.json) `package:mac` Script kettet jetzt: `build → build:mcp-binary:all → fetch:packages → audit:packages → electron-builder`. Audit failed = Release-Build failed.
+- `extraResources` erweitert um `resources/typst-packages/preview/` — landet im signierten .app unter `Contents/Resources/typst-packages/`.
+
+**Typst-CLI-Wiring:**
+- Neue Funktion `getTypstPackagePath()` in [typstPath.ts](src/main/typstPath.ts) resolved dev (Repo-Pfad) vs. prod (`process.resourcesPath/typst-packages`).
+- Neue Helper-Funktion `buildTypstCompileArgs()` praependiert `--package-path <path>` zu jedem `typst compile`-Aufruf. Verwendet in [typstCompiler.ts](src/main/typstCompiler.ts) (Live-Preview) und [importExport.ts](src/main/importExport.ts) (PDF-Export).
+- MCP-Server ([src/mcp/server.ts](src/mcp/server.ts)) hat seinen eigenen `typstCompileArgs()`-Helper, der `TYPST_PACKAGE_PATH` aus den env-Variablen liest. [mcpSetup.ts](src/main/mcpSetup.ts) schreibt diese Env-Var beim Wizard-Run in die Claude-Desktop-Config (zusammen mit `VSWRITE_LICENSE_KEY`), zeigt auf den .app-Resources-Pfad. `MCP_SETUP_VERSION` auf 0.4.0 gebumpt damit der Wizard fuer existierende Pro-Nutzer wieder auftaucht und die Env-Var nachtraegt.
+
+**In-App-Acknowledgments:**
+- [AcknowledgmentsDialog.svelte](src/renderer/components/AcknowledgmentsDialog.svelte) — Modal mit License-Summary-Chips, ausklappbarer Pro-Package-Card mit vollem LICENSE-Text, Repo-Link, Notes (z.B. LGPL-Hinweis fuer cetz). Liest aus `bundle-licenses.json` ueber neuen IPC-Channel `app:getBundleLicenses` (resolved dev vs. prod automatisch).
+- Button "Open Source Lizenzen" in den [AboutDialog.svelte](src/renderer/components/AboutDialog.svelte) Links eingehaengt.
+
+**Skill-Updates:**
+- [TYPST_SKILL](src/shared/skillTemplates.ts) — neuer Abschnitt "Bundled Packages" mit Per-Package-Code-Beispielen + pinned-Versionen + Hinweis dass diese offline-tauglich sind. Agents (lokal via `.claude/skills/typst/SKILL.md` oder ueber den MCP-Prompt `typst-reference`) wissen ab jetzt, welche Packages sie aus dem Bundle benutzen koennen statt zu raten.
+- [VSWRITE_SKILL](src/shared/skillTemplates.ts) — kurzer Verweis-Block, der die Liste der 13 user-facing Packages nach Kategorie zusammenfasst und auf den `typst`-Skill fuer Details verweist.
+- MCP-Binary mit den aktualisierten Skill-Strings neu kompiliert (`bun build --compile`, ~135 ms).
+
+**Smoke-Test:** Test-Dokument mit `showybox`, `gentle-clues`, `fletcher` (zieht transitiv `cetz:0.3.4`), `codly` + `codly-languages`, `droplet` kompiliert sauber zu 29 KB PDF — alles offline aus dem Bundle, keine CDN-Calls.
+
 ### Session 19 (2026-05-16) — Writing-Style Skill
 
 **Vierter Skill neben typst / vswrite / research:** [WRITING_STYLE_SKILL](src/shared/skillTemplates.ts) — Prosa-Checkliste fuer akademisches und nicht-fiktives Schreiben. Ziel ist nicht "schreib anders als die KI", sondern "revidiere, was die KI (oder du an einem muden Tag) geschrieben hat". Zweisprachig EN + DE, weil AI-Tells nicht symmetrisch sind: deutsche Akademiker neigen zu Schachtelsaetzen mit "es zeigt sich, dass…", englische zu Triplets und "delve into" — die KI macht beide.

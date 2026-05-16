@@ -14,6 +14,7 @@ const INVOKE_CHANNELS = [
   'app:getPlatform',
   'app:checkTypst',
   'app:getAbout',
+  'app:getBundleLicenses',
   'app:openExternal',
   'filetree:list',
   'filetree:open',

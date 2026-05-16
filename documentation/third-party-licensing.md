@@ -1,8 +1,8 @@
 # vswrite Desktop — Third-Party Package Bundling & Licensing
 
-> **Status:** Strategie + Audit-Workflow. Eintrag-Datum: 2026-05-16. Geplant **vor** v1.0-Release zusammen mit dem [Design Editor](design-editor-plan.md), weil der Design-Use-Case ohne mitgelieferte Layout-Packages nicht funktioniert.
+> **Status:** Infrastruktur **implementiert** in Session 20 (2026-05-17). Auto-generated License-Report: [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md). Audit-Workflow + Acknowledgments-Dialog laufen produktiv. Letzte Aktualisierung: 2026-05-17.
 >
-> Was hier drinsteht: welche Typst-Packages und Fonts wir mitliefern, unter welcher Lizenz, mit welchen Pflichten — und ein Workflow zum periodischen Audit.
+> Was hier drinsteht: welche Typst-Packages wir mitliefern, unter welcher Lizenz, mit welchen Pflichten — und ein Workflow zum periodischen Audit.
 
 ---
 
@@ -46,40 +46,62 @@ Der **Lazy-Fetch-Pfad ist die Default-Position** — wir bundlen nur Packages mi
 
 ---
 
-## Bundle-Kandidaten
+## Was wir bundlen (finalisiert)
 
-Die folgende Tabelle ist die **Arbeitsliste** fuer die naechste Session. Jeder Eintrag muss vor Bundling einzeln geprueft werden — Spalten **Version**, **License-File-Check** und **Acknowledgment** sind dabei zu fuellen.
+24 Packages insgesamt, davon 13 user-facing und 11 transitive Dependencies. Vollstaendige auto-generierte Tabelle mit Versionen, Lizenz-Texten und Repo-Links: [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md).
 
-### Packages (zu finalisieren)
+### User-facing Packages (13)
 
-| Package | Use-Case | Vermutete Lizenz | Status |
+| Package | Version | Use-Case | Lizenz |
 |---|---|---|---|
-| **wrap-it** | Text fliesst um Bilder / Grafiken herum (Magazin-Layout) | MIT (zu pruefen) | Vom User explizit gewuenscht |
-| **cetz** | Vektorgrafik / TikZ-Aequivalent | Apache 2.0 (zu pruefen) | Kandidat |
-| **fletcher** | Diagramme / Knoten-Graphen / Flussdiagramme | MIT (zu pruefen) | Kandidat |
-| **cetz-plot** | Charts (Line / Bar / Scatter) auf Basis von cetz | MIT (zu pruefen) | Kandidat |
-| **glossarium** | Glossare, Akronym-Listen | MIT (zu pruefen) | Kandidat (akademisch) |
-| **subpar** | Sub-Figures (mehrere Abbildungen unter einer Hauptcaption) | MIT (zu pruefen) | Kandidat (akademisch) |
-| **oxifmt** | Number-Formatting fuer Tabellen / Zahlen-Heavy-Content | MIT (zu pruefen) | Kandidat |
-| **lovelace** | Algorithm-Pseudocode | MIT (zu pruefen) | Kandidat (informatik/akademisch) |
-| **marge** | Marginalia (Side-Notes am Seitenrand) | MIT (zu pruefen) | Kandidat (editorial / Magazin) |
-| **modern-cv** o. **brilliant-CV** | CV-Template-Basis | MIT (zu pruefen) | Kandidat (Resume-Use-Case) |
+| **wrap-it** | 0.1.1 | Text fliesst um Bilder / Grafiken herum | Unlicense |
+| **meander** | 0.4.2 | Page-Layout-Engine, multi-column reflow + text-threading + obstacles | MIT |
+| **drafting** | 0.2.2 | Margin notes mit Auto-Collision-Avoidance | Unlicense |
+| **cetz** | 0.5.2 | Vector graphics, TikZ-Aequivalent | **LGPL-3.0-or-later** |
+| **fletcher** | 0.5.8 | Node-und-Kanten-Diagramme | MIT |
+| **lilaq** | 0.6.0 | Scientific Plots (Line/Scatter/Bar/Boxplot/Contour) | MIT |
+| **droplet** | 0.3.1 | Drop Caps fuer Editorial-Layouts | MIT |
+| **codly** | 1.3.0 | Code-Blocks mit Line-Numbers, Annotations | MIT |
+| **showybox** | 2.0.4 | Farbige Boxen mit Title/Footer/Border/Shadow | MIT |
+| **gentle-clues** | 1.3.1 | Material-Design-Admonitions (Info/Tip/Warning) | MIT |
+| **glossarium** | 0.5.10 | Glossare und Akronym-Listen | MIT |
+| **subpar** | 0.2.2 | Sub-Figures mit shared Main-Caption | MIT |
+| **lovelace** | 0.3.1 | Algorithm-Pseudocode | MIT |
 
-> Diese Liste wird in der naechsten Session finalisiert. Der User legt die endgueltige Auswahl fest; jedes ausgewaehlte Package laeuft dann durch den Audit-Workflow (unten).
+### Transitive Dependencies (11)
 
-### Fonts (zu finalisieren)
+Aus den Source-Files der user-facing Packages automatisch ermittelt:
 
-| Font | Use-Case | Lizenz | Status |
-|---|---|---|---|
-| **Inter** (variable) | Modern-Sans-Default, UI- und Body-Schrift | OFL | Kandidat |
-| **IBM Plex Sans / Serif / Mono** | Tech-affines Trio, gut fuer Documentation / Marketing | OFL | Kandidat |
-| **JetBrains Mono** | Code-Schrift-Default | OFL | Kandidat |
-| **Crimson Pro** | Klassische Serif fuer Akademik / Buchsatz | OFL | Kandidat |
-| **Libertinus Serif / Sans / Mono** | Linux-Libertine-Nachfolger, akademik-tauglich | OFL | Kandidat |
-| **Spectral** | Display-Serif fuer Editorial | OFL | Kandidat |
-| **Source Sans / Serif / Code** | Adobe-Open-Source-Trio | OFL | Optional |
+- **cetz 0.3.4** (LGPL-3.0-or-later) — fuer fletcher (fletcher 0.5.8 ist nicht auf cetz 0.5.x portiert)
+- **oxifmt 1.0.0** (MIT) — fuer cetz
+- **codly-languages 0.1.7** (MIT) — Companion zu codly fuer Language-Icons
+- **linguify 0.5.0** (MIT) — fuer gentle-clues
+- **elembic 1.1.1** (MIT) — fuer lilaq
+- **komet 0.1.0** + **0.2.0** (beide MIT) — fuer lilaq (verschiedene Plot-Module brauchen verschiedene Versionen)
+- **suiji 0.5.1** (MIT) — fuer lilaq
+- **tiptoe 0.4.0** (MIT) — fuer lilaq
+- **zero 0.6.1** (MIT) — fuer lilaq
+- **hy-dro-gen 0.1.1** (MIT) — fuer meander
 
-Alle gelisteten Fonts sind OFL — sauber bundlebar mit `LICENSE.txt`-Beilage.
+### Lizenz-Verteilung
+
+- **MIT:** 20 Packages
+- **Unlicense:** 2 Packages (wrap-it, drafting)
+- **LGPL-3.0:** 2 Packages (cetz 0.5.2 + 0.3.4) — siehe LGPL-Block oben
+
+### Sonderfall: cetz unter LGPL-3.0-or-later
+
+cetz ist das einzige Copyleft-lizenzierte Package im Bundle. LGPL-3.0 erlaubt kommerzielles Bundling unveraenderter Libraries explizit, mit den Auflagen:
+
+1. **Lizenz-Text mitausliefern** — durch unsere `Contents/Resources/typst-packages/preview/cetz/<version>/LICENSE` + Acknowledgments-Dialog erfuellt.
+2. **Source-Code accessible halten** — Typst-Packages sind reiner `.typ`-Source-Code. Der User hat per Filesystem-Zugriff vollen Zugriff auf den ungekuerzten cetz-Source. Erfuellt.
+3. **Modifikationen unter LGPL** — wir modifizieren cetz nicht, das Bundle ist 1:1 das Upstream-Tarball. Falls wir in Zukunft cetz patchen muessten, kaeme der Patch upstream in das cetz-Repo, nicht in unseren Bundle-Source.
+
+Resultierend: cetz-Bundle ist mit kommerzieller Distribution kompatibel.
+
+### Fonts
+
+In dieser Iteration **noch nicht gebundlet** — Phase B des Design-Editors ([design-editor-plan.md](design-editor-plan.md)) bringt den Font-Bundle (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL). Bis dahin verwendet vswrite nur System-Fonts.
 
 ---
 
@@ -158,20 +180,23 @@ UI-Komponente: `AcknowledgmentsDialog.svelte`, gespeist aus `bundle-licenses.jso
 
 ---
 
-## Aenderungen vor Release
+## Aenderungen vor Release — Status
 
-Da Bundling jetzt **pre-v1.0** stattfindet, ergeben sich folgende Aufgaben:
+Implementiert in Session 20 (2026-05-17):
 
-- [ ] **Bundle-Liste finalisieren** (naechste Session) — User waehlt aus den Kandidaten oben aus
-- [ ] **Pro Package LICENSE pruefen + dokumentieren** (~½ Tag pro 5 Packages)
-- [ ] **`resources/typst-packages/` Struktur anlegen** und in `package.json` `extraResources` aufnehmen (~½ Tag)
-- [ ] **`scripts/audit-bundled-deps.mjs`** schreiben (~1 Tag)
-- [ ] **Main-Process** anpassen, dass Typst-Compiler den gebundleten Package-Pfad kennt (`TYPST_PACKAGE_PATH` o.ae., ~½ Tag)
-- [ ] **`AcknowledgmentsDialog.svelte`** + Hook im About-Dialog (~1 Tag)
-- [ ] **`THIRD_PARTY_LICENSES.md`** committen und im Repo halten
-- [ ] **Einmalige Rechtsberatung** vor dem ersten kommerziellen Release (~30–60 min, DACH-Anwalt mit OSS-Erfahrung)
+- [x] **Bundle-Liste finalisiert** — 13 user-facing + 11 transitive Packages, alle MIT / Unlicense / LGPL
+- [x] **Pro Package LICENSE geprueft + dokumentiert** in [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md) (auto-generiert)
+- [x] **`resources/typst-packages/` Struktur** angelegt und in `package.json` `extraResources` aufgenommen
+- [x] **`scripts/audit-bundled-deps.mjs`** schreibt License-Klassifikation, failed bei Deny-List, generiert MD + JSON Output
+- [x] **Main-Process + MCP-Server** angepasst — `--package-path` Flag via `buildTypstCompileArgs()` Helper bzw. `TYPST_PACKAGE_PATH` env-Var im MCP
+- [x] **`AcknowledgmentsDialog.svelte`** mit License-Summary-Chips + ausklappbarem License-Text pro Package, Hook im About-Dialog
+- [x] **`THIRD_PARTY_LICENSES.md`** committed (regeneriert bei jedem `package:*`-Build)
 
-**Aufwand insgesamt:** ~4–6 Werktage fuer die Bundling-Infrastruktur, exklusive Rechtsberatungs-Wartezeit.
+Verbleibend vor Launch:
+
+- [ ] **Einmalige Rechtsberatung** vor dem ersten kommerziellen Release (~30–60 min, DACH-Anwalt mit OSS-Erfahrung) — empfohlen weil cetz LGPL ist; Anwalt soll insbesondere bestaetigen, dass unsere LGPL-Compliance (unveraendertes Bundling + accessible Source + LICENSE-Beilage + Acknowledgments-UI) ausreicht.
+
+**Tatsaechlicher Aufwand:** ~4 Werktage Vollzeit fuer die Bundling-Infrastruktur (Session 20).
 
 ---
 
