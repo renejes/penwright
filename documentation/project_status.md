@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phasen B+C+D komplett — Color-Palette + 7 OFL-Fonts, Konsolidierung, H1–H6 + Special-Elements, 6 Theme-Presets, 6 Layout-Presets inkl. orientation, 9 MCP-Design-Tools, Design-Element-Library, 5. Skill `design-conventions`)
+> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phasen B+C+D komplett — Color-Palette + 7 OFL-Fonts, Konsolidierung, H1–H6 + Special-Elements, 6 Theme-Presets, 6 Layout-Presets inkl. orientation, 9 MCP-Design-Tools, Design-Element-Library, 5. Skill `design-conventions`, Generator-Fix `#show: apply-style`, Sample-Projekt um Design-Showcase erweitert)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -344,13 +344,20 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 
 **Phasen B + C + D damit komplett.** Stand des Design-Editors: Designer im DesignPanel kann Color/Font/Scale/Layout/Heading/Elements/Custom-Code editieren; Themes und Layout-Presets als One-Click-Apply; Claude kann über MCP-Tools strukturiert manipulieren; Design-Skill gibt der KI die Vokabel zum Reasoning.
 
+**Follow-up Session 22 — Generator-Bug-Fix + Sample-Erweiterung (`82efbff`):**
+
+- **Echter Typst-Bug gefunden und gefixt:** der Phase-A-`#include "style.typ"`-Approach war fundamental falsch. In Typst propagieren `#set`-Rules aus einer `#include`d-Datei NICHT in den Scope des Includers — sie greifen nur innerhalb der eigenen Auswertung. Heisst: alle Projekte mit dem Include-Pattern haben Paper-Size, Heading-Numbering, Font-Choices stillschweigend ignoriert. Repro: `#include "style.typ"` mit `#set page(paper: "a5")` rendert immer noch A4.
+- **Fix:** Generator emittiert jetzt `#let apply-style(body) = { … body }` mit allen Set/Show-Rules drin. `ensureStyleInclude` schreibt `#import "style.typ": *` + `#show: apply-style` an den Top der Root-Datei. Legacy `#include "style.typ"` wird in-place migriert beim naechsten style:save. Die Palette `style-colors` bleibt module-level damit Body-Content sie direkt referenzieren kann.
+- **Sample-Projekt fleshed out:** [resources/sample-project/](resources/sample-project/) hat jetzt `.vswrite/style.json` mit Classic-Academic-Theme + custom.preamble fuer math-equation/figure-numbering/link-styling. `main.typ` nutzt den neuen `#import`-`#show`-Pattern, hat bundled-package imports fuer `wrap-it` + `gentle-clues`, und einen Hero-Block als Title. Neue Chapter `07-design-showcase.typ` als Tutorial-Walk-Through: H1–H6-Hierarchie, Blockquote, Pull-Quote, gentle-clues Callouts (info/tip/warning/memo), inline + block Code, nummeriert Math mit Cross-Ref, Figure mit Caption, Text-um-Bild via `wrap-content`, Tabelle mit Header + Zebra, Theme-Switching-Workflow. ~365 KB PDF, null Warnings gegen die gebuendelten Pakete und Fonts.
+- **MCP-Binary** fuer beide Darwin-Arches neu kompiliert mit dem gefixten Generator, sodass `vswrite_apply_style` / `vswrite_update_style` Calls von Claude Desktop tatsaechlich funktionierende Preambles produzieren.
+
 **Was noch offen ist:**
 - Cover-Page-Builder (Title / Logo / Hero-Image-Overlay) — bewusst nicht gebaut, zu spezifisch
 - v1.0 Distribution-Pipeline (Firebase + DMG + Notarization) — siehe `next-steps.md` Phase 4
 
 ### Session 21 (2026-05-17) — Design-Editor Phase A: Style Variables
 
-**Phase A des Design-Editors umgesetzt** ([design-editor-plan.md](design-editor-plan.md)): strukturierte „Design-Tokens" pro Projekt, bidirektional zwischen JSON-Modell und Typst-Preamble synchronisiert. Erste Etappe der Akademiker→Design-Tool-Pivots, die in Session 20 mit dem Package-Bundling begann.
+**Phase A des Design-Editors umgesetzt** ([design-editor-plan.md](done/design-editor-plan.md)): strukturierte „Design-Tokens" pro Projekt, bidirektional zwischen JSON-Modell und Typst-Preamble synchronisiert. Erste Etappe der Akademiker→Design-Tool-Pivots, die in Session 20 mit dem Package-Bundling begann.
 
 **Datenmodell:**
 - [src/shared/styleTypes.ts](src/shared/styleTypes.ts) — `ProjectStyle` Schema (version: '1'), 5 semantische Farb-Slots (primary / accent / text / background / muted), 3 Font-Slots (body / heading / code), Scale (base / leading), Layout (paper / margin / columns), Headings (H1 / H2 mit size / weight / color-slot / marginTop). `sanitizeProjectStyle()` validiert per Regex (Hex / Typst-Length / Paper-Slug / Weight-Keyword) und kollabiert kaputte / fehlende Felder still auf Defaults — keine Exceptions im Frontend nötig.

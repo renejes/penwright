@@ -102,7 +102,7 @@ Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleist
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus Standard-Window-/Zoom-Rollen
-- **Document** — Document Settings, Style-Templates-Submenu (7 vordefinierte + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
+- **Document** — Document Settings (Sprache + Zitierstil; das volle Design lebt im Design-Sidebar-Tab), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (oeffnet `<userData>/crash-reports/` im Finder); About auf Windows / Linux
 
 In-Text-Inserts (Bild, Tabelle, Mathe, Zitat, Trenner, Seitenumbruch etc.) gehen ueber [Slash-Commands](#slash-commands) — tippe `/` an einer leeren Stelle im Editor.
@@ -203,7 +203,7 @@ Jedes neue Projekt bekommt automatisch:
 
 ## Sidebar
 
-Die Sidebar hat fuenf Tabs:
+Die Sidebar hat sechs Tabs:
 
 ### Files
 - Rekursiver Dateibaum, Back-Button, **Neuer Ordner** (Inline-Eingabefeld — Enter speichert, Esc bricht ab), **Asset hinzufuegen** (Datei-Auswahl, kopiert nach `assets/`)
@@ -233,6 +233,14 @@ Dieser Tab ersetzt das alte Git-Panel und nutzt Schreiber-Vokabular statt roher 
 - Pro Eintrag: Anker-Vorschau (kursiv, klickbar — springt im Editor zur Stelle), Body-Textarea (Auto-Save nach kurzer Tippe-Pause), „erledigt"-Haken, Loeschen
 - Erledigte Kommentare sind ausgeblendet — Checkbox „Erledigte zeigen" macht sie wieder sichtbar
 - Vollstaendiger Workflow: siehe Abschnitt **[Kommentare & Notizen](#kommentare--notizen)** weiter unten
+
+### Design
+- Der visuelle Style-Editor — Farben, Fonts, Skalierung, Layout, Headings, Special-Elements
+- Ein-Klick **Theme-Presets** (sechs vollwertige Looks) und **Palette-Presets** (acht kuratierte Farbsets)
+- **Layout-Presets** fuer Papier / Orientierung / Spaltenzahl
+- **Font-Browser** mit Live-Previews der sieben gebuendelten OFL-Fonts
+- **Custom Typst-Code**-Section als Escape-Hatch
+- Voller Workflow im Abschnitt [Design-Panel](#design-panel--visueller-style-editor)
 
 ---
 
@@ -473,25 +481,52 @@ Das DOCX wird mit echten Word-Styles erzeugt:
 
 ---
 
-## Style Templates
+## Design-Panel — visueller Style-Editor
 
-7 vordefinierte + eigene Templates:
+Jede Design-Entscheidung lebt im **Design**-Sidebar-Tab. Klick auf ein Theme uebernimmt einen kompletten Look; Klick auf ein Palette-Preset tauscht nur die Farben; Einzelfelder (Font, Padding, Heading-Groesse, Tabellen-Rahmenfarbe) sind frei justierbar. Jede Aenderung schreibt nach `<project>/.vswrite/style.json` und regeneriert `<project>/style.typ` — `main.typ` zieht die Regeln per `#import "style.typ": *` plus `#show: apply-style` rein.
 
-| Template | Beschreibung |
-|----------|--------------|
-| Classic Academic | Serifenschrift, nummerierte Ueberschriften |
-| Modern Clean | Sans-Serif, blaue Akzente |
-| Minimal | Ultra-clean, grosszuegig |
-| Vibrant | Kraeftige Farben |
-| Elegant | Dekorativ, goldene Akzente |
-| Professional Report | Business-Layout |
-| Artsy | Rot-blaues Farbschema |
+### Sections im Design-Tab
 
-**Template anwenden:** Document-Menue -> Style Templates -> Stil waehlen. Wendet das gewaehlte Preamble auf deine `main.typ` an (nur erlaubt, wenn die Hauptdatei aktiv ist — siehe Hinweis unten).
+| Section | Steuert |
+|---------|---------|
+| **Farbpalette** | Fuenf semantische Slots (primary / accent / text / background / muted) — jeder mit Coloris-Picker plus Hex-Textfeld |
+| **Paletten-Presets** | Acht kuratierte 5-Farben-Paletten (Modern Tech, Editorial, Earth Tones, High Contrast, Minimal Mono, Forest Deep, Sunset Warm, Ocean Classic). Apply tauscht nur Farben |
+| **Themes** | Sechs vollstaendige ProjectStyle-Snapshots (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis). Apply ueberschreibt alles ausser dem Custom-Code-Block |
+| **Layout-Presets** | Sechs Geometrie-Wechsel (A4 Portrait, A4 Landscape, Magazine 2-Spalten, Newsletter 3-Spalten, A5 Booklet, A2 Poster) — Paper, Orientation, Margin, Columns, optional Base-Size |
+| **Fonts** | Drei Font-Slots (body / heading / code) plus Font-Browser. Jede Karte rendert die Familie + Beispielsatz live in den sieben gebuendelten OFL-Fonts |
+| **Scale** | Base-Size, Leading, Paragraph-Spacing, First-Line-Indent |
+| **Layout** | Paper, Orientation, Margin, Columns, Page-Numbering, Header-Markup, Footer-Markup, Page-Fill (Background-Color-Expression) |
+| **Headings** | H1–H6 als collapsible Cards — Size, Weight, Color-Slot, Top-Margin pro Level; plus ein einziges Numbering-Pattern |
+| **Elements** | Blockquote, Code-Block, Figure, Table — jede als collapsible Card mit strukturierten Feldern (Border-Slot / Padding / Italic-Toggle / Caption-Position / Zebra-Rows / etc.) |
+| **Custom Typst-Code** | Escape-Hatch: freier Typst-Code im CodeMirror-Editor. Wird ans Ende von `style.typ` in einen fenced Block angehaengt, der jede Regeneration ueberlebt |
 
-**Eigene Templates importieren:** Document-Menue -> Style Templates -> Import Custom Template… -> `.typ`-Datei waehlen. Nur das Preamble (#set/#show Regeln) wird extrahiert, auch aus kompletten Dokumenten. Gespeichert in `.claude/style-templates/`.
+### Themes vs. Palette-Presets vs. Layout-Presets
 
-**Hinweis:** Stile koennen nur angewendet werden, solange du im Hauptdokument des Projekts (`main.typ` bzw. die Datei, auf die deine `#include`s zeigen) bist. Wer einen Stil aus einem Kapitel heraus anwenden will, bekommt einen Block-Dialog — sonst wuerde der Stil-Vorspann an den Kapitel-Anfang gehaengt und die Datei stillschweigend kaputtmachen.
+- **Palette-Preset** — nur die fuenf Farb-Slots aendern sich. Nimm das wenn Typografie und Layout passen, aber die Farben nicht.
+- **Theme** — Farben + Fonts + Scale + Layout + Headings + Elements aendern sich alle in einem Klick. Dein Custom-Code-Block bleibt erhalten.
+- **Layout-Preset** — nur Paper / Orientation / Margin / Columns / Base-Size aendern sich. Stapelbar auf ein Theme um Typografie zu behalten und Geometrie zu swappen (z.B. *Editorial Magazine* Theme + *Magazine 2-Spalten* Layout).
+
+### Power-User-Escape-Hatch
+
+Die Custom-Typst-Code-Section unten im Design-Panel akzeptiert beliebigen Typst — `#import` von gebuendelten Paketen, custom `#show heading.where(level: 1): it => { … }` Regeln mit Linien-Dekoration, Helper `#let` Bindings etc. Der Block ist fenced (Marker-Kommentare am Anfang und Ende), sodass der Auto-Generator ihn nie ueberschreibt. Bei jedem Save eines Themes, einer Palette oder eines Feldes wird der Custom-Block woertlich zurueckgelesen und am Ende der regenerierten `style.typ` neu emittiert.
+
+### Gebuendelte OFL-Fonts (offline-tauglich)
+
+Sieben Font-Familien sind mit vswrite ausgeliefert — keine System-Installation noetig, kein Internet beim Compile:
+
+| Familie | Kategorie | Geeignet fuer |
+|---------|-----------|---------------|
+| Inter | Sans | Modern / Tech / Minimal-Dokumente |
+| IBM Plex Sans | Sans | Brochures, Reports, Branded Docs |
+| IBM Plex Serif | Serif | Moderner editorialer Body |
+| IBM Plex Mono | Mono | Code-Bloecke |
+| JetBrains Mono | Mono | Code-lastige Dokumente |
+| Crimson Pro | Serif | Akademischer Body, Theses |
+| Spectral | Serif | Magazine, Newsletter |
+
+### Style-Templates-Menue (Legacy)
+
+Das alte **Document → Style Templates** Submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) wurde in Session 22 ersetzt durch die Themes-Section im Design-Tab. Die MCP-Tools `vswrite_list_styles` und `vswrite_apply_style` funktionieren weiterhin — sie zeigen jetzt auf die neuen Theme-Presets.
 
 ---
 

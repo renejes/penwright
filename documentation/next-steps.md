@@ -2,7 +2,7 @@
 
 > Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-16 | App-Version: **0.7.0** (package.json + Doku synchron)
 >
-> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (43 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (4: typst / vswrite / research / writing-style), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [third-party-licensing.md](third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
+> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (43 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (4: typst / vswrite / research / writing-style), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
 
 ---
 
@@ -12,8 +12,8 @@ Die App ist inhaltlich release-ready fuer den akademischen Schreib-Use-Case. **S
 
 Was zwischen heute und v1.0 noch fehlt:
 
-1. **Typst-Package-Bundling-Setup** — Hybrid-Strategie aus [third-party-licensing.md](third-party-licensing.md); Bundle-Liste finalisieren, Audit-Script + Acknowledgments-Dialog (~4–6 Tage)
-2. **Design-Editor + MCP-Tools** — Phasen A bis D aus [design-editor-plan.md](design-editor-plan.md) (~7 Wochen)
+1. **Typst-Package-Bundling-Setup** — Hybrid-Strategie aus [third-party-licensing.md](done/third-party-licensing.md); Bundle-Liste finalisieren, Audit-Script + Acknowledgments-Dialog (~4–6 Tage)
+2. **Design-Editor + MCP-Tools** — Phasen A bis D aus [design-editor-plan.md](done/design-editor-plan.md) (~7 Wochen)
 3. **Distribution einrichten** — Firebase-Hosting + electron-updater + DMG-Build & Notarization
 4. **Handbuch-Online-Hosting** auf Netlify
 5. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters) **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread)
@@ -291,9 +291,9 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 ## 5. Release-Checkliste
 
-### Phase 3.5: Design-Editor + Bundled Packages (pre-1.0, neu)
+### Phase 3.5: Design-Editor + Bundled Packages (pre-1.0 — Sessions 20–22, **komplett**)
 
-> Vollstaendige Spezifikation in [design-editor-plan.md](design-editor-plan.md) und [third-party-licensing.md](third-party-licensing.md). Aufwand: ~7–8 Wochen Vollzeit.
+> Spezifikation und Hintergrund: archiviert unter [done/design-editor-plan.md](done/design-editor-plan.md) und [done/third-party-licensing.md](done/third-party-licensing.md). Was unten als `[x]` markiert ist, wurde gebaut.
 
 **Vorgelagert: Typst-Package-Bundling** (Session 20, 2026-05-17 — abgeschlossen)
 
@@ -304,7 +304,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [x] Main-Process + MCP-Server: `--package-path` via `buildTypstCompileArgs()` und `TYPST_PACKAGE_PATH` env-Var (Wizard schreibt sie in Claude-Config)
 - [x] `AcknowledgmentsDialog.svelte` + Hook im About-Dialog
 - [x] TYPST_SKILL + VSWRITE_SKILL ergaenzt um Bundled-Packages-Sektion mit Code-Beispielen
-- [ ] Bundle-Fonts (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL) — kommt in Phase B des [Design-Editors](design-editor-plan.md)
+- [ ] Bundle-Fonts (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL) — kommt in Phase B des [Design-Editors](done/design-editor-plan.md)
 - [ ] **Einmalige Rechtsberatung** (DACH-Anwalt mit OSS-Erfahrung, ~30–60 min) — wegen cetz LGPL-3.0, vor dem ersten kommerziellen Release
 
 **Phase A — Style Variables (Datenmodell + Settings-Dialog-Erweiterung)** (Session 21, 2026-05-17 — abgeschlossen)

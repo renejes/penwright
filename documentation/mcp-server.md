@@ -57,7 +57,7 @@ Claude sieht jetzt die vswrite-Tools im MCP-Menue.
 
 ---
 
-## Verfuegbare Tools (43)
+## Verfuegbare Tools (52)
 
 ### Projekt & Dateien (5)
 
@@ -78,14 +78,32 @@ Claude sieht jetzt die vswrite-Tools im MCP-Menue.
 | `vswrite_update_document` | Dokumentinhalt ersetzen und speichern |
 | `vswrite_compile` | Verifiziert, dass das Dokument kompiliert. Liefert `{ success, rootFile, sizeBytes }` oder strukturierte `errors[]`. Ergebnisdatei wird verworfen — fuer ein echtes Artefakt `vswrite_export_pdf` / `vswrite_export_docx` nutzen. |
 
-### Settings & Styles (4)
+### Settings & Styles (2)
+
+Document Settings sind seit Session 22 auf `lang` + `bibliographyStyle` reduziert — Typografie, Layout und Design-Tokens leben jetzt in `style.json` (siehe Design-Tools weiter unten).
 
 | Tool | Beschreibung |
 |------|-------------|
-| `vswrite_get_settings` | Document Settings lesen (#set Bloecke: Font, Size, Lang, Margins) |
+| `vswrite_get_settings` | Document Settings lesen (lang + bibliographyStyle) |
 | `vswrite_update_settings` | Settings aendern (nur geaenderte Keys angeben) |
-| `vswrite_list_styles` | Verfuegbare Style-Templates auflisten |
-| `vswrite_apply_style` | Style-Template anwenden (classic, modern, minimal, vibrant, elegant, professional, artsy) |
+
+### Design (11) — Themes, Layouts, Palette, Fonts, Elements
+
+Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach `.vswrite/style.json`, regeneriert `style.typ`, und stellt sicher dass die root-`.typ` Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Operationen sind idempotent und preservieren `style.custom.preamble` (User-Escape-Hatch-Code) bei Theme- und Layout-Swaps.
+
+| Tool | Beschreibung |
+|------|-------------|
+| `vswrite_get_style` | Full ProjectStyle JSON lesen — colors / fonts / scale / layout / headings / elements / custom |
+| `vswrite_update_style` | Partial-Patch (deep-merge mit Per-Leaf-Sanitizer). z.B. `{ colors: { primary: "#0f172a" } }` reicht; Rest bleibt. Invalid hex/weight/range faellt auf alten Wert zurueck statt zu erroren |
+| `vswrite_list_styles` | Built-in Themes auflisten (id / name / description / bestFor) — Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis |
+| `vswrite_apply_style` | Theme komplett anwenden — \`styleId: "marketing-brochure"\`. Ueberschreibt colors/fonts/scale/layout/headings/elements; behaelt `custom.preamble` |
+| `vswrite_list_layouts` | 6 Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster) inkl. Paper/Orientation/Columns/BaseSize-Metadata |
+| `vswrite_apply_layout` | Tauscht nur die `layout.*` Werte (+ optional `scale.base`) — Theme/Farben/Fonts bleiben. Kombinierbar mit `apply_style` |
+| `vswrite_list_fonts` | Die 7 gebuendelten OFL-Fonts (Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro, Spectral) — family/category/description |
+| `vswrite_apply_palette` | 5-Farb-Palette setzen. Entweder `presetId` (z.B. "editorial", "earth-tones") ODER per-slot hex overrides (primary/accent/text/background/muted), kombinierbar. Kein-Argumente-Call returned die verfuegbaren Presets |
+| `vswrite_list_design_elements` | Library der 6 parametrischen Snippets (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider) inkl. erwarteter Params pro Element |
+| `vswrite_insert_design_element` | Snippet an Anchor-Position einfuegen — z.B. Hero am Dokument-Anfang, Pull-Quote nach einem bestimmten Absatz. Snippets referenzieren `style-colors.*` und re-themen automatisch wenn Palette wechselt |
+| `vswrite_generate_layout` | Hoch-Level-Komposit: `intent: "brochure"` waehlt Marketing-Brochure Theme + Magazine-2col Layout + optional Hero am Anfang. Intent-Mapping deckt brochure / thesis / magazine / report / spec / minimal / newsletter / poster / booklet / slide ab |
 
 ### Kapitel & Struktur (5)
 

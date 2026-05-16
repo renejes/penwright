@@ -102,7 +102,7 @@ All project-level and document-level actions live in the **native menu bar** (to
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus standard window/zoom roles
-- **Document** — Document Settings, Style Templates submenu (7 predefined + Import Custom), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
+- **Document** — Document Settings (language + bibliography style; full design lives in the Design sidebar tab), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
 
 In-text content insertions (image, table, math, citation, divider, page break, etc.) are reachable via [slash commands](#slash-commands) — type `/` at an empty line in the editor.
@@ -203,7 +203,7 @@ Every new project automatically gets:
 
 ## Sidebar
 
-The sidebar has five tabs:
+The sidebar has six tabs:
 
 ### Files
 - Recursive file tree, Back button, **New Folder** (inline input — Enter saves, Esc cancels), **Add Asset** (file picker that copies into `assets/`)
@@ -233,6 +233,14 @@ This tab replaces the old Git panel and uses writer-friendly vocabulary instead 
 - Per entry: anchor preview (italic, click jumps to the spot in the editor), body textarea (auto-saves shortly after you stop typing), resolved checkmark, delete
 - Resolved comments are hidden by default; the "Show resolved" checkbox brings them back
 - Full workflow: see the **[Comments & Notes](#comments--notes)** section below
+
+### Design
+- The visual style editor — colors, fonts, scale, layout, headings, special elements
+- One-click **theme presets** (six full looks) and **palette presets** (eight curated colour sets)
+- **Layout presets** for paper / orientation / column count
+- **Font browser** with live previews of the seven bundled OFL fonts
+- **Custom Typst-Code** section as an escape hatch
+- See the [Design panel](#design-panel--visual-style-editor) section below
 
 ---
 
@@ -473,25 +481,52 @@ The DOCX is produced with real Word styles:
 
 ---
 
-## Style Templates
+## Design panel — visual style editor
 
-7 predefined + your own templates:
+Every design decision lives in the **Design** sidebar tab. Click a theme to apply a complete look; click a palette preset to swap only the colours; tune individual fields (font, padding, heading size, table border colour) for fine control. Every change writes `<project>/.vswrite/style.json` and regenerates `<project>/style.typ` — `main.typ` pulls those rules in via `#import "style.typ": *` plus `#show: apply-style`.
 
-| Template | Description |
-|----------|-------------|
-| Classic Academic | Serif, numbered headings |
-| Modern Clean | Sans-serif, blue accents |
-| Minimal | Ultra-clean, roomy |
-| Vibrant | Strong colours |
-| Elegant | Decorative, gold accents |
-| Professional Report | Business layout |
-| Artsy | Red/blue colour scheme |
+### Sections in the Design tab
 
-**Apply a template:** Document menu -> Style Templates -> pick a style. Applies the chosen preamble to your `main.typ` (only allowed when the main file is active — see note below).
+| Section | What it controls |
+|---------|------------------|
+| **Colors** | Five semantic slots (primary / accent / text / background / muted) — each with a Coloris picker plus a hex text field |
+| **Palette presets** | Eight curated 5-colour palettes (Modern Tech, Editorial, Earth Tones, High Contrast, Minimal Mono, Forest Deep, Sunset Warm, Ocean Classic). Apply only swaps colours |
+| **Themes** | Six full ProjectStyle snapshots (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis). Apply overwrites everything except the Custom Code block |
+| **Layout presets** | Six geometry swaps (A4 Portrait, A4 Landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster) — paper, orientation, margin, columns, optional base size |
+| **Fonts** | Three font slots (body / heading / code) plus a font browser. Each card live-renders its family + a sample line via the seven bundled OFL fonts |
+| **Scale** | Base size, leading, paragraph spacing, first-line indent |
+| **Layout** | Paper, orientation, margin, columns, page numbering, header markup, footer markup, page fill (background colour expression) |
+| **Headings** | H1–H6 as collapsible cards — size, weight, colour slot, top margin per level; plus a single numbering pattern setting |
+| **Elements** | Blockquote, Code-Block, Figure, Table — each a collapsible card with structured fields (border slot / padding / italic toggle / caption position / zebra rows / etc.) |
+| **Custom Typst-Code** | Escape hatch: free-form Typst inside a CodeMirror editor. Appended to `style.typ` inside a fenced block that survives every regeneration |
 
-**Import your own template:** Document menu -> Style Templates -> Import Custom Template… -> pick a `.typ` file. Only the preamble (#set/#show rules) is extracted, even when you pass a complete document. Stored in `.claude/style-templates/`.
+### Themes vs palette presets vs layout presets
 
-**Note:** styles can only be applied while you have the project's main file (`main.typ` or whichever file your `#include`s point at) active in the editor. If you try to apply a style while a chapter is open, vswrite blocks the action with a dialog — otherwise the style preamble would be prepended to that chapter and silently corrupt it.
+- **Palette preset** — only the five colour slots change. Use it when the existing typography and layout are right but the colours feel off.
+- **Theme** — colours + fonts + scale + layout + headings + elements all change in one click. Your Custom-Code block is preserved.
+- **Layout preset** — only paper / orientation / margin / columns / base-size change. Stack on top of a theme to keep typography but switch geometry (e.g. *Editorial Magazine* theme plus *Magazine 2-Column* layout).
+
+### Power-user escape hatch
+
+The Custom Typst-Code section at the bottom of the Design panel accepts arbitrary Typst — `#import` of bundled packages, custom `#show heading.where(level: 1): it => { … }` rules with line decorations, helper `#let` bindings, etc. The block is fenced (marker comments at start and end) so the auto-generator never overwrites it. Any time you save a theme, palette, or field, the custom block is read back verbatim and re-emitted at the bottom of the regenerated `style.typ`.
+
+### Bundled OFL fonts (offline-ready)
+
+Seven font families ship with vswrite — no system install needed, no internet at compile time:
+
+| Family | Category | Best for |
+|--------|----------|----------|
+| Inter | Sans | Modern / tech / minimal documents |
+| IBM Plex Sans | Sans | Brochures, reports, branded docs |
+| IBM Plex Serif | Serif | Modern editorial body |
+| IBM Plex Mono | Mono | Code blocks |
+| JetBrains Mono | Mono | Code-heavy documents |
+| Crimson Pro | Serif | Academic body, theses |
+| Spectral | Serif | Magazines, newsletters |
+
+### Style Templates menu (legacy)
+
+The old **Document → Style Templates** submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) was retired in Session 22 and replaced by the Themes section in the Design tab. The MCP tools `vswrite_list_styles` and `vswrite_apply_style` still work — they now point at the new theme presets.
 
 ---
 
