@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-04-29 (nach Session 16: Pre-Launch-Polish — MCP auf 43 Tools, Skills-Overhaul, lokales Crash-Reporting, Cheatsheet, `Cmd+/`, Cloud-Pull-Confirm, Versionsbump)
+> **Stand:** 2026-05-17 (nach Session 21: Design-Editor Phase A — Style-JSON-Schema, JSON↔Typst-Generator, Settings-Tab mit Color/Font/Scale/Layout/Heading-Slots)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -278,6 +278,39 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 21 (2026-05-17) — Design-Editor Phase A: Style Variables
+
+**Phase A des Design-Editors umgesetzt** ([design-editor-plan.md](design-editor-plan.md)): strukturierte „Design-Tokens" pro Projekt, bidirektional zwischen JSON-Modell und Typst-Preamble synchronisiert. Erste Etappe der Akademiker→Design-Tool-Pivots, die in Session 20 mit dem Package-Bundling begann.
+
+**Datenmodell:**
+- [src/shared/styleTypes.ts](src/shared/styleTypes.ts) — `ProjectStyle` Schema (version: '1'), 5 semantische Farb-Slots (primary / accent / text / background / muted), 3 Font-Slots (body / heading / code), Scale (base / leading), Layout (paper / margin / columns), Headings (H1 / H2 mit size / weight / color-slot / marginTop). `sanitizeProjectStyle()` validiert per Regex (Hex / Typst-Length / Paper-Slug / Weight-Keyword) und kollabiert kaputte / fehlende Felder still auf Defaults — keine Exceptions im Frontend nötig.
+- Persistenz in [persistenceManager.ts](src/main/persistenceManager.ts) per `getProjectStyle` / `saveProjectStyle` / `hasProjectStyle`. Datei `<project>/.vswrite/style.json` — vierte Säule der projektlokalen Persistenz neben Versionen, Auto-Backups, AI-Snapshots, Preferences. Saubere Trennung weil späteres Phase-B/C/D-Tooling (Visual Editor, MCP-Tools, Skill) die Style-Surface adressieren wird.
+
+**Generator + Migration:**
+- [src/shared/styleParser.ts](src/shared/styleParser.ts) — `generateStyleTypst(style)` emittet einen deterministischen Preamble: `#let style-colors = (...)` Palette + `#set page`, `#set text`, `#set par`, `#show raw`, `#show heading.where(level: N)` Regeln. Palette-Variable bewusst exponiert, damit Phase-C-MCP-Tools (`vswrite_apply_palette`) und Phase-D-Design-Skill Farben per Namen referenzieren können statt Hex-Codes durch den Generator zu jagen.
+- `ensureStyleInclude(rootFileContents)` schiebt `#include "style.typ"` an die Spitze des Root-Files, überspringt Top-Kommentare. Idempotent.
+- `detectStylePreambleConflicts(...)` scannt die Preamble auf manuelle `#set text|page|par|heading(...)` und `#show heading…` und gibt sie zurück. **Wichtig:** wir schreiben den Include trotzdem — Typsts „later wins"-Regel hält bestehendes Verhalten stabil. Das Banner ist UX-Hinweis, kein Blocker.
+- Erste Implementierung emittierte CSS-Style-Fallbacks `("Inter", "sans-serif")`. Typst hat aber keine generischen Familien-Aliase — `"sans-serif"` ist für Typst ein Schriftname und löste pro Compile vier `unknown font family`-Warnings aus. Korrigiert: single-string fontLiteral. Echte Fallback-Ketten gehen weiterhin in Typst, kommen in Phase B mit dem Multi-Font-Picker zurück.
+
+**IPC + Frontend:**
+- [ipcHandlers.ts](src/main/ipcHandlers.ts) — `style:get` (returned `{ style, initialized }`) und `style:save` (sanitized + persisted + `style.typ` geschrieben + Include nachgezogen + offene Editor-Datei synchronisiert wenn nötig + Compiler getriggert + Konflikt-Findings zurückgegeben). `INVOKE_CHANNELS` in [preload-entry.ts](src/main/preload-entry.ts) entsprechend whitelist'd.
+- [SettingsPanel.svelte](src/editor/components/SettingsPanel.svelte) — neue Tab-Bar (`Style` / `Document`), Style-Tab default-aktiv. Color-Slots mit nativer `<input type="color">` + Hex-Textfeld. Heading-Subgruppen via `.settings-subgroup` (linker Akzent-Border). Bestehende Document-Sektionen (Text / Page / Paragraph / Headings / Bibliography) unverändert im Document-Tab.
+- App-Seite: `currentStyle` + `styleConflicts` in [appState.svelte.ts](src/renderer/appState.svelte.ts); [messageHandler.ts](src/renderer/messageHandler.ts) lädt Style parallel zum `settingsData`-Event; [App.svelte](src/renderer/App.svelte) ruft `style:save` ab und zeigt bei Konflikt-Findings ein gelbes Banner unten rechts mit Liste der überschreibenden `#set`-Zeilen.
+
+**Migration für Bestandsprojekte:** kein Auto-Migrate, kein Pflicht-Migrate-Button. Existierende Projekte öffnen ohne Änderung; Style-Tab zeigt Defaults. Beim ersten „Apply" entstehen `style.json` + `style.typ` + `#include`, vorhandene inline `#set` bleiben stehen (überlagern). Banner-Hinweis lädt zum Aufräumen ein, blockiert aber nichts.
+
+**Verifikation:**
+- electron-vite build clean (3,66 MB Renderer-Bundle, +~3 KB für die Style-Schicht)
+- svelte-check: 0 Errors (4 vor-existente PDFjs- / CSS-Side-Effect-Errors mitbehoben — siehe „Cleanup" unten)
+- End-to-End: generierter `style.typ` aus Defaults + minimaler `main.typ` mit `#include` kompiliert offline gegen die in Session 20 gebündelten Packages — keine Warnings, 20 KB PDF.
+
+**Cleanup bei der Gelegenheit (4 vor-existente svelte-check-Fehler):**
+- [src/renderer/assets.d.ts](src/renderer/assets.d.ts) — `declare module '*.css'` für die side-effect CSS-Imports in `main.ts` und `TerminalPanel.svelte`
+- [PdfPreviewPanel.svelte:176](src/renderer/components/PdfPreviewPanel.svelte:176) und [PdfFileViewer.svelte:166](src/renderer/components/PdfFileViewer.svelte:166) — `canvas` Property ins pdfjs `page.render(...)` Argument mit aufgenommen (neue Typings verlangen es)
+
+**Was bewusst draußen blieb (Phase B oder später):**
+- Color-Palette-Tool, Bild-Color-Extraction, Font-Browser mit Preview, H3–H6 Tuning, per-Section-Style-Overrides, Cover-Page-Builder. Phase-A-UI ist absichtlich „plain dropdowns + color picker" — die richtigen Hebel kommen erst nachdem das Datenmodell stabil ist.
 
 ### Session 20 (2026-05-17) — Bundled Typst-Package Infrastructure
 

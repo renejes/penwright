@@ -361,6 +361,25 @@
     uiState.currentSettings = null;
   }
 
+  async function saveStyle(style: import('../shared/styleTypes').ProjectStyle) {
+    const api = (window as unknown as {
+      electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    if (!api) return;
+    try {
+      const result = await api.invoke('style:save', style) as
+        { ok: boolean; style?: import('../shared/styleTypes').ProjectStyle; conflicts?: string[]; error?: string };
+      if (result?.ok) {
+        uiState.currentStyle = result.style ?? style;
+        uiState.styleConflicts = result.conflicts ?? [];
+      } else if (result?.error) {
+        console.warn('[vswrite] style:save failed:', result.error);
+      }
+    } catch (err) {
+      console.warn('[vswrite] style:save invoke threw:', err);
+    }
+  }
+
   function dismissWelcome(dontShowAgain: boolean) {
     uiState.showWelcome = false;
     ipc.send({ type: 'dismissWelcome', dontShowAgain } as unknown as import('../editor/lib/messages').WebviewMessage);
@@ -966,12 +985,34 @@
     {#if uiState.showSettings && uiState.currentSettings}
       <SettingsPanel
         settings={uiState.currentSettings}
+        style={uiState.currentStyle}
         onSave={saveSettings}
+        onSaveStyle={saveStyle}
         onClose={() => {
           uiState.showSettings = false;
           uiState.currentSettings = null;
         }}
       />
+    {/if}
+    {#if uiState.styleConflicts.length > 0}
+      <div class="style-conflict-banner" role="alert">
+        <div class="style-conflict-header">
+          <strong>Heads up:</strong>
+          your root file still has inline style rules that override the new
+          <code>style.typ</code> include. Remove them when you're ready to switch over.
+          <button
+            type="button"
+            class="style-conflict-dismiss"
+            onclick={() => (uiState.styleConflicts = [])}
+            aria-label="Dismiss"
+          >×</button>
+        </div>
+        <ul>
+          {#each uiState.styleConflicts as line}
+            <li><code>{line}</code></li>
+          {/each}
+        </ul>
+      </div>
     {/if}
     {#if uiState.showWelcome}
       <WelcomeScreen
@@ -1141,6 +1182,55 @@
     background: #fafafa;
     color: #1a1a1a;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  }
+
+  .style-conflict-banner {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    max-width: 380px;
+    background: #fffbea;
+    border: 1px solid #facc15;
+    color: #713f12;
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    font-size: 12px;
+    line-height: 1.5;
+    z-index: 1200;
+  }
+
+  .style-conflict-header {
+    position: relative;
+    padding-right: 22px;
+  }
+
+  .style-conflict-dismiss {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 22px;
+    height: 22px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #92400e;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .style-conflict-banner ul {
+    list-style: none;
+    margin: 8px 0 0 0;
+    padding: 0;
+  }
+
+  .style-conflict-banner code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 11px;
   }
 
   /* macOS: draggable titlebar area */

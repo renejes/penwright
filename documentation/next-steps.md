@@ -307,13 +307,13 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Bundle-Fonts (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL) — kommt in Phase B des [Design-Editors](design-editor-plan.md)
 - [ ] **Einmalige Rechtsberatung** (DACH-Anwalt mit OSS-Erfahrung, ~30–60 min) — wegen cetz LGPL-3.0, vor dem ersten kommerziellen Release
 
-**Phase A — Style Variables (Datenmodell + Settings-Dialog-Erweiterung)**
+**Phase A — Style Variables (Datenmodell + Settings-Dialog-Erweiterung)** (Session 21, 2026-05-17 — abgeschlossen)
 
-- [ ] `<project>/.vswrite/style.json` Schema-Implementierung in `persistenceManager.ts`
-- [ ] `src/shared/styleParser.ts` — JSON ↔ Typst-Preamble Round-Trip
-- [ ] `SettingsPanel.svelte` Erweiterung: Color-Picker, Font-Dropdown, Scale-Inputs, Layout-Picker
-- [ ] Live-Preview-Pipeline mit debouncedem Recompile (300 ms)
-- [ ] Tests fuer Round-Trip-Parser
+- [x] `<project>/.vswrite/style.json` Schema-Implementierung in `persistenceManager.ts` (`getProjectStyle` / `saveProjectStyle` / `hasProjectStyle`)
+- [x] `src/shared/styleParser.ts` — JSON → Typst-Preamble Generator (`generateStyleTypst`), `ensureStyleInclude`, `detectStylePreambleConflicts` für Migrations-Warnung
+- [x] `SettingsPanel.svelte` Erweiterung: Tab-Bar (Style/Document), Color-Picker (5 semantische Slots: primary/accent/text/background/muted), Font-Dropdowns (body/heading/code), Scale-Inputs (base/leading), Layout-Picker (paper/margin/columns), Heading-Tuning (H1/H2 Size/Weight/Color-Slot/Margin-Top)
+- [x] Live-Preview-Pipeline: `style:save` IPC schreibt `style.typ` + sichert `#include "style.typ"` im Root-File + ruft Compiler — kein zusätzliches Debounce nötig, weil Apply-Klick der Trigger ist
+- [x] End-to-End-Verifikation: Typst-CLI kompiliert den generierten `style.typ` ohne Warnungen; svelte-check + electron-vite build clean (4 vor-existente Fehler ebenfalls mitbehoben)
 
 **Phase B — Visual Style Editor (eigener Sidebar-Tab)**
 

@@ -53,6 +53,17 @@ export function handleMessage(message: ExtensionMessage): void {
     isUpdatingFromExtension.value = false;
   } else if (message.type === 'settingsData') {
     uiState.currentSettings = message.settings;
+    // Style is loaded out-of-band: kick off an invoke so the Style tab in
+    // the Settings dialog has data by the time the user clicks it.
+    const api = (window as unknown as {
+      electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    if (api) {
+      api.invoke('style:get').then((result: unknown) => {
+        const res = result as { style?: import('../shared/styleTypes').ProjectStyle } | null;
+        uiState.currentStyle = res?.style ?? null;
+      }).catch(() => { uiState.currentStyle = null; });
+    }
     uiState.showSettings = true;
     if (editor && message.settings.lang) {
       setEditorLanguage(editor, message.settings.lang);

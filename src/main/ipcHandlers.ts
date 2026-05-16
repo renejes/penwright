@@ -34,12 +34,22 @@ import {
   setBackupConfig,
   getProjectPreferences,
   saveProjectPreferences,
+  getProjectStyle,
+  saveProjectStyle,
+  hasProjectStyle,
   getMcpSetupVersion,
   saveMcpSetupVersion,
   type PanelState,
   type BackupConfig,
   type ProjectPreferences,
 } from './persistenceManager';
+import {
+  generateStyleTypst,
+  ensureStyleInclude,
+  detectStylePreambleConflicts,
+} from '../shared/styleParser';
+import { findRootFile } from '../shared/rootFinder';
+import { getCompiler } from './fileManager';
 import {
   checkClaudeDesktopInstalled,
   setupMcpServer,
@@ -712,6 +722,73 @@ export function setupIPC(): void {
     if (!appState.projectDir) return { ok: false };
     saveProjectPreferences(appState.projectDir, prefs);
     return { ok: true };
+  });
+
+  // ─── Style (Design Editor — Phase A) ───────────
+  // The "style" knobs (colors, fonts, scale, layout, headings) live in
+  // `<project>/.vswrite/style.json`; the generated Typst preamble lives in
+  // `<project>/style.typ` and is `#include`d from the root file. The
+  // renderer's Settings dialog reads via `style:get` and writes via
+  // `style:save`; the latter regenerates style.typ, ensures the root file
+  // pulls it in, and kicks off a recompile so the live preview updates.
+
+  ipcMain.handle('style:get', () => {
+    if (!appState.projectDir) return null;
+    return {
+      style: getProjectStyle(appState.projectDir),
+      initialized: hasProjectStyle(appState.projectDir),
+    };
+  });
+
+  ipcMain.handle('style:save', (_event, raw: unknown) => {
+    if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
+
+    const style = saveProjectStyle(appState.projectDir, raw);
+
+    // 1. Write style.typ next to the root file (sibling of main.typ).
+    const rootFile = appState.currentFilePath
+      ? findRootFile(appState.currentFilePath)
+      : path.join(appState.projectDir, 'main.typ');
+    const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
+    const styleTypPath = path.join(projectRootDir, 'style.typ');
+
+    appState.lastSaveTimestamp = Date.now();
+    try {
+      fs.writeFileSync(styleTypPath, generateStyleTypst(style), 'utf-8');
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 2. Ensure the root file pulls style.typ in. If we can detect conflicting
+    // top-level #set rules, surface them so the renderer can warn — but still
+    // do the include (Typst's later-wins rule keeps user code working).
+    const conflicts: string[] = [];
+    if (fs.existsSync(rootFile)) {
+      try {
+        const before = fs.readFileSync(rootFile, 'utf-8');
+        conflicts.push(...detectStylePreambleConflicts(before));
+        const after = ensureStyleInclude(before);
+        if (after !== before) {
+          appState.lastSaveTimestamp = Date.now();
+          fs.writeFileSync(rootFile, after, 'utf-8');
+          // If we just modified the open buffer, sync the editor state.
+          if (appState.currentFilePath && path.resolve(rootFile) === path.resolve(appState.currentFilePath)) {
+            appState.currentContent = after;
+            appState.isDirty = false;
+            updateTitle();
+            appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+          }
+        }
+      } catch (err) {
+        return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
+    // 3. Recompile so the live preview reflects the change.
+    getCompiler()?.compilePdf();
+
+    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    return { ok: true as const, style, conflicts };
   });
 
   ipcMain.handle('project:open', async (_event, projectDir?: string) => {

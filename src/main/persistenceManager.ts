@@ -12,6 +12,11 @@ import Store from 'electron-store';
 import * as path from 'path';
 import * as fs from 'fs';
 import { safeStorage } from 'electron';
+import {
+  type ProjectStyle,
+  DEFAULT_PROJECT_STYLE,
+  sanitizeProjectStyle,
+} from '../shared/styleTypes';
 
 export interface RecentProject {
   path: string;
@@ -556,4 +561,39 @@ export function clearProjectVswriteData(projectDir: string): void {
   try {
     fs.rmSync(dir, { recursive: true, force: true });
   } catch {}
+}
+
+// ─── Project-Local Style (Design Editor — Phase A) ──────────────
+// `.vswrite/style.json` holds the structured "design tokens" used by the
+// Settings dialog's Style section and (in later phases) by the Visual Editor
+// and the design MCP tools. The generated Typst preamble — derived from
+// this JSON — lives at `<project>/style.typ` and is `#include`d from main.typ.
+
+function stylePath(projectDir: string): string {
+  return path.join(vswriteDir(projectDir), 'style.json');
+}
+
+/** True if a project-local style.json already exists. */
+export function hasProjectStyle(projectDir: string): boolean {
+  return fs.existsSync(stylePath(projectDir));
+}
+
+/** Returns the stored project style, or defaults if not yet initialized. */
+export function getProjectStyle(projectDir: string): ProjectStyle {
+  const file = stylePath(projectDir);
+  if (!fs.existsSync(file)) return sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return sanitizeProjectStyle(raw);
+  } catch {
+    return sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
+  }
+}
+
+/** Persists the project style after running it through the sanitizer. */
+export function saveProjectStyle(projectDir: string, style: unknown): ProjectStyle {
+  ensureDir(vswriteDir(projectDir));
+  const clean = sanitizeProjectStyle(style);
+  fs.writeFileSync(stylePath(projectDir), JSON.stringify(clean, null, 2), 'utf-8');
+  return clean;
 }

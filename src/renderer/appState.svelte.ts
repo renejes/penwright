@@ -5,6 +5,7 @@
 
 import type { Editor } from '@tiptap/core';
 import type { DocumentSettings } from '../editor/lib/messages';
+import type { ProjectStyle } from '../shared/styleTypes';
 
 // ─── Editor State ───────────────────────────────
 export let editorRef: { current: Editor | null } = $state({ current: null });
@@ -25,6 +26,8 @@ export let uiState = $state({
   welcomeTypstInstalled: true,
   welcomePlatform: '',
   currentSettings: null as DocumentSettings | null,
+  currentStyle: null as ProjectStyle | null,
+  styleConflicts: [] as string[],
   showLicense: false,
   showAbout: false,
   licenseStatus: 'none' as string,

@@ -52,6 +52,8 @@ const INVOKE_CHANNELS = [
   'project:getInfo',
   'project:getPreferences',
   'project:setPreferences',
+  'style:get',
+  'style:save',
   'project:open',
   'project:openSample',
   'project:close',
