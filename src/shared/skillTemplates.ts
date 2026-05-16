@@ -546,23 +546,49 @@ When connected via the vswrite MCP server, you have **52 dedicated tools** inste
 
 ### Edit → Compile → Fix loop
 
-After any non-trivial edit, **call \`vswrite_compile\` and inspect the result**. The tool returns either:
+After any non-trivial edit, **call \`vswrite_compile\` and inspect the result**. The tool returns one shape regardless of outcome:
 
 ~~~json
-{ "success": true, "rootFile": "...", "sizeBytes": 23456 }
+{
+  "success": true,
+  "rootFile": "/abs/path/to/main.typ",
+  "sizeBytes": 23456,
+  "errors": [],
+  "warnings": [
+    { "message": "variable fonts are not currently supported (hint: try installing a static version of \\"inter\\")",
+      "file": "/abs/path/to/style.typ",
+      "line": 12 }
+  ]
+}
 ~~~
 
 or, on failure:
 
 ~~~json
-{ "success": false, "rootFile": "...", "errors": [
-  { "message": "cannot reference equation without numbering (hint: enable equation numbering with #set math.equation(numbering: \\"1.\\"))",
-    "file": "/abs/path/to/chapters/03-foo.typ",
-    "line": 60 }
-] }
+{
+  "success": false,
+  "rootFile": "/abs/path/to/main.typ",
+  "errors": [
+    { "message": "cannot reference equation without numbering (hint: enable equation numbering with #set math.equation(numbering: \\"1.\\"))",
+      "file": "/abs/path/to/chapters/03-foo.typ",
+      "line": 60 }
+  ],
+  "warnings": []
+}
 ~~~
 
-Use the \`file\` + \`line\` to scope your fix. The \`hint:\` annotations from Typst are appended to the message so you get the suggested remediation in one shot. Don't guess — open the file at the reported line, fix the immediate cause, and re-compile. Two-line edits + a recompile is faster and safer than scanning the whole project.
+**Errors** stop the build — fix them. Use \`file\` + \`line\` to scope your fix; the appended \`hint:\` is Typst's own suggested remediation, follow it before improvising. Don't guess — open the file at the reported line, fix the immediate cause, and re-compile.
+
+**Warnings** are advisory — Typst built the PDF anyway, but flagged something the user should know. Common cases worth acting on:
+
+- *"variable fonts are not currently supported"* — swap the variable font for a static weight.
+- *"unknown font family"* — a font referenced in \`style.typ\` isn't available; check spelling or pick from \`vswrite_list_fonts\`.
+- *"cannot reference equation/heading without numbering"* — turn on numbering (\`#set math.equation(numbering: …)\` or \`#set heading(numbering: "1.")\`).
+- *Deprecated function* — a Typst stdlib call is sunsetting; consult the linked migration.
+
+If a warning is intentional (you've decided the trade-off is worth it), leave it. If you don't recognise it, surface it to the user along with your guess rather than silently ignoring it.
+
+Two-line edits + a recompile is faster and safer than scanning the whole project. The compile is fast (sub-second for most documents) and the structured output means you never need to parse stderr by hand.
 
 See the \`research-workflow\` skill for end-to-end recipes.
 

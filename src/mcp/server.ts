@@ -463,7 +463,7 @@ server.tool(
 
 server.tool(
   'vswrite_compile',
-  'Verifies that the current Typst document compiles cleanly. Returns success or a structured list of compilation errors with file/line. Automatically resolves the root file for multi-chapter projects (so a chapter file passes too). Output format is PDF; the produced file is written to a temp location and removed afterwards — call vswrite_export_pdf or vswrite_export_docx to get a real artifact.',
+  'Verifies that the current Typst document compiles cleanly. Returns `{ success, rootFile, sizeBytes?, errors, warnings }`. Errors come with `file` + `line` so multi-chapter projects can target the fix; each entry\'s `message` has any `= hint:` Typst emitted appended in parentheses. Warnings (e.g. unknown font family, deprecated function) are captured even on success — they don\'t fail the build, but they\'re worth scanning before declaring done. Compile output is a temp PDF; for a real artifact use vswrite_export_pdf or vswrite_export_docx.',
   async () => {
     try {
       const { filePath } = readCurrentDocument();
@@ -472,23 +472,27 @@ server.tool(
       const tempPath = path.join(dir, '.vswrite-compile-output.pdf');
 
       try {
-        await execFileAsync('typst', typstCompileArgs([rootFile, tempPath]), { cwd: dir, timeout: 30000 });
+        const result = await execFileAsync('typst', typstCompileArgs([rootFile, tempPath]), { cwd: dir, timeout: 30000 });
         const stat = fs.statSync(tempPath);
         try { fs.unlinkSync(tempPath); } catch {}
+        // Typst emits warnings on stderr even when the compile succeeds
+        // (exit 0). Parse them out so the agent can choose to act on them.
+        const warnings = parseCompileDiagnostics(result.stderr ?? '', 'warning');
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify({ success: true, rootFile, sizeBytes: stat.size }, null, 2),
+            text: JSON.stringify({ success: true, rootFile, sizeBytes: stat.size, errors: [], warnings }, null, 2),
           }],
         };
       } catch (compileErr: unknown) {
         try { fs.unlinkSync(tempPath); } catch {}
         const stderr = (compileErr as { stderr?: string }).stderr || String(compileErr);
-        const errors = parseCompileErrors(stderr);
+        const errors = parseCompileDiagnostics(stderr, 'error');
+        const warnings = parseCompileDiagnostics(stderr, 'warning');
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify({ success: false, rootFile, errors }, null, 2),
+            text: JSON.stringify({ success: false, rootFile, errors, warnings }, null, 2),
           }],
         };
       }
@@ -498,39 +502,51 @@ server.tool(
   },
 );
 
+interface CompileDiagnostic {
+  message: string;
+  file?: string;
+  line?: number;
+}
+
 /**
- * Parses Typst's stderr into structured errors. A single Typst error
- * spans multiple lines:
+ * Parses Typst's stderr into structured `error:` or `warning:` entries.
+ * Both severities use the same multi-line shape:
  *
- *   error: cannot reference equation without numbering
+ *   <kind>: <message>
  *     ┌─ /abs/path/to/chapters/03-foo.typ:60:0
  *      │
- *   60 │ @eq:mle is, in some sense, …
+ *   60 │ <source line>
  *      │ ^^^^^^^
  *      │
- *      = hint: try `#set math.equation(numbering: …)`
+ *      = hint: <suggested fix>
  *
- * We pair each `error:` line with the next `┌─` line beneath it to
- * extract the file path and line number — without that pairing, agents
- * editing multi-chapter projects can't tell which file to fix.
+ * We pair the diagnostic header with the next `┌─` line within a small
+ * lookahead window to extract `(file, line)`. Any `= hint:` lines that
+ * follow before the next diagnostic header get appended to the message
+ * in parentheses so the agent sees both the diagnosis and Typst's own
+ * suggested remediation in one shot.
  *
- * Returns `{ message, file?, line? }` per diagnostic. Hints attached
- * to the error are appended to `message` so the agent sees them.
+ * Pass `kind: 'error'` to grab fatal diagnostics, `'warning'` for the
+ * advisory ones (unknown font family, deprecated function, …).
  */
-function parseCompileErrors(stderr: string): { message: string; file?: string; line?: number }[] {
-  const errors: { message: string; file?: string; line?: number }[] = [];
+function parseCompileDiagnostics(stderr: string, kind: 'error' | 'warning'): CompileDiagnostic[] {
+  const out: CompileDiagnostic[] = [];
   const lines = stderr.split('\n');
+  // Header regex: matches `error:` or `warning:` at start of line.
+  const headerRe = new RegExp(`^${kind}:?\\s*(.+?)\\s*$`, 'i');
+  // Generic "any diagnostic header" — used to detect the start of the
+  // next block so we stop scanning for hints / location.
+  const anyHeaderRe = /^(?:error|warning):?\s/i;
 
   for (let i = 0; i < lines.length; i++) {
-    const errMatch = lines[i].match(/^error:?\s*(.+?)\s*$/i);
-    if (!errMatch) continue;
+    const match = lines[i].match(headerRe);
+    if (!match) continue;
 
-    const entry: { message: string; file?: string; line?: number } = { message: errMatch[1] };
+    const entry: CompileDiagnostic = { message: match[1] };
 
-    // Look ahead for the file:line marker (Typst draws it with `┌─`).
-    // Allowed window: ~4 lines, since the path line is usually directly
-    // after the error: line.
-    for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+    // Location: look ahead within ~5 lines for the `┌─ path:line:col` marker.
+    for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+      if (anyHeaderRe.test(lines[j])) break;
       const locMatch = lines[j].match(/┌─\s*(.+?):(\d+):\d+\s*$/);
       if (locMatch) {
         entry.file = locMatch[1];
@@ -539,20 +555,18 @@ function parseCompileErrors(stderr: string): { message: string; file?: string; l
       }
     }
 
-    // Optional `= hint:` lines that follow within ~10 lines — append them
-    // to the message so the agent sees the suggested fix.
+    // Hints: scan up to the next diagnostic header (or 20 lines, safety cap).
     const hints: string[] = [];
-    for (let j = i + 1; j < Math.min(i + 12, lines.length); j++) {
+    for (let j = i + 1; j < Math.min(i + 20, lines.length); j++) {
+      if (anyHeaderRe.test(lines[j])) break;
       const hintMatch = lines[j].match(/^\s*=\s*hint:\s*(.+?)\s*$/);
       if (hintMatch) hints.push(hintMatch[1]);
-      // Stop scanning when we hit the next error block.
-      if (/^error:?\s/i.test(lines[j])) break;
     }
     if (hints.length > 0) entry.message += ` (hint: ${hints.join('; ')})`;
 
-    errors.push(entry);
+    out.push(entry);
   }
-  return errors;
+  return out;
 }
 
 // ─── Tool: vswrite_get_settings ──────────────────────
