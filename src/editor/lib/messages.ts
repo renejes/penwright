@@ -83,22 +83,16 @@ export type ExtensionMessage =
   | PreviewPdfUpdateMessage
   | ExportStatusMessage;
 
-// Shared settings interface
+/**
+ * Shared settings interface. Trimmed in Session 22 — typography / layout
+ * tokens (font, size, leading, paper, margin, columns, pageNumbering /
+ * Header / Footer / Fill, paragraphSpacing, firstLineIndent, headingNumbering)
+ * now live in `style.json` and are edited via the Design sidebar tab.
+ * What remains here is document-content metadata that legitimately stays
+ * inline in main.typ: language + bibliography style.
+ */
 export interface DocumentSettings {
-  font: string;
-  fontSize: string;
   lang: string;
-  paper: string;
-  margin: string;
-  pageNumbering: string;
-  pageHeader: string;
-  pageFooter: string;
-  columns: string;
-  pageFill: string;
-  leading: string;
-  spacing: string;
-  firstLineIndent: string;
-  headingNumbering: string;
   bibliographyStyle: string;
 }
 

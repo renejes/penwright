@@ -45,6 +45,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseBibFile, type BibEntry } from './bibParser';
 import { parseSettings, type DocumentSettings } from './settingsParser';
+import { type ProjectStyle } from './styleTypes';
 
 // ─── Types (mirrors deserializer output) ─────────────────────
 
@@ -93,9 +94,10 @@ export async function serializeDocx(
   doc: TipTapDoc,
   baseDir: string = '.',
   typstContent?: string,
+  style: ProjectStyle | null = null,
 ): Promise<Buffer> {
   const settings = typstContent ? parseSettings(typstContent) : null;
-  const resolved = resolveConfig(settings);
+  const resolved = resolveConfig(settings, style);
 
   const children: (Paragraph | Table | TableOfContents)[] = [];
   const footnotes: Record<number, { children: Paragraph[] }> = {};
@@ -156,13 +158,20 @@ export async function serializeDocx(
 
 // ─── Resolve Typst settings → Word-ready configuration ───────
 
-function resolveConfig(settings: DocumentSettings | null): Resolved {
-  const bodyFont = normalizeFont(settings?.font);
-  const bodySize = parseFontSizeHalfPt(settings?.fontSize, 22); // 11pt default
-  const lineSpacing = parseLeadingToLine240ths(settings?.leading, 360); // 1.5 default
-  const { width, height } = parsePaperSize(settings?.paper);
-  const margin = parseMargin(settings?.margin);
+function resolveConfig(settings: DocumentSettings | null, style: ProjectStyle | null): Resolved {
+  // After the Design-Editor consolidation, the typography + layout values
+  // that used to live in `DocumentSettings` are part of `ProjectStyle` —
+  // `style.json`, written by the Design panel. The DOCX serializer reads
+  // both: `style` for design tokens, `settings` for document-content fields
+  // (just `lang` at the moment). When a project has no style.json yet, the
+  // serializer falls back to plain defaults.
+  const bodyFont    = normalizeFont(style?.fonts.body);
+  const bodySize    = parseFontSizeHalfPt(style?.scale.base, 22);          // 11pt default
+  const lineSpacing = parseLeadingToLine240ths(style?.scale.leading, 360); // 1.5 default
+  const { width, height } = parsePaperSize(style?.layout.paper);
+  const margin = parseMargin(style?.layout.margin);
   const lang = normalizeLang(settings?.lang);
+  const headingNumbering = style?.headings.numbering ?? '';
 
   return {
     bodyFont,
@@ -173,8 +182,8 @@ function resolveConfig(settings: DocumentSettings | null): Resolved {
     pageWidthTwips: width,
     pageHeightTwips: height,
     margin,
-    hasHeadingNumbering: !!settings?.headingNumbering,
-    headingFormats: parseTypstNumberingPattern(settings?.headingNumbering),
+    hasHeadingNumbering: !!headingNumbering,
+    headingFormats: parseTypstNumberingPattern(headingNumbering),
   };
 }
 

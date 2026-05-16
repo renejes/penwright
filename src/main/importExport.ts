@@ -19,7 +19,7 @@ import { parseBibFile } from '../shared/bibParser';
 import { appState } from './appState';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
-import { saveZoteroBibPath } from './persistenceManager';
+import { saveZoteroBibPath, getProjectStyle } from './persistenceManager';
 
 let zoteroWatcher: FSWatcher | null = null;
 
@@ -167,7 +167,12 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
       // DOCX: resolve includes manually, then run the serializer on the merged content.
       const mergedContent = resolveIncludes(sourceFile);
       const doc = deserializeTypst(mergedContent);
-      const buffer = await serializeDocx(doc, rootDir, mergedContent);
+      // The DOCX serializer needs the design tokens (font, size, leading,
+      // paper, margin, heading-numbering) which now live in style.json —
+      // not in the merged Typst content. Pull them up here so the
+      // serializer's resolveConfig can blend both sources.
+      const style = appState.projectDir ? getProjectStyle(appState.projectDir) : null;
+      const buffer = await serializeDocx(doc, rootDir, mergedContent, style);
       fs.writeFileSync(result.filePath, buffer);
     }
     appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: config.format });

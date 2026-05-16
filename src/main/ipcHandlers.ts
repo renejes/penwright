@@ -227,12 +227,46 @@ export function setupIPC(): void {
       }
 
       case 'quickSettings': {
+        // QuickSettings (toolbar popover) now writes scale.base / scale.leading
+        // into style.json — the same target as the Design panel — so the two
+        // surfaces don't fight each other. `lang` still goes through the
+        // Document-Settings inline path because it stays in main.typ.
         const qs = msg as unknown as { fontSize: string; leading: string; lang: string };
-        const qsSettings = parseSettings(appState.currentContent);
-        if (qs.fontSize) qsSettings.fontSize = qs.fontSize;
-        if (qs.leading) qsSettings.leading = qs.leading;
-        if (qs.lang) qsSettings.lang = qs.lang;
-        handleUpdateSettings(qsSettings as unknown as Record<string, string>);
+        if (appState.projectDir) {
+          const current = getProjectStyle(appState.projectDir);
+          if (qs.fontSize) current.scale.base = qs.fontSize;
+          if (qs.leading) current.scale.leading = qs.leading;
+          const saved = saveProjectStyle(appState.projectDir, current);
+          // Regenerate style.typ + recompile, mirroring the style:save path.
+          const rootFile = appState.currentFilePath
+            ? findRootFile(appState.currentFilePath)
+            : path.join(appState.projectDir, 'main.typ');
+          const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
+          try {
+            appState.lastSaveTimestamp = Date.now();
+            fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(saved), 'utf-8');
+            if (fs.existsSync(rootFile)) {
+              const before = fs.readFileSync(rootFile, 'utf-8');
+              const after = ensureStyleInclude(before);
+              if (after !== before) {
+                appState.lastSaveTimestamp = Date.now();
+                fs.writeFileSync(rootFile, after, 'utf-8');
+                if (appState.currentFilePath && path.resolve(rootFile) === path.resolve(appState.currentFilePath)) {
+                  appState.currentContent = after;
+                  appState.isDirty = false;
+                  updateTitle();
+                  appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+                }
+              }
+            }
+            getCompiler()?.compilePdf();
+          } catch (err) {
+            console.warn('[vswrite] quickSettings style write failed:', err);
+          }
+        }
+        if (qs.lang) {
+          handleUpdateSettings({ lang: qs.lang });
+        }
         break;
       }
 
