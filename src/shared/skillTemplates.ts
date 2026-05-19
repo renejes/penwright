@@ -1316,6 +1316,8 @@ What "current" means right now:
 - **Decorative dividers between every section.** Use whitespace instead; reserve dividers for soft breaks within a section.
 - **Heading that says "Introduction" for a 3-paragraph piece.** If the piece is short enough that the reader will see the start anyway, the heading is redundant.
 - **More than one drop cap per section.** Drop caps are a signature, not a pattern. One at the opener; never repeated in the same article or chapter.
+- **Article-Opener AND a separate H1+lead paragraph in the same article.** The opener element renders its own large headline (already wrapped in a level-1 heading so it stays in the outline). Pick one or the other.
+- **Multiple section-openers without page-breaks between them.** Section-Opener already inserts pagebreaks on both sides — chaining two back-to-back gives you two empty pages and defeats the visual reset.
 
 ## Workflow — Composing a Design Decision
 

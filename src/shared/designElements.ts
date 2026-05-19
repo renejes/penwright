@@ -160,6 +160,27 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'article-opener',
+    name: 'Article Opener',
+    description: 'The masthead block at the top of an article: small uppercase kicker (category label), large display headline, lead paragraph (standfirst), byline. Drop in at the very top of an article to give it the magazine-magazine feel. NOTE: the headline is wrapped in a level-1 heading so it still appears in the outline / TOC. Don\'t pair with a separate H1.',
+    params: [
+      { name: 'kicker', description: 'Small uppercase category label above the headline. E.g. "PROFILE", "INTERVIEW", "ESSAY", "REPORT". Empty = no kicker.', required: false, defaultValue: '' },
+      { name: 'headline', description: 'The article title. Renders large in the heading font / primary color, AND becomes the article\'s H1 so it shows up in the outline.', required: true, defaultValue: 'Article Title' },
+      { name: 'standfirst', description: 'The lead paragraph — usually 1–3 sentences. Renders in italics at ~1.25em.', required: false, defaultValue: '' },
+      { name: 'byline', description: 'Author + photographer credit. E.g. "By Sam Cooper, Photography by Maya Reidt". Empty = no byline.', required: false, defaultValue: '' },
+    ],
+    template: `
+{kicker-block}
+#heading(level: 1, outlined: true, numbering: none)[
+  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[{headline}]
+]
+{standfirst-block}
+{byline-block}
+#v(1em)
+`.trim(),
+  },
+
+  {
     id: 'pull-quote-display',
     name: 'Display Pull-Quote',
     description: 'Very large centered quote — no border, no italic. A monumental visual break in long-form articles, often a single striking sentence pulled from earlier in the body. Bigger and bolder than `pull-quote`; no decorative line.',
@@ -311,7 +332,17 @@ export function renderDesignElement(
         ? `\n  #v(0.4em)\n  #align(right)[#text(size: 0.9em, fill: style-colors.muted)[— ${values.attribution}]]`
         : '',
     },
-    'article-opener': {},
+    'article-opener': {
+      'kicker-block': values.kicker
+        ? `#text(size: 0.85em, weight: "bold", tracking: 0.12em, fill: style-colors.accent)[${values.kicker}]\n#v(0.6em)\n`
+        : '',
+      'standfirst-block': values.standfirst
+        ? `\n#v(0.5em)\n#text(size: 1.25em, style: "italic", fill: style-colors.text)[${values.standfirst}]`
+        : '',
+      'byline-block': values.byline
+        ? `\n#v(0.6em)\n#text(size: 0.85em, fill: style-colors.muted)[${values.byline}]`
+        : '',
+    },
     'section-opener': {},
     'gallery-2up': {},
     'gallery-3up': {},
