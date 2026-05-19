@@ -1702,8 +1702,11 @@
     border-radius: 3px;
     width: 18px;
     height: 18px;
-    /* Vertically centered inside the 24px-tall input: (24 - 18) / 2 = 3 */
-    top: 3px;
     right: 3px;
+    /* True vertical center regardless of the input's actual rendered
+       height — `top: 50%` + translate avoids the off-by-a-pixel issue
+       you get when hand-computing from the configured input height. */
+    top: 50%;
+    transform: translateY(-50%);
   }
 </style>
