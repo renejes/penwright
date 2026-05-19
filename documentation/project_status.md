@@ -7,7 +7,7 @@
 
 ## Zusammenfassung
 
-vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung, Claude Code Skills und einen MCP-Server mit 43 Tools fuer externe Agents.
+vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung, einen visuellen Design-Editor mit Themes / Palettes / Layouts / Fonts / 15 Design-Elementen, Claude Code Skills und einen MCP-Server mit 52 Tools fuer externe Agents.
 
 **Status Release-Readiness:**
 - Security gehaertet (Path Traversal + Symlink-Bypass + MCP-Pfade + verschluesselte Lizenz)
@@ -19,15 +19,15 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - DOCX-Export produziert formatierte Word-Dateien mit Live-Multilevel-Numbering (iterative Verbesserung weiterhin im Gange)
 - About-Dialog zeigt Version + Lizenz + System-Info
 - **Lokales Crash-Reporting:** Plaintext-Reports nach `<userData>/crash-reports/`, Boot-Dialog beim naechsten Start, User entscheidet selbst ueber Weitergabe — keine externe Telemetrie
-- **MCP-Server mit 43 Tools** (vorher 26): Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets — externe Agents koennen die kompletten Editor-Workflows fahren
+- **MCP-Server mit 52 Tools**: Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets, **Design-Surface (11 Tools)** — externe Agents koennen die kompletten Editor- und Design-Workflows fahren
 - **Offen fuer Launch:** Auto-Updater End-to-End-Test, „Open Sample Project"-Onboarding, finale QA auf echter 100-Seiten-Thesis, Distribution-Pipeline (Firebase + DMG + Notarization)
 
 **Codebase:** ~24.500 Zeilen in 87 Dateien (Session 16)
 - Main Process: ~4.200 Zeilen (20 Module inkl. `pathSecurity`, `projectSearch`, `commentManager`, `citationSources`, `crashReporter`)
 - Renderer: ~6.300 Zeilen (App.svelte + 21 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog, ProjectSearchPanel, CommentsPanel, CrashReportDialog)
 - Editor: ~5.500 Zeilen (CommandHub.svelte entfernt — ~456 Zeilen, dafür `commentDecorations.ts` neu)
-- Shared: ~3.400 Zeilen (docxSerializer mit Word-Styles, `skillTemplates.ts` mit den drei Claude-Skills als Master-Quelle)
-- MCP: ~1.700 Zeilen (43 Tools)
+- Shared: ~3.400 Zeilen (docxSerializer mit Word-Styles, `skillTemplates.ts` mit den fuenf Claude-Skills als Master-Quelle)
+- MCP: ~1.700 Zeilen (52 Tools)
 - CLI: ~800 Zeilen (aus Extension, unused)
 
 **Weitere Dokumente:**
@@ -148,11 +148,12 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **About-Dialog** — Version, Electron/Chromium/Node-Versionen, Platform/Arch, Lizenz-Tier (Unlicensed/Basic/Pro-Badge), Links (User Guide, Website, Report Issue), "Copy Diagnostics" fuer Bug-Reports
 - [x] **Bestaetigungsdialoge bei destruktiven Cloud-Ops:** Restore Version, Apply Backup, Cloud-Backup laden (Pull) — Vokabular bleibt im Versionen-Sprech, kein „Pull / Reset / Branch"
 
-**MCP Server (Model Context Protocol) — 43 Tools, Server-Version 0.9.0:**
+**MCP Server (Model Context Protocol) — 52 Tools, Server-Version 0.9.0 (Bun-Binary 0.7.0):**
 - [x] Eigenstaendiges CLI-Tool (`src/mcp/server.ts`, ~1.700 Zeilen)
 - [x] **Projekt & Dateien (5):** set_project, list_files, read_file, write_file, create_project
 - [x] **Dokument-Operationen (4):** get_document, open_file, update_document, **compile** (reiner Verifier — SVG-Mode entfernt, kein Output-Path; Artefakt-Schreiben uebernehmen die Export-Tools)
-- [x] **Settings & Styles (4):** get_settings, update_settings, list_styles, apply_style
+- [x] **Settings (2):** get_settings, update_settings (nur lang + bibliographyStyle — alles andere lebt seit Phase A im Design-Block)
+- [x] **Design (11):** get_style, update_style, list_styles (6 Themes), apply_style, list_layouts (7 Presets), apply_layout, list_fonts, apply_palette, list_design_elements (15 Snippets), insert_design_element (anker-basiert, re-themed via `style-colors.*` / `style-fonts.*`), generate_layout (NL-Intent → Theme + Layout + optional Hero)
 - [x] **Kapitel & Struktur (6):** get_chapters, reorder_chapters, add_chapter, remove_chapter, merge_document, split_document
 - [x] **Bibliographie & Citations (3):** get_citations, add_citation, ensure_bibliography
 - [x] **Cross-References & Footnotes (3):** list_labels (gefiltert nach Typ), insert_reference (Label-Existenz-Check + Vorschlaege fuer aehnliche Labels, Auto-Space wenn vorheriger Char alphanumerisch), add_footnote (Klammer-Balance-Check auf Body)
@@ -163,13 +164,13 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **Import & Assets (2):** import_markdown (inline `markdown` ODER `srcPath`, kann ausserhalb des Projekts liegen), add_image (Content-Hash-Dedup auf `assets/`, Figure-Builder mit Caption + Label, optional Inline-Insert via Anchor)
 - [x] **Git Low-Level (3):** git_status, git_commit, git_push — fuer Cloud-Sync-Workflows; im Normalfall reicht der Versionen-Block
 - [x] **Path-Validierung fuer alle File-Tools** via `resolveInsideProject()` — blockiert `../`-Traversal und Symlink-Escape, neuerdings auch `export_pdf` (Sicherheitsfix in Session 16)
-- [x] **Anker-basiertes Editing-Pattern:** add_footnote / insert_reference / add_comment / add_image nehmen alle einen `afterText`-/`anchor`-Parameter und einen optionalen `occurrence` (1-basiert), wenn der Anker mehrfach vorkommt — Agent muss keine Offsets berechnen
+- [x] **Anker-basiertes Editing-Pattern:** add_footnote / insert_reference / add_comment / add_image / insert_design_element nehmen alle einen `afterText`-/`anchor`-Parameter und einen optionalen `occurrence` (1-basiert), wenn der Anker mehrfach vorkommt — Agent muss keine Offsets berechnen
 - [x] @modelcontextprotocol/sdk + StdioServerTransport
 - [x] Dynamischer Projektwechsel (kein hardcoded Pfad in Config)
 - [x] Getestet mit Claude Desktop (Cowork)
-- [x] **3 Skill-Dateien als MCP Prompts** (typst-reference, vswrite-conventions, research-workflow) — Inhalt aus `src/shared/skillTemplates.ts`, deployed pro Projekt nach `.claude/skills/<name>/SKILL.md`. Tilde-Fences (`~~~`) statt Backticks im Source, damit keine Escape-Hoelle in TS-Strings
+- [x] **5 Skill-Dateien als MCP Prompts** (typst-reference, vswrite-conventions, research-workflow, writing-style, design-conventions) — Inhalt aus `src/shared/skillTemplates.ts`, deployed pro Projekt nach `.claude/skills/<name>/SKILL.md`. Tilde-Fences (`~~~`) statt Backticks im Source, damit keine Escape-Hoelle in TS-Strings
 - [x] Pro-Lizenz-Gating (via `--license-key` Flag oder `VSWRITE_LICENSE_KEY` Env)
-- [x] **Doku komplett:** [mcp-server.md](mcp-server.md) mit allen 43 Tools, neun Workflow-Beispielen (Backlinks, Bulk-Refactor mit Versions-Safety-Net, Recherche-Markdown als Kapitel, Bild + Figure + Reference in einem Rutsch, etc.)
+- [x] **Doku komplett:** [mcp-server.md](mcp-server.md) mit allen 52 Tools, neun Workflow-Beispielen (Backlinks, Bulk-Refactor mit Versions-Safety-Net, Recherche-Markdown als Kapitel, Bild + Figure + Reference in einem Rutsch, etc.)
 
 **Comments / Annotations (Session 12):**
 - [x] Storage als sichtbarer `comments/`-Ordner im Projekt-Root (nicht in `.vswrite/`) — eine `.md`-Datei pro Comment, YAML-Frontmatter (`id`, `file`, `anchor`, `rangeStart/End`, `author`, `date`, `resolved`) + Markdown-Body

@@ -1,8 +1,8 @@
 # vswrite Desktop — Next Steps bis zum Release
 
-> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-16 | App-Version: **0.7.0** (package.json + Doku synchron)
+> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-20 | App-Version: **0.7.0** (package.json + Doku synchron)
 >
-> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (43 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (4: typst / vswrite / research / writing-style), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
+> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (52 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / vswrite / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack (15 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
 
 ---
 

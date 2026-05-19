@@ -1,6 +1,6 @@
 # vswrite MCP Server — AI Integration
 
-> **43 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **52 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
 
 ---
 
@@ -97,15 +97,15 @@ Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach
 | `vswrite_update_style` | Partial-Patch (deep-merge mit Per-Leaf-Sanitizer). z.B. `{ colors: { primary: "#0f172a" } }` reicht; Rest bleibt. Invalid hex/weight/range faellt auf alten Wert zurueck statt zu erroren |
 | `vswrite_list_styles` | Built-in Themes auflisten (id / name / description / bestFor) — Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis |
 | `vswrite_apply_style` | Theme komplett anwenden — \`styleId: "marketing-brochure"\`. Ueberschreibt colors/fonts/scale/layout/headings/elements; behaelt `custom.preamble` |
-| `vswrite_list_layouts` | 6 Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster) inkl. Paper/Orientation/Columns/BaseSize-Metadata |
+| `vswrite_list_layouts` | 7 Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, **Magazine Editorial**) inkl. Paper/Orientation/Columns/BaseSize-Metadata |
 | `vswrite_apply_layout` | Tauscht nur die `layout.*` Werte (+ optional `scale.base`) — Theme/Farben/Fonts bleiben. Kombinierbar mit `apply_style` |
 | `vswrite_list_fonts` | Die 7 gebuendelten OFL-Fonts (Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro, Spectral) — family/category/description |
 | `vswrite_apply_palette` | 5-Farb-Palette setzen. Entweder `presetId` (z.B. "editorial", "earth-tones") ODER per-slot hex overrides (primary/accent/text/background/muted), kombinierbar. Kein-Argumente-Call returned die verfuegbaren Presets |
-| `vswrite_list_design_elements` | Library der 6 parametrischen Snippets (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider) inkl. erwarteter Params pro Element |
-| `vswrite_insert_design_element` | Snippet an Anchor-Position einfuegen — z.B. Hero am Dokument-Anfang, Pull-Quote nach einem bestimmten Absatz. Snippets referenzieren `style-colors.*` und re-themen automatisch wenn Palette wechselt |
+| `vswrite_list_design_elements` | Library der **15** parametrischen Snippets (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider + Drop-Cap / Divider-Asterisks / Divider-Ornament / Pull-Quote-Display / Pull-Quote-Block / Article-Opener / Section-Opener / Gallery-2up / Gallery-3up / Magazine-Cover) inkl. erwarteter Params pro Element |
+| `vswrite_insert_design_element` | Snippet an Anchor-Position einfuegen — z.B. Hero am Dokument-Anfang, Pull-Quote nach einem bestimmten Absatz. Snippets referenzieren `style-colors.*` und `style-fonts.*` und re-themen automatisch wenn Palette/Typografie wechselt |
 | `vswrite_generate_layout` | Hoch-Level-Komposit: `intent: "brochure"` waehlt Marketing-Brochure Theme + Magazine-2col Layout + optional Hero am Anfang. Intent-Mapping deckt brochure / thesis / magazine / report / spec / minimal / newsletter / poster / booklet / slide ab |
 
-### Kapitel & Struktur (5)
+### Kapitel & Struktur (6)
 
 | Tool | Beschreibung |
 |------|-------------|
@@ -412,13 +412,15 @@ Der Betreuer kann die Datei direkt in Word oeffnen und Kapitel umordnen — Head
 
 ## Skill-Prompts
 
-Der MCP-Server bietet drei MCP-Prompts an, die die im Projekt deployed Skill-Dateien laden:
+Der MCP-Server bietet fuenf MCP-Prompts an, die die im Projekt deployed Skill-Dateien laden:
 
 | Prompt | Inhalt |
 |--------|--------|
-| `typst-reference` | Typst-Sprachreferenz — Syntax, Math, Cross-Refs, Footnotes, Bibliographie |
-| `vswrite-conventions` | vswrite-Projekt-Konventionen — Ordnerstruktur, Persistenz-Schichten, Comments, Mode-Toggles |
+| `typst-reference` | Typst-Sprachreferenz — Syntax, Math, Cross-Refs, Footnotes, Bibliographie, gebuendelte Packages |
+| `vswrite-conventions` | vswrite-Projekt-Konventionen — Ordnerstruktur, Persistenz-Schichten, Design-Surface, Comments, Mode-Toggles |
 | `research-workflow` | End-to-End-Recherche-Workflow — Discover, Capture, Synthesize, Integrate |
+| `writing-style` | Schreib-Konventionen — Anti-AI-Tells, Active Prose, akademische Konventionen, Quellen-Disziplin (EN/DE) |
+| `design-conventions` | Visuelle Design-Konventionen — Color-Theory, Typografie-Pairing, Heading-Hierarchy, Layout-Patterns, Modern Looks 2026, Anti-Patterns |
 
 Der Agent ruft sie ueber MCP `prompts/get` ab. Inhalt liegt in `<projekt>/.claude/skills/<name>/SKILL.md` — bei jedem `vswrite_create_project` automatisch deployed, bei bestehenden Projekten on-demand bei Open. Master-Quelle: [src/shared/skillTemplates.ts](../src/shared/skillTemplates.ts).
 
@@ -458,7 +460,7 @@ Der MCP Server erfordert eine **Pro-Lizenz**. Ohne Lizenz sind die Tools nicht v
 Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft `typst` CLI fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts      <- Alle 43 Tools in einer Datei (~1.700 Zeilen)
+src/mcp/server.ts      <- Alle 52 Tools in einer Datei (~1.700 Zeilen)
 esbuild.mcp.mjs        <- Build-Script (ESM, Node 20)
 dist/mcp/server.mjs    <- Gebundelte Ausgabe
 ```

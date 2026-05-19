@@ -492,12 +492,12 @@ Every design decision lives in the **Design** sidebar tab. Click a theme to appl
 | **Colors** | Five semantic slots (primary / accent / text / background / muted) — each with a Coloris picker plus a hex text field |
 | **Palette presets** | Eight curated 5-colour palettes (Modern Tech, Editorial, Earth Tones, High Contrast, Minimal Mono, Forest Deep, Sunset Warm, Ocean Classic). Apply only swaps colours |
 | **Themes** | Six full ProjectStyle snapshots (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis). Apply overwrites everything except the Custom Code block |
-| **Layout presets** | Six geometry swaps (A4 Portrait, A4 Landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster) — paper, orientation, margin, columns, optional base size |
+| **Layout presets** | Seven geometry swaps (A4 Portrait, A4 Landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial with header strip) — paper, orientation, margin, columns, optional base size |
 | **Fonts** | Three font slots (body / heading / code) plus a font browser. Each card live-renders its family + a sample line via the seven bundled OFL fonts |
 | **Scale** | Base size, leading, paragraph spacing, first-line indent |
 | **Layout** | Paper, orientation, margin, columns, page numbering, header markup, footer markup, page fill (background colour expression) |
 | **Headings** | H1–H6 as collapsible cards — size, weight, colour slot, top margin per level; plus a single numbering pattern setting |
-| **Elements** | Blockquote, Code-Block, Figure, Table — each a collapsible card with structured fields (border slot / padding / italic toggle / caption position / zebra rows / etc.) |
+| **Elements** | Blockquote, Code-Block, Figure (incl. photographer-credit separator + label for the `figure-caption-credit(caption, credit)` helper), Table — each a collapsible card with structured fields (border slot / padding / italic toggle / caption position / zebra rows / etc.) |
 | **Custom Typst-Code** | Escape hatch: free-form Typst inside a CodeMirror editor. Appended to `style.typ` inside a fenced block that survives every regeneration |
 
 ### Themes vs palette presets vs layout presets
@@ -509,6 +509,10 @@ Every design decision lives in the **Design** sidebar tab. Click a theme to appl
 ### Power-user escape hatch
 
 The Custom Typst-Code section at the bottom of the Design panel accepts arbitrary Typst — `#import` of bundled packages, custom `#show heading.where(level: 1): it => { … }` rules with line decorations, helper `#let` bindings, etc. The block is fenced (marker comments at start and end) so the auto-generator never overwrites it. Any time you save a theme, palette, or field, the custom block is read back verbatim and re-emitted at the bottom of the regenerated `style.typ`.
+
+### Design element library
+
+A library of **15 parametric snippets** — Banner, Sidebar, Pull-Quote (three variants: regular / Display / Block), Callout, Hero, Section Divider (three variants: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image Gallery 2-up and 3-up, Magazine Cover. They're inserted from Claude Desktop via the `vswrite_list_design_elements` / `vswrite_insert_design_element` MCP tools; every reference to `style-colors.*` / `style-fonts.*` means the element re-themes automatically when you swap the palette or fonts. The `magazine-cover` uses `#page(margin: 0pt)` for the cover page only — the rest of the document keeps its configured margins. `style.typ` exports three module-level values for this: `style-colors`, `style-fonts`, and a `figure-caption-credit(caption, credit)` helper for photographer-credit captions.
 
 ### Bundled OFL fonts (offline-ready)
 
@@ -723,7 +727,7 @@ vswrite ships a built-in MCP server (Model Context Protocol) that lets external 
 
 ### What can the MCP server do?
 
-Over MCP (43 tools) the AI can:
+Over MCP (52 tools) the AI can:
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
 - Change document settings (font, size, language, margins, …) and apply style templates
 - Manage chapters and bibliography end-to-end (incl. anchor-based comment / footnote / cross-reference inserts)
@@ -732,7 +736,8 @@ Over MCP (43 tools) the AI can:
 - Save / list / show / restore versions in the writer-vocabulary used by the Project panel
 - Export PDF and DOCX (DOCX uses real Word styles + live multilevel numbering)
 - Import Markdown and add images (with content-hash dedup + figure builder)
-- Switch between projects, run Git operations, and pull Skill Prompts (typst-reference / vswrite-conventions / research-workflow)
+- Drive the whole design surface — swap themes / palettes / layouts / fonts, insert design elements (15 of them incl. drop-cap, pull-quote variants, article-opener, section-opener, image galleries, magazine cover) at anchors, map natural-language intents (`brochure` / `magazine` / `thesis` / …) onto matching theme+layout combos
+- Switch between projects, run Git operations, and pull Skill Prompts (typst-reference / vswrite-conventions / research-workflow / writing-style / design-conventions)
 
 ### Setup: auto-discover wizard (macOS)
 
@@ -831,7 +836,7 @@ Claude will call `vswrite_set_project` and work with the new project from there 
 
 ### Available tools (43)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 43 tools with one-line descriptions, grouped by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 52 tools with one-line descriptions, grouped by category:
 
 **Project & files (5)**
 
@@ -848,12 +853,26 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 - `vswrite_update_document` — Replace the current document content and save to disk.
 - `vswrite_compile` — Verify that the document compiles cleanly; PDF-only, artifact removed afterwards — use `export_pdf` / `export_docx` for real output.
 
-**Settings & styling (4)**
+**Settings (2)**
 
-- `vswrite_get_settings` — Read `#set` settings (font, size, language, margins, page numbering, bibliography style).
-- `vswrite_update_settings` — Update `#set` settings; only passed keys are modified.
-- `vswrite_list_styles` — Return all available style templates with id, label, and description.
-- `vswrite_apply_style` — Apply a style template to the root document; replaces the `#set`/`#show` preamble.
+- `vswrite_get_settings` — Read the document settings (language + bibliography style; everything else has lived in the Design editor since Phase A).
+- `vswrite_update_settings` — Update document settings; only passed keys are modified.
+
+**Design (11) — themes, layouts, palette, fonts, elements**
+
+The structured design surface from the Design tab. Writes directly to `.vswrite/style.json`, regenerates `style.typ`, ensures the root `.typ` file has `#import "style.typ": *` + `#show: apply-style` at the top. Theme / layout swaps preserve `style.custom.preamble` (the user escape-hatch block).
+
+- `vswrite_get_style` — Return the full `ProjectStyle` JSON (colors / fonts / scale / layout / headings / elements / custom).
+- `vswrite_update_style` — Partial deep-merge patch with per-leaf sanitiser; invalid values fall back to the old value.
+- `vswrite_list_styles` — List the six built-in themes (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis).
+- `vswrite_apply_style` — Apply a theme; overwrites colors/fonts/scale/layout/headings/elements, preserves `custom.preamble`.
+- `vswrite_list_layouts` — Return the seven layout presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial).
+- `vswrite_apply_layout` — Swap only the `layout.*` values (+ optional `scale.base`) — theme, colors, fonts unchanged.
+- `vswrite_list_fonts` — Return the seven bundled OFL fonts with family / category / description.
+- `vswrite_apply_palette` — Set the 5-colour palette via `presetId` or per-slot hex overrides (composable).
+- `vswrite_list_design_elements` — Library of **15** parametric snippets with their params — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up, Magazine-Cover.
+- `vswrite_insert_design_element` — Insert an element at an anchor; snippets reference `style-colors.*` / `style-fonts.*` so they re-theme automatically.
+- `vswrite_generate_layout` — High-level NL composite: `intent: "magazine"` selects e.g. the Editorial theme + Magazine-Editorial layout + optional Hero opener.
 
 **Chapters & structure (6)**
 
@@ -914,12 +933,13 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 
 All file-touching tools route paths through `resolveInsideProject` — symlink-aware, blocks `../`-traversal. Anchor-based tools (`add_comment` / `insert_reference` / `add_footnote` / `add_image`) take an `afterText`/`anchor` plus an optional 1-based `occurrence` when the anchor appears multiple times — the agent never has to compute offsets.
 
-The MCP server also exposes four **prompts** backed by the deployed `.claude/skills/<name>/SKILL.md` content:
+The MCP server also exposes five **prompts** backed by the deployed `.claude/skills/<name>/SKILL.md` content:
 
-- **typst-reference** — Typst language reference (syntax, math, layout, cross-references, footnotes, bibliography).
-- **vswrite-conventions** — Project conventions (folder structure, persistence layers, comments, cross-references, mode toggles).
+- **typst-reference** — Typst language reference (syntax, math, layout, cross-references, footnotes, bibliography, bundled packages with code examples).
+- **vswrite-conventions** — Project conventions (folder structure, persistence layers, design surface, comments, cross-references, mode toggles).
 - **research-workflow** — Four-phase workflow (discover / capture / synthesize / integrate) plus end-to-end recipes with MCP tools.
 - **writing-style** — Prose checklist for academic writing with four sections: **Source Discipline** (never invent citations / BibTeX entries / quotes, pre-submission audit), **Anti-AI-Tells** (em-dash inflation, "not just X but Y", three-list reflex, buzzwords like `delve into` / `Landschaft`), **Active Prose Principles**, **Academic Conventions** (tense, hedging, citation integration). Bilingual (English + German).
+- **design-conventions** — Visual design conventions: color theory (5 semantic slots, WCAG contrast rules), typography pairing, heading hierarchy, layout patterns, "Modern Looks 2026", anti-patterns (e.g. multiple drop caps per section, doubled article-openers), workflow recipe for composing design decisions.
 
 ---
 
