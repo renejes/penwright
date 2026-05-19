@@ -1227,17 +1227,11 @@
 
   .sidebar-tabs {
     display: flex;
+    flex-wrap: wrap;
     padding: 4px 4px 0;
     gap: 0;
     flex-shrink: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
     min-height: 34px;
-    scrollbar-width: none; /* Firefox */
-  }
-
-  .sidebar-tabs::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
   }
 
   .sidebar-tab {
