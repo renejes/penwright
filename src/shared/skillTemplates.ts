@@ -1315,6 +1315,7 @@ What "current" means right now:
 - **Centered body paragraphs.** Already mentioned. Don't.
 - **Decorative dividers between every section.** Use whitespace instead; reserve dividers for soft breaks within a section.
 - **Heading that says "Introduction" for a 3-paragraph piece.** If the piece is short enough that the reader will see the start anyway, the heading is redundant.
+- **More than one drop cap per section.** Drop caps are a signature, not a pattern. One at the opener; never repeated in the same article or chapter.
 
 ## Workflow — Composing a Design Decision
 

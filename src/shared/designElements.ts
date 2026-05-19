@@ -22,7 +22,17 @@ export type DesignElementId =
   | 'pull-quote'
   | 'callout'
   | 'hero'
-  | 'divider';
+  | 'divider'
+  | 'drop-cap'
+  | 'divider-asterisks'
+  | 'divider-ornament'
+  | 'pull-quote-display'
+  | 'pull-quote-block'
+  | 'article-opener'
+  | 'section-opener'
+  | 'gallery-2up'
+  | 'gallery-3up'
+  | 'magazine-cover';
 
 export interface DesignElementParam {
   /** Field name in the params object the caller passes. */
@@ -148,6 +158,26 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
 #v(1.5em)
 `.trim(),
   },
+
+  {
+    id: 'drop-cap',
+    name: 'Drop Cap',
+    description: 'Large decorative initial letter wrapping the first lines of a paragraph. Use sparingly — one per long-form opener, never multiple in the same section. Uses the bundled `droplet` package; the first character of `body` automatically becomes the cap.',
+    params: [
+      { name: 'body', description: 'The full opening paragraph (including the leading letter). Plain text or Typst markup; droplet extracts the first character as the cap.', required: true, defaultValue: 'This is the opening paragraph after the drop cap.' },
+      { name: 'height', description: 'How many lines tall the cap is. 3 is the editorial default; 2 reads softer.', required: false, defaultValue: '3' },
+    ],
+    template: `
+#import "@preview/droplet:0.3.1": dropcap
+
+#dropcap(
+  height: {height},
+  font: style-fonts.heading,
+  fill: style-colors.primary,
+  weight: "bold",
+)[{body}]
+`.trim(),
+  },
 ];
 
 /** Get a single element by id. */
@@ -201,6 +231,16 @@ export function renderDesignElement(
         : '',
     },
     divider: {},
+    'drop-cap': {},
+    'divider-asterisks': {},
+    'divider-ornament': {},
+    'pull-quote-display': {},
+    'pull-quote-block': {},
+    'article-opener': {},
+    'section-opener': {},
+    'gallery-2up': {},
+    'gallery-3up': {},
+    'magazine-cover': {},
   };
 
   // Substitute conditional blocks first (some contain {placeholder}-style

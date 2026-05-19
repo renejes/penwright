@@ -118,6 +118,15 @@ export function generateStyleTypst(style: ProjectStyle): string {
   push(')');
   push();
 
+  // ─── Font slots (module level — design elements reference these so
+  // they pick up the project's typography without baking font names in) ──
+  push('#let style-fonts = (');
+  push(`  body:    ${fontLiteral(style.fonts.body)},`);
+  push(`  heading: ${fontLiteral(style.fonts.heading)},`);
+  push(`  code:    ${fontLiteral(style.fonts.code)},`);
+  push(')');
+  push();
+
   // ─── apply-style(body) — wraps the document with all the rules ──
   // In Typst, #set rules from an #include'd file do NOT propagate to the
   // includer's scope. The idiomatic way to apply a set of rules across a
