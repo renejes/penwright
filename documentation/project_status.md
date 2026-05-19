@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-20 (nach Session 23.1: Lifestyle-Quick-Wins — 4 weitere Design-Elemente `gallery-asymmetric` / `image-overlay` / `stats-box` / `photo-caption-wrap`, Library jetzt 19 Snippets, MCP-Binary auf 0.7.1)
+> **Stand:** 2026-05-20 (nach Session 23.2: Per-Chapter-Running-Heads via `{chapter}` / `{section}` Platzhalter in Header/Footer-Markup; Session 23.1: Lifestyle-Quick-Wins — 4 weitere Design-Elemente, Library jetzt 19 Snippets, MCP-Binary auf 0.7.1)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -279,6 +279,25 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 23.2 (2026-05-20) — Per-Chapter Running Heads
+
+Kleines, in sich abgeschlossenes Feature: Header- und Footer-Markup-Strings im Design-Panel akzeptieren jetzt zwei Platzhalter, die pro Seite zur Compile-Zeit aufgeloest werden:
+
+- `{chapter}` — Body des letzten H1-Headings, der auf oder vor der aktuellen Seite steht
+- `{section}` — dasselbe fuer H2
+
+Implementiert ueber zwei Modul-level Helper in `style.typ` (`chapter-name()` / `section-name()`), die via `context { here() + query(heading.where(level: N)).filter(...).last() }` arbeiten. Der Generator (`styleParser.substituteRunningHeadPlaceholders`) ersetzt `{chapter}` / `{section}` in `pageHeader` / `pageFooter` mit den Helper-Calls bevor das Markup in `#set page(header: [...])` eingebacken wird — der User schreibt einfach `{chapter} · ISSUE 1`, kein Typst-Context-Syntax noetig.
+
+**Mit-Updates:**
+- `magazine-editorial` Layout-Preset benutzt jetzt `{chapter}` statt der hardcoded `NEUES LERNEN`-Zeile — gibt sofort ein funktionierendes Beispiel beim Apply
+- DesignPanel: kleine `.design-hint`-Note unter Header/Footer-Inputs mit den zwei Platzhaltern + Hinweis dass Raw-Typst weiterhin funktioniert
+- `DESIGN_SKILL` bekommt einen "Running heads (per-chapter)"-Block unter Layout Patterns mit einer Beispiel-Tabelle (Plain / mit Separator / mit `#h(1fr)` Split / styled)
+- handbuch.md / handbook.md Layout-Row erwaehnt die Platzhalter
+
+**Verifikation:** End-to-end gegen 4-seitiges Testdokument — Header folgt korrekt dem Kapitelwechsel ("The Quiet Architect" → "After the Storm"), Folgeseite eines Kapitels ohne neue Heading zeigt weiterhin das aktive Kapitel. `npm run build` + `svelte-check` clean.
+
+Damit ist auch der zweite der beiden "Round 4 out-of-scope but lohnenswert"-Punkte erledigt. Bleibende Themen aus der Magazin-Liste: Full-Bleed-Innenseiten, Marginalia, Mosaik-Grids, Magazine-TOC mit Thumbnails (alle bewusst aufgehoben, siehe Session 23.1).
 
 ### Session 23.1 (2026-05-20) — Lifestyle Quick-Wins
 

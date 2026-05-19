@@ -1267,6 +1267,26 @@ Each level should be clearly smaller than the previous one — at least 20 % siz
 - **Don't fully justify** narrow columns (3-col newsletters). The river-of-spaces problem is severe. Use left-aligned (ragged-right) instead.
 - **Don't shrink margins below 1.5 cm** for body documents. Eye-tracking can't recover when lines exceed ~75 characters comfortably.
 
+### Running heads (per-chapter)
+
+vswrite's page header / footer fields in the Design panel (Layout section) accept two placeholders that resolve **per page** at compile time:
+
+- \`{chapter}\` — the body of the most recent H1 (chapter / top-level heading) visible on or before the current page.
+- \`{section}\` — same, but for H2.
+
+Both can be mixed with raw Typst markup. Examples a user / agent can drop straight into the header field:
+
+| Header value | Renders as |
+|---|---|
+| \`{chapter}\` | Plain chapter name, left-aligned |
+| \`{chapter}  ·  ISSUE 1\` | Chapter name, separator, issue label |
+| \`{chapter} #h(1fr) {section}\` | Chapter left, section right, space between |
+| \`#text(tracking: 0.1em, fill: style-colors.muted)[{chapter}] #h(1fr) #counter(page).display()\` | Styled chapter name on the left, page number on the right |
+
+If a page has no H1 on it or above it (e.g. cover page before chapter 1), the placeholder renders as empty content. Pages mid-chapter that continue past a chapter heading still show the chapter name — the query takes the last heading on or before the current page, not just headings literally placed on the current page.
+
+The \`magazine-editorial\` layout preset uses \`{chapter}  ·  ISSUE 1\` by default, so applying that preset immediately gives a working running head.
+
 ## Elements (Special Blocks)
 
 ### Blockquote

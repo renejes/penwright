@@ -495,7 +495,7 @@ Jede Design-Entscheidung lebt im **Design**-Sidebar-Tab. Klick auf ein Theme ueb
 | **Layout-Presets** | Sieben Geometrie-Wechsel (A4 Portrait, A4 Landscape, Magazine 2-Spalten, Newsletter 3-Spalten, A5 Booklet, A2 Poster, Magazine Editorial mit Header-Strip) — Paper, Orientation, Margin, Columns, optional Base-Size |
 | **Fonts** | Drei Font-Slots (body / heading / code) plus Font-Browser. Jede Karte rendert die Familie + Beispielsatz live in den sieben gebuendelten OFL-Fonts |
 | **Scale** | Base-Size, Leading, Paragraph-Spacing, First-Line-Indent |
-| **Layout** | Paper, Orientation, Margin, Columns, Page-Numbering, Header-Markup, Footer-Markup, Page-Fill (Background-Color-Expression) |
+| **Layout** | Paper, Orientation, Margin, Columns, Page-Numbering, Header-Markup, Footer-Markup, Page-Fill (Background-Color-Expression). Header/Footer akzeptieren die Platzhalter `{chapter}` (aktueller H1-Titel) und `{section}` (aktueller H2-Titel) — z.B. `{chapter} · ISSUE 1` ergibt eine pro-Kapitel mitwandernde Running-Head. |
 | **Headings** | H1–H6 als collapsible Cards — Size, Weight, Color-Slot, Top-Margin pro Level; plus ein einziges Numbering-Pattern |
 | **Elements** | Blockquote, Code-Block, Figure (inkl. Photographer-Credit-Separator + Label fuer `figure-caption-credit(caption, credit)` Helper), Table — jede als collapsible Card mit strukturierten Feldern (Border-Slot / Padding / Italic-Toggle / Caption-Position / Zebra-Rows / etc.) |
 | **Custom Typst-Code** | Escape-Hatch: freier Typst-Code im CodeMirror-Editor. Wird ans Ende von `style.typ` in einen fenced Block angehaengt, der jede Regeneration ueberlebt |

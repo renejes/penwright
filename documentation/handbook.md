@@ -495,7 +495,7 @@ Every design decision lives in the **Design** sidebar tab. Click a theme to appl
 | **Layout presets** | Seven geometry swaps (A4 Portrait, A4 Landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial with header strip) — paper, orientation, margin, columns, optional base size |
 | **Fonts** | Three font slots (body / heading / code) plus a font browser. Each card live-renders its family + a sample line via the seven bundled OFL fonts |
 | **Scale** | Base size, leading, paragraph spacing, first-line indent |
-| **Layout** | Paper, orientation, margin, columns, page numbering, header markup, footer markup, page fill (background colour expression) |
+| **Layout** | Paper, orientation, margin, columns, page numbering, header markup, footer markup, page fill (background colour expression). Header/Footer accept `{chapter}` (current H1 title) and `{section}` (current H2 title) placeholders — e.g. `{chapter} · ISSUE 1` produces a per-chapter running head that follows the document. |
 | **Headings** | H1–H6 as collapsible cards — size, weight, colour slot, top margin per level; plus a single numbering pattern setting |
 | **Elements** | Blockquote, Code-Block, Figure (incl. photographer-credit separator + label for the `figure-caption-credit(caption, credit)` helper), Table — each a collapsible card with structured fields (border slot / padding / italic toggle / caption position / zebra rows / etc.) |
 | **Custom Typst-Code** | Escape hatch: free-form Typst inside a CodeMirror editor. Appended to `style.typ` inside a fenced block that survives every regeneration |
