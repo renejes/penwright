@@ -32,6 +32,10 @@ export type DesignElementId =
   | 'section-opener'
   | 'gallery-2up'
   | 'gallery-3up'
+  | 'gallery-asymmetric'
+  | 'image-overlay'
+  | 'stats-box'
+  | 'photo-caption-wrap'
   | 'magazine-cover';
 
 export interface DesignElementParam {
@@ -156,6 +160,40 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   #line(length: 25%, stroke: 0.5pt + style-colors.muted)
 ]
 #v(1.5em)
+`.trim(),
+  },
+
+  {
+    id: 'gallery-asymmetric',
+    name: 'Image Gallery (asymmetric)',
+    description: 'One large image on the left at ~2/3 width plus two smaller images stacked on the right — the classic editorial "hero + two supporting shots" pattern. Optional captions under each. All three paths must resolve relative to the document.',
+    params: [
+      { name: 'imageMain', description: 'Relative path to the large hero image on the left (e.g. "assets/main.jpg").', required: true, defaultValue: 'assets/photo-1.jpg' },
+      { name: 'imageTop', description: 'Relative path to the upper-right supporting image.', required: true, defaultValue: 'assets/photo-2.jpg' },
+      { name: 'imageBottom', description: 'Relative path to the lower-right supporting image.', required: true, defaultValue: 'assets/photo-3.jpg' },
+      { name: 'captionMain', description: 'Optional caption beneath the main image.', required: false, defaultValue: '' },
+      { name: 'captionTop', description: 'Optional caption beneath the upper-right image.', required: false, defaultValue: '' },
+      { name: 'captionBottom', description: 'Optional caption beneath the lower-right image.', required: false, defaultValue: '' },
+    ],
+    template: `
+#grid(
+  columns: (2fr, 1fr),
+  column-gutter: 0.8em,
+  row-gutter: 0.4em,
+  // left column: main image + its caption beneath
+  [
+    #image("{imageMain}", width: 100%)
+    {captionMain-cell}
+  ],
+  // right column: two stacked images with their captions
+  [
+    #image("{imageTop}", width: 100%)
+    {captionTop-cell}
+    #v(0.6em)
+    #image("{imageBottom}", width: 100%)
+    {captionBottom-cell}
+  ],
+)
 `.trim(),
   },
 
@@ -470,6 +508,23 @@ export function renderDesignElement(
         ? `text(size: 0.85em, fill: style-colors.muted, "${values.caption3.replace(/"/g, '\\"')}")`
         : '[]',
     },
+    'gallery-asymmetric': {
+      // Asymmetric layout's captions sit inline INSIDE markup blocks
+      // (not in their own grid cell), so the conditional form is a
+      // markup-content snippet rather than a positional grid argument.
+      'captionMain-cell': values.captionMain
+        ? `\n    #text(size: 0.85em, fill: style-colors.muted)[${values.captionMain}]`
+        : '',
+      'captionTop-cell': values.captionTop
+        ? `\n    #text(size: 0.85em, fill: style-colors.muted)[${values.captionTop}]`
+        : '',
+      'captionBottom-cell': values.captionBottom
+        ? `\n    #text(size: 0.85em, fill: style-colors.muted)[${values.captionBottom}]`
+        : '',
+    },
+    'image-overlay': {},
+    'stats-box': {},
+    'photo-caption-wrap': {},
     'magazine-cover': {
       'image-bg': values.image
         ? `#place(top + left, image("${values.image}", width: 100%, height: 100%, fit: "cover"))`
