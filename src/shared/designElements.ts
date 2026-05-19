@@ -160,6 +160,40 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'magazine-cover',
+    name: 'Magazine Cover',
+    description: 'Full-page magazine cover block: masthead title at the top, small uppercase issue label, large cover headline mid-page, optional subhead, date at the bottom. Optional background image fills the page edge-to-edge. Uses Typst\'s `#page(margin: 0pt)` so the cover gets zero margins for one page only — the rest of the document keeps its configured margins. Drop at the very top of main.typ before any chapter includes.',
+    params: [
+      { name: 'issue', description: 'Issue identifier — e.g. "ISSUE 42", "VOL. III · 2026", "AUTUMN 2026".', required: true, defaultValue: 'ISSUE 1' },
+      { name: 'title', description: 'Magazine masthead title — e.g. "NEUES LERNEN", "THE LOCAL PROJECT".', required: true, defaultValue: 'MAGAZINE' },
+      { name: 'headline', description: 'Cover-line — the main story-pull. 2–8 words.', required: true, defaultValue: 'The Quiet Architect' },
+      { name: 'subhead', description: 'Smaller cover-line beneath the headline. Empty = no subhead.', required: false, defaultValue: '' },
+      { name: 'date', description: 'Cover date — e.g. "November 2026".', required: false, defaultValue: 'November 2026' },
+      { name: 'image', description: 'Optional path to a cover image (relative to the document). If provided, fills the page behind the type. Empty = no background image.', required: false, defaultValue: '' },
+    ],
+    template: `
+#page(margin: 0pt)[
+  {image-bg}
+  #pad(x: 2cm, y: 2cm)[
+    #text(size: 4em, weight: "bold", tracking: 0.05em, fill: style-colors.primary, font: style-fonts.heading)[{title}]
+    #v(0.4em)
+    #text(size: 0.9em, weight: "bold", tracking: 0.15em, fill: style-colors.muted)[{issue}]
+
+    #v(1fr)
+
+    #text(size: 3em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[{headline}]
+    {subhead-block}
+
+    #v(1fr)
+
+    #text(size: 0.9em, fill: style-colors.muted)[{date}]
+  ]
+]
+#pagebreak(weak: true)
+`.trim(),
+  },
+
+  {
     id: 'gallery-2up',
     name: 'Image Gallery (2-up)',
     description: 'Two images side-by-side at equal column width, with optional captions below each. Use for paired photographs (before / after, two perspectives). Both image paths must resolve relative to the document (typically inside `assets/`).',
@@ -436,7 +470,14 @@ export function renderDesignElement(
         ? `text(size: 0.85em, fill: style-colors.muted, "${values.caption3.replace(/"/g, '\\"')}")`
         : '[]',
     },
-    'magazine-cover': {},
+    'magazine-cover': {
+      'image-bg': values.image
+        ? `#place(top + left, image("${values.image}", width: 100%, height: 100%, fit: "cover"))`
+        : '',
+      'subhead-block': values.subhead
+        ? `\n    #v(0.5em)\n    #text(size: 1.3em, style: "italic", fill: style-colors.text)[${values.subhead}]`
+        : '',
+    },
   };
 
   // Substitute conditional blocks first (some contain {placeholder}-style
