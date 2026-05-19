@@ -160,6 +160,47 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'pull-quote-display',
+    name: 'Display Pull-Quote',
+    description: 'Very large centered quote — no border, no italic. A monumental visual break in long-form articles, often a single striking sentence pulled from earlier in the body. Bigger and bolder than `pull-quote`; no decorative line.',
+    params: [
+      { name: 'text', description: 'The quoted text (no surrounding quotation marks needed).', required: true, defaultValue: 'A striking sentence.' },
+    ],
+    template: `
+#v(1.5em)
+#align(center)[
+  #text(size: 2.2em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[
+    "{text}"
+  ]
+]
+#v(1.5em)
+`.trim(),
+  },
+
+  {
+    id: 'pull-quote-block',
+    name: 'Block Pull-Quote',
+    description: 'Boxed pull-quote with subtle background fill and an accent-colored left bar. Use when the quote should feel "set apart" rather than monumentally large — fits 2-column magazine layouts particularly well.',
+    params: [
+      { name: 'text', description: 'The quoted text.', required: true, defaultValue: 'A striking sentence.' },
+      { name: 'attribution', description: 'Optional attribution shown below the quote. Empty = no attribution.', required: false, defaultValue: '' },
+    ],
+    template: `
+#v(1em)
+#block(
+  fill: style-colors.muted.lighten(85%),
+  stroke: (left: 4pt + style-colors.accent),
+  inset: (x: 1.2em, y: 1em),
+  radius: 3pt,
+)[
+  #text(size: 1.15em, style: "italic", fill: style-colors.text)["{text}"]
+  {attribution-block}
+]
+#v(1em)
+`.trim(),
+  },
+
+  {
     id: 'divider-asterisks',
     name: 'Divider (Asterisks)',
     description: 'Centered three-asterisk ornament. Use for soft section breaks within long-form articles where a thin rule would be too utilitarian — the classic editorial choice.',
@@ -265,7 +306,11 @@ export function renderDesignElement(
     'divider-asterisks': {},
     'divider-ornament': {},
     'pull-quote-display': {},
-    'pull-quote-block': {},
+    'pull-quote-block': {
+      'attribution-block': values.attribution
+        ? `\n  #v(0.4em)\n  #align(right)[#text(size: 0.9em, fill: style-colors.muted)[— ${values.attribution}]]`
+        : '',
+    },
     'article-opener': {},
     'section-opener': {},
     'gallery-2up': {},
