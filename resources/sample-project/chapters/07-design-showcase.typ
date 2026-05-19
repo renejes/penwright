@@ -351,3 +351,111 @@ A seventh layout preset, `magazine-editorial`, swaps to A4 portrait
 accent rule right). Pairs cleanly with the Editorial Magazine theme.
 Apply via the Design panel's Layout presets section, or programmatically
 with `vswrite_apply_layout({ presetId: "magazine-editorial" })`.
+
+== Lifestyle quick-wins (Round 5)
+
+A follow-up pass added four lifestyle / editorial elements: an
+asymmetric photo gallery, image-over-text overlays, a "By the numbers"
+stats sidebar, and a small photo with text flowing around it.
+
+=== Asymmetric gallery (`gallery-asymmetric`)
+
+The "one hero photo on the left, two supporting shots stacked on the
+right" pattern that lifestyle and architecture magazines use. The
+visual weight ratio is 2:1.
+
+#grid(
+  columns: (2fr, 1fr),
+  column-gutter: 0.8em,
+  row-gutter: 0.4em,
+  [
+    #rect(width: 100%, height: 6cm, fill: style-colors.accent.lighten(80%))
+    #text(size: 0.85em, fill: style-colors.muted)[The hero shot — first light over the highlands.]
+  ],
+  [
+    #rect(width: 100%, height: 2.8cm, fill: style-colors.primary.lighten(80%))
+    #text(size: 0.85em, fill: style-colors.muted)[Detail one.]
+    #v(0.6em)
+    #rect(width: 100%, height: 2.8cm, fill: style-colors.primary.lighten(80%))
+    #text(size: 0.85em, fill: style-colors.muted)[Detail two.]
+  ],
+)
+
+=== Image with text overlay (`image-overlay`)
+
+A tall block with an edge-to-edge image, a bottom gradient
+(transparent → 70% black), and headline + optional subtitle rendered
+in white over the gradient. Use as a section-opener with photo, or as
+a strong visual break mid-article.
+
+#block(
+  width: 100%,
+  height: 8cm,
+  clip: true,
+  radius: 3pt,
+)[
+  #place(top + left, rect(width: 100%, height: 100%, fill: gradient.linear(rgb("#7c1d1d"), rgb("#0f172a"), angle: 45deg)))
+  #place(bottom + left, dx: 0pt, dy: 0pt,
+    block(
+      width: 100%,
+      height: 50%,
+      fill: gradient.linear(rgb(0, 0, 0, 0%), rgb(0, 0, 0, 70%), angle: 90deg),
+    )
+  )
+  #place(bottom + left, dx: 1.2em, dy: -1em,
+    block(width: 90%)[
+      #text(size: 1.8em, weight: "bold", fill: white, font: "IBM Plex Sans")[Headline Over the Photo]
+      #v(0.3em)
+      #text(size: 1em, fill: white)[A short subtitle sits beneath the title.]
+    ]
+  )
+]
+
+=== Stats sidebar (`stats-box`)
+
+The "By the numbers" infographic — 3 or 4 large numbers with short
+labels, boxed and topped by an accent strip. Pairs well with feature
+articles where the headline claim deserves a quick-glance visual.
+
+#block(
+  fill: style-colors.muted.lighten(90%),
+  stroke: (top: 4pt + style-colors.accent),
+  inset: (x: 1.2em, y: 1.2em),
+  radius: 3pt,
+)[
+  #text(size: 0.8em, weight: "bold", tracking: 0.15em, fill: style-colors.accent)[BY THE NUMBERS]
+  #v(0.6em)
+  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: "IBM Plex Sans")[42]
+  #v(-0.4em)
+  #text(size: 0.85em, fill: style-colors.muted)[Years on the job]
+
+  #v(0.8em)
+  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: "IBM Plex Sans")[1.8M]
+  #v(-0.4em)
+  #text(size: 0.85em, fill: style-colors.muted)[Households reached]
+
+  #v(0.8em)
+  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: "IBM Plex Sans")[87%]
+  #v(-0.4em)
+  #text(size: 0.85em, fill: style-colors.muted)[Satisfaction rate]
+]
+
+=== Photo + wrapped caption (`photo-caption-wrap`)
+
+The museum-catalogue pattern — a small image floated to one side with
+a long-form caption that flows around it. The caption *is* the body
+text. Uses the bundled `wrap-it` package.
+
+#wrap-content(
+  align: left,
+  rect(width: 4.5cm, height: 5cm, fill: style-colors.accent.lighten(80%)),
+  [
+    Helen Lyon spent four decades reshaping how rural housing relates
+    to land. Born in the Tasmanian highlands, she trained at the AA in
+    London before returning home in 1981, where she founded a practice
+    focused on landscape-led residential design. Her best-known
+    commissions sit at the edge of national parks and farms — buildings
+    that disappear into the topography while remaining unmistakably
+    built. #text(style: "italic", fill: style-colors.muted)[— Photo: Maya Reidt]
+  ],
+)

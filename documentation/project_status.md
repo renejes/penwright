@@ -1,13 +1,13 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-19 (nach Session 23: Magazine-Polish-Pack — 9 neue Design-Elemente, 7. Layout-Preset `magazine-editorial`, `style-fonts` Modul-Export, Figure-Schema um `creditSeparator` + `creditLabel` erweitert, `figure-caption-credit` Helper, Sample-Showcase erweitert, MCP-Binary auf 0.7.0)
+> **Stand:** 2026-05-20 (nach Session 23.1: Lifestyle-Quick-Wins — 4 weitere Design-Elemente `gallery-asymmetric` / `image-overlay` / `stats-box` / `photo-caption-wrap`, Library jetzt 19 Snippets, MCP-Binary auf 0.7.1)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
 
 ## Zusammenfassung
 
-vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung, einen visuellen Design-Editor mit Themes / Palettes / Layouts / Fonts / 15 Design-Elementen, Claude Code Skills und einen MCP-Server mit 52 Tools fuer externe Agents.
+vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung, einen visuellen Design-Editor mit Themes / Palettes / Layouts / Fonts / 19 Design-Elementen, Claude Code Skills und einen MCP-Server mit 52 Tools fuer externe Agents.
 
 **Status Release-Readiness:**
 - Security gehaertet (Path Traversal + Symlink-Bypass + MCP-Pfade + verschluesselte Lizenz)
@@ -153,7 +153,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **Projekt & Dateien (5):** set_project, list_files, read_file, write_file, create_project
 - [x] **Dokument-Operationen (4):** get_document, open_file, update_document, **compile** (reiner Verifier — SVG-Mode entfernt, kein Output-Path; Artefakt-Schreiben uebernehmen die Export-Tools)
 - [x] **Settings (2):** get_settings, update_settings (nur lang + bibliographyStyle — alles andere lebt seit Phase A im Design-Block)
-- [x] **Design (11):** get_style, update_style, list_styles (6 Themes), apply_style, list_layouts (7 Presets), apply_layout, list_fonts, apply_palette, list_design_elements (15 Snippets), insert_design_element (anker-basiert, re-themed via `style-colors.*` / `style-fonts.*`), generate_layout (NL-Intent → Theme + Layout + optional Hero)
+- [x] **Design (11):** get_style, update_style, list_styles (6 Themes), apply_style, list_layouts (7 Presets), apply_layout, list_fonts, apply_palette, list_design_elements (19 Snippets), insert_design_element (anker-basiert, re-themed via `style-colors.*` / `style-fonts.*`), generate_layout (NL-Intent → Theme + Layout + optional Hero)
 - [x] **Kapitel & Struktur (6):** get_chapters, reorder_chapters, add_chapter, remove_chapter, merge_document, split_document
 - [x] **Bibliographie & Citations (3):** get_citations, add_citation, ensure_bibliography
 - [x] **Cross-References & Footnotes (3):** list_labels (gefiltert nach Typ), insert_reference (Label-Existenz-Check + Vorschlaege fuer aehnliche Labels, Auto-Space wenn vorheriger Char alphanumerisch), add_footnote (Klammer-Balance-Check auf Body)
@@ -279,6 +279,25 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 23.1 (2026-05-20) — Lifestyle Quick-Wins
+
+Vier weitere Design-Elemente fuer lifestyle-/magazine-grade Output, jedes als eigener Commit + Test-Compile. Library waechst 15 → **19** Snippets; keine Schema-Aenderungen, keine neuen MCP-Tools.
+
+1. **`gallery-asymmetric` (`38bf128`):** 1 grosses Bild links (2fr) + 2 kleine gestackt rechts (1fr) mit optionalen Captions pro Cell. Editorialer "Hero + 2 Supporting Shots"-Klassiker.
+2. **`image-overlay` (`838e9ee`):** Foto mit edge-to-edge fill, Gradient-Block (50% Hoehe, transparent → 70% schwarz) am Boden, weiss-Headline + optional Subtitle drueber. Section-Opener mit Foto, oder visueller Break mit Headline mitten im Artikel. `clip: true` damit das Bild nicht aus den runden Ecken bleedet.
+3. **`stats-box` (`983809b`):** "By the numbers"-Sidebar mit 3 oder 4 grossen Zahlen + kurzen Labels, oben Accent-Strip, Header optional. Trailing-positional `#stack(spacing, …)` war fragil bei leerer vierter Row, daher sequentielle Bloecke mit `#v()`-Spacing.
+4. **`photo-caption-wrap` (`3d99cf8`):** Kleines Bild floated links/rechts mit langer Caption flowed drumherum via `wrap-it`. Museumskatalog-Pattern — die Caption IST der Body. Konfigurierbares Side, Bildbreite, optionaler Photographer-Credit in Italics.
+
+**Wrap-up:**
+- `MCP_SETUP_VERSION` 0.7.0 → 0.7.1, Bun-Binary neu fuer beide Mac-Archs gebaut
+- Sample-Showcase (`chapters/07-design-showcase.typ`) um eine "Lifestyle quick-wins (Round 5)"-Section erweitert, die alle vier live demonstriert
+- Doku-Stragglers in handbuch.md / handbook.md / mcp-server.md / project_status.md aktualisiert (15 → 19 Snippets)
+
+**Bewusst weiter aufgehoben fuer eine spaetere Iteration:**
+- **Per-Chapter-Running-Heads** — braucht `#set page(header: context { let chap = query(...); … })` Typst-Logik plus eine UI-Lösung im Design-Panel oder Custom-Code-Snippet. Realistisch 1-2 Tage inkl. Doku.
+- **Magazine-TOC mit Thumbnails** — `#outline` ist relativ starr, jede Entry-Komposition aus Thumbnail + Title + Page-Number waere eine custom `outline.entry`-Show-Rule. Realistisch 3-5 Tage weil Image-pro-Heading mit dem Outline-Query verheiratet werden muesste.
+- Full-Bleed-Innenseiten, Marginalia, asymmetrische Mosaik-Grids (3+ Bilder) — siehe Round-4-Out-of-Scope-Liste.
 
 ### Session 23 (2026-05-19) — Magazine-Polish-Pack
 

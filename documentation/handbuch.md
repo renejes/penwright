@@ -512,7 +512,7 @@ Die Custom-Typst-Code-Section unten im Design-Panel akzeptiert beliebigen Typst 
 
 ### Design-Elemente (Library)
 
-Eine **15 Elemente** umfassende Library parametrischer Snippets — Banner, Sidebar, Pull-Quote (drei Varianten: regular / Display / Block), Callout, Hero, Section-Divider (drei Varianten: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image-Gallery 2-up und 3-up, Magazine-Cover. Sie werden ueber die MCP-Tools `vswrite_list_design_elements` / `vswrite_insert_design_element` von Claude Desktop aus eingefuegt; jede Referenz auf `style-colors.*` / `style-fonts.*` bedeutet das Element re-themed sich automatisch wenn du Palette oder Fonts wechselst. Der `magazine-cover` setzt `#page(margin: 0pt)` fuer die Coverseite — der Rest des Dokuments behaelt seine konfigurierten Raender. `style.typ` exportiert dafuer drei Modul-level Werte: `style-colors`, `style-fonts` und `figure-caption-credit(caption, credit)` (fuer Foto-Quellen-Captions).
+Eine **19 Elemente** umfassende Library parametrischer Snippets — Banner, Sidebar, Pull-Quote (drei Varianten: regular / Display / Block), Callout, Hero, Section-Divider (drei Varianten: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image-Gallery 2-up / 3-up / asymmetric (1 gross + 2 klein), Image-Overlay (Foto mit Gradient + Headline drueber), Stats-Box ("By the numbers"-Sidebar), Photo-Caption-Wrap (kleines Foto mit Caption drumherum via wrap-it), Magazine-Cover. Sie werden ueber die MCP-Tools `vswrite_list_design_elements` / `vswrite_insert_design_element` von Claude Desktop aus eingefuegt; jede Referenz auf `style-colors.*` / `style-fonts.*` bedeutet das Element re-themed sich automatisch wenn du Palette oder Fonts wechselst. Der `magazine-cover` setzt `#page(margin: 0pt)` fuer die Coverseite — der Rest des Dokuments behaelt seine konfigurierten Raender. `style.typ` exportiert dafuer drei Modul-level Werte: `style-colors`, `style-fonts` und `figure-caption-credit(caption, credit)` (fuer Foto-Quellen-Captions).
 
 ### Gebuendelte OFL-Fonts (offline-tauglich)
 
@@ -736,7 +736,7 @@ Die KI kann ueber den MCP-Server (52 Tools):
 - Versionen speichern / auflisten / anzeigen / wiederherstellen — im selben Vokabular wie das Project-Panel
 - PDF und DOCX exportieren (DOCX mit echten Word-Styles + Live-Multilevel-Numbering)
 - Markdown importieren und Bilder einfuegen (Content-Hash-Dedup + Figure-Builder)
-- Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (15 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries, Magazine-Cover) anker-basiert einfuegen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
+- Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (19 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries inkl. asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover) anker-basiert einfuegen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
 - Zwischen Projekten wechseln, Git-Operationen ausfuehren, Skill-Prompts abfragen (typst-reference / vswrite-conventions / research-workflow / writing-style / design-conventions)
 
 ### Einrichtung: Auto-Setup-Wizard (macOS)
@@ -870,7 +870,7 @@ Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.vswr
 - `vswrite_apply_layout` — Tauscht nur `layout.*` (+ optional `scale.base`) — Theme, Farben, Fonts bleiben.
 - `vswrite_list_fonts` — Liefert die sieben gebuendelten OFL-Fonts mit family / category / description.
 - `vswrite_apply_palette` — Setzt die 5-Farb-Palette via `presetId` oder per-Slot-Hex-Overrides (kombinierbar).
-- `vswrite_list_design_elements` — Library der **15** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up, Magazine-Cover.
+- `vswrite_list_design_elements` — Library der **19** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover.
 - `vswrite_insert_design_element` — Fuegt ein Element an einem Anker ein; Snippets referenzieren `style-colors.*` / `style-fonts.*` und re-themen automatisch.
 - `vswrite_generate_layout` — Hoch-Level-NL-Komposit: `intent: "magazine"` waehlt z.B. Editorial-Theme + Magazine-Editorial-Layout + optionalen Hero.
 
