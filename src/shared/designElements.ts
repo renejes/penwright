@@ -164,6 +164,41 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'image-overlay',
+    name: 'Image with text overlay',
+    description: 'A photo at full column-width with a dark gradient at the bottom and title + optional subtitle rendered in white over the gradient. The editorial "section opener with photo" pattern — also works as an inline visual break that carries a headline. Image path must resolve relative to the document.',
+    params: [
+      { name: 'image', description: 'Relative path to the background image (e.g. "assets/hero.jpg").', required: true, defaultValue: 'assets/hero.jpg' },
+      { name: 'title', description: 'Headline text rendered in white over the photo, near the bottom.', required: true, defaultValue: 'Headline Over the Photo' },
+      { name: 'subtitle', description: 'Optional smaller text beneath the title. Empty = no subtitle.', required: false, defaultValue: '' },
+      { name: 'height', description: 'Block height as a Typst length (e.g. "12cm", "60%"). Defaults to 12cm — tall enough for impact, short enough to leave room for body text.', required: false, defaultValue: '12cm' },
+    ],
+    template: `
+#block(
+  width: 100%,
+  height: {height},
+  clip: true,
+  radius: 3pt,
+)[
+  #place(top + left, image("{image}", width: 100%, height: 100%, fit: "cover"))
+  #place(bottom + left, dx: 0pt, dy: 0pt,
+    block(
+      width: 100%,
+      height: 50%,
+      fill: gradient.linear(rgb(0, 0, 0, 0%), rgb(0, 0, 0, 70%), angle: 90deg),
+    )
+  )
+  #place(bottom + left, dx: 1.2em, dy: -1em,
+    block(width: 90%)[
+      #text(size: 2em, weight: "bold", fill: white, font: style-fonts.heading)[{title}]
+      {subtitle-block}
+    ]
+  )
+]
+`.trim(),
+  },
+
+  {
     id: 'gallery-asymmetric',
     name: 'Image Gallery (asymmetric)',
     description: 'One large image on the left at ~2/3 width plus two smaller images stacked on the right — the classic editorial "hero + two supporting shots" pattern. Optional captions under each. All three paths must resolve relative to the document.',
@@ -522,7 +557,11 @@ export function renderDesignElement(
         ? `\n    #text(size: 0.85em, fill: style-colors.muted)[${values.captionBottom}]`
         : '',
     },
-    'image-overlay': {},
+    'image-overlay': {
+      'subtitle-block': values.subtitle
+        ? `\n      #v(0.4em)\n      #text(size: 1.1em, fill: white)[${values.subtitle}]`
+        : '',
+    },
     'stats-box': {},
     'photo-caption-wrap': {},
     'magazine-cover': {
