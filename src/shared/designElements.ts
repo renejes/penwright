@@ -160,6 +160,54 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'gallery-2up',
+    name: 'Image Gallery (2-up)',
+    description: 'Two images side-by-side at equal column width, with optional captions below each. Use for paired photographs (before / after, two perspectives). Both image paths must resolve relative to the document (typically inside `assets/`).',
+    params: [
+      { name: 'image1', description: 'Relative path to the first image, e.g. "assets/photo-1.jpg".', required: true, defaultValue: 'assets/photo-1.jpg' },
+      { name: 'image2', description: 'Relative path to the second image.', required: true, defaultValue: 'assets/photo-2.jpg' },
+      { name: 'caption1', description: 'Optional caption beneath the first image. Empty = no caption.', required: false, defaultValue: '' },
+      { name: 'caption2', description: 'Optional caption beneath the second image. Empty = no caption.', required: false, defaultValue: '' },
+    ],
+    template: `
+#grid(
+  columns: (1fr, 1fr),
+  column-gutter: 1em,
+  row-gutter: 0.4em,
+  image("{image1}", width: 100%),
+  image("{image2}", width: 100%),
+  {caption1-cell},
+  {caption2-cell},
+)
+`.trim(),
+  },
+
+  {
+    id: 'gallery-3up',
+    name: 'Image Gallery (3-up)',
+    description: 'Three images side-by-side at equal column width. Use for triptychs or short series. All three image paths must resolve relative to the document.',
+    params: [
+      { name: 'image1', description: 'Relative path to the first image.', required: true, defaultValue: 'assets/photo-1.jpg' },
+      { name: 'image2', description: 'Relative path to the second image.', required: true, defaultValue: 'assets/photo-2.jpg' },
+      { name: 'image3', description: 'Relative path to the third image.', required: true, defaultValue: 'assets/photo-3.jpg' },
+      { name: 'caption1', description: 'Optional caption beneath the first image.', required: false, defaultValue: '' },
+      { name: 'caption2', description: 'Optional caption beneath the second image.', required: false, defaultValue: '' },
+      { name: 'caption3', description: 'Optional caption beneath the third image.', required: false, defaultValue: '' },
+    ],
+    template: `
+#grid(
+  columns: (1fr, 1fr, 1fr),
+  column-gutter: 0.8em,
+  row-gutter: 0.4em,
+  image("{image1}", width: 100%),
+  image("{image2}", width: 100%),
+  image("{image3}", width: 100%),
+  {caption1-cell}, {caption2-cell}, {caption3-cell},
+)
+`.trim(),
+  },
+
+  {
     id: 'section-opener',
     name: 'Section Opener',
     description: 'Full-page typographic moment between articles or major sections. Inserts a pagebreak before, centers a small uppercase title plus a large subtitle plus a short accent rule, then a pagebreak after. The result is a single dedicated page you would see in a magazine between feature sections.',
@@ -369,8 +417,25 @@ export function renderDesignElement(
         : '',
     },
     'section-opener': {},
-    'gallery-2up': {},
-    'gallery-3up': {},
+    'gallery-2up': {
+      'caption1-cell': values.caption1
+        ? `text(size: 0.85em, fill: style-colors.muted, "${values.caption1.replace(/"/g, '\\"')}")`
+        : '[]',
+      'caption2-cell': values.caption2
+        ? `text(size: 0.85em, fill: style-colors.muted, "${values.caption2.replace(/"/g, '\\"')}")`
+        : '[]',
+    },
+    'gallery-3up': {
+      'caption1-cell': values.caption1
+        ? `text(size: 0.85em, fill: style-colors.muted, "${values.caption1.replace(/"/g, '\\"')}")`
+        : '[]',
+      'caption2-cell': values.caption2
+        ? `text(size: 0.85em, fill: style-colors.muted, "${values.caption2.replace(/"/g, '\\"')}")`
+        : '[]',
+      'caption3-cell': values.caption3
+        ? `text(size: 0.85em, fill: style-colors.muted, "${values.caption3.replace(/"/g, '\\"')}")`
+        : '[]',
+    },
     'magazine-cover': {},
   };
 
