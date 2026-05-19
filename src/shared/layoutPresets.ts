@@ -107,6 +107,23 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
     baseSize: '10pt',
   },
   {
+    id: 'magazine-editorial',
+    name: 'Magazine Editorial',
+    description: 'A4 portrait, 2 columns, with an editorial header strip that prints the section / issue label across every page next to a short accent rule. Pairs naturally with the Editorial Magazine theme and the Magazine Cover element.',
+    bestFor: 'Editorial magazines, long-form features, design publications',
+    layout: {
+      paper: 'a4',
+      orientation: 'portrait',
+      margin: '2.2cm',
+      columns: 2,
+      pageNumbering: '1',
+      pageHeader: '#text(size: 0.85em, tracking: 0.1em, fill: style-colors.muted)[NEUES LERNEN  ·  ISSUE 1] #h(1fr) #line(length: 1.5cm, stroke: 0.5pt + style-colors.accent)',
+      pageFooter: '',
+      pageFill: '',
+    },
+    baseSize: '10.5pt',
+  },
+  {
     id: 'a2-poster',
     name: 'A2 Poster',
     description: 'Large A2 portrait with generous margins. Body type scales up to 14 pt.',
