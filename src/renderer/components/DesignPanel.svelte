@@ -1116,8 +1116,8 @@
 
   .palette-color-input {
     width: 96px;
-    height: 28px;
-    padding: 4px 6px;
+    height: 24px;
+    padding: 2px 6px;
     border: 1px solid #ddd;
     border-radius: 4px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1700,9 +1700,9 @@
 
   :global(.clr-field button) {
     border-radius: 3px;
-    width: 22px;
-    height: 22px;
-    top: 3px;
-    right: 3px;
+    width: 18px;
+    height: 18px;
+    top: 2px;
+    right: 2px;
   }
 </style>
