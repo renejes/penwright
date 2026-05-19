@@ -164,6 +164,47 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'stats-box',
+    name: 'Stats / "By the numbers" box',
+    description: 'A magazine-style sidebar of 3 or 4 large numbers with short labels — the classic "By the numbers" infographic that appears next to a feature article. Each number renders large in the primary colour with a muted label beneath. Optional header strip at the top.',
+    params: [
+      { name: 'header', description: 'Optional uppercase header above the stats — e.g. "BY THE NUMBERS", "THE FACTS". Empty = no header.', required: false, defaultValue: 'BY THE NUMBERS' },
+      { name: 'number1', description: 'First big number — short string, anything that fits visually (e.g. "42", "1.8M", "87%").', required: true, defaultValue: '42' },
+      { name: 'label1', description: 'Short label beneath the first number.', required: true, defaultValue: 'Years on the job' },
+      { name: 'number2', description: 'Second big number.', required: true, defaultValue: '1.8M' },
+      { name: 'label2', description: 'Short label beneath the second number.', required: true, defaultValue: 'Households reached' },
+      { name: 'number3', description: 'Third big number.', required: true, defaultValue: '87%' },
+      { name: 'label3', description: 'Short label beneath the third number.', required: true, defaultValue: 'Satisfaction rate' },
+      { name: 'number4', description: 'Optional fourth big number. Empty = only three rows.', required: false, defaultValue: '' },
+      { name: 'label4', description: 'Optional fourth label.', required: false, defaultValue: '' },
+    ],
+    template: `
+#block(
+  fill: style-colors.muted.lighten(90%),
+  stroke: (top: 4pt + style-colors.accent),
+  inset: (x: 1.2em, y: 1.2em),
+  radius: 3pt,
+)[
+  {header-block}
+  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[{number1}]
+  #v(-0.4em)
+  #text(size: 0.85em, fill: style-colors.muted)[{label1}]
+
+  #v(0.8em)
+  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[{number2}]
+  #v(-0.4em)
+  #text(size: 0.85em, fill: style-colors.muted)[{label2}]
+
+  #v(0.8em)
+  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[{number3}]
+  #v(-0.4em)
+  #text(size: 0.85em, fill: style-colors.muted)[{label3}]
+  {row4-block}
+]
+`.trim(),
+  },
+
+  {
     id: 'image-overlay',
     name: 'Image with text overlay',
     description: 'A photo at full column-width with a dark gradient at the bottom and title + optional subtitle rendered in white over the gradient. The editorial "section opener with photo" pattern — also works as an inline visual break that carries a headline. Image path must resolve relative to the document.',
@@ -562,7 +603,14 @@ export function renderDesignElement(
         ? `\n      #v(0.4em)\n      #text(size: 1.1em, fill: white)[${values.subtitle}]`
         : '',
     },
-    'stats-box': {},
+    'stats-box': {
+      'header-block': values.header
+        ? `#text(size: 0.8em, weight: "bold", tracking: 0.15em, fill: style-colors.accent)[${values.header}]\n  #v(0.6em)\n  `
+        : '',
+      'row4-block': (values.number4 && values.label4)
+        ? `\n\n  #v(0.8em)\n  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[${values.number4}]\n  #v(-0.4em)\n  #text(size: 0.85em, fill: style-colors.muted)[${values.label4}]`
+        : '',
+    },
     'photo-caption-wrap': {},
     'magazine-cover': {
       'image-bg': values.image
