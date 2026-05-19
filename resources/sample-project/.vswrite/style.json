@@ -86,7 +86,9 @@
       "captionSize": "9pt",
       "captionColor": "muted",
       "captionAlign": "left",
-      "captionSeparator": ": "
+      "captionSeparator": ": ",
+      "creditSeparator": " — ",
+      "creditLabel": "Photo: "
     },
     "table": {
       "headerBackground": "primary",

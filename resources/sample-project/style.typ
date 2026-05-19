@@ -21,6 +21,16 @@
   muted:      rgb("#64748b"),
 )
 
+#let style-fonts = (
+  body:    "Crimson Pro",
+  heading: "IBM Plex Sans",
+  code:    "IBM Plex Mono",
+)
+
+#let _credit-sep   = " — "
+#let _credit-label = "Photo: "
+#let figure-caption-credit(caption, credit) = [#caption#text(style: "italic", fill: style-colors.muted)[#_credit-sep#_credit-label#credit]]
+
 #let apply-style(body) = {
   set page(paper: "a4", margin: 2.5cm, fill: style-colors.background, numbering: "1")
   set text(font: "Crimson Pro", size: 11pt, fill: style-colors.text)
