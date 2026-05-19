@@ -77,6 +77,25 @@ function escapeQuotedString(value: string): string {
  * a Typst rgb literal. Falls back to white on parse failure — the schema
  * sanitizer already restricts inputs to hex, so this is defensive.
  */
+/**
+ * Replaces `{chapter}` / `{section}` placeholders in header/footer
+ * markup strings with calls to the `chapter-name()` / `section-name()`
+ * helpers emitted at module level in `style.typ`. Anything else passes
+ * through unchanged — users can still write raw Typst markup in the
+ * header (`#h(1fr)`, `#counter(page).display()`, etc.) and mix in the
+ * placeholders wherever they want the running-head info.
+ *
+ * Why placeholders and not raw `#chapter-name()` calls in the input:
+ * keeps the DesignPanel's free-text input UX-friendly. The user types
+ * `{chapter} · ISSUE 1` and doesn't need to know Typst's `#` syntax
+ * for function calls inside `[...]` markup.
+ */
+function substituteRunningHeadPlaceholders(markup: string): string {
+  return markup
+    .replace(/\{chapter\}/g, '#chapter-name()')
+    .replace(/\{section\}/g, '#section-name()');
+}
+
 function colorLiteral(hex: string): string {
   const m = hex.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
   if (!m) return 'rgb("#ffffff")';
@@ -139,6 +158,25 @@ export function generateStyleTypst(style: ProjectStyle): string {
     push();
   }
 
+  // ─── chapter-name() / section-name() helpers for per-chapter
+  // running heads. Header / footer markup-strings can use
+  // `{chapter}` / `{section}` and the generator substitutes them
+  // with these calls. Implementation pattern: query all top-level
+  // headings, filter to ones on or before the current page, take
+  // the last one. Returns the heading's body or an empty content
+  // block if there's no heading yet on this page or any prior page.
+  push('#let chapter-name() = context {');
+  push('  let here-loc = here()');
+  push('  let chapters = query(heading.where(level: 1)).filter(it => it.location().page() <= here-loc.page())');
+  push('  if chapters.len() > 0 { chapters.last().body } else { [] }');
+  push('}');
+  push('#let section-name() = context {');
+  push('  let here-loc = here()');
+  push('  let sections = query(heading.where(level: 2)).filter(it => it.location().page() <= here-loc.page())');
+  push('  if sections.len() > 0 { sections.last().body } else { [] }');
+  push('}');
+  push();
+
   // ─── apply-style(body) — wraps the document with all the rules ──
   // In Typst, #set rules from an #include'd file do NOT propagate to the
   // includer's scope. The idiomatic way to apply a set of rules across a
@@ -165,10 +203,10 @@ export function generateStyleTypst(style: ProjectStyle): string {
     pageProps.push(`numbering: "${escapeQuotedString(style.layout.pageNumbering)}"`);
   }
   if (style.layout.pageHeader.trim()) {
-    pageProps.push(`header: [${style.layout.pageHeader}]`);
+    pageProps.push(`header: [${substituteRunningHeadPlaceholders(style.layout.pageHeader)}]`);
   }
   if (style.layout.pageFooter.trim()) {
-    pageProps.push(`footer: [${style.layout.pageFooter}]`);
+    pageProps.push(`footer: [${substituteRunningHeadPlaceholders(style.layout.pageFooter)}]`);
   }
   bpush(`  set page(${pageProps.join(', ')})`);
 

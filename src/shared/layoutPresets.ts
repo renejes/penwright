@@ -117,7 +117,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
       margin: '2.2cm',
       columns: 2,
       pageNumbering: '1',
-      pageHeader: '#text(size: 0.85em, tracking: 0.1em, fill: style-colors.muted)[NEUES LERNEN  ·  ISSUE 1] #h(1fr) #line(length: 1.5cm, stroke: 0.5pt + style-colors.accent)',
+      pageHeader: '#text(size: 0.85em, tracking: 0.1em, fill: style-colors.muted)[{chapter}  ·  ISSUE 1] #h(1fr) #line(length: 1.5cm, stroke: 0.5pt + style-colors.accent)',
       pageFooter: '',
       pageFill: '',
     },

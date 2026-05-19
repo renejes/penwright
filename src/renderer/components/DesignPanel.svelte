@@ -656,10 +656,11 @@
         <input
           type="text"
           bind:value={style.layout.pageHeader}
-          placeholder="z.B. My Document Title"
+          placeholder={'z.B. {chapter} · ISSUE 1'}
           spellcheck="false"
         />
       </label>
+      <p class="design-hint">Use <code>{'{chapter}'}</code> for the current H1 title, <code>{'{section}'}</code> for the H2. Raw Typst (<code>#h(1fr)</code>, <code>#counter(page).display()</code>) also works.</p>
 
       <label class="design-field">
         <span>Footer</span>
@@ -670,6 +671,7 @@
           spellcheck="false"
         />
       </label>
+      <p class="design-hint"><code>{'{chapter}'}</code> / <code>{'{section}'}</code> placeholders work here too.</p>
 
       <label class="design-field">
         <span>Page background</span>
@@ -1074,6 +1076,23 @@
     padding: 1px 4px;
     border-radius: 3px;
     font-size: 10px;
+  }
+
+  /* Sits directly under a .design-field input — narrower, tighter than
+     the .design-section-hint that lives next to a section header. */
+  .design-hint {
+    font-size: 10px;
+    color: #888;
+    line-height: 1.4;
+    margin: -4px 0 8px 0;
+  }
+
+  .design-hint code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-size: 9.5px;
   }
 
   /* Palette */
