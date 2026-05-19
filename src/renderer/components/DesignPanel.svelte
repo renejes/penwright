@@ -900,6 +900,14 @@
               <span>Separator</span>
               <input type="text" bind:value={style.elements.figure.captionSeparator} placeholder=": " spellcheck="false" />
             </label>
+            <label class="design-field">
+              <span>Credit separator</span>
+              <input type="text" bind:value={style.elements.figure.creditSeparator} placeholder=" — " spellcheck="false" maxlength="16" />
+            </label>
+            <label class="design-field">
+              <span>Credit label</span>
+              <input type="text" bind:value={style.elements.figure.creditLabel} placeholder="Photo: " spellcheck="false" maxlength="16" />
+            </label>
           </div>
         {/if}
       </div>

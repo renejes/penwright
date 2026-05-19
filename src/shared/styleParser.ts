@@ -127,6 +127,18 @@ export function generateStyleTypst(style: ProjectStyle): string {
   push(')');
   push();
 
+  // ─── figure-caption-credit helper (module level so chapter files that
+  // #import it via "style.typ" can use it). Concatenates a caption with
+  // a styled photographer / source credit. Uses the configured separator
+  // + label so renaming "Photo:" to "By " is a one-line style edit.
+  {
+    const f = style.elements.figure;
+    push(`#let _credit-sep   = "${escapeQuotedString(f.creditSeparator)}"`);
+    push(`#let _credit-label = "${escapeQuotedString(f.creditLabel)}"`);
+    push('#let figure-caption-credit(caption, credit) = [#caption#text(style: "italic", fill: style-colors.' + f.captionColor + ')[#_credit-sep#_credit-label#credit]]');
+    push();
+  }
+
   // ─── apply-style(body) — wraps the document with all the rules ──
   // In Typst, #set rules from an #include'd file do NOT propagate to the
   // includer's scope. The idiomatic way to apply a set of rules across a

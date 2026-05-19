@@ -151,6 +151,17 @@ export interface StyleFigure {
   captionAlign: 'left' | 'center' | 'right';
   /** Separator between the auto-numbering and the caption text — e.g. ": ", " — ". */
   captionSeparator: string;
+  /**
+   * Separator string between a figure caption and its photographer credit
+   * inside the `figure-caption-credit(caption, credit)` helper that style.typ
+   * exposes. E.g. " — ", " · ". Capped at 16 chars.
+   */
+  creditSeparator: string;
+  /**
+   * Prefix label for the credit. E.g. "Photo: ", "By ", "Image: ". Empty
+   * string = no label, just the separator + credit. Capped at 16 chars.
+   */
+  creditLabel: string;
 }
 
 export interface StyleTable {
@@ -260,6 +271,8 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
       captionColor: 'muted',
       captionAlign: 'left',
       captionSeparator: ': ',
+      creditSeparator: ' — ',
+      creditLabel: 'Photo: ',
     },
     table: {
       headerBackground: 'primary',
@@ -401,6 +414,8 @@ function sanitizeFigure(raw: unknown, fallback: StyleFigure): StyleFigure {
     captionColor:     pickColorSlot(r.captionColor, fallback.captionColor),
     captionAlign:     pickEnum(r.captionAlign, ['left', 'center', 'right'] as const, fallback.captionAlign),
     captionSeparator: pickFreeString(r.captionSeparator, fallback.captionSeparator, 16),
+    creditSeparator:  pickFreeString(r.creditSeparator, fallback.creditSeparator, 16),
+    creditLabel:      pickFreeString(r.creditLabel, fallback.creditLabel, 16),
   };
 }
 
