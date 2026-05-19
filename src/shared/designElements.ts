@@ -160,6 +160,31 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'section-opener',
+    name: 'Section Opener',
+    description: 'Full-page typographic moment between articles or major sections. Inserts a pagebreak before, centers a small uppercase title plus a large subtitle plus a short accent rule, then a pagebreak after. The result is a single dedicated page you would see in a magazine between feature sections.',
+    params: [
+      { name: 'title', description: 'Small uppercase label at the top of the page. E.g. "PART TWO", "CHAPTER III", "FEATURE".', required: false, defaultValue: 'PART TWO' },
+      { name: 'subtitle', description: 'Large display text — the actual title of the section. Usually 2–5 words.', required: true, defaultValue: 'After the Storm' },
+    ],
+    template: `
+#pagebreak(weak: true)
+
+#v(1fr)
+#align(center)[
+  #text(size: 0.85em, weight: "bold", tracking: 0.12em, fill: style-colors.muted)[{title}]
+  #v(0.6em)
+  #text(size: 3.5em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[{subtitle}]
+  #v(0.8em)
+  #line(length: 12%, stroke: 1pt + style-colors.accent)
+]
+#v(1fr)
+
+#pagebreak(weak: true)
+`.trim(),
+  },
+
+  {
     id: 'article-opener',
     name: 'Article Opener',
     description: 'The masthead block at the top of an article: small uppercase kicker (category label), large display headline, lead paragraph (standfirst), byline. Drop in at the very top of an article to give it the magazine-magazine feel. NOTE: the headline is wrapped in a level-1 heading so it still appears in the outline / TOC. Don\'t pair with a separate H1.',
