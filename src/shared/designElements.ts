@@ -164,6 +164,28 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'photo-caption-wrap',
+    name: 'Photo with wrapped caption',
+    description: 'A small image floated to the left or right with a long-form caption flowing alongside it — the museum-catalogue / design-magazine pattern where the caption itself is the body text. Uses the bundled `wrap-it` package. Best for portraits beside a biography, an object next to its provenance text, or a chart next to its discussion.',
+    params: [
+      { name: 'image', description: 'Relative path to the image (e.g. "assets/portrait.jpg").', required: true, defaultValue: 'assets/portrait.jpg' },
+      { name: 'caption', description: 'Long-form caption text that wraps around the image. Plain text or Typst markup.', required: true, defaultValue: 'The caption flows alongside the image and can run several sentences long.' },
+      { name: 'side', description: 'Which side the image floats on — "left" or "right".', required: false, defaultValue: 'left' },
+      { name: 'width', description: 'Image width as a Typst length (e.g. "4.5cm", "35%"). Defaults to 4.5cm.', required: false, defaultValue: '4.5cm' },
+      { name: 'credit', description: 'Optional photographer credit appended in italics at the end of the caption.', required: false, defaultValue: '' },
+    ],
+    template: `
+#import "@preview/wrap-it:0.1.1": wrap-content
+
+#wrap-content(
+  align: {side},
+  image("{image}", width: {width}),
+  [{caption}{credit-block}],
+)
+`.trim(),
+  },
+
+  {
     id: 'stats-box',
     name: 'Stats / "By the numbers" box',
     description: 'A magazine-style sidebar of 3 or 4 large numbers with short labels — the classic "By the numbers" infographic that appears next to a feature article. Each number renders large in the primary colour with a muted label beneath. Optional header strip at the top.',
@@ -611,7 +633,11 @@ export function renderDesignElement(
         ? `\n\n  #v(0.8em)\n  #text(size: 2.4em, weight: "bold", fill: style-colors.primary, font: style-fonts.heading)[${values.number4}]\n  #v(-0.4em)\n  #text(size: 0.85em, fill: style-colors.muted)[${values.label4}]`
         : '',
     },
-    'photo-caption-wrap': {},
+    'photo-caption-wrap': {
+      'credit-block': values.credit
+        ? ` #text(style: "italic", fill: style-colors.muted)[— Photo: ${values.credit}]`
+        : '',
+    },
     'magazine-cover': {
       'image-bg': values.image
         ? `#place(top + left, image("${values.image}", width: 100%, height: 100%, fit: "cover"))`
