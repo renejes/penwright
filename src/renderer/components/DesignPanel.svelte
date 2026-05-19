@@ -1702,7 +1702,8 @@
     border-radius: 3px;
     width: 18px;
     height: 18px;
-    top: 2px;
-    right: 2px;
+    /* Vertically centered inside the 24px-tall input: (24 - 18) / 2 = 3 */
+    top: 3px;
+    right: 3px;
   }
 </style>
