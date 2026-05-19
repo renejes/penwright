@@ -160,6 +160,36 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   },
 
   {
+    id: 'divider-asterisks',
+    name: 'Divider (Asterisks)',
+    description: 'Centered three-asterisk ornament. Use for soft section breaks within long-form articles where a thin rule would be too utilitarian — the classic editorial choice.',
+    params: [],
+    template: `
+#v(1.5em)
+#align(center)[
+  #text(size: 1.4em, fill: style-colors.muted, tracking: 0.4em)[\\* \\* \\*]
+]
+#v(1.5em)
+`.trim(),
+  },
+
+  {
+    id: 'divider-ornament',
+    name: 'Divider (Ornament)',
+    description: 'Centered single-character typographic ornament (❦ by default). Use sparingly — at most once per article — as a visual signature for major scene transitions.',
+    params: [
+      { name: 'glyph', description: 'The ornament character. Default ❦. Other good choices: ※, ✦, ☙, ⁂.', required: false, defaultValue: '❦' },
+    ],
+    template: `
+#v(1.5em)
+#align(center)[
+  #text(size: 1.6em, fill: style-colors.accent)[{glyph}]
+]
+#v(1.5em)
+`.trim(),
+  },
+
+  {
     id: 'drop-cap',
     name: 'Drop Cap',
     description: 'Large decorative initial letter wrapping the first lines of a paragraph. Use sparingly — one per long-form opener, never multiple in the same section. Uses the bundled `droplet` package; the first character of `body` automatically becomes the cap.',
