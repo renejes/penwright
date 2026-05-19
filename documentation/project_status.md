@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-17 (nach Session 22: Design-Editor Phasen B+C+D komplett — Color-Palette + 7 OFL-Fonts, Konsolidierung, H1–H6 + Special-Elements, 6 Theme-Presets, 6 Layout-Presets inkl. orientation, 9 MCP-Design-Tools, Design-Element-Library, 5. Skill `design-conventions`, Generator-Fix `#show: apply-style`, Sample-Projekt um Design-Showcase erweitert)
+> **Stand:** 2026-05-19 (nach Session 23: Magazine-Polish-Pack — 9 neue Design-Elemente, 7. Layout-Preset `magazine-editorial`, `style-fonts` Modul-Export, Figure-Schema um `creditSeparator` + `creditLabel` erweitert, `figure-caption-credit` Helper, Sample-Showcase erweitert, MCP-Binary auf 0.7.0)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -278,6 +278,39 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 23 (2026-05-19) — Magazine-Polish-Pack
+
+**Strategischer Kontext:** Der Design-Editor (Phasen A–D, Session 22) deckt das Standard-Repertoire ab — Themes, Palettes, Layouts, Headings, vier Elements. Für editorial-magazine-grade Output (Neues Lernen, The Local Project) fehlten noch gezielte Bausteine. Plan: [done/magazine-polish-plan.md](done/magazine-polish-plan.md), Audience zu ~100% AI (Claude Desktop via MCP), also Lego-Block-First.
+
+**Geliefert in 12 reverbaren Commits:**
+
+1. **Drop Cap + `style-fonts` Cross-Cutting (`6797e5b`):** Neuer `drop-cap` Design-Element, wrappt das gebundelte `droplet`-Paket. **Wichtige Generator-Erweiterung:** `style.typ` exportiert jetzt `style-fonts` (body/heading/code) als Modul-level Dict neben `style-colors` — Design-Elemente referenzieren `style-fonts.heading` statt einen Font-Namen ins Template einzubacken. Themes-Swap aktualisiert Typografie automatisch. **Plan-Abweichung:** Drop-Cap-Template hat nur einen `body`-Param (statt `letter` + `body` separat) — der Plan-Vorschlag `[*{letter}*{body}]` schlägt fehl, weil Typsts `*`-Strong-Markup einen Word-Boundary am schließenden `*` braucht und `*T*his` als unclosed delimiter parst; droplet's Auto-Extract des ersten Body-Zeichens ist robuster.
+2. **Editorial-Divider-Varianten (`6255916`):** `divider-asterisks` (zentrierte `* * *`, klassisch) + `divider-ornament` (Single-Glyph, default ❦, parametrisierbar).
+3. **Pull-Quote-Varianten (`15dffaf`):** `pull-quote-display` (monumental, 2.2em bold, keine Dekoration) + `pull-quote-block` (boxed inline mit accent bar + optional Attribution).
+4. **Article-Opener (`85d4fda`):** Kicker / Headline / Standfirst / Byline. **Headline wird in `#heading(level: 1, outlined: true, numbering: none)` gewrappt**, damit sie in der Outline/TOC erscheint — Designer-Article behält damit seinen Platz in der Struktur.
+5. **Section-Opener (`37ec55b`):** Full-page typografischer Divider (Pagebreak / `v(1fr)` / kleines Uppercase-Title / großes Subtitle / Accent-Rule / `v(1fr)` / Pagebreak). `weak: true` Pagebreaks, damit ein bereits vorhandener Pagebreak daneben keine Leerseite triggert.
+6. **Image Gallery 2-up + 3-up (`24201fb`):** Equal-column `#grid()` mit optionalen Caption-Cells (leer = leerer Grid-Cell, Geometrie bleibt stabil).
+7. **Photographer-Credit Schema (`dfaf544`):** `StyleFigure` bekommt `creditSeparator` + `creditLabel` (default `" — "` + `"Photo: "`, je 16 char cap). Generator emittiert Modul-level `figure-caption-credit(caption, credit)` Helper neben `style-colors` / `style-fonts`. Chapter-Files können ihn via `#import "../style.typ": figure-caption-credit` ziehen. DesignPanel Figure-Card erweitert um die zwei Inputs.
+8. **Magazine-Cover (`9aaf617`):** Full-Page-Composite mit Masthead / Issue / Headline / optional Subhead / Date / optional Background-Image. Nutzt `#page(margin: 0pt)` für **per-page-margin-override** ohne Schema-Arbeit — die einzige Stelle, an der diese Session den Full-Bleed-Concept touched.
+9. **Magazine-Editorial Layout-Preset (`16f9430`):** 7. Layout-Preset — A4 portrait, 2 columns, 2.2cm margins, 10.5pt body, mit Header-Strip `SECTION · ISSUE` links + Accent-Rule rechts. Header ist Styled-Markup-String mit `style-colors.muted` / `.accent` Referenzen (funktioniert weil Layout inside `apply-style` angewendet wird).
+10. **Sample-Showcase Update (`f7ff31c`):** `resources/sample-project/chapters/07-design-showcase.typ` erweitert um "Magazine elements (Round 4)"-Section mit Live-Demo aller neuen Elemente (außer Section-Opener und Magazine-Cover, die per Pagebreak die Kapitel-Geometrie zerstören würden — beide werden in Prosa beschrieben). Sample-`style.typ` + `style.json` bekommen die neuen `style-fonts` + Credit-Felder.
+11. **MCP-Version-Bump (`0c93518`):** `MCP_SETUP_VERSION` 0.6.0 → 0.7.0. Bun-Binary neu gebaut für aarch64-apple-darwin + x86_64-apple-darwin via `node scripts/build-mcp-binary.mjs --all`. Setup-Wizard re-triggert auf Pro-Usern, neue Elemente / Layout / Schema-Felder propagieren.
+12. **Docs (dieser Commit):** Session-23-Eintrag hier; relevante next-steps.md Punkte abgehakt.
+
+**Skill-Updates** (Session 23, im Verlauf der Commits eingebaut):
+- `DESIGN_SKILL` Anti-Patterns: "More than one drop cap per section", "Article-Opener AND a separate H1+lead", "Multiple section-openers without intervening content".
+
+**Verifikation:**
+- Jeder Commit: `npm run build` exit 0, `svelte-check --threshold error` 0 errors, Element-spezifischer Typst-Test-Compile gegen bundled fonts + packages
+- End-to-end: Full sample project (7 Kapitel inkl. neue Showcase-Section) → 402 KB PDF
+- `vswrite_list_design_elements` liefert jetzt 15 entries (vorher 6); `vswrite_list_layouts` 7 (vorher 6)
+
+**Bewusst out of scope** (für eine spätere Iteration aufgehoben):
+- Full-Bleed-Images mit Per-Section-Page-Margin-Overrides (Schema-Arbeit)
+- Marginalia / Side-Notes mit drafting-Package
+- Mosaik-Grids (3+ asymmetrische Bilder)
+- Initialen-Heading-Differenzierung (erste Seite eines Kapitels vs. Folgeseiten)
 
 ### Session 22 (2026-05-17) — Design-Editor Phase B: Foundation + Konsolidierung
 

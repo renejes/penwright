@@ -348,6 +348,25 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [x] In `ensureClaudeSkills` registriert (jetzt 5 Skills)
 - [x] MCP-Prompt `design-conventions` eingebunden
 
+### Phase 3.6: Magazine-Polish-Pack (Session 23, 2026-05-19 — **komplett**)
+
+> Plan: [done/magazine-polish-plan.md](done/magazine-polish-plan.md). Audience zu ~100% AI (Claude Desktop via MCP) — die Bausteine sind so geschnitten, dass eine Sprach-KI ganze Magazin-Seiten daraus komponieren kann ohne dass der User hand-typesetten muss.
+
+- [x] **9 neue Design-Elemente:** `drop-cap`, `divider-asterisks`, `divider-ornament`, `pull-quote-display`, `pull-quote-block`, `article-opener`, `section-opener`, `gallery-2up`, `gallery-3up`, `magazine-cover` (15 total, vorher 6)
+- [x] **7. Layout-Preset `magazine-editorial`** — A4 portrait, 2 cols, 10.5pt, per-page Header-Strip mit Issue-Label + Accent-Rule
+- [x] **Cross-Cutting Generator-Erweiterung:** `style.typ` exportiert `style-fonts` (body/heading/code) als Modul-level Dict; Design-Elemente referenzieren `style-fonts.heading` statt Font-Namen ins Template zu backen → Theme-Swap aktualisiert Typografie automatisch
+- [x] **Photographer-Credit Schema:** `StyleFigure.creditSeparator` + `creditLabel` (default `" — "` + `"Photo: "`); Generator emittiert `figure-caption-credit(caption, credit)` Helper neben `style-colors` / `style-fonts`; DesignPanel Figure-Card um die zwei Inputs erweitert
+- [x] **Magazine-Cover per-page-margin-override** via Typsts `#page(margin: 0pt)` für eine Seite — kleinster Schritt Richtung Full-Bleed ohne Schema-Arbeit
+- [x] **Sample-Showcase erweitert:** `resources/sample-project/chapters/07-design-showcase.typ` zeigt 7 der 9 neuen Elemente live (Section-Opener + Magazine-Cover beschrieben, nicht inline weil sie Pagebreaks setzen)
+- [x] **Skill-Updates:** `DESIGN_SKILL` Anti-Patterns um Drop-Cap-Häufigkeit + Opener-Doppelung + Section-Opener-Chaining ergänzt
+- [x] **MCP-Binary-Rebuild:** `MCP_SETUP_VERSION` 0.6.0 → 0.7.0, Bun-Binary neu für aarch64 + x86_64 darwin
+
+**Bewusst out of scope** (für eine spätere Iteration aufgehoben, falls Bedarf):
+- [ ] Full-Bleed-Images mit Per-Section-Page-Margin-Overrides (Schema-Arbeit, ~1 Woche)
+- [ ] Marginalia / Side-Notes (drafting-Package-Wrapper)
+- [ ] Mosaik-Grids (3+ asymmetrische Bilder)
+- [ ] Initialen-Heading-Differenzierung (erste Seite eines Kapitels vs. Folgeseiten)
+
 ### Phase 4: Distribution
 
 - [ ] Firebase-Projekt in Console anlegen (Region `europe-west3`)
