@@ -74,6 +74,19 @@ function typstCompileArgs(extra: string[]): string[] {
   return args.concat(extra);
 }
 
+/**
+ * Resolves the path to the `typst` binary. Honours an explicit `TYPST_BIN`
+ * env var first — used by the .mcpb bundle so the server invokes the
+ * Typst binary that lives next to it inside the extension directory,
+ * rather than relying on whatever `typst` happens to be in Claude
+ * Desktop's spawn PATH (which is usually nothing useful). Falls back to
+ * the bare `typst` name for the legacy wizard install path, which puts
+ * vswrite's bundled binary into a PATH-discoverable location.
+ */
+function typstBinary(): string {
+  return process.env.TYPST_BIN || 'typst';
+}
+
 // ─── Style helpers (MCP-side mirror of the main process) ────────
 // The MCP server is a separate process from the Electron app — it
 // reads / writes the project's `.vswrite/style.json` directly, then
@@ -472,7 +485,7 @@ server.tool(
       const tempPath = path.join(dir, '.vswrite-compile-output.pdf');
 
       try {
-        const result = await execFileAsync('typst', typstCompileArgs([rootFile, tempPath]), { cwd: dir, timeout: 30000 });
+        const result = await execFileAsync(typstBinary(), typstCompileArgs([rootFile, tempPath]), { cwd: dir, timeout: 30000 });
         const stat = fs.statSync(tempPath);
         try { fs.unlinkSync(tempPath); } catch {}
         // Typst emits warnings on stderr even when the compile succeeds
@@ -739,7 +752,7 @@ server.tool(
         fs.mkdirSync(outDir, { recursive: true });
       }
 
-      await execFileAsync('typst', typstCompileArgs([rootFile, absOutput]), { cwd: dir, timeout: 30000 });
+      await execFileAsync(typstBinary(), typstCompileArgs([rootFile, absOutput]), { cwd: dir, timeout: 30000 });
       const stat = fs.statSync(absOutput);
 
       return {

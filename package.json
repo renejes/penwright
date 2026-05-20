@@ -15,6 +15,7 @@
     "build:mcp": "node esbuild.mcp.mjs",
     "build:mcp-binary": "node scripts/build-mcp-binary.mjs",
     "build:mcp-binary:all": "node scripts/build-mcp-binary.mjs --all",
+    "build:mcpb": "node scripts/build-mcpb.mjs",
     "fetch:packages": "node scripts/fetch-typst-packages.mjs",
     "fetch:fonts": "node scripts/fetch-typst-fonts.mjs",
     "audit:packages": "node scripts/audit-bundled-deps.mjs",
@@ -58,6 +59,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/dompurify": "^3.0.5",
     "concurrently": "^9.0.0",
