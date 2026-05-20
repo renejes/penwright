@@ -187,6 +187,7 @@ The popover stays visible for 250 ms after you leave the badge so you can move t
 | **Paper** | Academic paper (abstract, sections, references) |
 | **Letter** | Formal letter |
 | **Book** | Book with chapters + table of contents |
+| **Magazine** | Editorial magazine with cover, editorial, TOC, and article slots. Cover macro lives stably in `chapters/_cover-macro.typ`; the macro call in `chapters/00-cover.typ` is rewritten per issue by the `cover-designer` skill from [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer) |
 
 3. **Location** — the project structure is created.
 
@@ -844,7 +845,7 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 - `vswrite_list_files` — Return the project file tree (`.typ`, `.bib`, `.md`, `.yaml`, `.json`, `.pdf`, images).
 - `vswrite_read_file` — Read a file from the project; text content as string, binaries as Base64.
 - `vswrite_write_file` — Write content to a project file; creates parent directories as needed.
-- `vswrite_create_project` — Create a new Typst project from a template (`document`, `thesis`, `paper`, `letter`, `book`).
+- `vswrite_create_project` — Create a new Typst project from a template (`document`, `thesis`, `paper`, `letter`, `book`, `magazine`). The `magazine` template is designed for the [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer) pipeline.
 
 **Document operations (4)**
 

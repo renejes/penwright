@@ -187,6 +187,7 @@ Die Karte bleibt 250 ms nach Verlassen des Badges sichtbar — du kannst die Mau
 | **Paper** | Akademisches Paper (Abstract, Sections, References) |
 | **Letter** | Formaler Brief |
 | **Book** | Buch mit Kapiteln + Inhaltsverzeichnis |
+| **Magazine** | Editorial-Magazin mit Cover, Editorial, Inhaltsverzeichnis und Article-Slots. Cover-Makro stabil in `chapters/_cover-macro.typ`; Macro-Call in `chapters/00-cover.typ` wird vom `cover-designer`-Skill des [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer) pro Ausgabe umgeschrieben |
 
 3. **Speicherort** waehlen -> Projektstruktur wird erstellt
 
@@ -844,7 +845,7 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 - `vswrite_list_files` — Liefert den Projekt-Dateibaum (`.typ`, `.bib`, `.md`, `.yaml`, `.json`, `.pdf`, Bilder).
 - `vswrite_read_file` — Liest eine Datei im Projekt; Text-Inhalt als String, Binaer-Dateien als Base64.
 - `vswrite_write_file` — Schreibt Inhalt in eine Datei im Projekt; erzeugt Parent-Ordner automatisch.
-- `vswrite_create_project` — Legt ein neues Typst-Projekt aus einer Vorlage an (`document`, `thesis`, `paper`, `letter`, `book`).
+- `vswrite_create_project` — Legt ein neues Typst-Projekt aus einer Vorlage an (`document`, `thesis`, `paper`, `letter`, `book`, `magazine`). Die `magazine`-Vorlage ist fuer die [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer)-Pipeline.
 
 **Dokument-Operationen (4)**
 

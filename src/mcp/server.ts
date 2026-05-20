@@ -1514,9 +1514,9 @@ server.tool(
 
 server.tool(
   'vswrite_create_project',
-  'Creates a new Typst project from a template. Available templates: document, thesis, paper, letter, book. Creates the project directory with all template files.',
+  'Creates a new Typst project from a template. Available templates: document, thesis, paper, letter, book, magazine. Creates the project directory with all template files. The "magazine" template is designed for the ai-magazine-designer Slow-Media workflow — it ships cover/editorial/TOC chapter slots plus a stable magazine-cover macro.',
   {
-    templateId: z.enum(['document', 'thesis', 'paper', 'letter', 'book']).describe('Template ID'),
+    templateId: z.enum(['document', 'thesis', 'paper', 'letter', 'book', 'magazine']).describe('Template ID'),
     projectName: z.string().describe('Project name (becomes the folder name)'),
     parentDir: z.string().describe('Parent directory where the project folder will be created'),
   },

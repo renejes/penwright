@@ -46,7 +46,7 @@
     { "name": "vswrite_list_files", "description": "Returns the project file tree (.typ, .bib, .md, .yaml, .json, .pdf, images)." },
     { "name": "vswrite_read_file", "description": "Reads a file in the project; text content as string, binary as base64." },
     { "name": "vswrite_write_file", "description": "Writes content to a file in the project; creates parent folders automatically." },
-    { "name": "vswrite_create_project", "description": "Creates a new Typst project from a template (document, thesis, paper, letter, book)." },
+    { "name": "vswrite_create_project", "description": "Creates a new Typst project from a template (document, thesis, paper, letter, book, magazine). The 'magazine' template is the Slow-Media editorial layout used by ai-magazine-designer." },
     { "name": "vswrite_get_document", "description": "Returns the current document (content, path, project dir, word count)." },
     { "name": "vswrite_open_file", "description": "Opens a .typ file as the current document." },
     { "name": "vswrite_update_document", "description": "Replaces the current document content and saves to disk." },

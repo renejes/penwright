@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-20 (nach Session 23.2: Per-Chapter-Running-Heads via `{chapter}` / `{section}` Platzhalter in Header/Footer-Markup; Session 23.1: Lifestyle-Quick-Wins — 4 weitere Design-Elemente, Library jetzt 19 Snippets, MCP-Binary auf 0.7.1)
+> **Stand:** 2026-05-20 (nach Session 24: **Magazine-Template** — neuer Projekt-Template-Eintrag für die Slow-Media-Pipeline aus dem Schwester-Repo `ai-magazine-designer`. Liefert Cover/Editorial/TOC + stabiles `magazine-cover`-Macro)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -122,7 +122,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 
 **Projekt-Management:**
 - [x] **Projekt First-Class:** App startet am StartScreen ohne Auto-Reopen; „Neues Projekt" / „Projekt öffnen" / **„Projekt schließen"** (Cmd+Shift+W, mit Save-Prompt) als explizite Menü-Aktionen
-- [x] 5 Projekt-Templates (Document, Thesis, Paper, Letter, Book) mit Modal-Dialog
+- [x] 6 Projekt-Templates (Document, Thesis, Paper, Letter, Book, **Magazine**) mit Modal-Dialog
 - [x] Templates legen `assets/` + `sources/` Unterordner an (auch leer im File-Tree sichtbar)
 - [x] Document Settings, Quick Settings, 7 Style Templates
 - [x] Merge/Split Document, Citation Management
@@ -279,6 +279,30 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 24 (2026-05-20) — Magazine-Template für ai-magazine-designer
+
+Neuer Projekt-Template-Eintrag `magazine` in [src/shared/projectTemplates.ts](src/shared/projectTemplates.ts). Designed für die Slow-Media-Pipeline aus dem Schwester-Repo [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer) — der `typst-architekt`-Skill orchestriert via vswrite-MCP, der `cover-designer`-Skill rewriteet das Cover-Kapitel pro Issue.
+
+**Was geliefert wird:**
+- `main.typ` — A4, 10pt, Serif-Body, Single-Column-Default. Includes für Cover / Editorial / TOC + Marker-Kommentar für Article-Includes (typst-architekt appended dort die `articles/`-Markdown-Imports).
+- `chapters/_cover-macro.typ` — Definition des `magazine-cover(title, subtitle, date, theme, accent)`-Makros. **Stabil** über alle Issues hinweg.
+- `chapters/00-cover.typ` — Macro-CALL mit Default-Werten. Der cover-designer-Skill ersetzt nur diese Datei, niemals `_cover-macro.typ`. Trennung Macro-Definition vs. Macro-Invocation ist die Schlüssel-Entscheidung dieser Session.
+- `chapters/01-editorial.typ` — Editorial-Slot mit Placeholder-Text + Herausgeber-Zeile.
+- `chapters/02-toc.typ` — `#outline(title: none, depth: 2)`.
+
+**Design-Editor-Integration:** Das Template liefert **kein** `.vswrite/style.json` und **kein** `style.typ`. Wer den visuellen Design-Editor aktivieren will, ruft `vswrite_generate_layout("magazine")` oder `vswrite_update_style(...)` — beide schreiben Style-Files on-demand. Out-of-the-box compile basiert auf plain `#set`-Rules in main.typ und braucht keine Style-Infrastruktur.
+
+**MCP:** `vswrite_create_project` akzeptiert jetzt `magazine` im `templateId`-Enum; Tool-Beschreibung + `manifest.template.json` updated. `vswrite_generate_layout` kennt das Intent `"magazine"` bereits seit Session 22 (mappt auf `editorial-magazine` Theme + `magazine-2col` Layout), bleibt unverändert.
+
+**Renderer:** Keine Änderung nötig — `NewProjectDialog.svelte` rendert die Template-Liste dynamisch aus `projectTemplates`. Magazine erscheint automatisch im Dialog.
+
+**Verifikation:**
+- `npx tsc --noEmit` — clean
+- `npm run build` — 274 Module, build erfolgreich
+- Test-Compile mit dem System-`typst` auf einem manuell gespiegelten Template-Ordner → 21 KB PDF, alle 3 Section-Includes laufen, Cover rendert mit Macro
+
+**Architektur-Entscheidung:** Cover-Macro-Definition wurde aus `chapters/00-cover.typ` herausgezogen in `chapters/_cover-macro.typ` (underscore-prefix konventionell "internal"), damit der cover-designer-Skill den Macro-CALL frei umschreiben kann, ohne die stabile Definition zu gefährden. Die Schwester-App ai-magazine-designer hat ihren cover-designer-Skill entsprechend angepasst (`#import "_cover-macro.typ"` statt `#import "../style.typ"`).
 
 ### Session 23.2 (2026-05-20) — Per-Chapter Running Heads
 

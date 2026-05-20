@@ -67,7 +67,7 @@ Claude sieht jetzt die vswrite-Tools im MCP-Menue.
 | `vswrite_list_files` | Projekt-Dateibaum anzeigen |
 | `vswrite_read_file` | Projektdatei lesen (Text oder Base64 fuer Binaerdateien) |
 | `vswrite_write_file` | Datei schreiben (mit auto-mkdir) |
-| `vswrite_create_project` | Neues Projekt aus Template (document, thesis, paper, letter, book) |
+| `vswrite_create_project` | Neues Projekt aus Template (document, thesis, paper, letter, book, **magazine**). `magazine` ist die Slow-Media-Vorlage fuer ai-magazine-designer. |
 
 ### Dokument-Operationen (4)
 
