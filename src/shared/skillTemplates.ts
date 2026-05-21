@@ -592,6 +592,71 @@ Two-line edits + a recompile is faster and safer than scanning the whole project
 
 See the \`research-workflow\` skill for end-to-end recipes.
 
+## Compound Workflow Recipes
+
+The recipes below replace common "guess your way through 8 tool calls" sequences. Follow the ordering — earlier steps create state that later ones depend on. Each recipe ends with a \`vswrite_compile\` for verification.
+
+### Recipe 1 — Magazine from scratch (cover + 3 articles)
+
+User asks for "build me a magazine layout" or similar. Compose, don't improvise:
+
+1. \`vswrite_apply_style({ styleId: "editorial-magazine" })\` — sets fonts (Spectral body + Inter heading), warm earth-tone palette, magazine-friendly scale
+2. \`vswrite_apply_layout({ layoutId: "magazine-editorial" })\` — A4 portrait, 2 columns, header strip, \`{chapter}\` running head
+3. \`vswrite_insert_design_element({ elementId: "magazine-cover", afterText: "", params: { issue: "ISSUE 1", title: "<MASTHEAD>", headline: "<COVER LINE>", date: "<MONTH YEAR>" } })\` — inserted at top of \`main.typ\`
+4. For each article: \`vswrite_add_chapter({ name: "<slug>" })\` then \`vswrite_insert_design_element({ elementId: "article-opener", file: "chapters/<slug>.typ", afterText: "", params: { kicker: "INTERVIEW", headline: "...", standfirst: "...", byline: "..." } })\`
+5. Optional drop-cap on the opening paragraph: \`vswrite_insert_design_element({ elementId: "drop-cap", file: "chapters/<slug>.typ", afterText: "<article-opener-headline>", params: { body: "<opening paragraph>" } })\`
+6. \`vswrite_compile\` — fix any \`unknown font\` warnings by swapping to a \`vswrite_list_fonts\` family
+
+Total: ~7-10 tool calls for a publishable magazine skeleton. Without the recipe an agent typically takes 20+ calls and gets lost in style.json deep-merges.
+
+### Recipe 2 — Brochure refactor (existing project → marketing-brochure look)
+
+User asks "make this look like a brochure":
+
+1. \`vswrite_get_style\` — read what's there so you don't blow away the user's \`custom.preamble\`
+2. \`vswrite_apply_style({ styleId: "marketing-brochure" })\` — IBM Plex Sans, vibrant primary, single-column with bigger margins
+3. \`vswrite_insert_design_element({ elementId: "hero", afterText: "", params: { title: "<doc title>", subtitle: "<one-sentence pitch>" } })\` at top of \`main.typ\`
+4. For visual rhythm: identify the 2-3 most striking sentences in the body via \`vswrite_search_project\` for key phrases the user mentioned, replace each with \`vswrite_insert_design_element({ elementId: "pull-quote-display", afterText: "<surrounding text>", params: { text: "<the sentence>" } })\`
+5. If the user mentioned numbers ("we have 50k customers", etc.): \`vswrite_insert_design_element({ elementId: "stats-box", ... })\` mid-document
+6. \`vswrite_compile\` — verify
+
+### Recipe 3 — Bibliography buildup (paper from scratch with citations)
+
+User pastes a list of references they want cited:
+
+1. \`vswrite_ensure_bibliography\` — creates \`references.bib\` and \`#bibliography\` directive if missing
+2. For each entry the user provided: \`vswrite_add_citation({ entry: "<full BibTeX block>" })\` — vswrite parses + validates + appends
+3. After all citations are in: \`vswrite_get_citations\` — verify the citekeys vswrite assigned
+4. For each citekey the user wants in a specific spot: \`vswrite_search_project\` to find the anchor text, then NO insert tool needed — citations are typed inline as \`@citekey\` (use \`vswrite_update_document\` to splice; cross-references via labels DO need \`vswrite_insert_reference\` but raw \`@\` citations are plain text)
+5. For each source the user has a PDF for: \`vswrite_find_source_for_citation({ citekey })\` to confirm the user dropped the file in \`sources/\` correctly
+6. \`vswrite_compile\` — Typst will resolve all \`@citekey\` references against \`references.bib\`
+
+**Critical gotcha:** never invent BibTeX entries. If the user gives you "Smith 2024 about machine learning" without a real source, ask for a DOI/URL or refuse — the \`writing-style\` skill goes hard on this.
+
+### Recipe 4 — Chapter reorganization
+
+User wants to swap chapter order or split / merge:
+
+1. \`vswrite_get_chapters\` — see current \`#include\` structure
+2. \`vswrite_save_version({ message: "before reorg" })\` — destructive ops need a rollback point
+3. For pure reorder: \`vswrite_reorder_chapters({ newOrder: ["chapters/03-foo.typ", "chapters/01-bar.typ", ...] })\` — just rewrites \`main.typ\`
+4. For split (one long chapter → multiple): \`vswrite_split_document\` splits at \`= heading\` boundaries
+5. For merge (gather into one file): \`vswrite_merge_document\` returns the merged content as string; then \`vswrite_write_file\` to a new file + \`vswrite_reorder_chapters\` to swap the includes
+6. \`vswrite_compile\` — verify
+
+### Recipe 5 — Pre-submission audit (the loop that catches embarrassing things)
+
+Before declaring done on an academic paper or thesis:
+
+1. \`vswrite_compile\` — must be \`success: true\` with zero \`errors[]\`
+2. Scan \`warnings[]\` — every warning should be either resolved or explicitly accepted by the user (don't silently ship a "unknown font family" warning)
+3. \`vswrite_list_labels\` — every label needs a use somewhere; use \`vswrite_search_project\` on the label name to verify
+4. \`vswrite_get_citations\` — every BibTeX entry should be cited at least once; cross-check with \`vswrite_search_project\` on each citekey
+5. For each citekey the paper relies on heavily: \`vswrite_find_source_for_citation\` to make sure the PDF is in \`sources/\` (so reviewers can verify quotations)
+6. Read the \`writing-style\` skill prompt — run the Anti-AI-Tells checklist over the introduction and conclusion (highest-density places for em-dash inflation and Dreierlisten-Reflex)
+7. \`vswrite_save_version({ message: "v1.0 submission" })\` — landmark version
+8. \`vswrite_export_pdf({ outputPath: "exports/submission.pdf" })\` — the deliverable
+
 ## Bundled Typst Packages (Offline, Always Available)
 
 vswrite ships **13 Typst packages plus their transitive dependencies** pre-installed in the .app, so projects compile offline without first-run downloads. The high-value ones:
@@ -1350,6 +1415,88 @@ When a user asks "make this look like a brochure" (or similar):
 5. Verify: \`vswrite_compile()\`. If it warns, fix; if it errors, restore via \`vswrite_list_versions\` + \`vswrite_restore_version\`.
 
 Don't reach for \`vswrite_update_style\` with a giant patch. Make one change, recompile, iterate. The PDF preview is your feedback loop.
+
+## Concrete Design Recipes
+
+### Editorial article opener (3 calls)
+
+A long-form article needs a kicker + headline + standfirst + byline at the top. Use the composite element, don't hand-roll three \`#text(...)\` blocks:
+
+\`\`\`
+vswrite_apply_palette({ presetId: "editorial" })
+vswrite_insert_design_element({
+  elementId: "article-opener",
+  afterText: "= <article-title>",
+  params: {
+    kicker: "INTERVIEW",
+    headline: "The Last Architect of Tasmania",
+    standfirst: "Helen Lyon spent four decades reshaping how rural housing relates to land.",
+    byline: "By Sam Cooper, Photography by Maya Reidt"
+  }
+})
+vswrite_compile
+\`\`\`
+
+The element wraps the headline in a level-1 heading so it still appears in the TOC. **Don't pair with a separate \`= Title\` heading** — pick one.
+
+### Photo-led story spread
+
+Architecture / lifestyle articles where the photos are the point:
+
+\`\`\`
+vswrite_insert_design_element({ elementId: "image-overlay", params: { image: "assets/hero.jpg", title: "...", subtitle: "..." } })
+... body paragraphs ...
+vswrite_insert_design_element({ elementId: "gallery-asymmetric", params: { imageMain: "assets/big.jpg", imageTop: "assets/detail-1.jpg", imageBottom: "assets/detail-2.jpg", captionMain: "..." } })
+... body paragraphs ...
+vswrite_insert_design_element({ elementId: "photo-caption-wrap", params: { image: "assets/portrait.jpg", caption: "<long-form bio paragraph>", credit: "Maya Reidt" } })
+\`\`\`
+
+Three different image-density patterns. Don't repeat the same one three times.
+
+### "By the numbers" sidebar mid-article
+
+The user mentions concrete numbers that deserve emphasis ("we serve 1.8M households", "87% satisfaction"):
+
+\`\`\`
+vswrite_insert_design_element({
+  elementId: "stats-box",
+  afterText: "<paragraph that introduces the numbers>",
+  params: {
+    header: "BY THE NUMBERS",
+    number1: "1.8M", label1: "Households reached",
+    number2: "87%", label2: "Satisfaction rate",
+    number3: "12", label3: "New programmes since 2020"
+  }
+})
+\`\`\`
+
+Optional fourth row via \`number4\` + \`label4\`. The box auto-themes via accent + primary slots.
+
+### Per-chapter running heads
+
+User wants the page header to show the current chapter title instead of a static label:
+
+\`\`\`
+vswrite_update_style({
+  layout: {
+    pageHeader: "#text(size: 0.85em, tracking: 0.1em, fill: style-colors.muted)[{chapter}  ·  ISSUE 1] #h(1fr) #line(length: 1.5cm, stroke: 0.5pt + style-colors.accent)"
+  }
+})
+\`\`\`
+
+Placeholders \`{chapter}\` and \`{section}\` get substituted with the current H1 / H2 visible on the page. The \`magazine-editorial\` layout preset already does this by default.
+
+### Theme + layout combo for a specific brief
+
+| Brief from user | Recipe |
+|---|---|
+| "Academic thesis" | \`apply_style({ styleId: "thesis" })\` + \`apply_layout({ layoutId: "a4-portrait-standard" })\` — Crimson Pro body, conservative margins |
+| "Editorial magazine like Local Project" | \`apply_style({ styleId: "editorial-magazine" })\` + \`apply_layout({ layoutId: "magazine-editorial" })\` + a \`magazine-cover\` element |
+| "Conference poster" | \`apply_style({ styleId: "modern-tech" })\` + \`apply_layout({ layoutId: "a2-poster" })\` — 14 pt body, 4 cm margins |
+| "Programme booklet" | \`apply_style({ styleId: "minimal" })\` + \`apply_layout({ layoutId: "a5-booklet" })\` |
+| "Marketing brochure" | \`generate_layout({ intent: "brochure" })\` — one shot, then refine |
+
+Don't combine contradictory presets. "Thesis theme" + "A2 poster layout" is technically possible but the typography won't survive the geometry change.
 
 ## Don't
 
