@@ -476,7 +476,7 @@ server.tool(
 
 server.tool(
   'vswrite_compile',
-  'Verifies that the current Typst document compiles cleanly. Returns `{ success, rootFile, sizeBytes?, errors, warnings }`. Errors come with `file` + `line` so multi-chapter projects can target the fix; each entry\'s `message` has any `= hint:` Typst emitted appended in parentheses. Warnings (e.g. unknown font family, deprecated function) are captured even on success — they don\'t fail the build, but they\'re worth scanning before declaring done. Compile output is a temp PDF; for a real artifact use vswrite_export_pdf or vswrite_export_docx.',
+  'Verify the current document compiles. Returns { success, rootFile, sizeBytes, errors[], warnings[] } — errors carry file + line. PDF artefact is discarded; use vswrite_export_pdf / _docx for real output.',
   async () => {
     try {
       const { filePath } = readCurrentDocument();
@@ -604,7 +604,7 @@ server.tool(
 
 server.tool(
   'vswrite_update_settings',
-  'Updates document settings (#set blocks) in the current Typst file. Only include settings you want to change — unset fields keep their current value. Valid keys: font, fontSize, lang, paper, margin, pageNumbering, pageHeader, pageFooter, columns, pageFill, leading, spacing, firstLineIndent, headingNumbering, bibliographyStyle.',
+  'Update document settings (lang + bibliographyStyle since Phase A — everything else lives in style.json via the Design tools). Only changed keys need to be passed.',
   {
     settings: z.record(z.string()).describe('Key-value pairs of settings to update'),
   },
@@ -737,7 +737,7 @@ server.tool(
 
 server.tool(
   'vswrite_export_pdf',
-  'Compiles the current Typst document and exports it as PDF. The output path must be inside the project directory; the convention is "exports/<name>.pdf". Parent directories are created automatically. Returns the output path on success.',
+  'Compile + export as PDF. Output path must be inside the project (convention: exports/<name>.pdf). Parent dirs auto-created.',
   { outputPath: z.string().describe('Path for the PDF output file, relative to the project (e.g. "exports/thesis.pdf"). Absolute paths must point inside the project directory.') },
   async ({ outputPath }) => {
     try {
@@ -800,7 +800,7 @@ server.tool(
 
 server.tool(
   'vswrite_apply_style',
-  'Applies a built-in theme preset to the current project. Overwrites style.json (colors, fonts, layout, headings, elements) but preserves the custom.preamble field so user escape-hatch code survives. Use vswrite_list_styles to see available themes.',
+  'Apply a built-in theme preset. Overwrites colors/fonts/layout/headings/elements; preserves custom.preamble. Call vswrite_list_styles first.',
   { styleId: z.string().describe('Theme preset ID — see vswrite_list_styles for available IDs') },
   async ({ styleId }) => {
     if (!state.projectDir) {
@@ -822,7 +822,7 @@ server.tool(
 
 server.tool(
   'vswrite_get_style',
-  'Returns the project\'s current ProjectStyle as JSON — colors, fonts, scale, layout, headings, elements, and the custom.preamble escape hatch. Use this before vswrite_update_style so you know what\'s already set.',
+  'Return the ProjectStyle JSON (colors / fonts / scale / layout / headings / elements / custom). Call before vswrite_update_style.',
   async () => {
     if (!state.projectDir) {
       return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
@@ -836,7 +836,7 @@ server.tool(
 
 server.tool(
   'vswrite_update_style',
-  'Deep-merges a partial ProjectStyle into style.json. Only the keys you provide change — others stay. Example: { colors: { primary: "#0f172a" } } updates just the primary slot. The patch is sanitized (invalid hex, unknown weights, out-of-range columns etc. fall back to existing values).',
+  'Deep-merge a partial ProjectStyle into style.json. Per-leaf sanitiser: invalid hex / weight / range falls back to existing value (never errors).',
   {
     patch: z.unknown().describe('Partial ProjectStyle JSON object. Top-level keys: colors, fonts, scale, layout, headings, elements, custom.'),
   },
@@ -855,7 +855,7 @@ server.tool(
 
 server.tool(
   'vswrite_list_fonts',
-  'Returns the OFL fonts bundled with vswrite — family name, category (sans/serif/mono), and a short description. These are always available; reference any of them in fonts.body / fonts.heading / fonts.code without checking system installation.',
+  'List the 7 bundled OFL fonts (family, category, description). Always available; reference in fonts.body / fonts.heading / fonts.code without system-install check.',
   async () => {
     // Resolve the bundled fonts manifest. TYPST_FONT_PATH points to the
     // resources/fonts directory in the running .app (set by mcpSetup) —
@@ -886,7 +886,7 @@ server.tool(
 
 server.tool(
   'vswrite_apply_palette',
-  'Applies a 5-color palette to style.colors. Pass either a `presetId` (see id list returned by an empty-args call) OR explicit color hex codes for any of the five slots. Other branches of the style stay unchanged.',
+  'Apply a 5-color palette via `presetId` or per-slot hex overrides (composable). Empty-args call returns available presets.',
   {
     presetId: z.string().optional().describe('Optional palette preset id (e.g. "modern-tech", "editorial", "earth-tones").'),
     primary:    z.string().optional().describe('Optional hex for the primary slot (e.g. "#0f172a"). Falls back to current value.'),
@@ -955,7 +955,7 @@ server.tool(
 
 server.tool(
   'vswrite_apply_layout',
-  'Applies a layout preset — swaps paper / orientation / margin / columns / pageNumbering (and base font-size for large papers). Other style branches stay. Use this after vswrite_apply_style if you want to keep a theme\'s typography but switch geometry (e.g. theme=editorial-magazine + layout=magazine-2col).',
+  'Apply a layout preset (swaps layout.* + optionally scale.base). Theme + colors + fonts unchanged. Stacks with apply_style.',
   { layoutId: z.string().describe('Layout preset ID — see vswrite_list_layouts') },
   async ({ layoutId }) => {
     if (!state.projectDir) {
@@ -981,7 +981,7 @@ server.tool(
 
 server.tool(
   'vswrite_list_design_elements',
-  'Returns the design-element library — six recurring Typst blocks (Banner, Sidebar, Pull-Quote, Callout, Hero, Divider) that vswrite_insert_design_element can drop into a document. Each entry lists the parameters it accepts.',
+  'List the 19 design elements (banner / sidebar / pull-quote × 3 / callout / hero / divider × 3 / drop-cap / article-opener / section-opener / gallery × 3 / image-overlay / stats-box / photo-caption-wrap / magazine-cover) with their params.',
   async () => {
     const list = DESIGN_ELEMENTS.map(e => ({
       id: e.id,
@@ -997,7 +997,7 @@ server.tool(
 
 server.tool(
   'vswrite_insert_design_element',
-  'Inserts a design element (Banner, Sidebar, Pull-Quote, Callout, Hero, Divider) into the current file. The element references the project palette so it auto-themes with whatever style is active. Anchor pattern matches `vswrite_add_image`: pass `afterText` and the element is spliced after the Nth occurrence of that text.',
+  'Insert a design element (19 available — call vswrite_list_design_elements first) at an anchor. Auto-themes via style-colors / style-fonts.',
   {
     elementId: z.string().describe('Design element id — see vswrite_list_design_elements'),
     afterText: z.string().describe('Anchor text. Element is inserted on a new line after this match. Pass empty string to insert at the document end.'),
@@ -1064,7 +1064,7 @@ server.tool(
 
 server.tool(
   'vswrite_generate_layout',
-  'Picks and applies a theme + layout combo for a given high-level intent ("brochure", "thesis", "article", "report", "magazine"). Returns the chosen IDs so Claude can verify / iterate. Use as a quick scaffolding step before fine-tuning with vswrite_update_style.',
+  'High-level NL composite: intent ("brochure" | "thesis" | "magazine" | "report" | …) → theme + layout + optional hero. Use as scaffolding before fine-tuning.',
   {
     intent: z.string().describe('What kind of document — "brochure", "thesis", "article", "report", "magazine", "essay", "spec". Free text; the tool maps to the closest preset combo.'),
     title: z.string().optional().describe('Optional title — when provided, the tool drops a Hero element at the start of the file.'),
@@ -1514,7 +1514,7 @@ server.tool(
 
 server.tool(
   'vswrite_create_project',
-  'Creates a new Typst project from a template. Available templates: document, thesis, paper, letter, book, magazine. Creates the project directory with all template files. The "magazine" template is designed for the ai-magazine-designer Slow-Media workflow — it ships cover/editorial/TOC chapter slots plus a stable magazine-cover macro.',
+  'Create a new Typst project from a template (document | thesis | paper | letter | book | magazine).',
   {
     templateId: z.enum(['document', 'thesis', 'paper', 'letter', 'book', 'magazine']).describe('Template ID'),
     projectName: z.string().describe('Project name (becomes the folder name)'),
@@ -1629,7 +1629,7 @@ function validateProjectRelPaths(files: string[]): string[] {
 
 server.tool(
   'vswrite_save_version',
-  'Saves a named version of the project (creates a Git commit). Use this to mark milestones — they appear in the "Versionen" panel of the vswrite UI. Local-only; never pushes to a remote. Initializes a Git repo if the project has none yet. Returns { sha: null, skipped: true } when there are no changes to save.',
+  'Save a named version (Git commit, local-only). Auto-inits repo if missing. Returns { sha: null, skipped: true } if no changes.',
   {
     message: z.string().describe('Version description, e.g. "Chapter 3 first draft" or "Before supervisor feedback"'),
     files: z.array(z.string()).optional().describe('Restrict to these project-relative paths. Omit to include all changes.'),
@@ -1686,7 +1686,7 @@ server.tool(
 
 server.tool(
   'vswrite_list_versions',
-  'Returns the project version history (newest first), capped at the 200 most recent versions. Each entry: { sha, message, date, author, isAuto }. isAuto is true for vswrite-internal auto-versions (message starts with "[auto]").',
+  'List version history (newest first, max 200). Returns { sha, message, date, author, isAuto }; isAuto = vswrite auto-versions.',
   async () => {
     try {
       if (!state.projectDir) {
@@ -1749,7 +1749,7 @@ server.tool(
 
 server.tool(
   'vswrite_restore_version',
-  'Restores files from a historical version into the working tree. WARNING: overwrites uncommitted changes for the affected files. Consider calling vswrite_save_version first to preserve the current state before restoring.',
+  'Restore files from a historical version. **Destructive — call vswrite_save_version first** to preserve current state.',
   {
     sha: z.string().describe('Version id (Git SHA, 4-40 hex chars) — get this from vswrite_list_versions'),
     files: z.array(z.string()).optional().describe('Restrict restore to these project-relative paths. Omit to restore everything from that version.'),
@@ -1902,7 +1902,7 @@ function findAnchorOffset(
 
 server.tool(
   'vswrite_list_comments',
-  'Lists vswrite comments (annotations) in the project. Comments live as Markdown files in the project\'s comments/ folder and are NEVER compiled into the PDF/DOCX output. Each entry: { id, file, anchor, body, rangeStart, rangeEnd, author, date, resolved, orphaned }. "orphaned: true" means the anchor text could not be located in the file (it was edited away).',
+  'List comments in the project (lives as .md files in comments/, never compiled). Returns { id, file, anchor, body, resolved, orphaned } per entry; orphaned = anchor text was edited away.',
   {
     file: z.string().optional().describe('Project-relative path to filter by (e.g. "chapters/03-method.typ"). Omit for all files.'),
     includeResolved: z.boolean().optional().describe('Include resolved comments. Default: false.'),
@@ -1931,7 +1931,7 @@ server.tool(
 
 server.tool(
   'vswrite_add_comment',
-  'Creates a new comment anchored to a verbatim text snippet in a project file. Comments appear as yellow highlights in the vswrite editor and never compile into the output. The anchor must match exactly (whitespace-sensitive) and must lie within a single paragraph / heading (multi-paragraph anchors become orphaned).',
+  'Create a comment anchored to a verbatim text snippet (whitespace-exact, single-paragraph). Renders as yellow highlight in vswrite; never compiled.',
   {
     file: z.string().describe('Project-relative path of the file to anchor the comment to (e.g. "chapters/01-introduction.typ")'),
     anchor: z.string().describe('Exact verbatim text in the file the comment is attached to. Whitespace-sensitive. Should be specific enough to be unique within the file.'),
@@ -2030,7 +2030,7 @@ server.tool(
 
 server.tool(
   'vswrite_list_labels',
-  'Lists all <label>s defined across the project\'s .typ files for use with cross-references. Each entry: { label, type, caption, relPath, line }. Type is "figure" | "table" | "equation" | "heading" | "other" — derived from the label\'s prefix (fig:, tbl:, eq:, sec:, …). Always call this before insert_reference so you don\'t guess label names. Capped at 2000 labels.',
+  'List all <label>s in the project, classified by type (figure / table / equation / heading / other) from prefix. Call before insert_reference to avoid guessing. Capped at 2000.',
   {
     type: z.enum(['figure', 'table', 'equation', 'heading', 'other']).optional().describe('Filter by label type. Omit for all types.'),
   },
@@ -2059,7 +2059,7 @@ server.tool(
 
 server.tool(
   'vswrite_insert_reference',
-  'Inserts a Typst cross-reference (`@label`) at a specified anchor in a project file. The label must already exist in the project — call vswrite_list_labels first. In Typst the reference compiles to "Figure 3" / "Table 1" / "Section 4.2" / "Equation (1)" depending on the label\'s target. A leading space is auto-inserted if the preceding character is a letter or digit (Typst would otherwise glue "@label" onto the previous word).',
+  'Insert a Typst cross-reference (@label) at an anchor. Validates label exists (call vswrite_list_labels first); auto-inserts a leading space if needed so Typst doesn\'t glue it to the previous word.',
   {
     file: z.string().describe('Project-relative path of the file (e.g. "chapters/05-discussion.typ")'),
     afterText: z.string().describe('Verbatim text after which "@label" is inserted. Whitespace-sensitive.'),
@@ -2127,7 +2127,7 @@ server.tool(
 
 server.tool(
   'vswrite_add_footnote',
-  'Inserts a Typst footnote (#footnote[<body>]) at a specified anchor in a project file. Typst auto-numbers footnotes at compile time and renders the body at the bottom of the page. The body may contain Typst inline syntax (italic _word_, citation @key, etc.). Brackets in the body must be balanced (every [ has a matching ]).',
+  'Insert a Typst footnote (#footnote[<body>]) at an anchor. Body may contain inline Typst (italic, citations); brackets must balance.',
   {
     file: z.string().describe('Project-relative path of the file (e.g. "chapters/03-method.typ")'),
     afterText: z.string().describe('Verbatim text after which the footnote is inserted. Whitespace-sensitive. Convention: place directly after the punctuation or word that the footnote applies to.'),
@@ -2197,7 +2197,7 @@ server.tool(
 
 server.tool(
   'vswrite_search_project',
-  'Searches across all .typ files in the project (and optionally .bib). Returns matches grouped by file with line/column info and contextual snippets. Use this for backlinks ("where else is @chen2021codex cited?", "where is this heading mentioned?"), consistency checks across chapters, or finding examples to model after. Capped at 1000 total matches. **Whole-word** matching uses lookarounds, so it works correctly even when the query starts with a non-word char like `@` (citation backlinks).',
+  'Search across .typ files (optionally .bib) with regex / case / whole-word options; returns matches grouped by file. Whole-word uses lookarounds so it works for @citekey backlinks. Capped at 1000 hits.',
   {
     query: z.string().describe('Search term. Plain text by default; set regex=true for a regular expression.'),
     caseSensitive: z.boolean().optional().describe('Match case. Default: false.'),
@@ -2235,7 +2235,7 @@ server.tool(
 
 server.tool(
   'vswrite_replace_in_project',
-  'Replaces all matches of a query across project files. **Destructive** — overwrites files in place. Strongly recommended: call vswrite_save_version BEFORE replacing, so the operation is reversible. Returns { filesChanged, totalReplacements } on success. Same matching options as vswrite_search_project.',
+  'Replace all matches of a query across project files. **Destructive — call vswrite_save_version first.** Returns { filesChanged, totalReplacements }.',
   {
     query: z.string().describe('Search term'),
     replacement: z.string().describe('Replacement text. For regex mode, $1, $2 etc. backreferences are honored.'),
@@ -2270,7 +2270,7 @@ server.tool(
 
 server.tool(
   'vswrite_find_source_for_citation',
-  'Looks up a PDF in the project\'s sources/ folder matching the given BibTeX citekey. Convention: name the PDF `<citekey>.pdf` (e.g. "chen2021codex.pdf"). Suffixed names like "<citekey>_supplement.pdf" or "<citekey>-arxiv.pdf" also match. Returns the project-relative path or null. Use this before referring to a source so you know whether the user has the PDF on disk.',
+  'Find a PDF in sources/ matching a BibTeX citekey. Exact `<citekey>.pdf` preferred, suffix variants accepted. Returns project-relative path or null.',
   { citekey: z.string().describe('BibTeX citation key (e.g. "chen2021codex")') },
   async ({ citekey }) => {
     try {
@@ -2304,7 +2304,7 @@ server.tool(
 
 server.tool(
   'vswrite_export_docx',
-  'Compiles the current Typst document and exports it as DOCX (Microsoft Word). Multi-chapter projects are merged via #include resolution before serialization. Uses real Word styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, …) and live multilevel-numbering, so a supervisor can reorder chapters in Word and the heading numbers update automatically. The output path must be inside the project — convention is "exports/<name>.docx", parent dir is created automatically.',
+  'Export the current document as DOCX with real Word styles + live multilevel numbering. Multi-chapter projects are merged. Output path must be inside the project (convention: exports/<name>.docx).',
   { outputPath: z.string().describe('Path for the DOCX output, relative to the project (e.g. "exports/thesis.docx")') },
   async ({ outputPath }) => {
     try {
@@ -2340,7 +2340,7 @@ server.tool(
 
 server.tool(
   'vswrite_import_markdown',
-  'Converts Markdown to Typst syntax and writes the result to a project file. Handles headings, bold/italic, links, images, lists, code blocks, blockquotes. YAML frontmatter is skipped. Provide either inline `markdown` text OR an absolute/relative `srcPath` to a .md file (exactly one). The destination must be inside the project. Errors if destPath already exists unless `overwrite: true`. Note: complex Markdown constructs may need manual adjustment after import — review the result.',
+  'Convert Markdown to Typst and write to a project file. Provide inline `markdown` OR a `srcPath` (.md file). Errors if destPath exists unless `overwrite: true`.',
   {
     markdown: z.string().optional().describe('Inline Markdown text. Mutually exclusive with srcPath.'),
     srcPath: z.string().optional().describe('Path to a .md / .markdown / .txt file to import. May be inside or outside the project (read-only). Mutually exclusive with markdown.'),
@@ -2396,7 +2396,7 @@ server.tool(
 
 server.tool(
   'vswrite_add_image',
-  'Imports an image into the project\'s assets/ folder and returns a Typst snippet for it. Optionally also inserts the snippet at an anchor in a project file (one round-trip instead of two). Source can be anywhere on disk. Deduplication: if an asset with the same content already exists in assets/, that path is reused; if a different file with the same name exists, a numeric suffix is appended ("chart.png" → "chart-2.png"). With `caption`, the snippet is wrapped in `#figure(image(…), caption: […])`; combined with `label` (use "fig:" prefix) it becomes a referenceable target for vswrite_insert_reference.',
+  'Import image into assets/ (content-hash dedup), build a Typst snippet (optionally wrapped in #figure with caption + label), and optionally insert at an anchor in one round-trip.',
   {
     srcPath: z.string().describe('Absolute or project-relative path to the source image file (PNG, JPG, SVG, …)'),
     width: z.string().optional().describe('Typst width spec, e.g. "80%", "8cm", "300pt". Default: "100%".'),
