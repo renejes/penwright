@@ -455,7 +455,7 @@ winget install --id Typst.Typst
 
 ## Lizenz
 
-Der MCP Server erfordert eine **Pro-Lizenz**. Ohne Lizenz sind die Tools nicht verfuegbar.
+Der MCP Server erfordert eine **gueltige Lizenz** — denselben `pw_LIC…`-Key wie die App (Single-Tier, keine Stufen). Ohne gueltigen Key sind die Tools nicht verfuegbar.
 
 ---
 

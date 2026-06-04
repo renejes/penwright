@@ -1,5 +1,10 @@
 # vswrite Desktop — Project Status
 
+> **⚠️ Historie / Changelog.** Diese Datei ist ein session-weiser Verlauf und nennt
+> das Produkt noch „vswrite". Es heißt inzwischen **Penwright** (Rebrand
+> abgeschlossen). Für den **aktuellen** Stand siehe `documentation/handover.md` +
+> `CLAUDE.md`. Historische Einträge bleiben bewusst unverändert.
+>
 > **Stand:** 2026-06-04 (nach Session 26: **Phase E — Per-Chapter Section Styles** — Magazin-"Rubriken" pro Kapitel via scoped `#show`: Schema + Generator + 4 MCP-Tools + 5 Presets + Design-Panel-Editor + Chapters-Tab-Zuweisung. Davor Session 25: **DOCX-Overhaul** — journal-submission-tauglich)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 

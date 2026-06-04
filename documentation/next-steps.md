@@ -14,12 +14,13 @@ Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist
 
 1. ~~**Typst-Package-Bundling-Setup**~~ — **erledigt** (Session 20): 24 Packages gebundelt, Audit-Script + Acknowledgments-Dialog.
 2. ~~**Design-Editor + MCP-Tools**~~ — **erledigt** (Sessions 21–26): Themes / Palettes / Layouts / Fonts / 22 Design-Elemente / Per-Chapter Section Styles (Phase E).
-3. **Distribution einrichten** — Firebase-Hosting + electron-updater + DMG-Build & Notarization
-4. **Handbuch-Online-Hosting** auf Netlify
+3. **Distribution einrichten** — **DMG-Build + Notarization** (der reale Launch-Blocker). Optional Download-Hosting fuer das DMG (z. B. Firebase/Netlify).
+   ⚠️ **Auto-Updater (electron-updater) ist GESTRICHEN** — Updates laufen ueber **Newsletter + manuellen Download** von penwright.online. §3.4 unten ist nur noch Referenz, falls man es je doch will.
+4. ~~**Handbuch-Online-Hosting**~~ — **nicht mehr noetig:** das Handbuch wird **in-app** ausgeliefert (`HandbookViewer.svelte`, rendert das gebundelte `handbook.md`/`handbuch.md` mit `marked`; „Help → User Guide" + About-Button). Online-Hosting nur noch optional.
 5. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters) **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread)
 6. ~~**DOCX-Iteration**~~ — **erledigt in Session 25** (DOCX-Overhaul: Figures / Display-Math / Tabellen / Cross-Refs / Fussnoten / Callouts gerendert, `#raw("…")` inline, Code-Leak eliminiert; Prosa-mit-Inline ueberlebt im Editor). Bewusst offen (geringer Nutzen): live Word-SEQ/REF-Felder, Inline-Math-als-Bild
 
-Reihenfolge der verbleibenden Arbeit: **Distribution → Handbuch-Hosting → QA → DMG**.
+Reihenfolge der verbleibenden Arbeit: **DMG-Build + Notarization → QA**. (Kanonische Domain: **penwright.online**, muss noch registriert werden.)
 
 ---
 
@@ -151,7 +152,12 @@ releases/*.exe
 releases/*.AppImage
 ```
 
-### 3.4 Auto-Updater (electron-updater)
+### 3.4 Auto-Updater (electron-updater) — ⚠️ GESTRICHEN
+
+> **Diese Variante wird NICHT umgesetzt.** Entscheidung: kein Auto-Update; neue
+> Versionen via **Newsletter + manuellem Download** (siehe Handbuch → „Updates").
+> Es gibt kein `electron-updater` im Projekt. Der folgende Abschnitt bleibt nur
+> als Referenz, falls man die Entscheidung je revidieren will.
 
 ```bash
 npm install electron-updater
@@ -244,26 +250,25 @@ Firebase Console -> Hosting -> Add custom domain -> `releases.penwright.com` -> 
 
 Die Handbuecher liegen im Repo unter [documentation/handbuch.md](handbuch.md) (Deutsch) und [documentation/handbook.md](handbook.md) (Englisch). Das sind die **Quellen der Wahrheit**.
 
-### 4.1 Online-Hosting (Pflicht vor Launch)
+### 4.1 Online-Hosting (jetzt OPTIONAL)
 
-Die Handbuecher werden nach `penwright.online` deployed:
+> Seit das Handbuch **in-app** ausgeliefert wird (§4.2), ist Online-Hosting
+> **kein Launch-Blocker mehr** — nur noch nice-to-have (z. B. fuer SEO / direkte
+> Links). Falls gewuenscht, nach `penwright.online/{de,en}/docs` deployen; die
+> Markdown-Quellen sind dieselben wie unten.
 
-- Deutsch: `https://penwright.online/de/docs`
-- Englisch: `https://penwright.online/en/docs`
+### 4.2 In-App-Zugriff (✅ implementiert, Session „Handbuch-Viewer")
 
-**Sync-Strategie:** Netlify-Build liest direkt aus `documentation/handbuch.md` und `documentation/handbook.md` im Haupt-Repo (via Netlify-CMS oder `netlify.toml` Build-Command, das die Markdown-Dateien in die Statische-Site-Generierung einbindet). Alternativ ein Docs-Repo `Penwright-docs`, das diese Dateien per Submodule/Pull einzieht.
+Das Handbuch ist **in die App gebundelt** — kein Internet noetig:
 
-Vorteil: eine Quelle, immer konsistent mit der App-Version die draussen ist.
-
-### 4.2 In-App-Zugriff (bereits implementiert)
-
-Drei Einstiegspunkte zeigen auf die online gehostete Version:
-
-1. **StartScreen** -> "Open User Guide"-Link
-2. **Help-Menue** -> "User Guide" + "Report Issue"
-3. **About-Dialog** -> "User Guide"-Button + "Website"-Button
-
-Alle nutzen `shell.openExternal` via `app:openExternal` IPC (rejected alles ausser `https://`).
+- `src/renderer/components/HandbookViewer.svelte` rendert `documentation/handbook.md`
+  (EN) bzw. `handbuch.md` (DE) mit `marked`; `?raw`-Import via `@docs`-Alias
+  (`electron.vite.config.mts`). EN/DE-Umschalter, externe Links via `app:openExternal`,
+  In-Page-Anker scrollen.
+- Einstiegspunkte: **Help-Menue → „User Guide"** (`menuBuilder` → `send('showHandbook')`)
+  und **About-Dialog → „User Guide"** (setzt `uiState.showHandbook`).
+- Die Markdown-Dateien im Repo sind die **Quelle der Wahrheit** und werden beim
+  Build mitgebundelt.
 
 ### 4.3 Offline-Bundling (optional, fuer v1.1)
 
