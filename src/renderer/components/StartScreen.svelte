@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import logoSvg from "../assets/vswrite-logo.svg";
+  import logoSvg from "../assets/penwright-logo.svg";
 
   let {
     onNewProject,
@@ -49,7 +49,7 @@
   <div class="start-content">
     <!-- Logo & Title -->
     <div class="start-header">
-      <img class="start-logo" src={logoSvg} alt="vswrite logo" />
+      <img class="start-logo" src={logoSvg} alt="Penwright logo" />
       <p class="subtitle">WYSIWYG Editor for Typst</p>
     </div>
 
@@ -135,7 +135,7 @@
     <div class="info-section">
       <h3>Built-in Terminal with AI Integration</h3>
       <p>
-        vswrite includes a full terminal (<code>Cmd+`</code>) where you can run
+        Penwright includes a full terminal (<code>Cmd+`</code>) where you can run
         <strong>Claude Code</strong>, <strong>OpenAI Codex</strong>, or
         <strong>Gemini CLI</strong>
         directly in your project.
@@ -205,9 +205,9 @@
   }
 
   .start-logo {
-    width: 512px;
-    height: 512px;
-    margin-bottom: -140px;
+    width: auto;
+    height: 72px;
+    margin-bottom: 8px;
   }
 
   .subtitle {

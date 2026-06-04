@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { uiState } from '../appState.svelte';
-  import logoUrl from '../assets/vswrite-logo.svg';
+  import logoUrl from '../assets/penwright-icon.svg';
   import AcknowledgmentsDialog from './AcknowledgmentsDialog.svelte';
 
   let {
@@ -57,7 +57,7 @@
   async function copyDiagnostics() {
     if (!info) return;
     const text = [
-      `vswrite ${info.version}`,
+      `Penwright ${info.version}`,
       `Platform: ${platformLabel(info.platform)} (${info.arch})`,
       `Electron ${info.electron} / Chromium ${info.chrome} / Node ${info.node}`,
       `License: ${tierLabel()}`,
@@ -79,16 +79,16 @@
   onkeydown={(e) => e.key === 'Escape' && onClose()}
   role="dialog"
   tabindex="-1"
-  aria-label="About vswrite"
+  aria-label="About Penwright"
 >
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
   <div class="about-dialog" onclick={(e) => e.stopPropagation()} role="document">
     <button class="close-btn" onclick={onClose} aria-label="Close">×</button>
 
     <div class="hero">
-      <img src={logoUrl} alt="vswrite logo" class="logo" />
+      <img src={logoUrl} alt="Penwright logo" class="logo" />
       <div class="app-meta">
-        <h1>vswrite</h1>
+        <h1>Penwright</h1>
         <div class="version">{info ? `Version ${info.version}` : 'Version …'}</div>
         <div class="tier-badge" class:pro={uiState.licenseTier === 'pro'} class:active={uiState.licenseStatus === 'active'}>
           {tierLabel()}
@@ -123,7 +123,7 @@
       <button class="link-btn" onclick={() => openExternal('https://vswrite.netlify.app/de/docs')}>
         User Guide
       </button>
-      <button class="link-btn" onclick={() => openExternal('https://vswrite.com')}>
+      <button class="link-btn" onclick={() => openExternal('https://penwright.app')}>
         Website
       </button>
       <button class="link-btn" onclick={() => openExternal('https://github.com/renejes/vswrite-desktop/issues')}>

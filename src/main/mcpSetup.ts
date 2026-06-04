@@ -4,9 +4,9 @@
  *
  * Synova-style runtime model:
  *   - The MCP server is a Bun-compiled single-file native binary (built via
- *     `scripts/build-mcp-binary.mjs` → `dist/mcp/bin/vswrite-mcp-<triple>`).
+ *     `scripts/build-mcp-binary.mjs` → `dist/mcp/bin/penwright-mcp-<triple>`).
  *   - At setup, we COPY the binary out of the .app bundle into a stable
- *     user-writable location: `~/Library/Application Support/vswrite/mcp-server/vswrite-mcp`.
+ *     user-writable location: `~/Library/Application Support/vswrite/mcp-server/penwright-mcp`.
  *   - Claude Desktop spawns that copy directly. No Node required. The
  *     process is fully decoupled from the vswrite app — quitting vswrite
  *     does not affect the MCP child, and the order of launching the two
@@ -28,10 +28,10 @@ import { getTypstPackagePath, getTypstFontPath } from './typstPath';
  * setup version in electron-store is compared against this; mismatch =>
  * the wizard prompts again so updates re-install the binary.
  */
-export const MCP_SETUP_VERSION = '0.8.0';
+export const MCP_SETUP_VERSION = '0.9.0';
 
 /** Key used in Claude Desktop's `mcpServers` map. */
-const MCP_SERVER_KEY = 'vswrite';
+const MCP_SERVER_KEY = 'penwright';
 
 export interface ClaudeCheck {
   installed: boolean;
@@ -62,7 +62,7 @@ function darwinTriple(): string {
  */
 export function getBundledBinaryPath(): string {
   const triple = darwinTriple();
-  const filename = `vswrite-mcp-${triple}`;
+  const filename = `penwright-mcp-${triple}`;
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'mcp', 'bin', filename);
   }
@@ -75,9 +75,9 @@ export function getInstalledBinaryPath(): string {
     os.homedir(),
     'Library',
     'Application Support',
-    'vswrite',
+    'Penwright',
     'mcp-server',
-    'vswrite-mcp',
+    'penwright-mcp',
   );
 }
 
@@ -134,7 +134,7 @@ function copyExecutable(src: string, dst: string): void {
   try {
     fs.chmodSync(dst, 0o755);
   } catch (err) {
-    console.warn('[vswrite] chmod 755 on MCP binary failed:', err);
+    console.warn('[penwright] chmod 755 on MCP binary failed:', err);
   }
 }
 
@@ -159,7 +159,7 @@ export async function setupMcpServer(): Promise<SetupResult> {
   const license = getLicenseData();
   if (!license.licenseKey || !license.licenseKey.startsWith('VSWRITE_PRO')) {
     throw new Error(
-      'Du brauchst eine aktivierte vswrite Pro-Lizenz, damit der MCP-Server startet. ' +
+      'Du brauchst eine aktivierte Penwright Pro-Lizenz, damit der MCP-Server startet. ' +
       'Aktiviere sie unter "Lizenz" in der Status-Leiste und fuehre die Einrichtung dann erneut aus.',
     );
   }
@@ -225,7 +225,7 @@ export async function setupMcpServer(): Promise<SetupResult> {
   // needing internet or system-installed fonts. The paths point into
   // the currently-installed .app's Resources — re-running the wizard
   // after the user moves vswrite refreshes the entry.
-  const env: Record<string, string> = { VSWRITE_LICENSE_KEY: license.licenseKey };
+  const env: Record<string, string> = { PENWRIGHT_LICENSE_KEY: license.licenseKey };
   const pkgPath = getTypstPackagePath();
   if (pkgPath) env['TYPST_PACKAGE_PATH'] = pkgPath;
   const fontPath = getTypstFontPath();
@@ -246,7 +246,7 @@ export async function setupMcpServer(): Promise<SetupResult> {
   let backupPath: string | null = null;
   if (rawExisting !== null) {
     const stamp = Math.floor(Date.now() / 1000);
-    const backupName = `.claude_desktop_config.vswrite-bak.${stamp}.json`;
+    const backupName = `.claude_desktop_config.penwright-bak.${stamp}.json`;
     backupPath = path.join(configDir, backupName);
     fs.writeFileSync(backupPath, rawExisting, 'utf-8');
   }

@@ -1,7 +1,7 @@
 {
-  "name": "vswrite-desktop",
+  "name": "penwright",
   "version": "0.7.0",
-  "description": "vswrite — A WYSIWYG editor for Typst documents",
+  "description": "Penwright — A WYSIWYG editor for Typst documents",
   "author": "René Jesser",
   "license": "MIT",
   "main": "dist/main/index.js",
@@ -22,7 +22,7 @@
     "mcp": "node dist/mcp/server.mjs"
   },
   "bin": {
-    "vswrite-mcp": "./dist/mcp/server.mjs"
+    "penwright-mcp": "./dist/mcp/server.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
@@ -73,8 +73,8 @@
     "vite": "^6.0.0"
   },
   "build": {
-    "appId": "com.vswrite.desktop",
-    "productName": "vswrite",
+    "appId": "com.penwright.app",
+    "productName": "Penwright",
     "directories": {
       "output": "release"
     },
@@ -85,7 +85,7 @@
     "afterPack": "scripts/afterPack-sign-mcp.mjs",
     "extraResources": [
       {
-        "from": "documentation/vswrite-logo.svg",
+        "from": "documentation/penwright-logo.svg",
         "to": "logo.svg"
       },
       {
@@ -103,7 +103,7 @@
         "from": "dist/mcp/bin/",
         "to": "mcp/bin/",
         "filter": [
-          "vswrite-mcp-*"
+          "penwright-mcp-*"
         ]
       },
       {
@@ -128,7 +128,7 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "icon": "build/icons/icon.png",
+      "icon": "build/icons/icon.icns",
       "target": [
         "dmg",
         "zip"

@@ -1,5 +1,5 @@
 /**
- * vswrite Desktop — Electron Main Process (Entry Point)
+ * Penwright — Electron Main Process (Entry Point)
  *
  * Slim entry point: creates the window, wires up modules, manages lifecycle.
  * All logic is delegated to extracted modules.
@@ -24,6 +24,9 @@ import { setupCrashCapture, addBreadcrumb } from './crashReporter';
 // Set up crash capture as the very first thing so even early-startup
 // errors land in a report. This installs uncaughtException /
 // unhandledRejection handlers and starts Electron's native crash dumper.
+// Brand name — drives the macOS app menu and the "About" label in dev and prod.
+app.setName('Penwright');
+
 setupCrashCapture();
 
 // ─── Window Creation ──────────────────────────────────
@@ -37,7 +40,7 @@ function createWindow(): void {
     y: bounds.y,
     minWidth: 800,
     minHeight: 500,
-    title: 'vswrite',
+    title: 'Penwright',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 15, y: 15 },
     webPreferences: {
@@ -142,7 +145,7 @@ function createWindow(): void {
 
   // Set initial title
   const fileName = appState.currentFilePath ? path.basename(appState.currentFilePath) : 'Untitled';
-  appState.mainWindow.setTitle(`${fileName} — vswrite`);
+  appState.mainWindow.setTitle(`${fileName} — Penwright`);
 }
 
 // ─── Terminal Setup ───────────────────────────────────

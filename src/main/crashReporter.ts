@@ -163,7 +163,7 @@ function buildReport(args: {
         .join('\n');
 
   const lines = [
-    'vswrite Crash Report',
+    'Penwright Crash Report',
     '====================',
     '',
     `Datum:          ${formatDateTime(now)}`,
@@ -188,7 +188,7 @@ function buildReport(args: {
     '',
     '----',
     'Wie weiter? Du kannst diesen Bericht …',
-    '  • per E-Mail an feedback@vswrite.com schicken',
+    '  • per E-Mail an feedback@penwright.app schicken',
     '  • oder als Issue auf https://github.com/renejes/vswrite-desktop/issues anhaengen',
     '',
   ];
@@ -214,7 +214,7 @@ function writeReport(content: string): string | null {
 
     return fullPath;
   } catch (err) {
-    console.error('[vswrite] failed to write crash report:', err);
+    console.error('[penwright] failed to write crash report:', err);
     return null;
   }
 }
@@ -370,10 +370,10 @@ export function setupCrashCapture(): void {
     electronCrashReporter.start({
       uploadToServer: false,
       submitURL: '',
-      productName: 'vswrite',
+      productName: 'Penwright',
     });
   } catch (err) {
-    console.warn('[vswrite] crashReporter setup failed:', err);
+    console.warn('[penwright] crashReporter setup failed:', err);
   }
 
   // Native source-map support — Node ≥ 12 can resolve stack-trace lines
@@ -387,12 +387,12 @@ export function setupCrashCapture(): void {
 
   process.on('uncaughtException', (err) => {
     captureMainCrash(err, 'uncaughtException');
-    console.error('[vswrite] uncaughtException:', err);
+    console.error('[penwright] uncaughtException:', err);
   });
 
   process.on('unhandledRejection', (reason) => {
     captureMainCrash(reason, 'unhandledRejection');
-    console.error('[vswrite] unhandledRejection:', reason);
+    console.error('[penwright] unhandledRejection:', reason);
   });
 
   addBreadcrumb('lifecycle', 'main process started');

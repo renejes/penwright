@@ -9,7 +9,7 @@
  *   ├── manifest.json                    # copied from src/mcp/manifest.template.json
  *   ├── icon.png                         # optional, falls back to vswrite-logo.svg's PNG sibling
  *   └── server/
- *       ├── bin/vswrite-mcp              # Bun-compiled host-arch MCP binary
+ *       ├── bin/penwright-mcp              # Bun-compiled host-arch MCP binary
  *       ├── typst/typst                  # vswrite's bundled Typst binary (arm64 today)
  *       ├── typst-packages/              # bundled Typst @preview/* packages (24 dirs)
  *       └── fonts/                       # bundled OFL font families (7 dirs)
@@ -18,7 +18,7 @@
  *
  * Pre-reqs:
  *   - `npm run build:mcp-binary` has produced the Bun binary in
- *     dist/mcp/bin/vswrite-mcp-<triple>
+ *     dist/mcp/bin/penwright-mcp-<triple>
  *   - `npm run fetch:packages` + `npm run fetch:fonts` have populated
  *     resources/typst-packages/ and resources/fonts/
  *
@@ -46,7 +46,7 @@ const OUT_DIR = join(ROOT, 'dist', 'mcpb');
 // ─── Resolve inputs ─────────────────────────────────
 
 const triple = process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
-const BUN_BINARY = join(ROOT, 'dist', 'mcp', 'bin', `vswrite-mcp-${triple}`);
+const BUN_BINARY = join(ROOT, 'dist', 'mcp', 'bin', `penwright-mcp-${triple}`);
 const TYPST_BINARY = join(ROOT, 'resources', 'bin', `typst-${process.arch}-darwin`);
 const TYPST_PACKAGES = join(ROOT, 'resources', 'typst-packages');
 const FONTS = join(ROOT, 'resources', 'fonts');
@@ -77,7 +77,7 @@ console.log(`[build-mcpb] staging at ${STAGING}`);
 
 // Copy MCP binary, drop the triple suffix so the manifest's entry_point
 // is the same across arches.
-copyFileSync(BUN_BINARY, join(STAGING, 'server', 'bin', 'vswrite-mcp'));
+copyFileSync(BUN_BINARY, join(STAGING, 'server', 'bin', 'penwright-mcp'));
 
 // Copy Typst binary. Same renaming — manifest says `typst/typst` regardless
 // of host arch.

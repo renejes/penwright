@@ -29,11 +29,11 @@
   },
   "server": {
     "type": "binary",
-    "entry_point": "server/bin/vswrite-mcp",
+    "entry_point": "server/bin/penwright-mcp",
     "mcp_config": {
-      "command": "${__dirname}/server/bin/vswrite-mcp",
+      "command": "${__dirname}/server/bin/penwright-mcp",
       "env": {
-        "VSWRITE_LICENSE_KEY": "${user_config.license_key}",
+        "PENWRIGHT_LICENSE_KEY": "${user_config.license_key}",
         "TYPST_BIN": "${__dirname}/server/typst/typst",
         "TYPST_PACKAGE_PATH": "${__dirname}/server/typst-packages",
         "TYPST_FONT_PATH": "${__dirname}/server/fonts"

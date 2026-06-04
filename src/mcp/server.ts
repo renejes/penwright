@@ -247,13 +247,13 @@ function parseArgs(): void {
   }
 
   // License key from env var
-  if (!state.licenseKey && process.env.VSWRITE_LICENSE_KEY) {
-    state.licenseKey = process.env.VSWRITE_LICENSE_KEY;
+  if (!state.licenseKey && process.env.PENWRIGHT_LICENSE_KEY) {
+    state.licenseKey = process.env.PENWRIGHT_LICENSE_KEY;
   }
 
   // Fallback: env var
-  if (!state.projectDir && process.env.VSWRITE_PROJECT_DIR) {
-    state.projectDir = path.resolve(process.env.VSWRITE_PROJECT_DIR);
+  if (!state.projectDir && process.env.PENWRIGHT_PROJECT_DIR) {
+    state.projectDir = path.resolve(process.env.PENWRIGHT_PROJECT_DIR);
   }
 
   // Fallback: cwd
@@ -339,7 +339,7 @@ function safeRealpath(target: string): string {
 // ─── Server Setup ────────────────────────────────────
 
 const server = new McpServer({
-  name: 'vswrite',
+  name: 'penwright',
   version: '0.9.0',
 });
 
@@ -2731,7 +2731,7 @@ async function main() {
   if (!state.licenseValidated) {
     console.error(
       'vswrite MCP Server requires a Pro license.\n' +
-      'Provide your key via --license-key VSWRITE_PRO_xxx or VSWRITE_LICENSE_KEY env var.\n' +
+      'Provide your key via --license-key VSWRITE_PRO_xxx or PENWRIGHT_LICENSE_KEY env var.\n' +
       'Get a Pro license at https://vswrite.com/pricing'
     );
     process.exit(1);

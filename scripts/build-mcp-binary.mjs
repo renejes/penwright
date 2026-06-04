@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Compile the vswrite MCP server into a standalone executable via
- * `bun build --compile`. Output goes to `dist/mcp/bin/vswrite-mcp-<triple>`
+ * `bun build --compile`. Output goes to `dist/mcp/bin/penwright-mcp-<triple>`
  * — naming mirrors what `electron-builder`'s extraResources picks up.
  *
  * Why a standalone binary instead of `node server.mjs`?
@@ -58,7 +58,7 @@ if (!BUN) {
 }
 
 for (const target of targets) {
-  const outFile = join(OUT_DIR, `vswrite-mcp-${target.triple}`);
+  const outFile = join(OUT_DIR, `penwright-mcp-${target.triple}`);
   console.log(`[build-mcp-binary] ${target.bunTarget} → ${outFile}`);
 
   const proc = spawnSync(BUN, [
@@ -80,9 +80,9 @@ for (const target of targets) {
   }
 }
 
-// Drop a "vswrite-mcp" alias pointing at the host build so dev/test scripts
+// Drop a "penwright-mcp" alias pointing at the host build so dev/test scripts
 // can invoke it without the triple suffix.
-const aliasSrc = join(OUT_DIR, `vswrite-mcp-${hostTarget.triple}`);
-const aliasDst = join(OUT_DIR, 'vswrite-mcp');
+const aliasSrc = join(OUT_DIR, `penwright-mcp-${hostTarget.triple}`);
+const aliasDst = join(OUT_DIR, 'penwright-mcp');
 copyFileSync(aliasSrc, aliasDst);
-console.log(`[build-mcp-binary] alias dist/mcp/bin/vswrite-mcp → vswrite-mcp-${hostTarget.triple}`);
+console.log(`[build-mcp-binary] alias dist/mcp/bin/penwright-mcp → penwright-mcp-${hostTarget.triple}`);

@@ -29,7 +29,7 @@ export default async function afterPack(context) {
   const appName = context.packager.appInfo.productFilename;
   const appPath = join(context.appOutDir, `${appName}.app`);
   const arch = context.arch === 1 ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin'; // arch 1 = arm64
-  const binary = join(appPath, 'Contents', 'Resources', 'mcp', 'bin', `vswrite-mcp-${arch}`);
+  const binary = join(appPath, 'Contents', 'Resources', 'mcp', 'bin', `penwright-mcp-${arch}`);
 
   if (!existsSync(binary)) {
     console.warn(`[afterPack-sign-mcp] binary not found at ${binary} — skip.`);
