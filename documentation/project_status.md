@@ -1,13 +1,13 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-06-04 (nach Session 25: **DOCX-Overhaul** — der Export rendert jetzt Abbildungen / Display-Math / Tabellen / Cross-Refs / Fussnoten / Callouts statt rohen Typst-Code zu dumpen; Prosa-mit-Inline (`#emph`/`#strong`/`#raw`/`#footnote`) ueberlebt im Editor + DOCX. Journal-submission-tauglich)
+> **Stand:** 2026-06-04 (nach Session 26: **Phase E — Per-Chapter Section Styles** — Magazin-"Rubriken" pro Kapitel via scoped `#show`: Schema + Generator + 4 MCP-Tools + 5 Presets + Design-Panel-Editor + Chapters-Tab-Zuweisung. Davor Session 25: **DOCX-Overhaul** — journal-submission-tauglich)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
 
 ## Zusammenfassung
 
-vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung, einen visuellen Design-Editor mit Themes / Palettes / Layouts / Fonts / 19 Design-Elementen, Claude Code Skills und einen MCP-Server mit 52 Tools fuer externe Agents.
+vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der vswrite VS Code Extension. Die App bietet einen WYSIWYG-Editor fuer Typst-Dokumente mit integriertem Terminal, Live-PDF-Preview, Dateimanager, Versionssystem (Git unter der Haube, „Projekt"-UI darueber), Auto-Backup, Zotero-Anbindung, einen visuellen Design-Editor mit Themes / Palettes / Layouts / Fonts / 19 Design-Elementen, Claude Code Skills und einen MCP-Server mit 56 Tools fuer externe Agents.
 
 **Status Release-Readiness:**
 - Security gehaertet (Path Traversal + Symlink-Bypass + MCP-Pfade + verschluesselte Lizenz)
@@ -19,7 +19,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - DOCX-Export produziert journal-submission-taugliche Word-Dateien: Live-Multilevel-Numbering + Abbildungen (Bild + „Abbildung N"-Caption) + Display-Math/SVG als Bilder + echte Word-Tabellen + aufgeloeste Cross-Refs + echte Fussnoten + Callouts-als-Box + Seitenzahlen. Reiner Design-/Layout-Code wird uebersprungen statt geleakt (Session 25)
 - About-Dialog zeigt Version + Lizenz + System-Info
 - **Lokales Crash-Reporting:** Plaintext-Reports nach `<userData>/crash-reports/`, Boot-Dialog beim naechsten Start, User entscheidet selbst ueber Weitergabe — keine externe Telemetrie
-- **MCP-Server mit 52 Tools**: Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets, **Design-Surface (11 Tools)** — externe Agents koennen die kompletten Editor- und Design-Workflows fahren
+- **MCP-Server mit 56 Tools**: Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets, **Design-Surface (15 Tools, inkl. per-Chapter Section Styles)** — externe Agents koennen die kompletten Editor- und Design-Workflows fahren
 - **Offen fuer Launch:** Auto-Updater End-to-End-Test, „Open Sample Project"-Onboarding, finale QA auf echter 100-Seiten-Thesis, Distribution-Pipeline (Firebase + DMG + Notarization)
 
 **Codebase:** ~24.500 Zeilen in 87 Dateien (Session 16)
@@ -27,7 +27,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - Renderer: ~6.300 Zeilen (App.svelte + 21 Components inkl. ProjectPanel, VersionDetail, BackupListDialog, ExportDialog, ProjectSearchPanel, CommentsPanel, CrashReportDialog)
 - Editor: ~5.500 Zeilen (CommandHub.svelte entfernt — ~456 Zeilen, dafür `commentDecorations.ts` neu)
 - Shared: ~3.400 Zeilen (docxSerializer mit Word-Styles, `skillTemplates.ts` mit den fuenf Claude-Skills als Master-Quelle)
-- MCP: ~1.700 Zeilen (52 Tools)
+- MCP: ~1.900 Zeilen (56 Tools)
 - CLI: ~800 Zeilen (aus Extension, unused)
 
 **Weitere Dokumente:**
@@ -150,12 +150,12 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **About-Dialog** — Version, Electron/Chromium/Node-Versionen, Platform/Arch, Lizenz-Tier (Unlicensed/Basic/Pro-Badge), Links (User Guide, Website, Report Issue), "Copy Diagnostics" fuer Bug-Reports
 - [x] **Bestaetigungsdialoge bei destruktiven Cloud-Ops:** Restore Version, Apply Backup, Cloud-Backup laden (Pull) — Vokabular bleibt im Versionen-Sprech, kein „Pull / Reset / Branch"
 
-**MCP Server (Model Context Protocol) — 52 Tools, Server-Version 0.9.0 (Bun-Binary 0.7.0):**
+**MCP Server (Model Context Protocol) — 56 Tools, Server-Version 0.9.0 (Bun-Binary 0.8.0):**
 - [x] Eigenstaendiges CLI-Tool (`src/mcp/server.ts`, ~1.700 Zeilen)
 - [x] **Projekt & Dateien (5):** set_project, list_files, read_file, write_file, create_project
 - [x] **Dokument-Operationen (4):** get_document, open_file, update_document, **compile** (reiner Verifier — SVG-Mode entfernt, kein Output-Path; Artefakt-Schreiben uebernehmen die Export-Tools)
 - [x] **Settings (2):** get_settings, update_settings (nur lang + bibliographyStyle — alles andere lebt seit Phase A im Design-Block)
-- [x] **Design (11):** get_style, update_style, list_styles (6 Themes), apply_style, list_layouts (7 Presets), apply_layout, list_fonts, apply_palette, list_design_elements (19 Snippets), insert_design_element (anker-basiert, re-themed via `style-colors.*` / `style-fonts.*`), generate_layout (NL-Intent → Theme + Layout + optional Hero)
+- [x] **Design (15):** get_style, update_style, list_styles (6 Themes), apply_style, list_layouts (7 Presets), apply_layout, list_fonts, apply_palette, list_design_elements (19 Snippets), insert_design_element, generate_layout, **+ Section Styles (Phase E): list_section_styles / define_section_style / apply_section_style / clear_section_style** (per-Chapter Magazin-Rubriken via scoped `#show`)
 - [x] **Kapitel & Struktur (6):** get_chapters, reorder_chapters, add_chapter, remove_chapter, merge_document, split_document
 - [x] **Bibliographie & Citations (3):** get_citations, add_citation, ensure_bibliography
 - [x] **Cross-References & Footnotes (3):** list_labels (gefiltert nach Typ), insert_reference (Label-Existenz-Check + Vorschlaege fuer aehnliche Labels, Auto-Space wenn vorheriger Char alphanumerisch), add_footnote (Klammer-Balance-Check auf Body)
@@ -172,7 +172,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] Getestet mit Claude Desktop (Cowork)
 - [x] **5 Skill-Dateien als MCP Prompts** (typst-reference, vswrite-conventions, research-workflow, writing-style, design-conventions) — Inhalt aus `src/shared/skillTemplates.ts`, deployed pro Projekt nach `.claude/skills/<name>/SKILL.md`. Tilde-Fences (`~~~`) statt Backticks im Source, damit keine Escape-Hoelle in TS-Strings
 - [x] Pro-Lizenz-Gating (via `--license-key` Flag oder `VSWRITE_LICENSE_KEY` Env)
-- [x] **Doku komplett:** [mcp-server.md](mcp-server.md) mit allen 52 Tools, neun Workflow-Beispielen (Backlinks, Bulk-Refactor mit Versions-Safety-Net, Recherche-Markdown als Kapitel, Bild + Figure + Reference in einem Rutsch, etc.)
+- [x] **Doku komplett:** [mcp-server.md](mcp-server.md) mit allen 56 Tools, neun Workflow-Beispielen (Backlinks, Bulk-Refactor mit Versions-Safety-Net, Recherche-Markdown als Kapitel, Bild + Figure + Reference in einem Rutsch, etc.)
 
 **Comments / Annotations (Session 12):**
 - [x] Storage als sichtbarer `comments/`-Ordner im Projekt-Root (nicht in `.vswrite/`) — eine `.md`-Datei pro Comment, YAML-Frontmatter (`id`, `file`, `anchor`, `rangeStart/End`, `author`, `date`, `resolved`) + Markdown-Body
@@ -281,6 +281,22 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 26 (2026-06-04) — Phase E: Per-Chapter Section Styles (Magazin-Rubriken)
+
+Magazine wie „Neues Lernen" nutzen pro Rubrik (Feature / Interview / Essay / Department) einen eigenen Look. vswrite kann das jetzt: eine benannte **Section Style** = ein Overlay, das via scoped `#show: <id>-style` auf ein einzelnes Kapitel angewendet wird, waehrend Page-Geometrie + Running-Heads dokument-level bleiben.
+
+**Mechanismus** (in Step 1 zuerst bewiesen): ein Kapitel meldet sich mit zwei Zeilen an — `#import "../style.typ": <id>-style` + `#show: <id>-style`. Typsts Block-Scoping (`set`/`show` im Funktions-Block) + die `#include`-Grenze containen das Restyle, kein Bluten ins Folgekapitel.
+
+**Step 1 — Schema + Generator (`f134efd`):** `ProjectStyle.sections: SectionStyle[]` (Overlay: colors / fonts / scale / columns / per-level headings) + Sanitizer. `styleParser`: `emitCoreRules` extrahiert (geteilt von `apply-style` und jeder Section); pro Section ein `#let <id>-style(body)` mit **gemergten Literal**-Farben/Fonts (eine Section kann nicht `style-colors` referenzieren — das haelt die Basis-Palette). Regression byte-identisch fuer sectionslose Projekte.
+
+**Step 2 — MCP + Presets + Injektion (`e5c7ac0`):** `styleParser` Chapter-Injektions-Helfer (`ensureSectionStyle`/`clearSectionStyle`/`getSectionStyleId`, marker-bracketed, round-trip-sicher). 5 Rubrik-Presets (`sectionPresets.ts`). 4 MCP-Tools: `list/define/apply/clear_section_style`. MCP_SETUP_VERSION 0.7.1 → 0.8.0.
+
+**Step 3 — IPC + UI (`ccd48d0`):** `section:get/apply/clear` IPC (+ Preload-Whitelist). IncludesPanel: per-Chapter Rubrik-Dropdown. DesignPanel: collapsible „Section Styles"-Editor (Add-from-Preset, Accent-Swatch, Spalten, Delete). `applyTheme` erhaelt jetzt `sections`.
+
+**Step 4 — Preservation + Skill + Doku:** MCP `apply_style` / `generate_layout` erhalten `style.sections` (wie `custom.preamble`). DESIGN_SKILL „Per-chapter rubrics"-Block. Doku (mcp-server.md / Handbuecher / dieser Eintrag).
+
+**Verifikation:** define→apply→swap→clear end-to-end ueber die geteilten Helfer; injizierter Block ueberlebt den Editor-Round-Trip als Fixpunkt; deployment-genaues `#include`-Szenario kompiliert; tsc clean, svelte-check 0 errors, electron-vite + MCP-Builds gruen.
 
 ### Session 25 (2026-06-04) — DOCX-Overhaul (journal-submission-tauglich)
 

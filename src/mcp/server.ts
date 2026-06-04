@@ -845,7 +845,9 @@ server.tool(
       return { content: [{ type: 'text' as const, text: `Error: Unknown theme "${styleId}". Available: ${ids}` }], isError: true };
     }
     const current = readProjectStyle(state.projectDir);
-    const next = sanitizeProjectStyle({ ...t.style, custom: { preamble: current.custom?.preamble ?? '' } });
+    // Preserve project-specific data a theme doesn't carry: the custom-code
+    // escape hatch and the per-chapter section styles (Phase E).
+    const next = sanitizeProjectStyle({ ...t.style, sections: current.sections, custom: { preamble: current.custom?.preamble ?? '' } });
     writeProjectStyleAndRegenerate(state.projectDir, next);
     return { content: [{ type: 'text' as const, text: `Applied theme "${t.name}" — style.json + style.typ regenerated. Run vswrite_compile to verify.` }] };
   },
@@ -1134,6 +1136,7 @@ server.tool(
       ...theme.style,
       layout: { ...layout.layout },
       scale: { ...theme.style.scale, base: layout.baseSize ?? theme.style.scale.base },
+      sections: currentStyle.sections,
       custom: { preamble: preservedCustom },
     });
 

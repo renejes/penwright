@@ -220,6 +220,7 @@ The sidebar has six tabs:
 
 ### Chapters (Include manager)
 - `#include` statements, arrows to reorder (instant UI update), x to remove, + Add Chapter
+- **Section-style dropdown** per chapter — assign a magazine "rubric" (Feature / Interview / Essay / …) that restyles just that chapter. Picking one injects a scoped `#show` at the top of the chapter file; "Default" clears it. Define / tune the variants in the **Design** tab's *Section Styles* section (see [Design panel](#design-panel--visual-style-editor))
 
 ### Project
 This tab replaces the old Git panel and uses writer-friendly vocabulary instead of raw Git commands. See the **[Versions & Auto-Backup](#versions--auto-backup)** section below for the full workflow. In short:
@@ -503,6 +504,7 @@ Every design decision lives in the **Design** sidebar tab. Click a theme to appl
 | **Layout** | Paper, orientation, margin, columns, page numbering, header markup, footer markup, page fill (background colour expression). Header/Footer accept `{chapter}` (current H1 title) and `{section}` (current H2 title) placeholders — e.g. `{chapter} · ISSUE 1` produces a per-chapter running head that follows the document. |
 | **Headings** | H1–H6 as collapsible cards — size, weight, colour slot, top margin per level; plus a single numbering pattern setting |
 | **Elements** | Blockquote, Code-Block, Figure (incl. photographer-credit separator + label for the `figure-caption-credit(caption, credit)` helper), Table — each a collapsible card with structured fields (border slot / padding / italic toggle / caption position / zebra rows / etc.) |
+| **Section Styles** | Per-chapter "rubrics" for magazine layouts — named overlays (accent / fonts / columns / heading treatment) you assign to a single chapter from the **Chapters** tab. Five built-in presets (Feature / Interview / Essay / Photo-Essay / Department); collapsible list with an accent swatch, column count and delete. Page geometry and running heads stay document-level |
 | **Custom Typst-Code** | Escape hatch: free-form Typst inside a CodeMirror editor. Appended to `style.typ` inside a fenced block that survives every regeneration |
 
 ### Themes vs palette presets vs layout presets
@@ -732,7 +734,7 @@ vswrite ships a built-in MCP server (Model Context Protocol) that lets external 
 
 ### What can the MCP server do?
 
-Over MCP (52 tools) the AI can:
+Over MCP (56 tools) the AI can:
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
 - Change document settings (font, size, language, margins, …) and apply style templates
 - Manage chapters and bibliography end-to-end (incl. anchor-based comment / footnote / cross-reference inserts)
@@ -741,7 +743,7 @@ Over MCP (52 tools) the AI can:
 - Save / list / show / restore versions in the writer-vocabulary used by the Project panel
 - Export PDF and DOCX (DOCX uses real Word styles + live multilevel numbering, and renders figures, display-math, tables, cross-references, footnotes and callouts; pure design code is skipped)
 - Import Markdown and add images (with content-hash dedup + figure builder)
-- Drive the whole design surface — swap themes / palettes / layouts / fonts, insert design elements (19 of them incl. drop-cap, pull-quote variants, article-opener, section-opener, image galleries incl. asymmetric, image-overlay, stats-box, photo-caption-wrap, magazine cover) at anchors, map natural-language intents (`brochure` / `magazine` / `thesis` / …) onto matching theme+layout combos
+- Drive the whole design surface — swap themes / palettes / layouts / fonts, insert design elements (19 of them incl. drop-cap, pull-quote variants, article-opener, section-opener, image galleries incl. asymmetric, image-overlay, stats-box, photo-caption-wrap, magazine cover) at anchors, assign per-chapter section styles (magazine rubrics: feature / interview / essay / …), map natural-language intents (`brochure` / `magazine` / `thesis` / …) onto matching theme+layout combos
 - Switch between projects, run Git operations, and pull Skill Prompts (typst-reference / vswrite-conventions / research-workflow / writing-style / design-conventions)
 
 ### Setup: auto-discover wizard (macOS)
@@ -839,9 +841,9 @@ You don't need to edit the config every time you switch projects. Just tell Clau
 
 Claude will call `vswrite_set_project` and work with the new project from there on.
 
-### Available tools (43)
+### Available tools (56)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 52 tools with one-line descriptions, grouped by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 56 tools with one-line descriptions, grouped by category:
 
 **Project & files (5)**
 
@@ -863,9 +865,9 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 - `vswrite_get_settings` — Read the document settings (language + bibliography style; everything else has lived in the Design editor since Phase A).
 - `vswrite_update_settings` — Update document settings; only passed keys are modified.
 
-**Design (11) — themes, layouts, palette, fonts, elements**
+**Design (15) — themes, layouts, palette, fonts, elements, section styles**
 
-The structured design surface from the Design tab. Writes directly to `.vswrite/style.json`, regenerates `style.typ`, ensures the root `.typ` file has `#import "style.typ": *` + `#show: apply-style` at the top. Theme / layout swaps preserve `style.custom.preamble` (the user escape-hatch block).
+The structured design surface from the Design tab. Writes directly to `.vswrite/style.json`, regenerates `style.typ`, ensures the root `.typ` file has `#import "style.typ": *` + `#show: apply-style` at the top. Theme / layout swaps preserve `style.custom.preamble` (the user escape-hatch block) and `style.sections` (per-chapter section styles).
 
 - `vswrite_get_style` — Return the full `ProjectStyle` JSON (colors / fonts / scale / layout / headings / elements / custom).
 - `vswrite_update_style` — Partial deep-merge patch with per-leaf sanitiser; invalid values fall back to the old value.
@@ -878,6 +880,10 @@ The structured design surface from the Design tab. Writes directly to `.vswrite/
 - `vswrite_list_design_elements` — Library of **19** parametric snippets with their params — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover.
 - `vswrite_insert_design_element` — Insert an element at an anchor; snippets reference `style-colors.*` / `style-fonts.*` so they re-theme automatically.
 - `vswrite_generate_layout` — High-level NL composite: `intent: "magazine"` selects e.g. the Editorial theme + Magazine-Editorial layout + optional Hero opener.
+- `vswrite_list_section_styles` — Per-chapter "rubrics": the five presets (feature / interview / essay / photo-essay / department), the project's defined variants, and which chapters use which.
+- `vswrite_define_section_style` — Create/update a section overlay (from a preset and/or explicit accent / fonts / columns / heading overrides); regenerates a `#let <id>-style` per variant.
+- `vswrite_apply_section_style` — Assign a variant to one chapter (injects the scoped `#show`; auto-defines a preset if needed). Restyles just that chapter; page geometry stays document-level.
+- `vswrite_clear_section_style` — Remove the section opt-in from a chapter.
 
 **Chapters & structure (6)**
 

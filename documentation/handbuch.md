@@ -220,6 +220,7 @@ Die Sidebar hat sechs Tabs:
 
 ### Chapters (Include-Manager)
 - `#include` Statements, Pfeile zum Umsortieren (sofortiges UI-Update), x zum Entfernen, + Add Chapter
+- **Section-Style-Dropdown** pro Kapitel — weist eine Magazin-"Rubrik" zu (Feature / Interview / Essay / …), die nur dieses Kapitel restyled. Auswahl injiziert ein scoped `#show` oben in die Kapitel-Datei; "Default" entfernt es. Varianten anlegen / tunen im **Design**-Tab unter *Section Styles* (siehe [Design-Panel](#design-panel--visueller-style-editor))
 
 ### Project
 Dieser Tab ersetzt das alte Git-Panel und nutzt Schreiber-Vokabular statt roher Git-Befehle. Vollstaendiger Workflow: siehe Abschnitt **[Versionen & Auto-Backup](#versionen--auto-backup)** weiter unten. Kurzfassung:
@@ -503,6 +504,7 @@ Jede Design-Entscheidung lebt im **Design**-Sidebar-Tab. Klick auf ein Theme ueb
 | **Layout** | Paper, Orientation, Margin, Columns, Page-Numbering, Header-Markup, Footer-Markup, Page-Fill (Background-Color-Expression). Header/Footer akzeptieren die Platzhalter `{chapter}` (aktueller H1-Titel) und `{section}` (aktueller H2-Titel) — z.B. `{chapter} · ISSUE 1` ergibt eine pro-Kapitel mitwandernde Running-Head. |
 | **Headings** | H1–H6 als collapsible Cards — Size, Weight, Color-Slot, Top-Margin pro Level; plus ein einziges Numbering-Pattern |
 | **Elements** | Blockquote, Code-Block, Figure (inkl. Photographer-Credit-Separator + Label fuer `figure-caption-credit(caption, credit)` Helper), Table — jede als collapsible Card mit strukturierten Feldern (Border-Slot / Padding / Italic-Toggle / Caption-Position / Zebra-Rows / etc.) |
+| **Section Styles** | Per-Chapter "Rubriken" fuer Magazin-Layouts — benannte Overlays (Accent / Fonts / Spalten / Heading-Treatment), die du im **Chapters**-Tab einem einzelnen Kapitel zuweist. Fuenf Built-in-Presets (Feature / Interview / Essay / Photo-Essay / Department); collapsible Liste mit Accent-Swatch, Spaltenzahl und Loeschen. Page-Geometrie + Running-Heads bleiben dokument-level |
 | **Custom Typst-Code** | Escape-Hatch: freier Typst-Code im CodeMirror-Editor. Wird ans Ende von `style.typ` in einen fenced Block angehaengt, der jede Regeneration ueberlebt |
 
 ### Themes vs. Palette-Presets vs. Layout-Presets
@@ -741,7 +743,7 @@ Die KI kann ueber den MCP-Server (52 Tools):
 - Versionen speichern / auflisten / anzeigen / wiederherstellen — im selben Vokabular wie das Project-Panel
 - PDF und DOCX exportieren (DOCX mit echten Word-Styles + Live-Multilevel-Numbering, rendert Abbildungen, Display-Math, Tabellen, Cross-References, Fussnoten und Callouts; reiner Design-Code wird uebersprungen)
 - Markdown importieren und Bilder einfuegen (Content-Hash-Dedup + Figure-Builder)
-- Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (19 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries inkl. asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover) anker-basiert einfuegen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
+- Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (19 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries inkl. asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover) anker-basiert einfuegen, per-Chapter Section Styles (Magazin-Rubriken: feature / interview / essay / …) zuweisen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
 - Zwischen Projekten wechseln, Git-Operationen ausfuehren, Skill-Prompts abfragen (typst-reference / vswrite-conventions / research-workflow / writing-style / design-conventions)
 
 ### Einrichtung: Auto-Setup-Wizard (macOS)
@@ -839,7 +841,7 @@ Du musst die Config **nicht** jedes Mal aendern, wenn du das Projekt wechselst. 
 
 Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
-### Verfuegbare Tools (52)
+### Verfuegbare Tools (56)
 
 Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 52 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
@@ -863,9 +865,9 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 - `vswrite_get_settings` — Liest die Document-Settings (Sprache + Bibliographie-Stil; alles andere lebt seit Phase A im Design-Editor).
 - `vswrite_update_settings` — Aendert Document-Settings; nur uebergebene Keys werden modifiziert.
 
-**Design (11) — Themes, Layouts, Palette, Fonts, Elements**
+**Design (15) — Themes, Layouts, Palette, Fonts, Elements, Section Styles**
 
-Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.vswrite/style.json`, regeneriert `style.typ`, stellt sicher dass die Root-`.typ`-Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Theme-/Layout-Swaps preservieren `style.custom.preamble` (User-Escape-Hatch-Code).
+Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.vswrite/style.json`, regeneriert `style.typ`, stellt sicher dass die Root-`.typ`-Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Theme-/Layout-Swaps preservieren `style.custom.preamble` (User-Escape-Hatch-Code) und `style.sections` (per-Chapter Section Styles).
 
 - `vswrite_get_style` — Liefert das vollstaendige `ProjectStyle`-JSON (colors / fonts / scale / layout / headings / elements / custom).
 - `vswrite_update_style` — Partial-Patch mit Deep-Merge und Per-Leaf-Sanitizer; ungueltige Werte fallen auf den alten zurueck.
@@ -878,6 +880,10 @@ Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.vswr
 - `vswrite_list_design_elements` — Library der **19** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover.
 - `vswrite_insert_design_element` — Fuegt ein Element an einem Anker ein; Snippets referenzieren `style-colors.*` / `style-fonts.*` und re-themen automatisch.
 - `vswrite_generate_layout` — Hoch-Level-NL-Komposit: `intent: "magazine"` waehlt z.B. Editorial-Theme + Magazine-Editorial-Layout + optionalen Hero.
+- `vswrite_list_section_styles` — Per-Chapter-"Rubriken": die fuenf Presets (feature / interview / essay / photo-essay / department), die definierten Varianten + welche Kapitel welche nutzen.
+- `vswrite_define_section_style` — Section-Overlay anlegen/aendern (aus Preset und/oder explizite accent / fonts / columns / heading-Overrides); regeneriert ein `#let <id>-style` pro Variante.
+- `vswrite_apply_section_style` — Variante einem Kapitel zuweisen (injiziert das scoped `#show`; auto-definiert Preset falls noetig). Restyled nur dieses Kapitel; Page-Geometrie bleibt dokument-level.
+- `vswrite_clear_section_style` — Section-Opt-in aus einem Kapitel entfernen.
 
 **Kapitel & Struktur (6)**
 

@@ -1,6 +1,6 @@
 # vswrite MCP Server — AI Integration
 
-> **52 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **56 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
 
 ---
 
@@ -57,7 +57,7 @@ Claude sieht jetzt die vswrite-Tools im MCP-Menue.
 
 ---
 
-## Verfuegbare Tools (52)
+## Verfuegbare Tools (56)
 
 ### Projekt & Dateien (5)
 
@@ -87,9 +87,9 @@ Document Settings sind seit Session 22 auf `lang` + `bibliographyStyle` reduzier
 | `vswrite_get_settings` | Document Settings lesen (lang + bibliographyStyle) |
 | `vswrite_update_settings` | Settings aendern (nur geaenderte Keys angeben) |
 
-### Design (11) — Themes, Layouts, Palette, Fonts, Elements
+### Design (15) — Themes, Layouts, Palette, Fonts, Elements, Section Styles
 
-Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach `.vswrite/style.json`, regeneriert `style.typ`, und stellt sicher dass die root-`.typ` Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Operationen sind idempotent und preservieren `style.custom.preamble` (User-Escape-Hatch-Code) bei Theme- und Layout-Swaps.
+Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach `.vswrite/style.json`, regeneriert `style.typ`, und stellt sicher dass die root-`.typ` Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Operationen sind idempotent und preservieren `style.custom.preamble` (User-Escape-Hatch-Code) **und `style.sections`** (per-Chapter Section Styles) bei Theme- und Layout-Swaps.
 
 | Tool | Beschreibung |
 |------|-------------|
@@ -104,6 +104,10 @@ Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach
 | `vswrite_list_design_elements` | Library der **19** parametrischen Snippets (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider + Drop-Cap / Divider-Asterisks / Divider-Ornament / Pull-Quote-Display / Pull-Quote-Block / Article-Opener / Section-Opener / Gallery-2up / Gallery-3up / **Gallery-Asymmetric** / **Image-Overlay** / **Stats-Box** / **Photo-Caption-Wrap** / Magazine-Cover) inkl. erwarteter Params pro Element |
 | `vswrite_insert_design_element` | Snippet an Anchor-Position einfuegen — z.B. Hero am Dokument-Anfang, Pull-Quote nach einem bestimmten Absatz. Snippets referenzieren `style-colors.*` und `style-fonts.*` und re-themen automatisch wenn Palette/Typografie wechselt |
 | `vswrite_generate_layout` | Hoch-Level-Komposit: `intent: "brochure"` waehlt Marketing-Brochure Theme + Magazine-2col Layout + optional Hero am Anfang. Intent-Mapping deckt brochure / thesis / magazine / report / spec / minimal / newsletter / poster / booklet / slide ab |
+| `vswrite_list_section_styles` | **Section Styles (Phase E)** — per-Chapter "Rubriken". Listet die 5 Built-in-Presets (feature / interview / essay / photo-essay / department), die im Projekt definierten Varianten, und welche Kapitel welche Variante nutzen |
+| `vswrite_define_section_style` | Variante anlegen/aendern — `fromPreset` als Startpunkt und/oder explizite Overrides (accent / fonts / baseSize / leading / columns / h1*). Schreibt nach `style.sections`, regeneriert `style.typ` mit einem `#let <id>-style(body)` pro Variante |
+| `vswrite_apply_section_style` | Variante einem Kapitel zuweisen — injiziert den scoped `#import "../style.typ": <id>-style` + `#show: <id>-style` oben in die Kapitel-Datei. Auto-definiert ein Preset falls noetig. Restyled NUR dieses Kapitel (accent / fonts / columns / headings); Page-Geometrie + Running-Heads bleiben dokument-level. Danach `vswrite_compile` |
+| `vswrite_clear_section_style` | Section-Opt-in aus einem Kapitel entfernen (zurueck zum Dokument-Default-Look). Die Variante bleibt in `style.json` definiert |
 
 ### Kapitel & Struktur (6)
 
@@ -460,7 +464,7 @@ Der MCP Server erfordert eine **Pro-Lizenz**. Ohne Lizenz sind die Tools nicht v
 Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft `typst` CLI fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts      <- Alle 52 Tools in einer Datei (~1.700 Zeilen)
+src/mcp/server.ts      <- Alle 56 Tools in einer Datei (~1.900 Zeilen)
 esbuild.mcp.mjs        <- Build-Script (ESM, Node 20)
 dist/mcp/server.mjs    <- Gebundelte Ausgabe
 ```

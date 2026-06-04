@@ -1379,6 +1379,44 @@ The \`magazine-editorial\` layout preset uses \`{chapter}  ·  ISSUE 1\` by defa
 - **Zebra rows** help with wide tables (>5 columns) but distract on narrow ones. Default off.
 - **6–8 pt cell padding** is the comfortable range. Less feels cramped, more wastes space.
 
+## Per-chapter section styles (magazine rubrics)
+
+Real magazines don't use one look for the whole issue — each rubric (Feature,
+Interview, Essay, Department) has its own accent, type and column treatment.
+vswrite supports this with **section styles**: a named overlay applied to a
+single chapter via a scoped \`#show\`, while page geometry and running heads stay
+document-level. The override actually re-themes that chapter (it emits literal
+colours, not the global palette reference).
+
+Workflow via MCP:
+
+~~~
+vswrite_list_section_styles()                       // presets + defined + assignments
+vswrite_apply_section_style({ file: "chapters/03-feature.typ", styleId: "feature" })
+  // auto-defines the 'feature' preset if needed, injects the opt-in, then:
+vswrite_compile()
+~~~
+
+Five built-in presets: **feature** (big display headline, accent, 1 col),
+**interview** (2 cols, sans, teal), **essay** (serif, generous leading, 1 col),
+**photo-essay** (minimal, large Inter headline), **department** (3 dense cols).
+Tune or invent rubrics with \`vswrite_define_section_style({ id, fromPreset?,
+accent?, columns?, h1Size?, ... })\` — start from a preset and override.
+
+What an overlay can change: accent / primary colour, body+heading fonts, base
+size, leading, column count, per-level heading treatment. What it can't (stays
+document-level): paper, margins, running heads, page numbering — use the global
+layout for those.
+
+Anti-patterns specific to rubrics:
+- **A different accent for every chapter.** Pick 2–4 rubrics for the whole issue
+  and reuse them; coherence comes from repetition, not variety.
+- **Changing columns mid-flow without a fresh page.** A column change starts a
+  new page (by design) — assign a rubric to a chapter that opens on its own page,
+  not a mid-chapter section.
+- **Rubric + a conflicting global theme.** The rubric layers on the global look;
+  keep the base theme neutral so rubric accents read clearly.
+
 ## Modern Looks (2026)
 
 What "current" means right now:
