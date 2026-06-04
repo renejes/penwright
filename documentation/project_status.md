@@ -1,6 +1,6 @@
 # vswrite Desktop — Project Status
 
-> **Stand:** 2026-05-20 (nach Session 24: **Magazine-Template** — neuer Projekt-Template-Eintrag für die Slow-Media-Pipeline aus dem Schwester-Repo `ai-magazine-designer`. Liefert Cover/Editorial/TOC + stabiles `magazine-cover`-Macro)
+> **Stand:** 2026-06-04 (nach Session 25: **DOCX-Overhaul** — der Export rendert jetzt Abbildungen / Display-Math / Tabellen / Cross-Refs / Fussnoten / Callouts statt rohen Typst-Code zu dumpen; Prosa-mit-Inline (`#emph`/`#strong`/`#raw`/`#footnote`) ueberlebt im Editor + DOCX. Journal-submission-tauglich)
 > **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
 
 ---
@@ -16,7 +16,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - **Versionssystem ohne Git-Vokabular:** „Version speichern" / „Verlauf" / „Wiederherstellen" statt Stage/Commit/Branch
 - **Auto-Backup pro Projekt:** Crash-Schutz parallel zum Versionssystem, konfigurierbar (Intervall + Max-Anzahl)
 - **Export-Modal:** Format-Wahl (PDF/DOCX) + Kapitel-Auswahl per Checkbox; DOCX nutzt jetzt `resolveIncludes` und exportiert Multi-Chapter-Projekte vollstaendig
-- DOCX-Export produziert formatierte Word-Dateien mit Live-Multilevel-Numbering (iterative Verbesserung weiterhin im Gange)
+- DOCX-Export produziert journal-submission-taugliche Word-Dateien: Live-Multilevel-Numbering + Abbildungen (Bild + „Abbildung N"-Caption) + Display-Math/SVG als Bilder + echte Word-Tabellen + aufgeloeste Cross-Refs + echte Fussnoten + Callouts-als-Box + Seitenzahlen. Reiner Design-/Layout-Code wird uebersprungen statt geleakt (Session 25)
 - About-Dialog zeigt Version + Lizenz + System-Info
 - **Lokales Crash-Reporting:** Plaintext-Reports nach `<userData>/crash-reports/`, Boot-Dialog beim naechsten Start, User entscheidet selbst ueber Weitergabe — keine externe Telemetrie
 - **MCP-Server mit 52 Tools**: Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets, **Design-Surface (11 Tools)** — externe Agents koennen die kompletten Editor- und Design-Workflows fahren
@@ -112,7 +112,9 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **Export-Modal** mit Format-Wahl (PDF/DOCX-Karten) + Kapitel-Auswahl per Checkbox + Bibliography-Toggle + „alle/keine"-Shortcuts. Single-File-Projekte ohne `#include` umgehen das Modal direkt.
 - [x] PDF Export (typst compile, gebundelte Binary, gefilterte temporäre `.vswrite-export-temp.typ` für Teil-Export)
 - [x] **DOCX Multi-Chapter:** nutzt jetzt `resolveIncludes` vor der Serialisierung — exportiert Multi-Chapter-Projekte vollständig, nicht nur die aktuell offene Datei
-- [x] DOCX Word-Styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, TableHeader, TableCell, Caption), Page-Size + Margins + Font + Line-Spacing aus Typst-Settings, **Live Multilevel-Heading-Numbering** (Word re-numbert bei Reorder), Citations als `(Autor Jahr)` statt `[citekey]`, lokalisierte TOC-/Bibliography-Labels (DE/EN/FR/ES/IT/PT/NL)
+- [x] DOCX Word-Styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, TableHeader, TableCell, Caption), Page-Size + Margins + Font + Line-Spacing aus Typst-Settings, **Live Multilevel-Heading-Numbering** (Word re-numbert bei Reorder), Citations als `(Autor Jahr)` (oder `[n]` bei numerischem Stil), lokalisierte TOC-/Bibliography-Labels (DE/EN/FR/ES/IT/PT/NL)
+- [x] **DOCX rich constructs (Session 25):** Abbildungen → eingebettetes Bild + „Abbildung N"-Caption, `#figure(table())` → echte Word-Tabelle + „Tabelle N", Display-Math + SVG → via gebundeltem Typst rasterisiert (Render-Callback aus Main/MCP injiziert, `shared` bleibt dependency-frei), `@fig/@tbl/@eq`-Cross-Refs → aufgeloest, Fussnoten (auch mehrzeilige) → echte Word-Fussnoten mit Inline-Markup, gentle-clues-Callouts → Akzent-Box, Seitenzahl-Footer, Ordered-List-Reset + Verschachtelung. Unbekannter Layout-/Design-Code wird uebersprungen statt als Monospace geleakt (Sample: 355 → 0 Code-Leaks, 0 → 3 Bilder)
+- [x] **Deserializer-Fix (Session 25):** Prosa mit `#emph`/`#strong`/`#raw`/`#footnote` (auch mehrzeilig) kippt nicht mehr in einen Raw-Block — verbessert Editor-WYSIWYG **und** DOCX. Round-trip-sicher (mappt auf bestehende italic/bold/code-Marks + footnote-Node)
 - [x] DOCX-Deserializer-Verbesserungen: Multi-line Listen (`+ item\n  cont.`), `#align(center + horizon)[…]` mit verschachtelten `#text(…)[X]`, `#datetime.today().display(…)` → heutiges Datum, balanced bracket matching für Title-/Abstract-Pages
 - [x] PDF In-App Viewer (pdf.js, Text markieren & kopieren, virtualisiertes Rendering)
 - [x] Markdown -> Typst Import (eigener Converter)
@@ -247,7 +249,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [ ] **DMG-Build & Notarization** real durchziehen
 - [ ] **QA auf echter 100-Seiten-Thesis** (nicht nur die 8 Test-Chapters); Writer-Features-Smoke auf `/Users/renejesser/Desktop/test_thesis`
 - [ ] **Netlify-Hosting fuer Handbuch** (de + en) live
-- [ ] **DOCX-Iteration** (kontinuierlich, nicht launch-blocking): `#raw("…")` inline aufdröseln, `#outline()` als Word-TOC-Field, weitere Typst-Konstrukte nach Bedarf
+- [x] **DOCX-Overhaul** (Session 25): `#raw("…")` inline + Figures/Math/Tables/Cross-Refs/Footnotes/Callouts gerendert, Code-Leak eliminiert. **Bewusst nicht gemacht** (schlechtes Aufwand/Nutzen, billig nachruestbar): live Word-SEQ/REF-Felder statt statischer Nummern, Inline-Math-in-Prosa als Bild
 
 ### Writer-Features (Plan archiviert unter [done/writer-features-plan.md](done/writer-features-plan.md))
 
@@ -279,6 +281,24 @@ Vorgeschlagene Mini-Releases im Plan: **Polish-Sprint** (Reading Mode + Find + B
 ---
 
 ## Session-Log
+
+### Session 25 (2026-06-04) — DOCX-Overhaul (journal-submission-tauglich)
+
+Der DOCX-Export war strukturell solide (Ueberschriften / Prosa / Listen / Bib / Geometrie), verlor aber praktisch jedes „reiche" Element. Befund am Sample-Projekt (42-Seiten-PDF ↔ DOCX): **355 Absaetze als Monospace-Code gedumpt**, 0 eingebettete Bilder, 0 Fussnoten, alle Cross-Refs gedroppt. Ursache: der Deserializer liess Figures / Math / `#quote` / Callouts / Prosa-mit-Inline-Calls als `typstRawBlock`, und der DOCX-Serializer dumpte jeden Nicht-Config-Raw-Block zeilenweise als Code.
+
+**Stage A — Serializer (`47f0dbf`, [src/shared/docxSerializer.ts](src/shared/docxSerializer.ts)):**
+- Raw-Block-Dispatcher (`classifyRawBlock` + `renderRawBlock`): `#figure` → Bild + „Abbildung N"-Caption; `#figure(table())` → echte Word-Tabelle + „Tabelle N"; Display-Math + SVG → via injiziertem Typst-Snippet-Renderer rasterisiert (300 ppi); `#quote` → Quote-Style; gentle-clues-Callouts → schattierte Akzent-Box; `#heading` → echte Ueberschrift; Prosa-mit-Inline → sauberer Absatz via neuem Inline-Typst-Parser. Reiner Layout-/Design-Code wird **uebersprungen statt geleakt**.
+- Inline `reference`-Node → „Abbildung 1"/„Tabelle 2"/„(3)" via Pre-Pass-Label-Map (war komplett gedroppt). Fussnoten-Body geparst (Markup + verschachtelte Citations). Ordered-List-Reset pro Liste + Verschachtelung. SVG eingebettet. Chapter-relative `../assets/`-Pfade vom Root aufgeloest. Seitenzahl-Footer aus `style.layout`. Numerischer vs. Autor-Jahr-Zitierstil.
+- `serializeDocx` bekommt `opts.renderTypstSnippet` (`shared` bleibt dependency-frei); verdrahtet aus [importExport.ts](src/main/importExport.ts) und MCP `export_docx` (das jetzt auch den Projekt-Style uebergibt).
+
+**Stage B — Deserializer (`bef5c0d`, [src/editor/lib/deserializer.ts](src/editor/lib/deserializer.ts)):**
+- `isRawBlock` strippt bekannte Inline-Konstrukte jetzt ueber den **ganzen Block** (statt zeilenweise) → mehrzeilige `#footnote[…]` kippen nicht mehr in einen Raw-Block.
+- `#emph` → italic, `#strong` → bold, `#raw("…")` → code als Inline-Konstrukte ergaenzt. **Keine neuen Node-Typen** → der TipTap→Typst-Serializer round-trippt sie als `_x_` / `*x*` / `` `x` `` / `#footnote[…]`.
+- Verbessert Editor-WYSIWYG **und** DOCX zugleich.
+
+**Verifikation:** Sample-Projekt **355 → 0** Code-Leaks, **0 → 3** eingebettete Bilder (SVG-Diagramm + 2 Formeln), **0 → 4** echte Tabellen, 7 Captions, Fussnote recovered, Seitenzahlen. Round-Trip auf allen synthetischen Faellen idempotent; Voll-Sample-Save-Stabilitaet **identisch** zum Original-Deserializer (die 2 design-lastigen Kapitel churnen vorher wie nachher — vorbestehend). `tsc` clean, electron-vite + MCP-Builds gruen. Verifiziert ueber eine Wegwerf-Harness, die die exakte App-Pipeline (`resolveIncludes` → `deserializeTypst` → `serializeDocx`) nachbaut.
+
+**Bewusst ausgelassen** (schlechtes Aufwand/Nutzen, billig nachruestbar): live Word-SEQ/REF-Felder (statische Nummern sind beim Export korrekt; Betreuer ordnen kaum einzelne Abbildungen in Word um), Inline-Math-in-Prosa als Bild (die wichtigen nummerierten Display-Gleichungen rendern bereits).
 
 ### Session 24 (2026-05-20) — Magazine-Template für ai-magazine-designer
 

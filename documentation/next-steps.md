@@ -17,7 +17,7 @@ Was zwischen heute und v1.0 noch fehlt:
 3. **Distribution einrichten** — Firebase-Hosting + electron-updater + DMG-Build & Notarization
 4. **Handbuch-Online-Hosting** auf Netlify
 5. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters) **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread)
-6. **DOCX-Iteration** kontinuierlich — `#raw("…")` inline, `#outline()` als Word-TOC, weitere Typst-Konstrukte
+6. ~~**DOCX-Iteration**~~ — **erledigt in Session 25** (DOCX-Overhaul: Figures / Display-Math / Tabellen / Cross-Refs / Fussnoten / Callouts gerendert, `#raw("…")` inline, Code-Leak eliminiert; Prosa-mit-Inline ueberlebt im Editor). Bewusst offen (geringer Nutzen): live Word-SEQ/REF-Felder, Inline-Math-als-Bild
 
 Reihenfolge sinnvoll: **Bundling → Design-Editor → Distribution → Handbuch-Hosting → QA → DMG**.
 

@@ -471,14 +471,18 @@ Uses the bundled Typst CLI to render the (filtered) project. PDF reflects exactl
 
 ### DOCX export
 
-The DOCX is produced with real Word styles:
+The DOCX is produced with real Word styles and now covers the rich academic constructs, not just prose:
 - **Multi-chapter aware:** all `#include`d chapters are merged into the output (the old "current file only" behaviour is gone)
 - Headings, bibliography, code blocks and quotes use named Word styles — restyle the whole document from the Word styles panel
-- Page size, margins, font, font size and line spacing are inherited from your Typst `#set` settings (e.g. A4 + Libertinus 11pt)
+- Page size, margins, font, font size and line spacing are inherited from your Typst `#set` / Design settings (e.g. A4 + Libertinus 11pt); a centered **page-number footer** is written when the design enables page numbering
 - **Live heading numbering:** if your Typst file has `#set heading(numbering: "1.1")`, the headings get Word multilevel numbering. When your supervisor reorders chapters in Word, the numbers update automatically.
-- Citations render as `(Author Year)` when found in the `.bib` file, else as `[citekey]`
+- **Figures** become an embedded image plus a "Figure N" caption; a `#figure(table(…))` becomes a real Word table with a "Table N" caption
+- **Equations** (`$ … $` display math) are rendered to crisp images via the bundled Typst, keeping their equation number; **SVG figures** are rasterised the same way
+- **Cross-references** (`@fig:…` / `@tbl:…` / `@eq:…`) resolve to "Figure 1" / "Table 2" / "(3)"
+- **Footnotes** become real Word footnotes (with their inline markup); nested and consecutive numbered lists keep correct numbering
+- Citations render as `(Author Year)`, or as `[n]` when the bibliography style is numeric (IEEE, Vancouver, …); `#info` / `#tip` / `#warning` / … callouts become a shaded accent box
 - TOC and bibliography headings are localized to the document language (DE/EN/FR/ES/IT/PT/NL)
-- **Note:** DOCX export is iteratively improved. Custom Typst constructs (e.g. heavily styled title pages with `#show heading: …` rules) may not render perfectly — for the most faithful layout, prefer PDF.
+- **What is intentionally dropped:** pure page-design code — full-bleed layouts, magazine openers, multi-column spreads, drop caps and other visual-only Typst — has no Word equivalent, so it is *skipped* rather than dumped as monospace source. For design-driven output the deliverable is PDF; **DOCX is the manuscript format** (prose, structure, figures, math, tables, footnotes, references).
 
 ---
 
@@ -735,7 +739,7 @@ Over MCP (52 tools) the AI can:
 - Run project-wide search and replace with a versions-safety-net (whole-word lookarounds work for `@citekey` backlinks)
 - Look up source PDFs in `sources/` by citekey
 - Save / list / show / restore versions in the writer-vocabulary used by the Project panel
-- Export PDF and DOCX (DOCX uses real Word styles + live multilevel numbering)
+- Export PDF and DOCX (DOCX uses real Word styles + live multilevel numbering, and renders figures, display-math, tables, cross-references, footnotes and callouts; pure design code is skipped)
 - Import Markdown and add images (with content-hash dedup + figure builder)
 - Drive the whole design surface — swap themes / palettes / layouts / fonts, insert design elements (19 of them incl. drop-cap, pull-quote variants, article-opener, section-opener, image galleries incl. asymmetric, image-overlay, stats-box, photo-caption-wrap, magazine cover) at anchors, map natural-language intents (`brochure` / `magazine` / `thesis` / …) onto matching theme+layout combos
 - Switch between projects, run Git operations, and pull Skill Prompts (typst-reference / vswrite-conventions / research-workflow / writing-style / design-conventions)
@@ -919,7 +923,7 @@ The structured design surface from the Design tab. Writes directly to `.vswrite/
 **Export (2)**
 
 - `vswrite_export_pdf` — Compile and export as PDF; output path must lie inside the project — convention is `exports/<name>.pdf`.
-- `vswrite_export_docx` — Export as DOCX with real Word styles (Heading1-6, Quote, CodeBlock …) and live multilevel-numbering — supervisors can reorder in Word and the numbers refresh.
+- `vswrite_export_docx` — Export as DOCX with real Word styles (Heading1-6, Quote, CodeBlock, Caption …) and live multilevel-numbering — supervisors can reorder in Word and the numbers refresh. Renders the rich constructs too: figures → image + "Figure N" caption, `#figure(table())` → real Word table, display-math + SVG → images via the bundled Typst, `@fig/@tbl/@eq` cross-refs → resolved, footnotes → real Word footnotes, callouts → accent box; pure design/layout code is skipped rather than leaked (DOCX = manuscript, PDF = design).
 
 **Import & assets (2)**
 

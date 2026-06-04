@@ -162,7 +162,7 @@ PDF und DOCX schreiben in den Projektordner — Konvention: `exports/<name>.<ext
 | Tool | Beschreibung |
 |------|-------------|
 | `vswrite_export_pdf` | PDF-Export ueber die Typst-CLI. Identisch zur Live-Preview. |
-| `vswrite_export_docx` | DOCX-Export mit echten Word-Styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, …) und Live-Multilevel-Numbering. Multi-Chapter wird via `resolveIncludes` gemerged. Heading-Numbers aktualisieren sich live, wenn der Betreuer Kapitel in Word umstellt. |
+| `vswrite_export_docx` | DOCX-Export mit echten Word-Styles (Heading1-6, Quote, CodeBlock, BibliographyEntry, Caption, …) und Live-Multilevel-Numbering. Multi-Chapter wird via `resolveIncludes` gemerged. **Rendert die reichen Konstrukte:** Abbildungen → Bild + „Abbildung N"-Caption, `#figure(table())` → echte Word-Tabelle, Display-Math + SVG → via gebundeltem Typst rasterisierte Bilder, `@fig/@tbl/@eq`-Cross-Refs → aufgeloest, Fussnoten → echte Word-Fussnoten, gentle-clues-Callouts → Akzent-Box, Seitenzahl-Footer, numerischer vs. Autor-Jahr-Zitierstil. Reiner Layout-/Design-Code (Magazin-Opener, Full-Bleed, …) wird uebersprungen statt geleakt — DOCX ist das Manuskript-Format, PDF das Design-Format. |
 
 ### Import & Assets (2)
 

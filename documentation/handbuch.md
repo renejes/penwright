@@ -471,14 +471,18 @@ Nutzt die gebundelte Typst-CLI fuer das (ggf. gefilterte) Projekt. Das PDF entsp
 
 ### DOCX Export
 
-Das DOCX wird mit echten Word-Styles erzeugt:
+Das DOCX wird mit echten Word-Styles erzeugt und deckt jetzt die reichen akademischen Konstrukte ab, nicht nur Fliesstext:
 - **Multi-Chapter-faehig:** alle `#include`-Kapitel werden in den Output gemerged (das alte „nur die offene Datei"-Verhalten ist weg)
 - Ueberschriften, Bibliographie, Code-Bloecke und Zitate nutzen benannte Word-Styles — im Style-Panel einheitlich anpassbar
-- Seitengroesse, Raender, Schriftart, Schriftgroesse, Zeilenabstand werden aus deinen Typst `#set`-Settings uebernommen (z. B. A4 + Libertinus 11 pt)
+- Seitengroesse, Raender, Schriftart, Schriftgroesse, Zeilenabstand werden aus deinen Typst `#set`-/Design-Settings uebernommen (z. B. A4 + Libertinus 11 pt); ein zentrierter **Seitenzahl-Footer** wird geschrieben, wenn das Design Seitennummerierung aktiviert
 - **Heading-Nummerierung live:** hat deine Typst-Datei `#set heading(numbering: "1.1")`, bekommen die Ueberschriften Word-Multilevel-Numbering. Wenn dein Betreuer Kapitel in Word umstellt, aktualisieren sich die Zahlen automatisch.
-- Citations werden als `(Autor Jahr)` gerendert, wenn sie in der `.bib`-Datei gefunden werden, sonst als `[citekey]`
+- **Abbildungen** werden zu einem eingebetteten Bild plus „Abbildung N"-Caption; ein `#figure(table(…))` wird zu einer echten Word-Tabelle mit „Tabelle N"-Caption
+- **Formeln** (`$ … $` Display-Math) werden ueber das gebundelte Typst zu scharfen Bildern gerendert und behalten ihre Gleichungsnummer; **SVG-Abbildungen** werden genauso rasterisiert
+- **Cross-References** (`@fig:…` / `@tbl:…` / `@eq:…`) loesen zu „Abbildung 1" / „Tabelle 2" / „(3)" auf
+- **Fussnoten** werden zu echten Word-Fussnoten (inkl. ihrer Inline-Auszeichnung); verschachtelte und aufeinanderfolgende nummerierte Listen behalten die korrekte Nummerierung
+- Citations werden als `(Autor Jahr)` gerendert, oder als `[n]`, wenn der Bibliographie-Stil numerisch ist (IEEE, Vancouver, …); `#info` / `#tip` / `#warning` / …-Callouts werden zu einer schattierten Akzent-Box
 - TOC- und Bibliographie-Ueberschriften werden passend zur Dokumentsprache lokalisiert (DE/EN/FR/ES/IT/PT/NL)
-- **Hinweis:** Der DOCX-Export wird iterativ verbessert. Stark angepasste Typst-Konstrukte (z. B. Titelseiten mit eigenen `#show heading: …`-Regeln) werden nicht immer perfekt uebernommen — fuer das treueste Layout: PDF nutzen.
+- **Was bewusst weggelassen wird:** reiner Seiten-Design-Code — Full-Bleed-Layouts, Magazin-Opener, mehrspaltige Spreads, Drop-Caps und anderes rein Visuelles — hat kein Word-Aequivalent und wird *uebersprungen* statt als Monospace-Quelltext gedumpt. Fuer design-getriebenen Output ist PDF das Liefer-Format; **DOCX ist das Manuskript-Format** (Fliesstext, Struktur, Abbildungen, Math, Tabellen, Fussnoten, Referenzen).
 
 ---
 
@@ -735,7 +739,7 @@ Die KI kann ueber den MCP-Server (52 Tools):
 - Projektweite Suche und Bulk-Replace mit Versions-Sicherheitsnetz (Whole-Word funktioniert dank Lookarounds auch bei `@citekey`-Backlinks)
 - Quell-PDFs in `sources/` per Citekey nachschlagen
 - Versionen speichern / auflisten / anzeigen / wiederherstellen — im selben Vokabular wie das Project-Panel
-- PDF und DOCX exportieren (DOCX mit echten Word-Styles + Live-Multilevel-Numbering)
+- PDF und DOCX exportieren (DOCX mit echten Word-Styles + Live-Multilevel-Numbering, rendert Abbildungen, Display-Math, Tabellen, Cross-References, Fussnoten und Callouts; reiner Design-Code wird uebersprungen)
 - Markdown importieren und Bilder einfuegen (Content-Hash-Dedup + Figure-Builder)
 - Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (19 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries inkl. asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover) anker-basiert einfuegen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
 - Zwischen Projekten wechseln, Git-Operationen ausfuehren, Skill-Prompts abfragen (typst-reference / vswrite-conventions / research-workflow / writing-style / design-conventions)
@@ -919,7 +923,7 @@ Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.vswr
 **Export (2)**
 
 - `vswrite_export_pdf` — Kompiliert und exportiert als PDF; Output-Pfad muss im Projekt liegen, Konvention `exports/<name>.pdf`.
-- `vswrite_export_docx` — Exportiert als DOCX mit echten Word-Styles (Heading1-6, Quote, CodeBlock …) und Live-Multilevel-Numbering — der Betreuer kann in Word umordnen und die Nummern aktualisieren sich.
+- `vswrite_export_docx` — Exportiert als DOCX mit echten Word-Styles (Heading1-6, Quote, CodeBlock, Caption …) und Live-Multilevel-Numbering — der Betreuer kann in Word umordnen und die Nummern aktualisieren sich. Rendert auch die reichen Konstrukte: Abbildungen → Bild + „Abbildung N"-Caption, `#figure(table())` → echte Word-Tabelle, Display-Math + SVG → Bilder via gebundeltem Typst, `@fig/@tbl/@eq`-Cross-Refs → aufgeloest, Fussnoten → echte Word-Fussnoten, Callouts → Akzent-Box; reiner Design-/Layout-Code wird uebersprungen statt geleakt (DOCX = Manuskript, PDF = Design).
 
 **Import & Assets (2)**
 
