@@ -1,7 +1,7 @@
 // ─── vswrite Sample Project — Working Scientifically with vswrite ──
 //
 // Style configuration lives in `style.typ` (generated from
-// `.vswrite/style.json` — see Design panel). The block below adds the
+// `.penwright/style.json` — see Design panel). The block below adds the
 // font-language hint and pulls the style.typ in. Everything else —
 // colors, fonts, layout, headings, special elements — comes from the
 // Designer surface.

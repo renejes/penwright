@@ -183,8 +183,8 @@ Start writing here...
       // typst-architekt skill appends article chapters after the marker.
       'main.typ': `// Magazine template — Slow Media editorial layout.
 // Out-of-the-box compile uses plain #set rules. For the Design Editor,
-// run vswrite_update_style or vswrite_generate_layout("magazine") to
-// generate .vswrite/style.json + style.typ.
+// run penwright_update_style or penwright_generate_layout("magazine") to
+// generate .penwright/style.json + style.typ.
 
 #set document(title: "Magazine Issue", author: "Editor")
 #set page(paper: "a4", margin: (x: 2cm, y: 2.2cm))

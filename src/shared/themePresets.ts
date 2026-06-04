@@ -8,7 +8,7 @@
  * Each theme references bundled OFL fonts that ship with vswrite, so they
  * render the same regardless of what the user has installed system-wide.
  *
- * Stable `id`s — Phase C's `vswrite_apply_theme` MCP tool references them
+ * Stable `id`s — Phase C's `penwright_apply_theme` MCP tool references them
  * directly, so reordering or renaming is a breaking change.
  */
 

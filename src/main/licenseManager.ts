@@ -11,14 +11,23 @@ import {
   getLicenseData,
   saveLicenseData,
   clearLicenseData,
+  ensureTrialStarted,
   type LicenseData,
 } from './persistenceManager';
 
 const POLAR_ORG_ID = 'a5a6573b-aacf-4501-a6c1-ebc15ef67b04';
-const OFFLINE_GRACE_DAYS = 30;
+/** Days a valid license keeps working offline before re-validation is forced. */
+const OFFLINE_GRACE_DAYS = 7;
+/** Length of the local, no-key trial granted on first launch. */
+const TRIAL_DAYS = 14;
+/** Penwright license keys all start with this prefix (single tier, set in Polar). */
+const LICENSE_KEY_PREFIX = 'pw_LIC';
 
 const polar = new Polar();
 
+// Single-tier model: any valid `pw_LIC…` key unlocks everything (incl. MCP).
+// The `'pro'` value is kept only so the existing "active license" plumbing
+// (persistence/UI badge) keeps working without a wider refactor.
 export type LicenseTier = 'basic' | 'pro' | null;
 export type LicenseStatus = 'active' | 'expired' | 'trial' | 'none';
 
@@ -30,14 +39,11 @@ export interface LicenseInfo {
 }
 
 /**
- * Detect tier from license key prefix.
- * VSWRITE_PRO = subscription (pro), VSWRITE_LIC = one-time (basic).
+ * Detect tier from license key prefix. Single-tier: a valid `pw_LIC…` key is
+ * a full license; anything else is unknown and treated as no tier.
  */
 function detectTier(key: string): LicenseTier {
-  if (key.startsWith('VSWRITE_PRO')) return 'pro';
-  if (key.startsWith('VSWRITE_LIC')) return 'basic';
-  // Fallback: treat unknown prefixes as basic
-  return 'basic';
+  return key.startsWith(LICENSE_KEY_PREFIX) ? 'pro' : null;
 }
 
 /**
@@ -144,17 +150,63 @@ export async function deactivateLicense(): Promise<void> {
 }
 
 /**
- * Check if the current license is Pro tier (subscription).
- */
-export function isProUser(): boolean {
-  const data = getLicenseData();
-  return data.licenseStatus === 'active' && data.licenseTier === 'pro';
-}
-
-/**
- * Check if there is any active license (basic or pro).
+ * Single-tier check: is there any active, valid license key on this device?
+ * A `true` result unlocks everything, including the MCP server.
  */
 export function isLicensed(): boolean {
   const data = getLicenseData();
   return data.licenseStatus === 'active' && data.licenseKey !== null;
+}
+
+/**
+ * Back-compat alias. There are no tiers anymore — "Pro" == "licensed".
+ */
+export function isProUser(): boolean {
+  return isLicensed();
+}
+
+// ─── Entitlement (local, synchronous gate) ──────────
+
+export type Access = 'licensed' | 'trial' | 'expired';
+
+export interface Entitlement {
+  access: Access;
+  /** Whole days left in the local trial, only present when access === 'trial'. */
+  trialDaysLeft?: number;
+  tier: LicenseTier;
+  key: string | null;
+}
+
+/**
+ * The single source of truth for feature-gating. Resolves synchronously from
+ * locally stored data so the UI can gate immediately on boot; `validateLicense`
+ * runs async in the background and updates the stored status on revoke/expiry,
+ * after which this falls back to the trial/expired path.
+ *
+ * Offline grace never extends the trial: a locally-licensed device stays
+ * `licensed` for up to OFFLINE_GRACE_DAYS without a network check, otherwise
+ * we fall through to the trial clock (and `expired` once it runs out).
+ */
+export function getEntitlement(): Entitlement {
+  const d = getLicenseData();
+  const licensedLocally =
+    d.licenseStatus === 'active' &&
+    !!d.licenseKey &&
+    (Date.now() - (d.lastValidation || 0)) / 86400000 < OFFLINE_GRACE_DAYS;
+  if (licensedLocally) {
+    return { access: 'licensed', tier: d.licenseTier, key: d.licenseKey };
+  }
+
+  const started = ensureTrialStarted();
+  const daysUsed = (Date.now() - started) / 86400000;
+  if (daysUsed < TRIAL_DAYS) {
+    return {
+      access: 'trial',
+      trialDaysLeft: Math.max(0, Math.ceil(TRIAL_DAYS - daysUsed)),
+      tier: null,
+      key: null,
+    };
+  }
+
+  return { access: 'expired', tier: null, key: null };
 }

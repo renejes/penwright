@@ -26,7 +26,7 @@ A Typst document starts with optional **#set / #show / #let** rules (the preambl
 
 ### vswrite-projects: \`style.typ\` + \`apply-style\` instead of inline \`#set\`
 
-vswrite generates a \`style.typ\` file from the project's \`.vswrite/style.json\` (the Design panel's source of truth). \`main.typ\` pulls it in with this two-line preamble:
+vswrite generates a \`style.typ\` file from the project's \`.penwright/style.json\` (the Design panel's source of truth). \`main.typ\` pulls it in with this two-line preamble:
 
 ~~~typst
 // main.typ
@@ -59,7 +59,7 @@ A plain Typst project without vswrite's Design panel uses the classic inline pre
 …
 ~~~
 
-When editing such a project from the MCP server, decide on intent: if the user wants the Design panel to manage their styling going forward, call \`vswrite_apply_style\` or \`vswrite_update_style\` and let it generate \`style.typ\` for them. If they don't want the structured surface, leave their inline preamble alone.
+When editing such a project from the MCP server, decide on intent: if the user wants the Design panel to manage their styling going forward, call \`penwright_apply_style\` or \`penwright_update_style\` and let it generate \`style.typ\` for them. If they don't want the structured surface, leave their inline preamble alone.
 
 ### Chapter files
 
@@ -179,7 +179,7 @@ Available styles: \`apa\`, \`chicago-author-date\`, \`ieee\`, \`mla\`, ~80 other
 
 \`// single-line\` and \`/* block */\` are stripped at compile time.
 
-These are **not** vswrite comments. vswrite annotations live as separate Markdown files in \`comments/\` and are managed via the comments-panel or the \`vswrite_add_comment\` MCP tool — they never touch the \`.typ\` source. See the \`vswrite\` skill for details.
+These are **not** vswrite comments. vswrite annotations live as separate Markdown files in \`comments/\` and are managed via the comments-panel or the \`penwright_add_comment\` MCP tool — they never touch the \`.typ\` source. See the \`vswrite\` skill for details.
 
 ## Common Pitfalls
 
@@ -346,13 +346,13 @@ fn main() {
 `;
 
 export const VSWRITE_SKILL = `---
-name: vswrite
-description: vswrite project conventions — folder structure, persistence layers, comments, cross-references, mode toggles. Load when working in a vswrite project.
+name: penwright
+description: Penwright project conventions — folder structure, persistence layers, comments, cross-references, mode toggles. Load when working in a Penwright project.
 ---
 
-# vswrite — Project Conventions
+# Penwright — Project Conventions
 
-vswrite is a WYSIWYG editor for Typst documents. Projects are folder-based and self-contained: every project carries its own version history, auto-backups, and Claude Code skills inside the folder. Copy or move the project — the full state moves with it.
+Penwright is a WYSIWYG editor for Typst documents. Projects are folder-based and self-contained: every project carries its own version history, auto-backups, and Claude Code skills inside the folder. Copy or move the project — the full state moves with it.
 
 ## Project Structure
 
@@ -369,7 +369,7 @@ my-thesis/
 │   └── 2026-04-29-1432-a3f.md
 ├── exports/                 # PDF / DOCX outputs (auto-created on first export)
 ├── .claude/skills/          # These skills, deployed per project
-├── .vswrite/                # Hidden: auto-backups, AI-edit snapshots, per-project preferences
+├── .penwright/                # Hidden: auto-backups, AI-edit snapshots, per-project preferences
 └── .git/                    # Version history
 ~~~
 
@@ -380,9 +380,9 @@ my-thesis/
 | Layer | Trigger | Storage | Purpose |
 |---|---|---|---|
 | **Versions** (Git) | User-saved milestones | \`.git/\` | Named history points: "Chapter 3 first draft", "Before supervisor feedback". User vocabulary is "version", not "commit". |
-| **Auto-backups** | Timer (default 30 s) | \`.vswrite/backups/<timestamp>/\` | Crash protection. Each backup is a flat snapshot of all .typ + .bib files plus a \`.meta.json\`. |
-| **AI-edit snapshots** | Each external file change | \`.vswrite/ai-snapshots/\` | Ring buffer used by "Undo AI Edit". |
-| **UI preferences** | UI knob changes (debounced) | \`.vswrite/preferences.json\` | Per-project editor + PDF zoom levels. Travels with the project folder. Extend this file rather than electron-store when adding new per-project UI knobs. |
+| **Auto-backups** | Timer (default 30 s) | \`.penwright/backups/<timestamp>/\` | Crash protection. Each backup is a flat snapshot of all .typ + .bib files plus a \`.meta.json\`. |
+| **AI-edit snapshots** | Each external file change | \`.penwright/ai-snapshots/\` | Ring buffer used by "Undo AI Edit". |
+| **UI preferences** | UI knob changes (debounced) | \`.penwright/preferences.json\` | Per-project editor + PDF zoom levels. Travels with the project folder. Extend this file rather than electron-store when adding new per-project UI knobs. |
 
 All four live inside the project folder.
 
@@ -395,7 +395,7 @@ For the in-app **citation hover-card** to find the PDF for \`@chen2021codex\`, n
 - ✅ \`sources/chen2021codex-arxiv.pdf\`
 - ❌ \`sources/Chen et al. - Evaluating LLMs.pdf\` (no citekey prefix)
 
-The MCP tool \`vswrite_find_source_for_citation\` uses the same matching logic.
+The MCP tool \`penwright_find_source_for_citation\` uses the same matching logic.
 
 ## comments/ — Annotation Storage
 
@@ -421,7 +421,7 @@ Quelle ergänzen — vielleicht den Müller-Artikel?
 - Visible in the file tree, cloud-sync-friendly (Dropbox / iCloud), git-diffable, editable from any text editor.
 - Anchors that span paragraphs get marked \`orphaned: true\` automatically.
 
-When creating comments programmatically, **prefer \`vswrite_add_comment\`** over hand-writing the Markdown — the tool generates the id, computes range offsets, fills frontmatter correctly.
+When creating comments programmatically, **prefer \`penwright_add_comment\`** over hand-writing the Markdown — the tool generates the id, computes range offsets, fills frontmatter correctly.
 
 ## Cross-References vs. Citations — Disambiguation
 
@@ -449,7 +449,7 @@ These are display-only — toggling them never modifies \`.typ\` files.
 
 ## Design surface — \`style.json\` + \`style.typ\` + \`apply-style\`
 
-vswrite projects keep all visual design tokens in a single typed file: \`<project>/.vswrite/style.json\`. The vswrite app regenerates \`<project>/style.typ\` from that JSON whenever the user (or an MCP tool) writes to it, then ensures the root \`.typ\` file has:
+vswrite projects keep all visual design tokens in a single typed file: \`<project>/.penwright/style.json\`. The vswrite app regenerates \`<project>/style.typ\` from that JSON whenever the user (or an MCP tool) writes to it, then ensures the root \`.typ\` file has:
 
 ~~~typst
 #import "style.typ": *
@@ -493,17 +493,17 @@ Six full \`ProjectStyle\` snapshots ship in \`src/shared/themePresets.ts\`:
 | \`marketing-brochure\` | Bold IBM Plex Sans, navy + orange, two-column layout |
 | \`thesis\` | Crimson Pro everywhere, full hierarchical numbering, binding-friendly |
 
-Apply via MCP: \`vswrite_apply_style({ styleId: "modern-tech" })\` or in-app from the Design sidebar tab's *Themes* section. Applying a theme overwrites every branch of \`style.json\` **except \`custom.preamble\`** — the user's escape-hatch code survives.
+Apply via MCP: \`penwright_apply_style({ styleId: "modern-tech" })\` or in-app from the Design sidebar tab's *Themes* section. Applying a theme overwrites every branch of \`style.json\` **except \`custom.preamble\`** — the user's escape-hatch code survives.
 
 ### Six layout presets (geometry only)
 
-Layout presets only swap \`layout.*\` (and optionally \`scale.base\`) — typography stays intact. Use after a theme to switch geometry: theme \`editorial-magazine\` + layout \`magazine-2col\`. IDs: \`a4-portrait-standard\`, \`a4-landscape-presentation\`, \`magazine-2col\`, \`newsletter-3col\`, \`a5-booklet\`, \`a2-poster\`. From MCP: \`vswrite_list_layouts\` / \`vswrite_apply_layout\`.
+Layout presets only swap \`layout.*\` (and optionally \`scale.base\`) — typography stays intact. Use after a theme to switch geometry: theme \`editorial-magazine\` + layout \`magazine-2col\`. IDs: \`a4-portrait-standard\`, \`a4-landscape-presentation\`, \`magazine-2col\`, \`newsletter-3col\`, \`a5-booklet\`, \`a2-poster\`. From MCP: \`penwright_list_layouts\` / \`penwright_apply_layout\`.
 
 ### When NOT to write Typst preamble by hand
 
 If the user has a populated \`style.json\`, **don't** hand-edit \`#set\` / \`#show\` blocks in their root \`.typ\` file. Those edits will be silently overridden by the next \`apply-style\` call (which re-emits everything from the JSON). Either:
 
-- Patch \`style.json\` via \`vswrite_update_style\` (deep-merge), or
+- Patch \`style.json\` via \`penwright_update_style\` (deep-merge), or
 - Append the rule to \`style.custom.preamble\` (escape hatch) so it ends up inside \`apply-style\` and survives regeneration.
 
 ## Working with vswrite — Two Paths
@@ -513,40 +513,40 @@ If the user has a populated \`style.json\`, **don't** hand-edit \`#set\` / \`#sh
 If you have read/write access to the project folder (Terminal Claude, VS Code Claude, Cowork with folder permission), edit \`.typ\` and \`.bib\` files directly. The vswrite editor watches the filesystem and updates within seconds.
 
 **Watcher quirks:**
-- \`.vswrite/\` is excluded — backup writes don't trigger refresh loops.
+- \`.penwright/\` is excluded — backup writes don't trigger refresh loops.
 - vswrite saves are tagged with a 3-second self-write guard; your external writes always go through.
-- Don't edit \`.vswrite/\` or \`.git/\` directly. Both are managed state.
+- Don't edit \`.penwright/\` or \`.git/\` directly. Both are managed state.
 
 ### MCP tools (Claude Desktop, Codex Desktop, …)
 
 When connected via the vswrite MCP server, you have **52 dedicated tools** instead of raw filesystem access. They enforce project boundaries (every path validated against the project root, symlink-aware), generate ids and YAML, validate cross-reference labels, regenerate \`style.typ\` from \`style.json\`, etc.
 
-**Prefer the dedicated tool over raw \`vswrite_write_file\`** when one exists:
+**Prefer the dedicated tool over raw \`penwright_write_file\`** when one exists:
 
 | Task | Tool |
 |---|---|
-| Add chapter | \`vswrite_add_chapter\` (creates file + adds \`#include\`) |
-| Reorder chapters | \`vswrite_reorder_chapters\` |
-| Add citation | \`vswrite_add_citation\` (validates BibTeX, ensures \`#bibliography\`) |
-| Add comment | \`vswrite_add_comment\` (generates id, anchors, YAML) |
-| Insert cross-ref | \`vswrite_insert_reference\` (validates label exists) |
-| Insert footnote | \`vswrite_add_footnote\` (bracket-balance check) |
-| Insert image | \`vswrite_add_image\` (asset dedup + figure builder) |
-| Bulk rename | \`vswrite_save_version\` → \`vswrite_replace_in_project\` |
-| **Read style** | \`vswrite_get_style\` (full JSON) |
-| **Patch style** | \`vswrite_update_style({ patch })\` (deep-merge, sanitised) |
-| **Apply theme** | \`vswrite_apply_style({ styleId })\` (preserves \`custom.preamble\`) |
-| **Apply layout** | \`vswrite_apply_layout({ layoutId })\` (geometry only) |
-| **Apply palette** | \`vswrite_apply_palette({ presetId or slot hex })\` |
-| **List bundled fonts** | \`vswrite_list_fonts\` (7 OFL families always available) |
-| **Insert design element** | \`vswrite_insert_design_element\` (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider, anchor-based) |
-| **Generate layout** | \`vswrite_generate_layout({ intent })\` (one-shot theme + layout + optional hero) |
-| Verify build | \`vswrite_compile\` (errors with **file + line + hints**) |
-| Export | \`vswrite_export_pdf\` / \`vswrite_export_docx\` |
+| Add chapter | \`penwright_add_chapter\` (creates file + adds \`#include\`) |
+| Reorder chapters | \`penwright_reorder_chapters\` |
+| Add citation | \`penwright_add_citation\` (validates BibTeX, ensures \`#bibliography\`) |
+| Add comment | \`penwright_add_comment\` (generates id, anchors, YAML) |
+| Insert cross-ref | \`penwright_insert_reference\` (validates label exists) |
+| Insert footnote | \`penwright_add_footnote\` (bracket-balance check) |
+| Insert image | \`penwright_add_image\` (asset dedup + figure builder) |
+| Bulk rename | \`penwright_save_version\` → \`penwright_replace_in_project\` |
+| **Read style** | \`penwright_get_style\` (full JSON) |
+| **Patch style** | \`penwright_update_style({ patch })\` (deep-merge, sanitised) |
+| **Apply theme** | \`penwright_apply_style({ styleId })\` (preserves \`custom.preamble\`) |
+| **Apply layout** | \`penwright_apply_layout({ layoutId })\` (geometry only) |
+| **Apply palette** | \`penwright_apply_palette({ presetId or slot hex })\` |
+| **List bundled fonts** | \`penwright_list_fonts\` (7 OFL families always available) |
+| **Insert design element** | \`penwright_insert_design_element\` (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider, anchor-based) |
+| **Generate layout** | \`penwright_generate_layout({ intent })\` (one-shot theme + layout + optional hero) |
+| Verify build | \`penwright_compile\` (errors with **file + line + hints**) |
+| Export | \`penwright_export_pdf\` / \`penwright_export_docx\` |
 
 ### Edit → Compile → Fix loop
 
-After any non-trivial edit, **call \`vswrite_compile\` and inspect the result**. The tool returns one shape regardless of outcome:
+After any non-trivial edit, **call \`penwright_compile\` and inspect the result**. The tool returns one shape regardless of outcome:
 
 ~~~json
 {
@@ -582,7 +582,7 @@ or, on failure:
 **Warnings** are advisory — Typst built the PDF anyway, but flagged something the user should know. Common cases worth acting on:
 
 - *"variable fonts are not currently supported"* — swap the variable font for a static weight.
-- *"unknown font family"* — a font referenced in \`style.typ\` isn't available; check spelling or pick from \`vswrite_list_fonts\`.
+- *"unknown font family"* — a font referenced in \`style.typ\` isn't available; check spelling or pick from \`penwright_list_fonts\`.
 - *"cannot reference equation/heading without numbering"* — turn on numbering (\`#set math.equation(numbering: …)\` or \`#set heading(numbering: "1.")\`).
 - *Deprecated function* — a Typst stdlib call is sunsetting; consult the linked migration.
 
@@ -594,18 +594,18 @@ See the \`research-workflow\` skill for end-to-end recipes.
 
 ## Compound Workflow Recipes
 
-The recipes below replace common "guess your way through 8 tool calls" sequences. Follow the ordering — earlier steps create state that later ones depend on. Each recipe ends with a \`vswrite_compile\` for verification.
+The recipes below replace common "guess your way through 8 tool calls" sequences. Follow the ordering — earlier steps create state that later ones depend on. Each recipe ends with a \`penwright_compile\` for verification.
 
 ### Recipe 1 — Magazine from scratch (cover + 3 articles)
 
 User asks for "build me a magazine layout" or similar. Compose, don't improvise:
 
-1. \`vswrite_apply_style({ styleId: "editorial-magazine" })\` — sets fonts (Spectral body + Inter heading), warm earth-tone palette, magazine-friendly scale
-2. \`vswrite_apply_layout({ layoutId: "magazine-editorial" })\` — A4 portrait, 2 columns, header strip, \`{chapter}\` running head
-3. \`vswrite_insert_design_element({ elementId: "magazine-cover", afterText: "", params: { issue: "ISSUE 1", title: "<MASTHEAD>", headline: "<COVER LINE>", date: "<MONTH YEAR>" } })\` — inserted at top of \`main.typ\`
-4. For each article: \`vswrite_add_chapter({ name: "<slug>" })\` then \`vswrite_insert_design_element({ elementId: "article-opener", file: "chapters/<slug>.typ", afterText: "", params: { kicker: "INTERVIEW", headline: "...", standfirst: "...", byline: "..." } })\`
-5. Optional drop-cap on the opening paragraph: \`vswrite_insert_design_element({ elementId: "drop-cap", file: "chapters/<slug>.typ", afterText: "<article-opener-headline>", params: { body: "<opening paragraph>" } })\`
-6. \`vswrite_compile\` — fix any \`unknown font\` warnings by swapping to a \`vswrite_list_fonts\` family
+1. \`penwright_apply_style({ styleId: "editorial-magazine" })\` — sets fonts (Spectral body + Inter heading), warm earth-tone palette, magazine-friendly scale
+2. \`penwright_apply_layout({ layoutId: "magazine-editorial" })\` — A4 portrait, 2 columns, header strip, \`{chapter}\` running head
+3. \`penwright_insert_design_element({ elementId: "magazine-cover", afterText: "", params: { issue: "ISSUE 1", title: "<MASTHEAD>", headline: "<COVER LINE>", date: "<MONTH YEAR>" } })\` — inserted at top of \`main.typ\`
+4. For each article: \`penwright_add_chapter({ name: "<slug>" })\` then \`penwright_insert_design_element({ elementId: "article-opener", file: "chapters/<slug>.typ", afterText: "", params: { kicker: "INTERVIEW", headline: "...", standfirst: "...", byline: "..." } })\`
+5. Optional drop-cap on the opening paragraph: \`penwright_insert_design_element({ elementId: "drop-cap", file: "chapters/<slug>.typ", afterText: "<article-opener-headline>", params: { body: "<opening paragraph>" } })\`
+6. \`penwright_compile\` — fix any \`unknown font\` warnings by swapping to a \`penwright_list_fonts\` family
 
 Total: ~7-10 tool calls for a publishable magazine skeleton. Without the recipe an agent typically takes 20+ calls and gets lost in style.json deep-merges.
 
@@ -613,23 +613,23 @@ Total: ~7-10 tool calls for a publishable magazine skeleton. Without the recipe 
 
 User asks "make this look like a brochure":
 
-1. \`vswrite_get_style\` — read what's there so you don't blow away the user's \`custom.preamble\`
-2. \`vswrite_apply_style({ styleId: "marketing-brochure" })\` — IBM Plex Sans, vibrant primary, single-column with bigger margins
-3. \`vswrite_insert_design_element({ elementId: "hero", afterText: "", params: { title: "<doc title>", subtitle: "<one-sentence pitch>" } })\` at top of \`main.typ\`
-4. For visual rhythm: identify the 2-3 most striking sentences in the body via \`vswrite_search_project\` for key phrases the user mentioned, replace each with \`vswrite_insert_design_element({ elementId: "pull-quote-display", afterText: "<surrounding text>", params: { text: "<the sentence>" } })\`
-5. If the user mentioned numbers ("we have 50k customers", etc.): \`vswrite_insert_design_element({ elementId: "stats-box", ... })\` mid-document
-6. \`vswrite_compile\` — verify
+1. \`penwright_get_style\` — read what's there so you don't blow away the user's \`custom.preamble\`
+2. \`penwright_apply_style({ styleId: "marketing-brochure" })\` — IBM Plex Sans, vibrant primary, single-column with bigger margins
+3. \`penwright_insert_design_element({ elementId: "hero", afterText: "", params: { title: "<doc title>", subtitle: "<one-sentence pitch>" } })\` at top of \`main.typ\`
+4. For visual rhythm: identify the 2-3 most striking sentences in the body via \`penwright_search_project\` for key phrases the user mentioned, replace each with \`penwright_insert_design_element({ elementId: "pull-quote-display", afterText: "<surrounding text>", params: { text: "<the sentence>" } })\`
+5. If the user mentioned numbers ("we have 50k customers", etc.): \`penwright_insert_design_element({ elementId: "stats-box", ... })\` mid-document
+6. \`penwright_compile\` — verify
 
 ### Recipe 3 — Bibliography buildup (paper from scratch with citations)
 
 User pastes a list of references they want cited:
 
-1. \`vswrite_ensure_bibliography\` — creates \`references.bib\` and \`#bibliography\` directive if missing
-2. For each entry the user provided: \`vswrite_add_citation({ entry: "<full BibTeX block>" })\` — vswrite parses + validates + appends
-3. After all citations are in: \`vswrite_get_citations\` — verify the citekeys vswrite assigned
-4. For each citekey the user wants in a specific spot: \`vswrite_search_project\` to find the anchor text, then NO insert tool needed — citations are typed inline as \`@citekey\` (use \`vswrite_update_document\` to splice; cross-references via labels DO need \`vswrite_insert_reference\` but raw \`@\` citations are plain text)
-5. For each source the user has a PDF for: \`vswrite_find_source_for_citation({ citekey })\` to confirm the user dropped the file in \`sources/\` correctly
-6. \`vswrite_compile\` — Typst will resolve all \`@citekey\` references against \`references.bib\`
+1. \`penwright_ensure_bibliography\` — creates \`references.bib\` and \`#bibliography\` directive if missing
+2. For each entry the user provided: \`penwright_add_citation({ entry: "<full BibTeX block>" })\` — vswrite parses + validates + appends
+3. After all citations are in: \`penwright_get_citations\` — verify the citekeys vswrite assigned
+4. For each citekey the user wants in a specific spot: \`penwright_search_project\` to find the anchor text, then NO insert tool needed — citations are typed inline as \`@citekey\` (use \`penwright_update_document\` to splice; cross-references via labels DO need \`penwright_insert_reference\` but raw \`@\` citations are plain text)
+5. For each source the user has a PDF for: \`penwright_find_source_for_citation({ citekey })\` to confirm the user dropped the file in \`sources/\` correctly
+6. \`penwright_compile\` — Typst will resolve all \`@citekey\` references against \`references.bib\`
 
 **Critical gotcha:** never invent BibTeX entries. If the user gives you "Smith 2024 about machine learning" without a real source, ask for a DOI/URL or refuse — the \`writing-style\` skill goes hard on this.
 
@@ -637,25 +637,25 @@ User pastes a list of references they want cited:
 
 User wants to swap chapter order or split / merge:
 
-1. \`vswrite_get_chapters\` — see current \`#include\` structure
-2. \`vswrite_save_version({ message: "before reorg" })\` — destructive ops need a rollback point
-3. For pure reorder: \`vswrite_reorder_chapters({ newOrder: ["chapters/03-foo.typ", "chapters/01-bar.typ", ...] })\` — just rewrites \`main.typ\`
-4. For split (one long chapter → multiple): \`vswrite_split_document\` splits at \`= heading\` boundaries
-5. For merge (gather into one file): \`vswrite_merge_document\` returns the merged content as string; then \`vswrite_write_file\` to a new file + \`vswrite_reorder_chapters\` to swap the includes
-6. \`vswrite_compile\` — verify
+1. \`penwright_get_chapters\` — see current \`#include\` structure
+2. \`penwright_save_version({ message: "before reorg" })\` — destructive ops need a rollback point
+3. For pure reorder: \`penwright_reorder_chapters({ newOrder: ["chapters/03-foo.typ", "chapters/01-bar.typ", ...] })\` — just rewrites \`main.typ\`
+4. For split (one long chapter → multiple): \`penwright_split_document\` splits at \`= heading\` boundaries
+5. For merge (gather into one file): \`penwright_merge_document\` returns the merged content as string; then \`penwright_write_file\` to a new file + \`penwright_reorder_chapters\` to swap the includes
+6. \`penwright_compile\` — verify
 
 ### Recipe 5 — Pre-submission audit (the loop that catches embarrassing things)
 
 Before declaring done on an academic paper or thesis:
 
-1. \`vswrite_compile\` — must be \`success: true\` with zero \`errors[]\`
+1. \`penwright_compile\` — must be \`success: true\` with zero \`errors[]\`
 2. Scan \`warnings[]\` — every warning should be either resolved or explicitly accepted by the user (don't silently ship a "unknown font family" warning)
-3. \`vswrite_list_labels\` — every label needs a use somewhere; use \`vswrite_search_project\` on the label name to verify
-4. \`vswrite_get_citations\` — every BibTeX entry should be cited at least once; cross-check with \`vswrite_search_project\` on each citekey
-5. For each citekey the paper relies on heavily: \`vswrite_find_source_for_citation\` to make sure the PDF is in \`sources/\` (so reviewers can verify quotations)
+3. \`penwright_list_labels\` — every label needs a use somewhere; use \`penwright_search_project\` on the label name to verify
+4. \`penwright_get_citations\` — every BibTeX entry should be cited at least once; cross-check with \`penwright_search_project\` on each citekey
+5. For each citekey the paper relies on heavily: \`penwright_find_source_for_citation\` to make sure the PDF is in \`sources/\` (so reviewers can verify quotations)
 6. Read the \`writing-style\` skill prompt — run the Anti-AI-Tells checklist over the introduction and conclusion (highest-density places for em-dash inflation and Dreierlisten-Reflex)
-7. \`vswrite_save_version({ message: "v1.0 submission" })\` — landmark version
-8. \`vswrite_export_pdf({ outputPath: "exports/submission.pdf" })\` — the deliverable
+7. \`penwright_save_version({ message: "v1.0 submission" })\` — landmark version
+8. \`penwright_export_pdf({ outputPath: "exports/submission.pdf" })\` — the deliverable
 
 ## Bundled Typst Packages (Offline, Always Available)
 
@@ -678,8 +678,8 @@ Packages outside this list still work via \`#import "@preview/<name>:<version>"\
 - **Style templates only apply to the root file.** Don't paste preamble code into a chapter.
 - **Image paths are relative to the file containing \`#image\`.** Drop new images into \`assets/\` and reference as \`assets/foo.png\`.
 - **Citekeys go in \`.bib\` files; labels go in \`.typ\` files.** Keep the colon convention (\`@chen2021codex\` vs \`@fig:arch\`).
-- **Save a version before bulk replacements.** \`vswrite_save_version\` → \`vswrite_replace_in_project\` → \`vswrite_compile\`. Restore on regression.
-- **Never commit \`.vswrite/\`.** It's already in \`.gitignore\` for a reason — it's machine state, not project content.
+- **Save a version before bulk replacements.** \`penwright_save_version\` → \`penwright_replace_in_project\` → \`penwright_compile\`. Restore on regression.
+- **Never commit \`.penwright/\`.** It's already in \`.gitignore\` for a reason — it's machine state, not project content.
 `;
 
 export const WRITING_STYLE_SKILL = `---
@@ -907,10 +907,10 @@ The hardest discipline: when you (or the AI) "knows" a fact and reaches for a pl
 
 **Workflow before adding any \`@citekey\`:**
 
-1. Call \`vswrite_get_citations\` and pick from the returned list.
+1. Call \`penwright_get_citations\` and pick from the returned list.
 2. If the needed citekey doesn't exist, choose one of two paths:
-   - **You have the actual source** → add it via \`vswrite_add_citation\`, copying the canonical BibTeX from publisher / DOI / arXiv / Zotero. Never type BibTeX from memory.
-   - **You don't have the source** → write the claim without citation. Mark it with \`vswrite_add_comment\` ("needs source") and move on.
+   - **You have the actual source** → add it via \`penwright_add_citation\`, copying the canonical BibTeX from publisher / DOI / arXiv / Zotero. Never type BibTeX from memory.
+   - **You don't have the source** → write the claim without citation. Mark it with \`penwright_add_comment\` ("needs source") and move on.
 3. **Never** improvise a citekey like \`smith2023deep\` because it sounds plausible. LLMs do this constantly. The construct \`<surname><year><firstkeyword>\` is so regular that fabricated keys look real — until someone tries to find the paper.
 
 ### D2. Never Invent Author Names, Years, or Venues
@@ -942,7 +942,7 @@ Rule: never use a stronger verb than the source did. \`hypothesized\` → \`prov
 
 Direct quotes must be **verbatim** from a source you have open. Rules:
 
-- Run \`vswrite_find_source_for_citation\` to confirm the PDF exists in \`sources/\`. Open it.
+- Run \`penwright_find_source_for_citation\` to confirm the PDF exists in \`sources/\`. Open it.
 - If you don't have the source on disk, **paraphrase with a citation**, don't quote.
 - A misquote is worse than no quote — it's a fabrication attributed to a real person who can object.
 
@@ -977,12 +977,12 @@ Or, if the survey is your actual source: cite only the survey and let the reader
 
 ### D8. Pre-Submission Source Audit
 
-Before \`vswrite_save_version "final draft"\`:
+Before \`penwright_save_version "final draft"\`:
 
-1. \`vswrite_get_citations\` — every BibTeX entry has author, year, title, venue, no \`???\` or \`[fill in]\` placeholders.
-2. \`vswrite_search_project({ query: "@" })\` per chapter — eyeball every cite. Each one should resolve to a BibTeX entry. Spot-check by searching the citekey in \`vswrite_get_citations\` output.
+1. \`penwright_get_citations\` — every BibTeX entry has author, year, title, venue, no \`???\` or \`[fill in]\` placeholders.
+2. \`penwright_search_project({ query: "@" })\` per chapter — eyeball every cite. Each one should resolve to a BibTeX entry. Spot-check by searching the citekey in \`penwright_get_citations\` output.
 3. For high-stakes claims (numerical results, theorems, "X showed Y"): can you open the source and find the supporting passage? If yes ✓. If no — downgrade the claim or remove it.
-4. For each PDF in \`sources/\`: \`vswrite_find_source_for_citation\` — does the file correspond to the cited paper? Especially after Zotero re-syncs that may have replaced files.
+4. For each PDF in \`sources/\`: \`penwright_find_source_for_citation\` — does the file correspond to the cited paper? Especially after Zotero re-syncs that may have replaced files.
 
 This audit takes 30 minutes for a chapter and prevents catastrophe. Do it.
 
@@ -990,11 +990,11 @@ This audit takes 30 minutes for a chapter and prevents catastrophe. Do it.
 
 ## Revision Checklist
 
-When a section is drafted, run through this before \`vswrite_save_version\`:
+When a section is drafted, run through this before \`penwright_save_version\`:
 
 **Integrity (do these first — Section D):**
 
-1. **Every \`@citekey\` resolves** — \`vswrite_get_citations\` confirms each one. Zero invented citekeys.
+1. **Every \`@citekey\` resolves** — \`penwright_get_citations\` confirms each one. Zero invented citekeys.
 2. **Every citation verb matches the source's confidence** — no inflation from "suggests" to "demonstrates".
 3. **Every direct quote is verbatim** from a source you have open in \`sources/\`. Otherwise: paraphrase or remove.
 4. **Page numbers are real** — if you cited \`@key[p. 42]\`, you looked at page 42.
@@ -1011,7 +1011,7 @@ When a section is drafted, run through this before \`vswrite_save_version\`:
 12. **Citation integration test** — drop each citation, does the sentence still claim something coherent?
 13. **Re-read aloud.** If your voice cracks at a sentence, the rhythm is broken.
 
-When using \`vswrite_replace_in_project\` for stylistic bulk-edits (e.g. "remove all 'In conclusion' phrases project-wide"), always \`vswrite_save_version\` first.
+When using \`penwright_replace_in_project\` for stylistic bulk-edits (e.g. "remove all 'In conclusion' phrases project-wide"), always \`penwright_save_version\` first.
 
 ---
 
@@ -1024,7 +1024,7 @@ When using \`vswrite_replace_in_project\` for stylistic bulk-edits (e.g. "remove
 - **Don't strip ALL hedging.** Discussion sections need it. AI sprinkles it everywhere; the fix is precision, not abolition.
 - **Don't trade voice for compliance.** If "Furthermore" is genuinely your style, keep it for clutch moments. The rule is "Furthermore-by-default", not "Furthermore-never".
 - **Don't over-apply Section A to the user's pre-AI text.** These tells are about LLM patterns; experienced writers sometimes use the same constructions deliberately and with weight.
-- **Don't run a stylistic bulk-replace without saving a version first.** Style edits routinely break unintended things (a sentence relying on "however" loses its turn). \`vswrite_save_version → vswrite_replace_in_project → vswrite_compile → re-read\`.
+- **Don't run a stylistic bulk-replace without saving a version first.** Style edits routinely break unintended things (a sentence relying on "however" loses its turn). \`penwright_save_version → penwright_replace_in_project → penwright_compile → re-read\`.
 `;
 
 export const RESEARCH_SKILL = `---
@@ -1061,21 +1061,21 @@ For each source you'll cite:
 
 1. **BibTeX entry** in \`references.bib\`. Citekey is a slug (no colon — colons are reserved for label prefixes). Convention: \`<lastauthor><year><firstword>\` → \`chen2021codex\`.
 
-2. **Source PDF** in \`sources/\`, named so the basename starts with the citekey. \`sources/chen2021codex.pdf\` is preferred; \`chen2021codex_supplement.pdf\` etc. work as fallback. Naming matters: vswrite's hover-card and \`vswrite_find_source_for_citation\` match on this prefix.
+2. **Source PDF** in \`sources/\`, named so the basename starts with the citekey. \`sources/chen2021codex.pdf\` is preferred; \`chen2021codex_supplement.pdf\` etc. work as fallback. Naming matters: vswrite's hover-card and \`penwright_find_source_for_citation\` match on this prefix.
 
 3. **Notes** as Markdown in a scratch location (or directly as \`.typ\` in \`chapters/\` once it's a real chapter).
 
 ### MCP-tool path
 
 ~~~
-vswrite_add_citation({
+penwright_add_citation({
   bibtex: "@article{chen2021codex, author={Chen and Tworek}, title={…}, year={2021}, …}"
 })
 
-vswrite_get_citations()
+penwright_get_citations()
   → [{ citekey: "chen2021codex", … }, …]
 
-vswrite_find_source_for_citation({ citekey: "chen2021codex" })
+penwright_find_source_for_citation({ citekey: "chen2021codex" })
   → { found: true, relPath: "sources/chen2021codex.pdf" }   // or { found: false } → user needs to drop the PDF
 ~~~
 
@@ -1088,7 +1088,7 @@ Append a BibTeX block to \`references.bib\`. Drop the PDF into \`sources/\` with
 When notes are inline Markdown that should become a chapter:
 
 ~~~
-vswrite_import_markdown({
+penwright_import_markdown({
   markdown: "# Verwandte Arbeiten\\n\\n## Chen et al. (2021)\\n…",
   destPath: "chapters/06-related.typ"
 })
@@ -1096,7 +1096,7 @@ vswrite_import_markdown({
 
 Handles headings, formatting, lists, links, code, blockquotes. Complex Markdown (custom HTML, footnote-style references) needs manual cleanup.
 
-After import, add a \`#include "chapters/06-related.typ"\` to \`main.typ\` (via \`vswrite_add_chapter\` or by editing).
+After import, add a \`#include "chapters/06-related.typ"\` to \`main.typ\` (via \`penwright_add_chapter\` or by editing).
 
 ## Phase 4 — Integrate
 
@@ -1123,17 +1123,17 @@ In @sec:method we describe the architecture (@fig:arch).
 Via MCP:
 
 ~~~
-vswrite_list_labels({ type: "figure" })
+penwright_list_labels({ type: "figure" })
   → [{ label: "fig:arch", caption: "Architecture", relPath: "chapters/03-method.typ", line: 12 }, …]
 
-vswrite_insert_reference({
+penwright_insert_reference({
   file: "chapters/05-discussion.typ",
   afterText: "as shown in",
   label: "fig:arch"
 })
 ~~~
 
-\`vswrite_list_labels\` is the safety net — it tells you which labels actually exist before you reference them.
+\`penwright_list_labels\` is the safety net — it tells you which labels actually exist before you reference them.
 
 ### Backlinks — "Where else is this cited?"
 
@@ -1141,10 +1141,10 @@ Classic consistency-check question:
 
 ~~~
 // Every place a source is cited
-vswrite_search_project({ query: "@chen2021codex", wholeWord: true })
+penwright_search_project({ query: "@chen2021codex", wholeWord: true })
 
 // Every place a heading text is mentioned
-vswrite_search_project({ query: "Method" })
+penwright_search_project({ query: "Method" })
 ~~~
 
 Whole-word matching uses lookarounds (not \`\\b\`), so it works even when the query starts with \`@\`.
@@ -1152,23 +1152,23 @@ Whole-word matching uses lookarounds (not \`\\b\`), so it works even when the qu
 ### Renaming a citekey across chapters
 
 ~~~
-vswrite_save_version({ message: "Vor Citekey-Umbenennung" })
+penwright_save_version({ message: "Vor Citekey-Umbenennung" })
 
-vswrite_replace_in_project({
+penwright_replace_in_project({
   query: "smith2023",
   replacement: "smith2024",
   wholeWord: true
 })
 
-vswrite_compile()
+penwright_compile()
 ~~~
 
-If the compile fails: \`vswrite_restore_version({ sha: "<sha-from-save>" })\` rolls back.
+If the compile fails: \`penwright_restore_version({ sha: "<sha-from-save>" })\` rolls back.
 
 ### Leave a comment for the supervisor
 
 ~~~
-vswrite_add_comment({
+penwright_add_comment({
   file: "chapters/01-introduction.typ",
   anchor: "five reference works",
   body: "Vorschlag: Müller (2024) ergänzen — neuer Survey deckt drei dieser Werke neu ab.",
@@ -1181,7 +1181,7 @@ Comments are never compiled into PDF / DOCX. The supervisor sees them in the vsw
 ### Add a figure with caption + label in one shot
 
 ~~~
-vswrite_add_image({
+penwright_add_image({
   srcPath: "/Users/.../scaling-plot.png",
   caption: "Parameter scaling of encoder vs. decoder",
   label: "fig:scaling",
@@ -1196,18 +1196,18 @@ This copies the asset into \`assets/\` (with content-hash dedup), builds the \`#
 
 ## Quality Checks Before Submission
 
-1. \`vswrite_compile()\` — must return \`success: true\`.
-2. \`vswrite_list_labels()\` — every figure / table / equation that's referenced should have its label.
-3. \`vswrite_search_project({ query: "@" })\` — eyeball the hits to make sure no broken cross-refs slipped in.
-4. \`vswrite_get_citations()\` — every \`@citekey\` used in the text should map to a BibTeX entry.
-5. \`vswrite_export_docx({ outputPath: "exports/v1-feedback.docx" })\` for the supervisor.
+1. \`penwright_compile()\` — must return \`success: true\`.
+2. \`penwright_list_labels()\` — every figure / table / equation that's referenced should have its label.
+3. \`penwright_search_project({ query: "@" })\` — eyeball the hits to make sure no broken cross-refs slipped in.
+4. \`penwright_get_citations()\` — every \`@citekey\` used in the text should map to a BibTeX entry.
+5. \`penwright_export_docx({ outputPath: "exports/v1-feedback.docx" })\` for the supervisor.
 
 ## Don't
 
-- **Don't invent citekeys or label names.** Always check via \`vswrite_get_citations\` / \`vswrite_list_labels\` first. Inserting \`@nonexistent\` either breaks the build or silently renders as "?".
+- **Don't invent citekeys or label names.** Always check via \`penwright_get_citations\` / \`penwright_list_labels\` first. Inserting \`@nonexistent\` either breaks the build or silently renders as "?".
 - **Don't put research notes in \`assets/\` or \`sources/\`.** \`assets/\` is for images referenced by \`#image\`; \`sources/\` is for citation PDFs only. Notes go in \`chapters/\` (when integrated) or a scratch \`.md\` file outside the project.
-- **Don't bypass \`vswrite_save_version\` before bulk operations.** A 4-file replace that breaks the compile is much easier to fix when there's a named version to restore from.
-- **Don't manually create \`comments/<id>.md\`.** Use \`vswrite_add_comment\` — it gets the id, frontmatter, and offset math right.
+- **Don't bypass \`penwright_save_version\` before bulk operations.** A 4-file replace that breaks the compile is much easier to fix when there's a named version to restore from.
+- **Don't manually create \`comments/<id>.md\`.** Use \`penwright_add_comment\` — it gets the id, frontmatter, and offset math right.
 `;
 
 export const DESIGN_SKILL = `---
@@ -1391,16 +1391,16 @@ colours, not the global palette reference).
 Workflow via MCP:
 
 ~~~
-vswrite_list_section_styles()                       // presets + defined + assignments
-vswrite_apply_section_style({ file: "chapters/03-feature.typ", styleId: "feature" })
+penwright_list_section_styles()                       // presets + defined + assignments
+penwright_apply_section_style({ file: "chapters/03-feature.typ", styleId: "feature" })
   // auto-defines the 'feature' preset if needed, injects the opt-in, then:
-vswrite_compile()
+penwright_compile()
 ~~~
 
 Five built-in presets: **feature** (big display headline, accent, 1 col),
 **interview** (2 cols, sans, teal), **essay** (serif, generous leading, 1 col),
 **photo-essay** (minimal, large Inter headline), **department** (3 dense cols).
-Tune or invent rubrics with \`vswrite_define_section_style({ id, fromPreset?,
+Tune or invent rubrics with \`penwright_define_section_style({ id, fromPreset?,
 accent?, columns?, h1Size?, ... })\` — start from a preset and override.
 
 What an overlay can change: accent / primary colour, body+heading fonts, base
@@ -1446,13 +1446,13 @@ What "current" means right now:
 
 When a user asks "make this look like a brochure" (or similar):
 
-1. Run \`vswrite_generate_layout({ intent: "brochure" })\`. Gets a sensible theme + layout starting point applied in one shot.
-2. Inspect the result: \`vswrite_get_style()\`. Decide what to adjust.
-3. Apply targeted refinements: \`vswrite_update_style({ colors: { primary: "#0c2340" } })\` for the brand color, or \`vswrite_apply_palette({ presetId: "ocean-classic" })\` to swap the whole palette.
-4. Optional: drop in design elements at top of the document — \`vswrite_insert_design_element({ elementId: "hero", afterText: "", params: { title: "Q3 Report", subtitle: "Operations Review" } })\`.
-5. Verify: \`vswrite_compile()\`. If it warns, fix; if it errors, restore via \`vswrite_list_versions\` + \`vswrite_restore_version\`.
+1. Run \`penwright_generate_layout({ intent: "brochure" })\`. Gets a sensible theme + layout starting point applied in one shot.
+2. Inspect the result: \`penwright_get_style()\`. Decide what to adjust.
+3. Apply targeted refinements: \`penwright_update_style({ colors: { primary: "#0c2340" } })\` for the brand color, or \`penwright_apply_palette({ presetId: "ocean-classic" })\` to swap the whole palette.
+4. Optional: drop in design elements at top of the document — \`penwright_insert_design_element({ elementId: "hero", afterText: "", params: { title: "Q3 Report", subtitle: "Operations Review" } })\`.
+5. Verify: \`penwright_compile()\`. If it warns, fix; if it errors, restore via \`penwright_list_versions\` + \`penwright_restore_version\`.
 
-Don't reach for \`vswrite_update_style\` with a giant patch. Make one change, recompile, iterate. The PDF preview is your feedback loop.
+Don't reach for \`penwright_update_style\` with a giant patch. Make one change, recompile, iterate. The PDF preview is your feedback loop.
 
 ## Concrete Design Recipes
 
@@ -1461,8 +1461,8 @@ Don't reach for \`vswrite_update_style\` with a giant patch. Make one change, re
 A long-form article needs a kicker + headline + standfirst + byline at the top. Use the composite element, don't hand-roll three \`#text(...)\` blocks:
 
 \`\`\`
-vswrite_apply_palette({ presetId: "editorial" })
-vswrite_insert_design_element({
+penwright_apply_palette({ presetId: "editorial" })
+penwright_insert_design_element({
   elementId: "article-opener",
   afterText: "= <article-title>",
   params: {
@@ -1472,7 +1472,7 @@ vswrite_insert_design_element({
     byline: "By Sam Cooper, Photography by Maya Reidt"
   }
 })
-vswrite_compile
+penwright_compile
 \`\`\`
 
 The element wraps the headline in a level-1 heading so it still appears in the TOC. **Don't pair with a separate \`= Title\` heading** — pick one.
@@ -1482,11 +1482,11 @@ The element wraps the headline in a level-1 heading so it still appears in the T
 Architecture / lifestyle articles where the photos are the point:
 
 \`\`\`
-vswrite_insert_design_element({ elementId: "image-overlay", params: { image: "assets/hero.jpg", title: "...", subtitle: "..." } })
+penwright_insert_design_element({ elementId: "image-overlay", params: { image: "assets/hero.jpg", title: "...", subtitle: "..." } })
 ... body paragraphs ...
-vswrite_insert_design_element({ elementId: "gallery-asymmetric", params: { imageMain: "assets/big.jpg", imageTop: "assets/detail-1.jpg", imageBottom: "assets/detail-2.jpg", captionMain: "..." } })
+penwright_insert_design_element({ elementId: "gallery-asymmetric", params: { imageMain: "assets/big.jpg", imageTop: "assets/detail-1.jpg", imageBottom: "assets/detail-2.jpg", captionMain: "..." } })
 ... body paragraphs ...
-vswrite_insert_design_element({ elementId: "photo-caption-wrap", params: { image: "assets/portrait.jpg", caption: "<long-form bio paragraph>", credit: "Maya Reidt" } })
+penwright_insert_design_element({ elementId: "photo-caption-wrap", params: { image: "assets/portrait.jpg", caption: "<long-form bio paragraph>", credit: "Maya Reidt" } })
 \`\`\`
 
 Three different image-density patterns. Don't repeat the same one three times.
@@ -1496,7 +1496,7 @@ Three different image-density patterns. Don't repeat the same one three times.
 The user mentions concrete numbers that deserve emphasis ("we serve 1.8M households", "87% satisfaction"):
 
 \`\`\`
-vswrite_insert_design_element({
+penwright_insert_design_element({
   elementId: "stats-box",
   afterText: "<paragraph that introduces the numbers>",
   params: {
@@ -1515,7 +1515,7 @@ Optional fourth row via \`number4\` + \`label4\`. The box auto-themes via accent
 User wants the page header to show the current chapter title instead of a static label:
 
 \`\`\`
-vswrite_update_style({
+penwright_update_style({
   layout: {
     pageHeader: "#text(size: 0.85em, tracking: 0.1em, fill: style-colors.muted)[{chapter}  ·  ISSUE 1] #h(1fr) #line(length: 1.5cm, stroke: 0.5pt + style-colors.accent)"
   }
@@ -1539,7 +1539,7 @@ Don't combine contradictory presets. "Thesis theme" + "A2 poster layout" is tech
 ## Don't
 
 - **Don't redesign without reason.** "What does this document need to do?" comes before "how should it look?".
-- **Don't ignore the user's existing custom-code block.** It's in \`style.custom.preamble\` — applying a theme preserves it; applying an inline \`update_style\` patch preserves it. Read \`vswrite_get_style\` first to know what's there.
+- **Don't ignore the user's existing custom-code block.** It's in \`style.custom.preamble\` — applying a theme preserves it; applying an inline \`update_style\` patch preserves it. Read \`penwright_get_style\` first to know what's there.
 - **Don't hard-code colors in the design-element library.** Elements should always reference \`style-colors.<slot>\` so they re-theme automatically when the palette changes.
 - **Don't use design elements as headings.** A Banner element is for visual emphasis, not for hierarchy. Headings should stay headings — that's what the H1–H6 surface is for.
 - **Don't apply contradictory presets in sequence.** "Marketing Brochure theme" + "A2 Poster layout" works if intentional; "Thesis theme" + "Brochure layout" usually doesn't. The presets are starting points, not building blocks.

@@ -237,10 +237,10 @@ export function buildMenu(state: AppState): void {
         // The legacy "Style Templates" submenu (Classic / Modern / Minimal /
         // Vibrant / Elegant / Professional / Artsy) has been removed from the
         // in-app menu. Style editing now happens in the Design sidebar tab,
-        // which writes into .vswrite/style.json instead of injecting raw
+        // which writes into .penwright/style.json instead of injecting raw
         // preamble into main.typ. The applyStyleTemplate / handleImportStyleTemplate
         // IPC handlers stay in importExport.ts as legacy entry points for
-        // the MCP tools `vswrite_list_styles` / `vswrite_apply_style` until
+        // the MCP tools `penwright_list_styles` / `penwright_apply_style` until
         // those are migrated to the new theme-preset format.
         {
           label: 'Merge Document',

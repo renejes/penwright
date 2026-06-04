@@ -37,8 +37,7 @@
   });
 
   function tierLabel(): string {
-    if (uiState.licenseStatus !== 'active') return 'Unlicensed';
-    return uiState.licenseTier === 'pro' ? 'Pro' : 'Basic';
+    return uiState.licenseStatus === 'active' ? 'Licensed' : 'Unlicensed';
   }
 
   function platformLabel(p: string): string {
@@ -90,7 +89,7 @@
       <div class="app-meta">
         <h1>Penwright</h1>
         <div class="version">{info ? `Version ${info.version}` : 'Version …'}</div>
-        <div class="tier-badge" class:pro={uiState.licenseTier === 'pro'} class:active={uiState.licenseStatus === 'active'}>
+        <div class="tier-badge" class:active={uiState.licenseStatus === 'active'}>
           {tierLabel()}
         </div>
       </div>
@@ -240,11 +239,6 @@
   .tier-badge.active {
     background: #e8f5e9;
     color: #2e7d32;
-  }
-
-  .tier-badge.pro.active {
-    background: #eef4ff;
-    color: #4f7df9;
   }
 
   .tagline {

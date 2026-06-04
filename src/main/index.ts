@@ -185,8 +185,8 @@ appState.handleLinkZotero = handleLinkZotero;
 
 app.whenReady().then(() => {
   // Register protocol handler for local asset files (images etc.)
-  protocol.handle('vswrite-asset', (request) => {
-    const filePath = decodeURIComponent(request.url.replace('vswrite-asset://', ''));
+  protocol.handle('penwright-asset', (request) => {
+    const filePath = decodeURIComponent(request.url.replace('penwright-asset://', ''));
 
     // Only allow files within the current project directory (symlink-aware)
     const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
@@ -198,14 +198,14 @@ app.whenReady().then(() => {
   });
 
   // ─── Bundled fonts protocol ─────────────────────────
-  // `vswrite-font://<Family>/<file>.ttf` resolves to the bundled OFL fonts
+  // `penwright-font://<Family>/<file>.ttf` resolves to the bundled OFL fonts
   // shipped under resources/fonts/. The Design panel @font-face-loads them
   // for live preview without copying the binary across the IPC boundary.
   // Path validation: the request must resolve inside the bundled font
   // directory; anything else is forbidden so a compromised renderer can't
   // read arbitrary files via this protocol.
-  protocol.handle('vswrite-font', (request) => {
-    const requested = decodeURIComponent(request.url.replace('vswrite-font://', ''));
+  protocol.handle('penwright-font', (request) => {
+    const requested = decodeURIComponent(request.url.replace('penwright-font://', ''));
     const fontRoot = getTypstFontPath();
     if (!fontRoot) return new Response('Not configured', { status: 404 });
     const resolved = path.resolve(fontRoot, requested);

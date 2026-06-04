@@ -19,6 +19,7 @@
   import PdfFileViewer from './components/PdfFileViewer.svelte';
   import NewProjectDialog from './components/NewProjectDialog.svelte';
   import LicenseDialog from './components/LicenseDialog.svelte';
+  import LicenseGate from './components/LicenseGate.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
   import ExportDialog from './components/ExportDialog.svelte';
   import CitationHoverCard from './components/CitationHoverCard.svelte';
@@ -303,7 +304,9 @@
         }
       });
 
-      // Validate license on startup
+      // Validate license on startup, then resolve the local entitlement
+      // (licensed / trial / expired) — the single source of truth for gating.
+      // Validate first so the stored status is fresh before getEntitlement reads it.
       electronAPI.invoke('license:validate').then((result) => {
         if (result && typeof result === 'object') {
           const r = result as { status: string; tier: string | null; key: string | null; message?: string };
@@ -312,6 +315,14 @@
           uiState.licenseKey = r.key;
           uiState.licenseMessage = r.message || '';
         }
+      }).finally(() => {
+        electronAPI.invoke('license:getEntitlement').then((ent) => {
+          if (ent && typeof ent === 'object') {
+            const e = ent as { access: 'licensed' | 'trial' | 'expired'; trialDaysLeft?: number };
+            uiState.licenseAccess = e.access;
+            if (typeof e.trialDaysLeft === 'number') uiState.trialDaysLeft = e.trialDaysLeft;
+          }
+        });
       });
 
       // MCP setup probe — show the wizard if the user hasn't completed setup
@@ -377,6 +388,13 @@
 
   function toggleReadingMode() {
     uiState.readingMode = !uiState.readingMode;
+  }
+
+  // Opens the Polar checkout (used by the trial banner). Top-level so the
+  // template can reach it — the onMount-scoped `electronAPI` const cannot.
+  function openCheckout() {
+    (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } })
+      .electronAPI?.invoke('license:openCheckout');
   }
 
   // ─── Add Comment ────────────────────────────────
@@ -749,6 +767,16 @@
   <!-- Titlebar drag region (macOS hiddenInset) -->
   <div class="titlebar-drag-region"></div>
 
+  <!-- Trial banner: slim, non-blocking, only during the local trial. -->
+  {#if uiState.licenseAccess === 'trial'}
+    <div class="trial-banner">
+      <span>Testphase – noch {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'Tag' : 'Tage'}</span>
+      <button class="trial-buy" onclick={openCheckout}>
+        Jetzt kaufen – 59 €
+      </button>
+    </div>
+  {/if}
+
   <div class="vswrite-container" class:focus-mode={uiState.focusMode} class:typewriter-mode={uiState.typewriterMode} class:reading-mode={uiState.readingMode}>
     {#if editorRef.current}
       {@const _ = editorVersion.value}
@@ -990,6 +1018,9 @@
         onClose={() => { newProjectState.show = false; }}
       />
     {/if}
+    {#if uiState.licenseAccess === 'expired'}
+      <LicenseGate />
+    {/if}
     {#if uiState.showLicense}
       <LicenseDialog
         onClose={() => { uiState.showLicense = false; }}
@@ -1123,14 +1154,17 @@
       {/if}
       <button
         class="status-toggle"
-        class:licensed={uiState.licenseStatus === 'active'}
+        class:licensed={uiState.licenseAccess === 'licensed'}
+        class:expired={uiState.licenseAccess === 'expired'}
         onclick={() => (uiState.showLicense = true)}
         title="License"
       >
-        {#if uiState.licenseStatus === 'active'}
-          {uiState.licenseTier === 'pro' ? 'Pro' : 'Licensed'}
+        {#if uiState.licenseAccess === 'licensed'}
+          Licensed
+        {:else if uiState.licenseAccess === 'trial'}
+          Testphase: {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'Tag' : 'Tage'}
         {:else}
-          Unlicensed
+          Gesperrt
         {/if}
       </button>
     </div>
@@ -1534,6 +1568,44 @@
 
   .status-toggle.licensed {
     color: #2e7d32;
+  }
+
+  .status-toggle.expired {
+    color: #c0392b;
+    font-weight: 600;
+  }
+
+  /* ─── Trial banner (slim, non-blocking) ─── */
+  .trial-banner {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    height: 30px;
+    padding: 0 16px;
+    background: #f9f3ef;
+    border-bottom: 1px solid #ecddd4;
+    font-size: 12.5px;
+    color: #7a5c4e;
+    -webkit-app-region: no-drag;
+  }
+
+  .trial-buy {
+    padding: 4px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #a8503a;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    transition: background 0.15s;
+  }
+
+  .trial-buy:hover {
+    background: #934636;
   }
 
   /* ─── Editor Zoom Indicator + Popover ─── */

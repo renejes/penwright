@@ -122,13 +122,13 @@ function createMcpSnippetRenderer(baseDir: string): (snippet: string) => Promise
 
 // ─── Style helpers (MCP-side mirror of the main process) ────────
 // The MCP server is a separate process from the Electron app — it
-// reads / writes the project's `.vswrite/style.json` directly, then
+// reads / writes the project's `.penwright/style.json` directly, then
 // regenerates `style.typ` and ensures `#include "style.typ"` is at the
 // top of the root file. This keeps Claude's edits in lockstep with
 // what the Design panel in vswrite would have written.
 
 function styleJsonPath(projectDir: string): string {
-  return path.join(projectDir, '.vswrite', 'style.json');
+  return path.join(projectDir, '.penwright', 'style.json');
 }
 
 function readProjectStyle(projectDir: string): ProjectStyle {
@@ -174,7 +174,7 @@ function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): Proje
   return style;
 }
 
-/** Deep-merges `patch` into `base`. Used by vswrite_update_style. */
+/** Deep-merges `patch` into `base`. Used by penwright_update_style. */
 function deepMergeStyle(base: ProjectStyle, patch: unknown): ProjectStyle {
   if (typeof patch !== 'object' || patch === null) return base;
   const p = patch as Record<string, unknown>;
@@ -287,7 +287,7 @@ function parseArgs(): void {
 
 function readCurrentDocument(): { content: string; filePath: string } {
   if (!state.currentFile || !fs.existsSync(state.currentFile)) {
-    throw new Error('No document open. Use vswrite_open_file to open a .typ file first.');
+    throw new Error('No document open. Use penwright_open_file to open a .typ file first.');
   }
   return {
     content: fs.readFileSync(state.currentFile, 'utf-8'),
@@ -306,7 +306,7 @@ function wordCount(text: string): number {
  */
 function resolveInsideProject(userPath: string): string {
   if (!state.projectDir) {
-    throw new Error('Project directory not set. Call vswrite_set_project first.');
+    throw new Error('Project directory not set. Call penwright_set_project first.');
   }
   const absPath = path.isAbsolute(userPath) ? userPath : path.join(state.projectDir, userPath);
   const resolvedRoot = safeRealpath(state.projectDir);
@@ -352,9 +352,9 @@ const SKILL_PROMPTS: Array<{ name: string; description: string; skillDir: string
     skillDir: 'typst',
   },
   {
-    name: 'vswrite-conventions',
-    description: 'vswrite project conventions — file structure, #include chapters, settings, image handling, bibliography setup.',
-    skillDir: 'vswrite',
+    name: 'penwright-conventions',
+    description: 'Penwright project conventions — file structure, #include chapters, settings, image handling, bibliography setup.',
+    skillDir: 'penwright',
   },
   {
     name: 'research-workflow',
@@ -383,17 +383,17 @@ for (const prompt of SKILL_PROMPTS) {
       try {
         content = fs.readFileSync(skillPath, 'utf-8');
       } catch {
-        content = `Skill "${prompt.name}" not found in this project. Create a new project with vswrite_create_project to get skills auto-deployed.`;
+        content = `Skill "${prompt.name}" not found in this project. Create a new project with penwright_create_project to get skills auto-deployed.`;
       }
       return { messages: [{ role: 'user', content: { type: 'text', text: content } }] };
     },
   );
 }
 
-// ─── Tool: vswrite_set_project ───────────────────────
+// ─── Tool: penwright_set_project ───────────────────────
 
 server.tool(
-  'vswrite_set_project',
+  'penwright_set_project',
   'Sets the active project directory. Call this first to tell vswrite which Typst project to work with. Automatically detects the main .typ file (main.typ, document.typ, or first .typ found).',
   { projectDir: z.string().describe('Absolute path to the Typst project directory') },
   async ({ projectDir }) => {
@@ -432,10 +432,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_get_document ──────────────────────
+// ─── Tool: penwright_get_document ──────────────────────
 
 server.tool(
-  'vswrite_get_document',
+  'penwright_get_document',
   'Returns the current Typst document: content, file path, project directory, and word count. Use this to read the document before making changes.',
   async () => {
     try {
@@ -457,10 +457,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_open_file ─────────────────────────
+// ─── Tool: penwright_open_file ─────────────────────────
 
 server.tool(
-  'vswrite_open_file',
+  'penwright_open_file',
   'Opens a .typ file as the current document. Provide an absolute path or a path relative to the project directory.',
   { filePath: z.string().describe('Path to the .typ file (absolute or relative to project)') },
   async ({ filePath }) => {
@@ -483,11 +483,11 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_update_document ───────────────────
+// ─── Tool: penwright_update_document ───────────────────
 
 server.tool(
-  'vswrite_update_document',
-  'Replaces the content of the current Typst document and saves it to disk. Use vswrite_get_document first to read the current content, modify it, then send the complete new content here.',
+  'penwright_update_document',
+  'Replaces the content of the current Typst document and saves it to disk. Use penwright_get_document first to read the current content, modify it, then send the complete new content here.',
   { content: z.string().describe('The complete new Typst document content') },
   async ({ content }) => {
     try {
@@ -505,11 +505,11 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_compile ───────────────────────────
+// ─── Tool: penwright_compile ───────────────────────────
 
 server.tool(
-  'vswrite_compile',
-  'Verify the current document compiles. Returns { success, rootFile, sizeBytes, errors[], warnings[] } — errors carry file + line. PDF artefact is discarded; use vswrite_export_pdf / _docx for real output.',
+  'penwright_compile',
+  'Verify the current document compiles. Returns { success, rootFile, sizeBytes, errors[], warnings[] } — errors carry file + line. PDF artefact is discarded; use penwright_export_pdf / _docx for real output.',
   async () => {
     try {
       const { filePath } = readCurrentDocument();
@@ -615,10 +615,10 @@ function parseCompileDiagnostics(stderr: string, kind: 'error' | 'warning'): Com
   return out;
 }
 
-// ─── Tool: vswrite_get_settings ──────────────────────
+// ─── Tool: penwright_get_settings ──────────────────────
 
 server.tool(
-  'vswrite_get_settings',
+  'penwright_get_settings',
   'Reads the document settings (#set blocks) from the current Typst file. Returns font, size, language, margins, page format, paragraph settings, heading numbering, and bibliography style.',
   async () => {
     try {
@@ -633,10 +633,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_update_settings ───────────────────
+// ─── Tool: penwright_update_settings ───────────────────
 
 server.tool(
-  'vswrite_update_settings',
+  'penwright_update_settings',
   'Update document settings (lang + bibliographyStyle since Phase A — everything else lives in style.json via the Design tools). Only changed keys need to be passed.',
   {
     settings: z.record(z.string()).describe('Key-value pairs of settings to update'),
@@ -669,10 +669,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_list_files ────────────────────────
+// ─── Tool: penwright_list_files ────────────────────────
 
 server.tool(
-  'vswrite_list_files',
+  'penwright_list_files',
   'Returns the project file tree. Shows all .typ, .bib, .md, .yaml, .json, .pdf and image files.',
   async () => {
     try {
@@ -720,10 +720,10 @@ function listDir(dir: string, depth: number): string {
   return lines.join('\n');
 }
 
-// ─── Tool: vswrite_read_file ─────────────────────────
+// ─── Tool: penwright_read_file ─────────────────────────
 
 server.tool(
-  'vswrite_read_file',
+  'penwright_read_file',
   'Reads a file from the project. Returns content as text for text files. Provide an absolute path or a path relative to the project directory.',
   { filePath: z.string().describe('Path to the file (absolute or relative to project)') },
   async ({ filePath }) => {
@@ -740,10 +740,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_write_file ────────────────────────
+// ─── Tool: penwright_write_file ────────────────────────
 
 server.tool(
-  'vswrite_write_file',
+  'penwright_write_file',
   'Writes content to a file in the project. Creates parent directories if needed. Provide an absolute path or a path relative to the project directory.',
   {
     filePath: z.string().describe('Path to the file (absolute or relative to project)'),
@@ -766,10 +766,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_export_pdf ────────────────────────
+// ─── Tool: penwright_export_pdf ────────────────────────
 
 server.tool(
-  'vswrite_export_pdf',
+  'penwright_export_pdf',
   'Compile + export as PDF. Output path must be inside the project (convention: exports/<name>.pdf). Parent dirs auto-created.',
   { outputPath: z.string().describe('Path for the PDF output file, relative to the project (e.g. "exports/thesis.pdf"). Absolute paths must point inside the project directory.') },
   async ({ outputPath }) => {
@@ -805,7 +805,7 @@ server.tool(
 // Phase 3 Tools
 // ═══════════════════════════════════════════════════════
 
-// ─── Tool: vswrite_list_styles (migrated to themes) ───
+// ─── Tool: penwright_list_styles (migrated to themes) ───
 //
 // Historic tool name kept for API stability. The seven legacy
 // preamble-string templates that lived here have been retired; this
@@ -814,8 +814,8 @@ server.tool(
 // `style.json`.
 
 server.tool(
-  'vswrite_list_styles',
-  'Returns all available theme presets (id, name, description, best-for). Each theme is a complete ProjectStyle that the user can apply via vswrite_apply_style.',
+  'penwright_list_styles',
+  'Returns all available theme presets (id, name, description, best-for). Each theme is a complete ProjectStyle that the user can apply via penwright_apply_style.',
   async () => {
     const themes = THEME_PRESETS.map(t => ({
       id: t.id,
@@ -827,17 +827,17 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_apply_style ───────────────────────
+// ─── Tool: penwright_apply_style ───────────────────────
 // Applies a built-in theme to the current project's style.json. Preserves
 // the user's custom.preamble (their escape-hatch code).
 
 server.tool(
-  'vswrite_apply_style',
-  'Apply a built-in theme preset. Overwrites colors/fonts/layout/headings/elements; preserves custom.preamble. Call vswrite_list_styles first.',
-  { styleId: z.string().describe('Theme preset ID — see vswrite_list_styles for available IDs') },
+  'penwright_apply_style',
+  'Apply a built-in theme preset. Overwrites colors/fonts/layout/headings/elements; preserves custom.preamble. Call penwright_list_styles first.',
+  { styleId: z.string().describe('Theme preset ID — see penwright_list_styles for available IDs') },
   async ({ styleId }) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const t = THEME_PRESETS.find(x => x.id === styleId);
     if (!t) {
@@ -849,35 +849,35 @@ server.tool(
     // escape hatch and the per-chapter section styles (Phase E).
     const next = sanitizeProjectStyle({ ...t.style, sections: current.sections, custom: { preamble: current.custom?.preamble ?? '' } });
     writeProjectStyleAndRegenerate(state.projectDir, next);
-    return { content: [{ type: 'text' as const, text: `Applied theme "${t.name}" — style.json + style.typ regenerated. Run vswrite_compile to verify.` }] };
+    return { content: [{ type: 'text' as const, text: `Applied theme "${t.name}" — style.json + style.typ regenerated. Run penwright_compile to verify.` }] };
   },
 );
 
-// ─── Tool: vswrite_get_style ─────────────────────────
+// ─── Tool: penwright_get_style ─────────────────────────
 
 server.tool(
-  'vswrite_get_style',
-  'Return the ProjectStyle JSON (colors / fonts / scale / layout / headings / elements / custom). Call before vswrite_update_style.',
+  'penwright_get_style',
+  'Return the ProjectStyle JSON (colors / fonts / scale / layout / headings / elements / custom). Call before penwright_update_style.',
   async () => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const style = readProjectStyle(state.projectDir);
     return { content: [{ type: 'text' as const, text: JSON.stringify(style, null, 2) }] };
   },
 );
 
-// ─── Tool: vswrite_update_style ──────────────────────
+// ─── Tool: penwright_update_style ──────────────────────
 
 server.tool(
-  'vswrite_update_style',
+  'penwright_update_style',
   'Deep-merge a partial ProjectStyle into style.json. Per-leaf sanitiser: invalid hex / weight / range falls back to existing value (never errors).',
   {
     patch: z.unknown().describe('Partial ProjectStyle JSON object. Top-level keys: colors, fonts, scale, layout, headings, elements, custom.'),
   },
   async ({ patch }) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const current = readProjectStyle(state.projectDir);
     const merged = deepMergeStyle(current, patch);
@@ -886,10 +886,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_list_fonts ────────────────────────
+// ─── Tool: penwright_list_fonts ────────────────────────
 
 server.tool(
-  'vswrite_list_fonts',
+  'penwright_list_fonts',
   'List the 7 bundled OFL fonts (family, category, description). Always available; reference in fonts.body / fonts.heading / fonts.code without system-install check.',
   async () => {
     // Resolve the bundled fonts manifest. TYPST_FONT_PATH points to the
@@ -917,10 +917,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_apply_palette ─────────────────────
+// ─── Tool: penwright_apply_palette ─────────────────────
 
 server.tool(
-  'vswrite_apply_palette',
+  'penwright_apply_palette',
   'Apply a 5-color palette via `presetId` or per-slot hex overrides (composable). Empty-args call returns available presets.',
   {
     presetId: z.string().optional().describe('Optional palette preset id (e.g. "modern-tech", "editorial", "earth-tones").'),
@@ -932,7 +932,7 @@ server.tool(
   },
   async ({ presetId, primary, accent, text, background, muted }) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
 
     // No args at all → list available presets so Claude can discover them.
@@ -966,11 +966,11 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_list_layouts ──────────────────────
+// ─── Tool: penwright_list_layouts ──────────────────────
 
 server.tool(
-  'vswrite_list_layouts',
-  'Returns the built-in layout presets (id, name, description, best-for, paper, orientation, columns, base-size). Apply one via vswrite_apply_layout.',
+  'penwright_list_layouts',
+  'Returns the built-in layout presets (id, name, description, best-for, paper, orientation, columns, base-size). Apply one via penwright_apply_layout.',
   async () => {
     const layouts = LAYOUT_PRESETS.map(p => ({
       id: p.id,
@@ -986,15 +986,15 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_apply_layout ──────────────────────
+// ─── Tool: penwright_apply_layout ──────────────────────
 
 server.tool(
-  'vswrite_apply_layout',
+  'penwright_apply_layout',
   'Apply a layout preset (swaps layout.* + optionally scale.base). Theme + colors + fonts unchanged. Stacks with apply_style.',
-  { layoutId: z.string().describe('Layout preset ID — see vswrite_list_layouts') },
+  { layoutId: z.string().describe('Layout preset ID — see penwright_list_layouts') },
   async ({ layoutId }) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const preset = LAYOUT_PRESETS.find(p => p.id === layoutId);
     if (!preset) {
@@ -1012,10 +1012,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_list_design_elements ──────────────
+// ─── Tool: penwright_list_design_elements ──────────────
 
 server.tool(
-  'vswrite_list_design_elements',
+  'penwright_list_design_elements',
   'List the 19 design elements (banner / sidebar / pull-quote × 3 / callout / hero / divider × 3 / drop-cap / article-opener / section-opener / gallery × 3 / image-overlay / stats-box / photo-caption-wrap / magazine-cover) with their params.',
   async () => {
     const list = DESIGN_ELEMENTS.map(e => ({
@@ -1028,16 +1028,16 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_insert_design_element ─────────────
+// ─── Tool: penwright_insert_design_element ─────────────
 
 server.tool(
-  'vswrite_insert_design_element',
-  'Insert a design element (19 available — call vswrite_list_design_elements first) at an anchor. Auto-themes via style-colors / style-fonts.',
+  'penwright_insert_design_element',
+  'Insert a design element (19 available — call penwright_list_design_elements first) at an anchor. Auto-themes via style-colors / style-fonts.',
   {
-    elementId: z.string().describe('Design element id — see vswrite_list_design_elements'),
+    elementId: z.string().describe('Design element id — see penwright_list_design_elements'),
     afterText: z.string().describe('Anchor text. Element is inserted on a new line after this match. Pass empty string to insert at the document end.'),
     occurrence: z.number().int().min(1).optional().default(1).describe('Which 1-based occurrence of `afterText` to target if it appears multiple times.'),
-    params: z.record(z.string()).optional().describe('Element-specific values. e.g. { title: "Welcome", subtitle: "..." } for the Hero element. See vswrite_list_design_elements for each element\'s param list.'),
+    params: z.record(z.string()).optional().describe('Element-specific values. e.g. { title: "Welcome", subtitle: "..." } for the Hero element. See penwright_list_design_elements for each element\'s param list.'),
   },
   async ({ elementId, afterText, occurrence, params }) => {
     try {
@@ -1088,7 +1088,7 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_generate_layout ───────────────────
+// ─── Tool: penwright_generate_layout ───────────────────
 //
 // Composite high-level call. Given a natural-language design brief, this
 // applies a sensible theme + layout combo plus a starter set of design
@@ -1098,7 +1098,7 @@ server.tool(
 // insert_design_element) for finer control.
 
 server.tool(
-  'vswrite_generate_layout',
+  'penwright_generate_layout',
   'High-level NL composite: intent ("brochure" | "thesis" | "magazine" | "report" | …) → theme + layout + optional hero. Use as scaffolding before fine-tuning.',
   {
     intent: z.string().describe('What kind of document — "brochure", "thesis", "article", "report", "magazine", "essay", "spec". Free text; the tool maps to the closest preset combo.'),
@@ -1107,7 +1107,7 @@ server.tool(
   },
   async ({ intent, title, subtitle }) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
 
     // Intent → (theme, layout) mapping. Conservative: leans on the
@@ -1169,7 +1169,7 @@ server.tool(
           appliedTheme: { id: theme.id, name: theme.name },
           appliedLayout: { id: layout.id, name: layout.name },
           heroInserted,
-          nextSteps: 'Inspect with vswrite_get_style, fine-tune with vswrite_update_style, or vswrite_compile to verify.',
+          nextSteps: 'Inspect with penwright_get_style, fine-tune with penwright_update_style, or penwright_compile to verify.',
         }, null, 2),
       }],
     };
@@ -1182,12 +1182,12 @@ function blankSection(id: string): SectionStyle {
   return { id, name: id, colors: {}, fonts: {}, scaleBase: '', scaleLeading: '', columns: 0, headings: {} };
 }
 
-/** Recursively lists `.typ` files in the project (skips .git / .vswrite). */
+/** Recursively lists `.typ` files in the project (skips .git / .penwright). */
 function walkTypFiles(dir: string, out: string[] = []): string[] {
   let entries: fs.Dirent[] = [];
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of entries) {
-    if (e.name.startsWith('.git') || e.name === '.vswrite' || e.name === 'node_modules') continue;
+    if (e.name.startsWith('.git') || e.name === '.penwright' || e.name === 'node_modules') continue;
     const full = path.join(dir, e.name);
     if (e.isDirectory()) walkTypFiles(full, out);
     else if (e.name.endsWith('.typ')) out.push(full);
@@ -1195,15 +1195,15 @@ function walkTypFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-// ─── Tool: vswrite_list_section_styles ───────────────
+// ─── Tool: penwright_list_section_styles ───────────────
 
 server.tool(
-  'vswrite_list_section_styles',
+  'penwright_list_section_styles',
   'List per-chapter "section styles" (magazine rubrics). Returns the built-in presets, the variants already defined in this project, and which chapters currently use which variant. A section style restyles one chapter (accent / fonts / columns / headings) via a scoped #show — page geometry stays document-level.',
   {},
   async () => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const style = readProjectStyle(state.projectDir);
     const presets = SECTION_PRESETS.map(p => ({ id: p.id, name: p.name, description: p.description }));
@@ -1221,11 +1221,11 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_define_section_style ──────────────
+// ─── Tool: penwright_define_section_style ──────────────
 
 server.tool(
-  'vswrite_define_section_style',
-  'Create or update a section style (a per-chapter design overlay). Start from a preset via fromPreset and/or pass explicit overrides; writes style.json + regenerates style.typ so the chapter opt-in resolves. Assign it afterwards with vswrite_apply_section_style.',
+  'penwright_define_section_style',
+  'Create or update a section style (a per-chapter design overlay). Start from a preset via fromPreset and/or pass explicit overrides; writes style.json + regenerates style.typ so the chapter opt-in resolves. Assign it afterwards with penwright_apply_section_style.',
   {
     id: z.string().describe('Slug id (lowercase letters / digits / hyphens) — also the Typst function name, e.g. "feature".'),
     name: z.string().optional().describe('Display name. Defaults to the id.'),
@@ -1243,7 +1243,7 @@ server.tool(
   },
   async (a) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const base: SectionStyle = (a.fromPreset ? getSectionPreset(a.fromPreset) : null) ?? blankSection(a.id);
     base.id = a.id;
@@ -1274,22 +1274,22 @@ server.tool(
     if (!saved) {
       return { content: [{ type: 'text' as const, text: `Error: section id "${a.id}" was rejected by the sanitizer (must be lowercase letters/digits/hyphens, starting with a letter).` }], isError: true };
     }
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ defined: saved, note: `Assign it with vswrite_apply_section_style({ file, styleId: "${saved.id}" }).` }, null, 2) }] };
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ defined: saved, note: `Assign it with penwright_apply_section_style({ file, styleId: "${saved.id}" }).` }, null, 2) }] };
   },
 );
 
-// ─── Tool: vswrite_apply_section_style ───────────────
+// ─── Tool: penwright_apply_section_style ───────────────
 
 server.tool(
-  'vswrite_apply_section_style',
-  'Assign a section style to a chapter file (injects the scoped #show opt-in at the top). If styleId is a built-in preset not yet defined here, it is auto-defined first. Run vswrite_compile afterwards.',
+  'penwright_apply_section_style',
+  'Assign a section style to a chapter file (injects the scoped #show opt-in at the top). If styleId is a built-in preset not yet defined here, it is auto-defined first. Run penwright_compile afterwards.',
   {
     file: z.string().describe('Chapter file, project-relative, e.g. "chapters/03-feature.typ".'),
     styleId: z.string().describe('Section style id — a defined variant or a built-in preset (feature / interview / essay / photo-essay / department).'),
   },
   async ({ file, styleId }) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const chapterAbs = resolveInsideProject(file);
     if (!fs.existsSync(chapterAbs)) {
@@ -1299,7 +1299,7 @@ server.tool(
     if (!style.sections.some(s => s.id === styleId)) {
       const preset = getSectionPreset(styleId);
       if (!preset) {
-        return { content: [{ type: 'text' as const, text: `Error: Unknown section style "${styleId}". Define it with vswrite_define_section_style, or use a preset: ${SECTION_PRESETS.map(p => p.id).join(', ')}.` }], isError: true };
+        return { content: [{ type: 'text' as const, text: `Error: Unknown section style "${styleId}". Define it with penwright_define_section_style, or use a preset: ${SECTION_PRESETS.map(p => p.id).join(', ')}.` }], isError: true };
       }
       style = writeProjectStyleAndRegenerate(state.projectDir, { ...style, sections: [...style.sections, preset] });
     }
@@ -1307,19 +1307,19 @@ server.tool(
     const importPath = path.relative(path.dirname(chapterAbs), path.join(rootDir, 'style.typ')).split(path.sep).join('/');
     const src = fs.readFileSync(chapterAbs, 'utf-8');
     fs.writeFileSync(chapterAbs, ensureSectionStyle(src, styleId, importPath), 'utf-8');
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, styleId, importPath, note: 'Run vswrite_compile to verify.' }, null, 2) }] };
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, styleId, importPath, note: 'Run penwright_compile to verify.' }, null, 2) }] };
   },
 );
 
-// ─── Tool: vswrite_clear_section_style ───────────────
+// ─── Tool: penwright_clear_section_style ───────────────
 
 server.tool(
-  'vswrite_clear_section_style',
+  'penwright_clear_section_style',
   'Remove the section-style opt-in from a chapter file (reverts it to the document default look). The variant stays defined in style.json for reuse.',
   { file: z.string().describe('Chapter file, project-relative.') },
   async ({ file }) => {
     if (!state.projectDir) {
-      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const chapterAbs = resolveInsideProject(file);
     if (!fs.existsSync(chapterAbs)) {
@@ -1332,10 +1332,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_get_chapters ──────────────────────
+// ─── Tool: penwright_get_chapters ──────────────────────
 
 server.tool(
-  'vswrite_get_chapters',
+  'penwright_get_chapters',
   'Returns the #include chapter structure of the current document. Shows which files are included, in what order, and whether they exist on disk.',
   async () => {
     try {
@@ -1373,10 +1373,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_reorder_chapters ──────────────────
+// ─── Tool: penwright_reorder_chapters ──────────────────
 
 server.tool(
-  'vswrite_reorder_chapters',
+  'penwright_reorder_chapters',
   'Reorders the #include statements in the current document. Provide the new order as an array of chapter paths (relative to project). The #include lines will be rearranged to match.',
   { order: z.array(z.string()).describe('Array of chapter paths in the desired order, e.g. ["chapters/intro.typ", "chapters/methods.typ"]') },
   async ({ order }) => {
@@ -1431,10 +1431,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_add_chapter ───────────────────────
+// ─── Tool: penwright_add_chapter ───────────────────────
 
 server.tool(
-  'vswrite_add_chapter',
+  'penwright_add_chapter',
   'Creates a new chapter file and adds an #include statement to the current document. The chapter file is created in chapters/ with a heading.',
   {
     title: z.string().describe('Chapter title (e.g. "Methodology")'),
@@ -1501,10 +1501,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_remove_chapter ────────────────────
+// ─── Tool: penwright_remove_chapter ────────────────────
 
 server.tool(
-  'vswrite_remove_chapter',
+  'penwright_remove_chapter',
   'Removes an #include statement from the current document. Does NOT delete the chapter file itself.',
   { chapterPath: z.string().describe('Relative path of the chapter to remove (e.g. "chapters/intro.typ")') },
   async ({ chapterPath }) => {
@@ -1528,10 +1528,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_merge_document ────────────────────
+// ─── Tool: penwright_merge_document ────────────────────
 
 server.tool(
-  'vswrite_merge_document',
+  'penwright_merge_document',
   'Resolves all #include statements recursively and returns the complete merged document as a single string. Does NOT modify files — read-only operation.',
   async () => {
     try {
@@ -1546,10 +1546,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_split_document ────────────────────
+// ─── Tool: penwright_split_document ────────────────────
 
 server.tool(
-  'vswrite_split_document',
+  'penwright_split_document',
   'Splits the current document at = Heading 1 boundaries into separate chapter files. Creates chapters/ directory, writes individual .typ files, and replaces document body with #include statements.',
   async () => {
     try {
@@ -1588,10 +1588,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_get_citations ─────────────────────
+// ─── Tool: penwright_get_citations ─────────────────────
 
 server.tool(
-  'vswrite_get_citations',
+  'penwright_get_citations',
   'Returns all citation entries from .bib files in the project. Each entry includes citekey, type, title, author, year, and all BibTeX fields.',
   async () => {
     try {
@@ -1618,10 +1618,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_add_citation ──────────────────────
+// ─── Tool: penwright_add_citation ──────────────────────
 
 server.tool(
-  'vswrite_add_citation',
+  'penwright_add_citation',
   'Adds a new BibTeX entry to the project bibliography. Creates references.bib if it does not exist. Also ensures the document has a #bibliography statement.',
   {
     bibtex: z.string().describe('Complete BibTeX entry (e.g. @article{key, author={...}, title={...}, year={2024}})'),
@@ -1665,10 +1665,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_ensure_bibliography ───────────────
+// ─── Tool: penwright_ensure_bibliography ───────────────
 
 server.tool(
-  'vswrite_ensure_bibliography',
+  'penwright_ensure_bibliography',
   'Ensures the project has a references.bib file and the current document contains a #bibliography statement. Creates both if missing.',
   async () => {
     try {
@@ -1702,10 +1702,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_create_project ────────────────────
+// ─── Tool: penwright_create_project ────────────────────
 
 server.tool(
-  'vswrite_create_project',
+  'penwright_create_project',
   'Create a new Typst project from a template (document | thesis | paper | letter | book | magazine).',
   {
     templateId: z.enum(['document', 'thesis', 'paper', 'letter', 'book', 'magazine']).describe('Template ID'),
@@ -1758,7 +1758,7 @@ server.tool(
 // local; nothing is ever pushed to a remote.
 // ═══════════════════════════════════════════════════════
 
-const GITIGNORE_REQUIRED_LINES = ['.vswrite/', '*.pdf'];
+const GITIGNORE_REQUIRED_LINES = ['.penwright/', '*.pdf'];
 
 async function ensureGitRepo(dir: string): Promise<void> {
   const git = simpleGit(dir);
@@ -1817,10 +1817,10 @@ function validateProjectRelPaths(files: string[]): string[] {
   return out;
 }
 
-// ─── Tool: vswrite_save_version ──────────────────────
+// ─── Tool: penwright_save_version ──────────────────────
 
 server.tool(
-  'vswrite_save_version',
+  'penwright_save_version',
   'Save a named version (Git commit, local-only). Auto-inits repo if missing. Returns { sha: null, skipped: true } if no changes.',
   {
     message: z.string().describe('Version description, e.g. "Chapter 3 first draft" or "Before supervisor feedback"'),
@@ -1829,7 +1829,7 @@ server.tool(
   async ({ message, files }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       await ensureGitRepo(state.projectDir);
       const git = simpleGit(state.projectDir);
@@ -1874,15 +1874,15 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_list_versions ─────────────────────
+// ─── Tool: penwright_list_versions ─────────────────────
 
 server.tool(
-  'vswrite_list_versions',
+  'penwright_list_versions',
   'List version history (newest first, max 200). Returns { sha, message, date, author, isAuto }; isAuto = vswrite auto-versions.',
   async () => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const git = simpleGit(state.projectDir);
       const isRepo = await git.checkIsRepo();
@@ -1890,7 +1890,7 @@ server.tool(
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify({ versions: [], note: 'No Git repo yet — call vswrite_save_version to create the first version.' }, null, 2),
+            text: JSON.stringify({ versions: [], note: 'No Git repo yet — call penwright_save_version to create the first version.' }, null, 2),
           }],
         };
       }
@@ -1911,16 +1911,16 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_show_version ──────────────────────
+// ─── Tool: penwright_show_version ──────────────────────
 
 server.tool(
-  'vswrite_show_version',
+  'penwright_show_version',
   'Returns the per-file diff for a specific version. Each file entry: { path, status, patch } where status is "added" | "modified" | "deleted" | "renamed" and patch contains the unified diff hunks.',
-  { sha: z.string().describe('Version id (full or abbreviated Git SHA, 4-40 hex characters) — get this from vswrite_list_versions') },
+  { sha: z.string().describe('Version id (full or abbreviated Git SHA, 4-40 hex characters) — get this from penwright_list_versions') },
   async ({ sha }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       if (!/^[0-9a-f]{4,40}$/i.test(sha)) {
         return { content: [{ type: 'text' as const, text: `Error: Invalid version id "${sha}". Expected 4-40 hex characters.` }], isError: true };
@@ -1937,19 +1937,19 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_restore_version ───────────────────
+// ─── Tool: penwright_restore_version ───────────────────
 
 server.tool(
-  'vswrite_restore_version',
-  'Restore files from a historical version. **Destructive — call vswrite_save_version first** to preserve current state.',
+  'penwright_restore_version',
+  'Restore files from a historical version. **Destructive — call penwright_save_version first** to preserve current state.',
   {
-    sha: z.string().describe('Version id (Git SHA, 4-40 hex chars) — get this from vswrite_list_versions'),
+    sha: z.string().describe('Version id (Git SHA, 4-40 hex chars) — get this from penwright_list_versions'),
     files: z.array(z.string()).optional().describe('Restrict restore to these project-relative paths. Omit to restore everything from that version.'),
   },
   async ({ sha, files }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       if (!/^[0-9a-f]{4,40}$/i.test(sha)) {
         return { content: [{ type: 'text' as const, text: `Error: Invalid version id "${sha}". Expected 4-40 hex characters.` }], isError: true };
@@ -1975,10 +1975,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_git_status ────────────────────────
+// ─── Tool: penwright_git_status ────────────────────────
 
 server.tool(
-  'vswrite_git_status',
+  'penwright_git_status',
   'Returns git status of the project: branch name, ahead/behind counts, and list of changed files.',
   async () => {
     try {
@@ -2002,10 +2002,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_git_commit ────────────────────────
+// ─── Tool: penwright_git_commit ────────────────────────
 
 server.tool(
-  'vswrite_git_commit',
+  'penwright_git_commit',
   'Stages all changes and creates a git commit with the given message.',
   {
     message: z.string().describe('Commit message'),
@@ -2030,10 +2030,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_git_push ──────────────────────────
+// ─── Tool: penwright_git_push ──────────────────────────
 
 server.tool(
-  'vswrite_git_push',
+  'penwright_git_push',
   'Pushes committed changes to the remote repository.',
   async () => {
     try {
@@ -2090,10 +2090,10 @@ function findAnchorOffset(
   return { offset: occurrences[occIdx] };
 }
 
-// ─── Tool: vswrite_list_comments ─────────────────────
+// ─── Tool: penwright_list_comments ─────────────────────
 
 server.tool(
-  'vswrite_list_comments',
+  'penwright_list_comments',
   'List comments in the project (lives as .md files in comments/, never compiled). Returns { id, file, anchor, body, resolved, orphaned } per entry; orphaned = anchor text was edited away.',
   {
     file: z.string().optional().describe('Project-relative path to filter by (e.g. "chapters/03-method.typ"). Omit for all files.'),
@@ -2102,7 +2102,7 @@ server.tool(
   async ({ file, includeResolved }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const comments = listComments(state.projectDir, {
         forFile: file,
@@ -2119,10 +2119,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_add_comment ───────────────────────
+// ─── Tool: penwright_add_comment ───────────────────────
 
 server.tool(
-  'vswrite_add_comment',
+  'penwright_add_comment',
   'Create a comment anchored to a verbatim text snippet (whitespace-exact, single-paragraph). Renders as yellow highlight in vswrite; never compiled.',
   {
     file: z.string().describe('Project-relative path of the file to anchor the comment to (e.g. "chapters/01-introduction.typ")'),
@@ -2134,7 +2134,7 @@ server.tool(
   async ({ file, anchor, body, occurrence, author }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const absFile = resolveInsideProject(file);
       if (!fs.existsSync(absFile)) {
@@ -2169,10 +2169,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_resolve_comment ───────────────────
+// ─── Tool: penwright_resolve_comment ───────────────────
 
 server.tool(
-  'vswrite_resolve_comment',
+  'penwright_resolve_comment',
   'Marks a comment as resolved (or unresolved). Resolved comments are hidden from the comments panel by default but remain in the project until explicitly deleted.',
   {
     id: z.string().describe('Comment id (e.g. "2026-04-28-1432-a3f")'),
@@ -2181,7 +2181,7 @@ server.tool(
   async ({ id, resolved }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const updated = updateComment(state.projectDir, id, { resolved: resolved ?? true });
       if (!updated) {
@@ -2196,16 +2196,16 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_delete_comment ────────────────────
+// ─── Tool: penwright_delete_comment ────────────────────
 
 server.tool(
-  'vswrite_delete_comment',
-  'Permanently deletes a comment (removes its .md file from comments/). Use vswrite_resolve_comment instead if you only want to hide it.',
+  'penwright_delete_comment',
+  'Permanently deletes a comment (removes its .md file from comments/). Use penwright_resolve_comment instead if you only want to hide it.',
   { id: z.string().describe('Comment id') },
   async ({ id }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const ok = deleteComment(state.projectDir, id);
       if (!ok) {
@@ -2218,10 +2218,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_list_labels ───────────────────────
+// ─── Tool: penwright_list_labels ───────────────────────
 
 server.tool(
-  'vswrite_list_labels',
+  'penwright_list_labels',
   'List all <label>s in the project, classified by type (figure / table / equation / heading / other) from prefix. Call before insert_reference to avoid guessing. Capped at 2000.',
   {
     type: z.enum(['figure', 'table', 'equation', 'heading', 'other']).optional().describe('Filter by label type. Omit for all types.'),
@@ -2229,7 +2229,7 @@ server.tool(
   async ({ type }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const result = listProjectLabels(state.projectDir);
       const filtered = type ? result.labels.filter(l => l.type === (type as LabelType)) : result.labels;
@@ -2247,21 +2247,21 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_insert_reference ──────────────────
+// ─── Tool: penwright_insert_reference ──────────────────
 
 server.tool(
-  'vswrite_insert_reference',
-  'Insert a Typst cross-reference (@label) at an anchor. Validates label exists (call vswrite_list_labels first); auto-inserts a leading space if needed so Typst doesn\'t glue it to the previous word.',
+  'penwright_insert_reference',
+  'Insert a Typst cross-reference (@label) at an anchor. Validates label exists (call penwright_list_labels first); auto-inserts a leading space if needed so Typst doesn\'t glue it to the previous word.',
   {
     file: z.string().describe('Project-relative path of the file (e.g. "chapters/05-discussion.typ")'),
     afterText: z.string().describe('Verbatim text after which "@label" is inserted. Whitespace-sensitive.'),
-    label: z.string().describe('Label name without "@" or angle brackets, e.g. "fig:scaling". Must exist in the project — see vswrite_list_labels.'),
+    label: z.string().describe('Label name without "@" or angle brackets, e.g. "fig:scaling". Must exist in the project — see penwright_list_labels.'),
     occurrence: z.number().int().min(1).optional().describe('1-based occurrence of afterText if it appears multiple times.'),
   },
   async ({ file, afterText, label, occurrence }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const absFile = resolveInsideProject(file);
       if (!fs.existsSync(absFile)) {
@@ -2281,7 +2281,7 @@ server.tool(
         return {
           content: [{
             type: 'text' as const,
-            text: `Error: Label "${label}" not found in project.${hint}\nUse vswrite_list_labels to see all labels.`,
+            text: `Error: Label "${label}" not found in project.${hint}\nUse penwright_list_labels to see all labels.`,
           }],
           isError: true,
         };
@@ -2306,7 +2306,7 @@ server.tool(
       return {
         content: [{
           type: 'text' as const,
-          text: `Inserted "${refText}" into ${file} at offset ${insertPos}. Run vswrite_compile to verify the cross-reference resolves.`,
+          text: `Inserted "${refText}" into ${file} at offset ${insertPos}. Run penwright_compile to verify the cross-reference resolves.`,
         }],
       };
     } catch (err) {
@@ -2315,10 +2315,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_add_footnote ──────────────────────
+// ─── Tool: penwright_add_footnote ──────────────────────
 
 server.tool(
-  'vswrite_add_footnote',
+  'penwright_add_footnote',
   'Insert a Typst footnote (#footnote[<body>]) at an anchor. Body may contain inline Typst (italic, citations); brackets must balance.',
   {
     file: z.string().describe('Project-relative path of the file (e.g. "chapters/03-method.typ")'),
@@ -2329,7 +2329,7 @@ server.tool(
   async ({ file, afterText, body, occurrence }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const absFile = resolveInsideProject(file);
       if (!fs.existsSync(absFile)) {
@@ -2385,10 +2385,10 @@ server.tool(
 // Discovery — project-wide search & source lookup
 // ═══════════════════════════════════════════════════════
 
-// ─── Tool: vswrite_search_project ────────────────────
+// ─── Tool: penwright_search_project ────────────────────
 
 server.tool(
-  'vswrite_search_project',
+  'penwright_search_project',
   'Search across .typ files (optionally .bib) with regex / case / whole-word options; returns matches grouped by file. Whole-word uses lookarounds so it works for @citekey backlinks. Capped at 1000 hits.',
   {
     query: z.string().describe('Search term. Plain text by default; set regex=true for a regular expression.'),
@@ -2400,7 +2400,7 @@ server.tool(
   async ({ query, caseSensitive, wholeWord, regex, includeBib }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const result = searchProject({
         query,
@@ -2423,11 +2423,11 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_replace_in_project ────────────────
+// ─── Tool: penwright_replace_in_project ────────────────
 
 server.tool(
-  'vswrite_replace_in_project',
-  'Replace all matches of a query across project files. **Destructive — call vswrite_save_version first.** Returns { filesChanged, totalReplacements }.',
+  'penwright_replace_in_project',
+  'Replace all matches of a query across project files. **Destructive — call penwright_save_version first.** Returns { filesChanged, totalReplacements }.',
   {
     query: z.string().describe('Search term'),
     replacement: z.string().describe('Replacement text. For regex mode, $1, $2 etc. backreferences are honored.'),
@@ -2439,7 +2439,7 @@ server.tool(
   async ({ query, replacement, caseSensitive, wholeWord, regex, includeBib }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const result = replaceInProject({
         query,
@@ -2458,16 +2458,16 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_find_source_for_citation ──────────
+// ─── Tool: penwright_find_source_for_citation ──────────
 
 server.tool(
-  'vswrite_find_source_for_citation',
+  'penwright_find_source_for_citation',
   'Find a PDF in sources/ matching a BibTeX citekey. Exact `<citekey>.pdf` preferred, suffix variants accepted. Returns project-relative path or null.',
   { citekey: z.string().describe('BibTeX citation key (e.g. "chen2021codex")') },
   async ({ citekey }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       const abs = findSourceForCitation(state.projectDir, citekey);
       if (!abs) {
@@ -2492,10 +2492,10 @@ server.tool(
 // Import / Export & Asset Management
 // ═══════════════════════════════════════════════════════
 
-// ─── Tool: vswrite_export_docx ───────────────────────
+// ─── Tool: penwright_export_docx ───────────────────────
 
 server.tool(
-  'vswrite_export_docx',
+  'penwright_export_docx',
   'Export the current document as DOCX with real Word styles + live multilevel numbering. Multi-chapter projects are merged. Output path must be inside the project (convention: exports/<name>.docx).',
   { outputPath: z.string().describe('Path for the DOCX output, relative to the project (e.g. "exports/thesis.docx")') },
   async ({ outputPath }) => {
@@ -2531,10 +2531,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_import_markdown ───────────────────
+// ─── Tool: penwright_import_markdown ───────────────────
 
 server.tool(
-  'vswrite_import_markdown',
+  'penwright_import_markdown',
   'Convert Markdown to Typst and write to a project file. Provide inline `markdown` OR a `srcPath` (.md file). Errors if destPath exists unless `overwrite: true`.',
   {
     markdown: z.string().optional().describe('Inline Markdown text. Mutually exclusive with srcPath.'),
@@ -2545,7 +2545,7 @@ server.tool(
   async ({ markdown, srcPath, destPath, overwrite }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       if ((markdown === undefined) === (srcPath === undefined)) {
         return { content: [{ type: 'text' as const, text: 'Error: Provide exactly one of `markdown` or `srcPath`.' }], isError: true };
@@ -2587,10 +2587,10 @@ server.tool(
   },
 );
 
-// ─── Tool: vswrite_add_image ─────────────────────────
+// ─── Tool: penwright_add_image ─────────────────────────
 
 server.tool(
-  'vswrite_add_image',
+  'penwright_add_image',
   'Import image into assets/ (content-hash dedup), build a Typst snippet (optionally wrapped in #figure with caption + label), and optionally insert at an anchor in one round-trip.',
   {
     srcPath: z.string().describe('Absolute or project-relative path to the source image file (PNG, JPG, SVG, …)'),
@@ -2605,7 +2605,7 @@ server.tool(
   async ({ srcPath, width, alt, caption, label, file, afterText, occurrence }) => {
     try {
       if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call vswrite_set_project first.' }], isError: true };
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
       if (file !== undefined && afterText === undefined) {
         return { content: [{ type: 'text' as const, text: 'Error: When `file` is set, `afterText` is required for the anchor.' }], isError: true };
@@ -2687,7 +2687,7 @@ server.tool(
           text: JSON.stringify({
             assetPath: assetRel,
             snippet,
-            note: 'Pass {file, afterText} on the next call for inline insertion, or use vswrite_update_document / vswrite_write_file manually.',
+            note: 'Pass {file, afterText} on the next call for inline insertion, or use penwright_update_document / penwright_write_file manually.',
           }, null, 2),
         }],
       };
@@ -2701,7 +2701,7 @@ server.tool(
 
 async function validateProLicense(): Promise<boolean> {
   if (!state.licenseKey) return false;
-  if (!state.licenseKey.startsWith('VSWRITE_PRO')) return false;
+  if (!state.licenseKey.startsWith('pw_LIC')) return false;
 
   try {
     const response = await fetch('https://api.polar.sh/v1/customer-portal/license-keys/validate', {
@@ -2726,13 +2726,13 @@ async function validateProLicense(): Promise<boolean> {
 async function main() {
   parseArgs();
 
-  // Validate Pro license for MCP access
+  // Validate the license for MCP access (single tier — any valid pw_LIC key)
   state.licenseValidated = await validateProLicense();
   if (!state.licenseValidated) {
     console.error(
-      'vswrite MCP Server requires a Pro license.\n' +
-      'Provide your key via --license-key VSWRITE_PRO_xxx or PENWRIGHT_LICENSE_KEY env var.\n' +
-      'Get a Pro license at https://vswrite.com/pricing'
+      'Penwright MCP Server requires a valid license.\n' +
+      'Provide your key via --license-key pw_LIC_xxx or PENWRIGHT_LICENSE_KEY env var.\n' +
+      'Get a license at https://buy.polar.sh/polar_cl_u6Fn7z0pPvGUX6pWvPJE4U9bWSBg80fiNdJw12vbJzm'
     );
     process.exit(1);
   }

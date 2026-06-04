@@ -4,7 +4,7 @@
  * Saves and restores: window bounds, panel state, recent projects,
  * last project path, onboarding flag, Zotero path, license, backup config.
  *
- * Auto-backups live INSIDE each project at <projectDir>/.vswrite/backups/<timestamp>/
+ * Auto-backups live INSIDE each project at <projectDir>/.penwright/backups/<timestamp>/
  * so that projects are self-contained and travel with their history.
  */
 
@@ -65,6 +65,8 @@ interface StoreSchema {
   recentProjects: RecentProject[];
   lastProjectPath: string | null;
   onboardingSeen: boolean;
+  /** Epoch ms when the local 14-day trial first started; null until first launch records it. */
+  trialStartedAt: number | null;
   zoteroBibPath: string | null;
   /** Encrypted (OS keychain) base64 blob containing the full LicenseData payload. */
   licenseBlob: string | null;
@@ -99,6 +101,7 @@ const store = new Store<StoreSchema>({
     recentProjects: [],
     lastProjectPath: null,
     onboardingSeen: false,
+    trialStartedAt: null,
     zoteroBibPath: null,
     licenseBlob: null,
     backupConfig: DEFAULT_BACKUP_CONFIG,
@@ -177,6 +180,24 @@ export function isOnboardingSeen(): boolean {
 
 export function setOnboardingSeen(seen: boolean): void {
   store.set('onboardingSeen', seen);
+}
+
+// ─── Local Trial ─────────────────────────────────
+// First launch stamps `trialStartedAt`; the 14-day clock is read from it.
+// Stored in global electron-store (not per-project) so the trial is per-device.
+
+export function getTrialStartedAt(): number | null {
+  return store.get('trialStartedAt');
+}
+
+/** Returns the trial start (epoch ms), recording `Date.now()` on first call. */
+export function ensureTrialStarted(): number {
+  let t = store.get('trialStartedAt');
+  if (!t) {
+    t = Date.now();
+    store.set('trialStartedAt', t);
+  }
+  return t;
 }
 
 // ─── MCP Setup Version ──────────────────────────
@@ -276,10 +297,10 @@ export interface BackupSnapshot {
 }
 
 const BACKED_UP_EXTENSIONS = new Set(['.typ', '.bib']);
-const BACKUP_IGNORED_DIRS = new Set(['.git', '.vswrite', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
+const BACKUP_IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
 
 function vswriteDir(projectDir: string): string {
-  return path.join(projectDir, '.vswrite');
+  return path.join(projectDir, '.penwright');
 }
 
 function backupsDir(projectDir: string): string {
@@ -505,7 +526,7 @@ export function checkForFileRecovery(
 }
 
 // ─── Project-Local Preferences ──────────────────
-// Per-project knobs (zoom levels etc.) live in `<project>/.vswrite/preferences.json`
+// Per-project knobs (zoom levels etc.) live in `<project>/.penwright/preferences.json`
 // so they travel with the project folder, just like backups and snapshots.
 
 export interface ProjectPreferences {
@@ -555,7 +576,7 @@ export function saveProjectPreferences(projectDir: string, prefs: ProjectPrefere
   }
 }
 
-/** Deletes the project's `.vswrite` folder entirely. */
+/** Deletes the project's `.penwright` folder entirely. */
 export function clearProjectVswriteData(projectDir: string): void {
   const dir = vswriteDir(projectDir);
   try {
@@ -564,7 +585,7 @@ export function clearProjectVswriteData(projectDir: string): void {
 }
 
 // ─── Project-Local Style (Design Editor — Phase A) ──────────────
-// `.vswrite/style.json` holds the structured "design tokens" used by the
+// `.penwright/style.json` holds the structured "design tokens" used by the
 // Settings dialog's Style section and (in later phases) by the Visual Editor
 // and the design MCP tools. The generated Typst preamble — derived from
 // this JSON — lives at `<project>/style.typ` and is `#include`d from main.typ.

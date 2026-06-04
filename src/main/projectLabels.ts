@@ -19,7 +19,7 @@ import { appState } from './appState';
 import { isPathWithin } from './pathSecurity';
 
 const IGNORED_DIRS = new Set([
-  '.git', '.vswrite', 'node_modules', 'dist', 'build', 'assets', 'sources', 'comments',
+  '.git', '.penwright', 'node_modules', 'dist', 'build', 'assets', 'sources', 'comments',
 ]);
 
 const MAX_LABELS = 2000;

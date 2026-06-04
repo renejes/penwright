@@ -24,7 +24,7 @@ function isPathWithinGitDir(filePath: string): boolean {
   return isPathWithin(absPath, gitDir);
 }
 
-const GITIGNORE_REQUIRED_LINES = ['.vswrite/', '*.pdf'];
+const GITIGNORE_REQUIRED_LINES = ['.penwright/', '*.pdf'];
 
 async function ensureGitignore(dir: string): Promise<void> {
   const gitignorePath = path.join(dir, '.gitignore');
@@ -116,7 +116,7 @@ function parseUnifiedDiff(diff: string): DiffFileEntry[] {
 export function setupGitIPC(): void {
   // ─── High-level "Versionen" API ───────────────────────────────
   // Note: `git:ensureRepo` is registered in ipcHandlers.ts because the
-  // full project setup (incl. `.vswrite/` skeleton) lives in projectManager.
+  // full project setup (incl. `.penwright/` skeleton) lives in projectManager.
 
   ipcMain.handle('git:saveVersion', async (_event, args: { message: string; files?: string[]; auto?: boolean }) => {
     const dir = getGitDir();

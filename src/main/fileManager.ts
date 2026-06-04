@@ -30,7 +30,7 @@ let autoSaveTimer: NodeJS.Timeout | null = null;
 // ─── AI Edit Snapshots ───────────────────────────────
 // Ring buffer that captures editor state before each external file change,
 // so the user can undo AI-driven edits (terminal / MCP). Snapshots are also
-// persisted to <projectDir>/.vswrite/ai-snapshots/ so they survive app restarts.
+// persisted to <projectDir>/.penwright/ai-snapshots/ so they survive app restarts.
 
 interface AiSnapshot {
   filePath: string;
@@ -472,7 +472,7 @@ function setupFileWatcher(): void {
     ignored: [
       '**/node_modules/**',
       '**/.git/**',
-      '**/.vswrite/**',
+      '**/.penwright/**',
       '**/.DS_Store',
       '**/.vswrite-preview*',
       '**/*.lock',

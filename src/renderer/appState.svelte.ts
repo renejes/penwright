@@ -31,6 +31,10 @@ export let uiState = $state({
   licenseTier: null as string | null,
   licenseKey: null as string | null,
   licenseMessage: '',
+  // Local entitlement — the single source of truth for gating the UI.
+  // 'trial' until the 14-day clock runs out, then 'expired' (blocking gate).
+  licenseAccess: 'trial' as 'licensed' | 'trial' | 'expired',
+  trialDaysLeft: 14,
   exporting: false,
   exportFormat: '' as string,
 });
@@ -49,7 +53,7 @@ export let panelState = $state({
 // ─── Document Zoom ──────────────────────────────
 // Independent zoom levels for the editor (CSS zoom on .editor) and PDF
 // rendering (passed to pdfjs viewport scale, so output stays crisp).
-// Per-project: loaded from <project>/.vswrite/preferences.json on file open,
+// Per-project: loaded from <project>/.penwright/preferences.json on file open,
 // reset to 1.0 when the project closes.
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 2.0;

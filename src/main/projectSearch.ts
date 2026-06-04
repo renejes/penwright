@@ -16,7 +16,7 @@ import { isPathWithin } from './pathSecurity';
 
 const SEARCHED_EXTENSIONS_DEFAULT = new Set(['.typ']);
 const SEARCHED_EXTENSIONS_WITH_BIB = new Set(['.typ', '.bib']);
-const IGNORED_DIRS = new Set(['.git', '.vswrite', 'node_modules', 'dist', 'build', 'assets', 'sources']);
+const IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', 'dist', 'build', 'assets', 'sources']);
 
 /** Cap total returned matches so a degenerate query (e.g. " ") can't OOM the renderer. */
 const MAX_TOTAL_MATCHES = 1000;

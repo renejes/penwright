@@ -1,6 +1,6 @@
 /**
  * Design element library — six recurring layout blocks that Phase C's
- * `vswrite_insert_design_element` MCP tool drops into a document.
+ * `penwright_insert_design_element` MCP tool drops into a document.
  *
  * Each element is a parametric Typst snippet. The renderer fills the
  * `{placeholder}` slots with caller-supplied values, escapes them as

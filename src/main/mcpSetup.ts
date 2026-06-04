@@ -28,7 +28,7 @@ import { getTypstPackagePath, getTypstFontPath } from './typstPath';
  * setup version in electron-store is compared against this; mismatch =>
  * the wizard prompts again so updates re-install the binary.
  */
-export const MCP_SETUP_VERSION = '0.9.0';
+export const MCP_SETUP_VERSION = '0.10.0';
 
 /** Key used in Claude Desktop's `mcpServers` map. */
 const MCP_SERVER_KEY = 'penwright';
@@ -153,13 +153,13 @@ export async function setupMcpServer(): Promise<SetupResult> {
     throw new Error('MCP setup is only supported on macOS in this build.');
   }
 
-  // The MCP server enforces a Pro license at startup. Pull the key the
+  // The MCP server enforces a valid license at startup. Pull the key the
   // user activated in the app and embed it in the config as an env var
-  // so Claude Desktop can spawn the server independently of vswrite.
+  // so Claude Desktop can spawn the server independently of Penwright.
   const license = getLicenseData();
-  if (!license.licenseKey || !license.licenseKey.startsWith('VSWRITE_PRO')) {
+  if (!license.licenseKey || !license.licenseKey.startsWith('pw_LIC')) {
     throw new Error(
-      'Du brauchst eine aktivierte Penwright Pro-Lizenz, damit der MCP-Server startet. ' +
+      'Du brauchst eine aktivierte Penwright-Lizenz, damit der MCP-Server startet. ' +
       'Aktiviere sie unter "Lizenz" in der Status-Leiste und fuehre die Einrichtung dann erneut aus.',
     );
   }

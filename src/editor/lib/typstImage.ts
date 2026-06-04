@@ -40,7 +40,7 @@ function resolveImageSrc(src: string): string {
     const fullPath = `${documentBaseUri}/${src}`;
     // Use custom protocol for Electron (avoids CORS/security issues with file://)
     if (typeof window !== 'undefined' && (window as unknown as { electronAPI?: unknown }).electronAPI) {
-      return `vswrite-asset://${encodeURIComponent(fullPath)}`;
+      return `penwright-asset://${encodeURIComponent(fullPath)}`;
     }
     // VS Code webview: use the base URI directly
     return fullPath;

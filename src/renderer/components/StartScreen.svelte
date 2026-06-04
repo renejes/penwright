@@ -153,9 +153,9 @@
           </div>
         </div>
         <div class="skill-badge">
-          <span class="skill-icon">V</span>
+          <span class="skill-icon">P</span>
           <div>
-            <strong>vswrite</strong>
+            <strong>penwright</strong>
             <span>Project conventions</span>
           </div>
         </div>

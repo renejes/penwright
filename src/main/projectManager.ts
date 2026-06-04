@@ -14,8 +14,8 @@ import { TYPST_SKILL, VSWRITE_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN
 import { appState } from './appState';
 import { addBreadcrumb } from './crashReporter';
 
-const GITIGNORE_TEMPLATE = `# vswrite
-.vswrite/
+const GITIGNORE_TEMPLATE = `# Penwright
+.penwright/
 *.pdf
 
 # OS
@@ -38,16 +38,16 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
   } else {
     const existing = fs.readFileSync(gitignorePath, 'utf-8');
     const lines = existing.split('\n').map(l => l.trim());
-    const required = ['.vswrite/', '*.pdf'];
+    const required = ['.penwright/', '*.pdf'];
     const missing = required.filter(req => !lines.includes(req));
     if (missing.length > 0) {
       const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-      fs.writeFileSync(gitignorePath, existing + prefix + '\n# vswrite\n' + missing.join('\n') + '\n', 'utf-8');
+      fs.writeFileSync(gitignorePath, existing + prefix + '\n# Penwright\n' + missing.join('\n') + '\n', 'utf-8');
     }
   }
 
-  // .vswrite/ skeleton
-  const vswriteDir = path.join(dir, '.vswrite');
+  // .penwright/ skeleton
+  const vswriteDir = path.join(dir, '.penwright');
   if (!fs.existsSync(vswriteDir)) fs.mkdirSync(vswriteDir, { recursive: true });
   const backupsDir = path.join(vswriteDir, 'backups');
   if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
@@ -81,7 +81,7 @@ export interface FileEntry {
   children?: FileEntry[];
 }
 
-const IGNORED_DIRS = new Set(['.git', '.vswrite', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
+const IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
 const ALLOWED_EXTENSIONS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.doc', '.csv', '.json', '.tex']);
 
 export function readDirTree(dir: string, depth = 0): FileEntry[] {
@@ -159,7 +159,7 @@ export async function handleCreateProject(templateId: string, projectName: strin
 
   ensureClaudeSkills(dir);
 
-  // Initialise Git repo, .gitignore, and the .vswrite/ folder so the
+  // Initialise Git repo, .gitignore, and the .penwright/ folder so the
   // "Versionen" UI works from the very first save.
   await ensureProjectInfrastructure(dir, `Initial version (${template.label})`);
 
@@ -187,6 +187,25 @@ function findEntryFile(dir: string): string | null {
 }
 
 /**
+ * One-shot migration for the `.vswrite/` → `.penwright/` rename (Penwright
+ * rebrand). If a project still carries the legacy folder and has no
+ * `.penwright/` yet, rename it in place so backups / style / preferences
+ * survive. Safe: never overwrites an existing `.penwright/`, best-effort.
+ */
+function migrateLegacyProjectDir(dir: string): void {
+  try {
+    const legacy = path.join(dir, '.vswrite');
+    const current = path.join(dir, '.penwright');
+    if (fs.existsSync(legacy) && !fs.existsSync(current)) {
+      fs.renameSync(legacy, current);
+      addBreadcrumb('project', 'migrated .vswrite -> .penwright');
+    }
+  } catch (err) {
+    console.warn('[penwright] legacy .vswrite migration failed:', err);
+  }
+}
+
+/**
  * Opens a project from a folder. If `projectDir` is omitted, shows a
  * folder-picker dialog. Returns the project dir if loaded, otherwise null.
  */
@@ -209,6 +228,10 @@ export async function openProject(projectDir?: string): Promise<string | null> {
     });
     return null;
   }
+
+  // Carry over a legacy `.vswrite/` folder from before the Penwright rename,
+  // before anything reads `.penwright/` (preferences, style, backups).
+  migrateLegacyProjectDir(projectDir);
 
   // Tear down any currently-open project (with save prompt if dirty)
   const { closeProjectInteractive, openFile } = await import('./fileManager');
@@ -277,14 +300,14 @@ function copyDirRecursive(src: string, dest: string): void {
 /**
  * Picks a target directory for the sample copy. Strategy: ask the user
  * where to put the new folder via a save-dialog, default base is the
- * platform's Documents folder, default name is `vswrite-sample-thesis`,
+ * platform's Documents folder, default name is `penwright-sample-thesis`,
  * with `-2`, `-3` suffixes if the name is already taken.
  */
 async function pickSampleTargetDir(): Promise<string | null> {
   if (!appState.mainWindow) return null;
 
   const documents = app.getPath('documents');
-  let baseName = 'vswrite-sample-thesis';
+  let baseName = 'penwright-sample-thesis';
   let candidate = path.join(documents, baseName);
   let counter = 2;
   while (fs.existsSync(candidate)) {
@@ -356,7 +379,7 @@ export async function openSampleProject(): Promise<string | null> {
     // .gitignore for vswrite-local state — match what ensureProjectInfrastructure does.
     const gitignorePath = path.join(targetDir, '.gitignore');
     if (!fs.existsSync(gitignorePath)) {
-      fs.writeFileSync(gitignorePath, '# vswrite\n.vswrite/\n*.pdf\n\n# OS\n.DS_Store\nThumbs.db\n', 'utf-8');
+      fs.writeFileSync(gitignorePath, '# Penwright\n.penwright/\n*.pdf\n\n# OS\n.DS_Store\nThumbs.db\n', 'utf-8');
     }
     await git.add('-A');
     await git.commit('Sample 0.7.0 — initial state');
@@ -547,7 +570,7 @@ export function handleUpdateSettings(settings: Record<string, string>): void {
 
 const SKILL_FILES: Array<{ slug: string; content: string }> = [
   { slug: 'typst', content: TYPST_SKILL },
-  { slug: 'vswrite', content: VSWRITE_SKILL },
+  { slug: 'penwright', content: VSWRITE_SKILL },
   { slug: 'research', content: RESEARCH_SKILL },
   { slug: 'writing-style', content: WRITING_STYLE_SKILL },
   { slug: 'design', content: DESIGN_SKILL },

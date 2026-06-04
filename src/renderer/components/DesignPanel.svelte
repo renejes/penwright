@@ -3,7 +3,7 @@
    * DesignPanel — Phase B sidebar tab for the visual style editor.
    *
    * Round 1 (Sessions 21–22): Color palette + font browser. Each control writes
-   * back into the project's `.vswrite/style.json` via `style:save` IPC, which
+   * back into the project's `.penwright/style.json` via `style:save` IPC, which
    * regenerates `style.typ` and kicks off the compiler — the PDF preview reflects
    * the change within ~300 ms of the user releasing the slider.
    *
@@ -108,7 +108,7 @@
         fontFaceStyles = fonts.map(f => {
           const regular = f.files.find(name => /-Regular\.(ttf|otf)$/i.test(name)) ?? f.files[0];
           if (!regular) return '';
-          const url = `vswrite-font://${encodeURIComponent(f.slug)}/${encodeURIComponent(regular)}`;
+          const url = `penwright-font://${encodeURIComponent(f.slug)}/${encodeURIComponent(regular)}`;
           return `@font-face { font-family: ${JSON.stringify(f.family)}; src: url("${url}"); font-display: swap; }`;
         }).join('\n');
       }

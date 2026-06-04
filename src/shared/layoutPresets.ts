@@ -7,7 +7,7 @@
  * preset is a thin "switch this document to A2 poster geometry" affordance.
  * Users typically apply a theme first, then a layout preset on top.
  *
- * Stable `id`s — Phase C's `vswrite_apply_layout` MCP tool references them
+ * Stable `id`s — Phase C's `penwright_apply_layout` MCP tool references them
  * directly.
  */
 

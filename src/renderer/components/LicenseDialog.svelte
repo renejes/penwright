@@ -17,6 +17,22 @@
   let loading = $state(false);
   let error = $state('');
 
+  // Pull the local entitlement (licensed / trial / expired) and mirror it into
+  // global UI state so the LicenseGate / status bar update without a reload.
+  async function refreshEntitlement() {
+    try {
+      const ent = await api.invoke('license:getEntitlement') as {
+        access: 'licensed' | 'trial' | 'expired'; trialDaysLeft?: number;
+      };
+      if (ent && typeof ent === 'object') {
+        uiState.licenseAccess = ent.access;
+        if (typeof ent.trialDaysLeft === 'number') uiState.trialDaysLeft = ent.trialDaysLeft;
+      }
+    } catch {
+      // best-effort — gating already has its boot-time value
+    }
+  }
+
   async function handleActivate() {
     const key = licenseKey.trim();
     if (!key) return;
@@ -45,6 +61,8 @@
         uiState.licenseTier = result.tier;
         uiState.licenseKey = result.key;
         uiState.licenseMessage = '';
+        // Re-resolve the entitlement so any active license gate lifts immediately.
+        await refreshEntitlement();
       }
     } catch (err) {
       error = String(err);
@@ -68,6 +86,8 @@
       uiState.licenseTier = null;
       uiState.licenseKey = null;
       uiState.licenseMessage = '';
+      // Re-resolve entitlement: falls back to trial or expired.
+      await refreshEntitlement();
     } catch (err) {
       error = String(err);
     } finally {
@@ -94,21 +114,13 @@
 
     {#if status === 'active' && activeKey}
       <div class="license-active">
-        <div class="status-badge" class:pro={tier === 'pro'}>
-          {tier === 'pro' ? 'Pro' : 'License'}
-        </div>
+        <div class="status-badge">Licensed</div>
         <div class="license-info">
           <span class="key-display">{maskKey(activeKey)}</span>
           {#if message}
             <span class="offline-note">{message}</span>
           {/if}
         </div>
-        {#if tier === 'basic'}
-          <p class="upgrade-hint">
-            Upgrade to Pro for MCP Server integration (Claude Desktop, Codex, etc.)
-          </p>
-          <button class="btn btn-primary" onclick={handleBuy}>Upgrade to Pro</button>
-        {/if}
         <button class="btn btn-secondary" onclick={handleDeactivate} disabled={loading}>
           {loading ? 'Deactivating...' : 'Deactivate on this device'}
         </button>
@@ -116,13 +128,13 @@
     {:else}
       <div class="license-input">
         <p class="dialog-description">
-          Enter your license key to activate vswrite on this device.
+          Enter your license key to activate Penwright on this device.
         </p>
 
         <input
           type="text"
           bind:value={licenseKey}
-          placeholder="VSWRITE_XXXXXXXX..."
+          placeholder="pw_LIC_..."
           class="key-input"
           onkeydown={(e) => e.key === 'Enter' && handleActivate()}
           disabled={loading}
@@ -321,11 +333,6 @@
     font-weight: 600;
   }
 
-  .status-badge.pro {
-    background: #eef4ff;
-    color: #4f7df9;
-  }
-
   .license-info {
     display: flex;
     flex-direction: column;
@@ -341,12 +348,5 @@
   .offline-note {
     font-size: 12px;
     color: #e88a3a;
-  }
-
-  .upgrade-hint {
-    font-size: 13px;
-    color: #666;
-    line-height: 1.5;
-    margin: 4px 0;
   }
 </style>

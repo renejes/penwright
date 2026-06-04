@@ -81,6 +81,7 @@ const INVOKE_CHANNELS = [
   'license:validate',
   'license:deactivate',
   'license:getStatus',
+  'license:getEntitlement',
   'license:openCheckout',
   'crash:report',
   'crash:getLatest',

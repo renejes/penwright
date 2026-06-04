@@ -62,7 +62,7 @@ import {
   openClaudeDesktop,
   MCP_SETUP_VERSION,
 } from './mcpSetup';
-import { activateLicense, validateLicense, deactivateLicense } from './licenseManager';
+import { activateLicense, validateLicense, deactivateLicense, getEntitlement } from './licenseManager';
 import { getLicenseData } from './persistenceManager';
 import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
 import { findSourceForCitation } from './citationSources';
@@ -76,6 +76,9 @@ import {
 } from './crashReporter';
 import { listProjectLabels } from './projectLabels';
 import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
+
+/** Direct Polar checkout for the Penwright license (one-time, €59). */
+const PENWRIGHT_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_u6Fn7z0pPvGUX6pWvPJE4U9bWSBg80fiNdJw12vbJzm';
 
 export function setupIPC(): void {
   // Renderer sends edited content
@@ -661,8 +664,12 @@ export function setupIPC(): void {
     };
   });
 
+  // Local entitlement (licensed / trial / expired) — the single source of
+  // truth for gating in the renderer. Resolves synchronously from stored data.
+  ipcMain.handle('license:getEntitlement', () => getEntitlement());
+
   ipcMain.handle('license:openCheckout', () => {
-    shell.openExternal('https://vswrite.com/pricing');
+    shell.openExternal(PENWRIGHT_CHECKOUT_URL);
   });
 
   // ─── Project Backups & Info ────────────────────
@@ -717,7 +724,7 @@ export function setupIPC(): void {
 
   ipcMain.handle('project:openBackupFolder', () => {
     if (!appState.projectDir) return { ok: false };
-    const dir = path.join(appState.projectDir, '.vswrite', 'backups');
+    const dir = path.join(appState.projectDir, '.penwright', 'backups');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     shell.openPath(dir);
     return { ok: true };
@@ -766,7 +773,7 @@ export function setupIPC(): void {
 
   // ─── Style (Design Editor — Phase A) ───────────
   // The "style" knobs (colors, fonts, scale, layout, headings) live in
-  // `<project>/.vswrite/style.json`; the generated Typst preamble lives in
+  // `<project>/.penwright/style.json`; the generated Typst preamble lives in
   // `<project>/style.typ` and is `#include`d from the root file. The
   // renderer's Settings dialog reads via `style:get` and writes via
   // `style:save`; the latter regenerates style.typ, ensures the root file
@@ -1025,7 +1032,7 @@ export function setupIPC(): void {
     return ok;
   });
 
-  // Ensure repo + .gitignore + .vswrite/ for projects opened that pre-date this version.
+  // Ensure repo + .gitignore + .penwright/ for projects opened that pre-date this version.
   ipcMain.handle('git:ensureRepo', async () => {
     if (!appState.projectDir) return { initialized: false };
     await ensureProjectInfrastructure(appState.projectDir, 'First version');

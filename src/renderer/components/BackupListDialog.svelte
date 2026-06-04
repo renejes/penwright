@@ -167,7 +167,7 @@
           />
         </label>
         <div class="settings-note">
-          Backups werden in <code>.vswrite/backups/</code> innerhalb des Projektordners gespeichert.
+          Backups werden in <code>.penwright/backups/</code> innerhalb des Projektordners gespeichert.
         </div>
       </div>
     {/if}

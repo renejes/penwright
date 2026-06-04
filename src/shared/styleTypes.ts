@@ -1,7 +1,7 @@
 /**
  * Project Style — structured "design tokens" for a vswrite project.
  *
- * Persisted to `<project>/.vswrite/style.json` (the JSON model) and generated
+ * Persisted to `<project>/.penwright/style.json` (the JSON model) and generated
  * out to `<project>/style.typ` (the Typst preamble). main.typ pulls the
  * preamble in via `#include "style.typ"` at the very top, so every chapter
  * inherits the rules.
