@@ -16,6 +16,8 @@
 - **Alles auf `main` gepusht.** Working Tree sauber.
 
 **→ Jetzt bauen wir die nächste große Fähigkeit: Design nach dem Schreiben.**
+**Direkt danach** kommt das **Bundling-/„Just-Works"-Audit** (User installiert nur
+Penwright → hat alles, keine Zusatz-Installs) + DMG/Notarization — Details in §4.
 
 ---
 
@@ -90,9 +92,21 @@ MCP-Lese-Vorlage, `saveProjectStyle` als `.penwright/`-Schreib-Vorlage).
 ---
 
 ## 4. Andere offene Themen (nicht die nächste Aufgabe, aber notiert)
-- **Launch-Blocker:** DMG-Build + **Notarization** (Apple-Dev-Account vorhanden).
-  Siehe `next-steps.md`. **Wichtig:** Auto-Updater ist **gestrichen** (Updates per
-  Newsletter); `next-steps.md` beschreibt teils noch den alten electron-updater-Plan.
+- **➡️ DIREKT NACH DEM DESIGN-FEATURE: Bundling-/„Just-Works"-Audit.** Ziel: der
+  User installiert **nur Penwright** und hat **alles** — keine Zusatz-Installs.
+  Intensiv prüfen, dass das gepackte `.app` wirklich self-contained ist:
+  - **Typst-Binary** (`resources/bin/typst-{arch}-{platform}`), **24 Typst-Packages**
+    (`resources/typst-packages/`), **OFL-Fonts** inkl. der Brand-Fonts **Crimson Pro
+    + Spectral** (`resources/fonts/`) — NICHT auf die system-installierten Fonts vom
+    Dev-Rechner verlassen! Auf einer **sauberen Maschine** ohne Homebrew/Typst/Fonts testen.
+  - **MCP-Binary** (`Contents/Resources/mcp/bin/penwright-mcp-*`) + Setup-Wizard-Copy.
+  - **Handbuch** (jetzt via `?raw` im Renderer-Bundle), **Sample-Projekt**
+    (`resources/sample-project/`), **Icons**.
+  - Alles via `extraResources` in `package.json`. Dann **DMG + Notarization**
+    (Launch-Blocker, Apple-Dev-Account da). Detail-Checkliste: `next-steps.md`.
+- **Launch-Blocker (Teil des Bundling-Audits):** DMG-Build + **Notarization**.
+  **Wichtig:** Auto-Updater ist **gestrichen** (Updates per Newsletter);
+  `next-steps.md` §3.4 ist nur noch Referenz.
 - **Lokalisierung:** die Lizenz-UI ist englisch (wie Menü/Toolbar), aber
   `McpSetupWizard` + `CrashReportDialog` sind noch deutsch — App-UI ist gemischt.
   Kandidat für eine konsistente Lokalisierungs-Runde.
