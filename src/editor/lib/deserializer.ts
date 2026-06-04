@@ -323,6 +323,24 @@ function stripKnownInlines(text: string): string {
       }
     }
 
+    // Skip #raw("...") inline (args form) so it doesn't trigger a false raw
+    // positive. The block form `#raw(...)[…]` is left alone (stays raw).
+    if (!matched && text.startsWith('#raw(', i)) {
+      let j = i + 5;
+      let depth = 1;
+      let inStr = false;
+      while (j < text.length && depth > 0) {
+        const c = text[j];
+        if (c === '"' && text[j - 1] !== '\\') inStr = !inStr;
+        if (!inStr) { if (c === '(') depth++; else if (c === ')') depth--; }
+        j++;
+      }
+      if (depth === 0 && text[j] !== '[') {
+        i = j;
+        matched = true;
+      }
+    }
+
     // Skip @citekey / @label patterns (so they don't interfere with raw
     // block detection). Allow `:` and `.` so cross-refs like `@fig:results`
     // are also covered.
@@ -349,24 +367,23 @@ function stripKnownInlines(text: string): string {
  */
 function isRawBlock(block: string): boolean {
   const lines = block.split('\n');
+
+  // A comment line anywhere marks the block as raw (config / comment).
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    // Comment line
-    if (trimmed.startsWith('//')) return true;
-
-    // Strip known inline constructs (with balanced bracket parsing)
-    // so that content inside #footnote[...], #text(...)[...], etc.
-    // doesn't trigger false positives
-    const stripped = stripKnownInlines(trimmed);
-
-    // Math mode in outer text only (not inside footnotes etc.)
-    if (stripped.includes('$')) return true;
-
-    // Any remaining # expression that we don't parse visually
-    if (/#[a-zA-Z{(]/.test(stripped)) return true;
+    if (line.trim().startsWith('//')) return true;
   }
+
+  // Strip known inline constructs across the WHOLE block before checking what
+  // is left. Stripping per-line was wrong: an inline construct can span lines
+  // (e.g. a multi-line `#footnote[…]` body), so each individual line looked
+  // unbalanced and the whole paragraph was misclassified as raw code.
+  const stripped = stripKnownInlines(lines.join('\n'));
+
+  // Math mode in outer text only (not inside footnotes etc.)
+  if (stripped.includes('$')) return true;
+
+  // Any remaining # expression that we don't parse visually
+  if (/#[a-zA-Z{(]/.test(stripped)) return true;
 
   return false;
 }
@@ -695,6 +712,9 @@ function extractBracketContent(text: string, start: number): { content: string; 
 type InlineSegType =
   | 'text'
   | 'footnote'
+  | 'emphasis'
+  | 'strong'
+  | 'rawInline'
   | 'link'
   | 'citation'
   | 'reference'
@@ -763,6 +783,25 @@ function parseInline(text: string): TipTapNode[] {
     switch (seg.type) {
       case 'footnote':
         result.push({ type: 'footnote', attrs: { content: seg.content } });
+        break;
+      case 'emphasis':
+        result.push(
+          ...parseFormattedText(seg.content).map((n) => ({
+            ...n,
+            marks: [...(n.marks ?? []), { type: 'italic' }],
+          })),
+        );
+        break;
+      case 'strong':
+        result.push(
+          ...parseFormattedText(seg.content).map((n) => ({
+            ...n,
+            marks: [...(n.marks ?? []), { type: 'bold' }],
+          })),
+        );
+        break;
+      case 'rawInline':
+        result.push({ type: 'text', text: seg.content, marks: [{ type: 'code' }] });
         break;
       case 'citation':
         result.push({ type: 'citation', attrs: { citekey: seg.content, label: seg.content } });
@@ -840,6 +879,8 @@ function parseInline(text: string): TipTapNode[] {
 /** Simple inline constructs: #func[content] */
 const SIMPLE_INLINE = [
   { prefix: '#footnote[', type: 'footnote' as const },
+  { prefix: '#emph[', type: 'emphasis' as const },
+  { prefix: '#strong[', type: 'strong' as const },
   { prefix: '#underline[', type: 'underline' as const },
   { prefix: '#super[', type: 'superscript' as const },
   { prefix: '#sub[', type: 'subscript' as const },
@@ -917,6 +958,34 @@ function splitInlineConstructs(text: string): InlineSegment[] {
         if (bc) {
           segments.push({ type: 'link', content: bc.content, args: href });
           i = bc.end;
+          textStart = i;
+          matched = true;
+        }
+      }
+    }
+
+    // Check #raw("code") inline pattern → code mark. The args form (string
+    // argument, no trailing `[…]`); the block form `#raw(...)[…]` and fenced
+    // ```code``` are handled at block level.
+    if (!matched && text.startsWith('#raw(', i)) {
+      let j = i + 5;
+      let depth = 1;
+      let inStr = false;
+      while (j < text.length && depth > 0) {
+        const c = text[j];
+        if (c === '"' && text[j - 1] !== '\\') inStr = !inStr;
+        if (!inStr) { if (c === '(') depth++; else if (c === ')') depth--; }
+        j++;
+      }
+      if (depth === 0 && text[j] !== '[') {
+        const argsStr = text.slice(i + 5, j - 1);
+        const strMatch = argsStr.match(/"((?:[^"\\]|\\.)*)"/);
+        if (strMatch) {
+          if (i > textStart) {
+            segments.push({ type: 'text', content: text.slice(textStart, i) });
+          }
+          segments.push({ type: 'rawInline', content: strMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') });
+          i = j;
           textStart = i;
           matched = true;
         }
