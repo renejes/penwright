@@ -25,11 +25,13 @@ import {
   BorderStyle,
   Document,
   ExternalHyperlink,
+  Footer,
   FootnoteReferenceRun,
   HeadingLevel,
   ImageRun,
   LevelFormat,
   PageBreak,
+  PageNumber,
   Packer,
   Paragraph,
   ShadingType,
@@ -83,7 +85,69 @@ interface Resolved {
   hasHeadingNumbering: boolean;
   /** Per-level format for headings 1-6, parsed from Typst numbering pattern. */
   headingFormats: NumberingLevelFormat[];
+  /** Whether the style enables page numbering — drives the page-number footer. */
+  pageNumbering: boolean;
 }
+
+/** A Typst snippet rendered to a raster image (math, SVG). */
+export interface RenderedSnippet {
+  png: Buffer;
+  /** Native pixel dimensions of the PNG (as produced by the renderer's ppi). */
+  widthPx: number;
+  heightPx: number;
+  /** ppi the renderer used — needed to map native px back to print size. */
+  ppi: number;
+}
+
+export interface SerializeDocxOptions {
+  /**
+   * Renders a self-contained Typst snippet (e.g. `$ E = m c^2 $` or
+   * `#image("/abs/path.svg", width: 8cm)`) to a PNG. Injected by the main
+   * process / MCP server, both of which have the bundled `typst` binary;
+   * `shared/` itself stays dependency-free. Returns null on failure → the
+   * caller falls back to a readable text placeholder instead of leaking
+   * raw Typst source into the document.
+   */
+  renderTypstSnippet?: (snippet: string) => Promise<RenderedSnippet | null>;
+}
+
+/** A cross-reference target discovered in the pre-pass. */
+interface RefTarget {
+  kind: 'figure' | 'table' | 'equation' | 'heading' | 'other';
+  /** 1-based sequence number within its kind. */
+  n: number;
+  /** For equations: the rendered number string, e.g. "(1)". */
+  numberText?: string;
+  /** Heading title text, for section references. */
+  title?: string;
+}
+
+/**
+ * Per-export context. Set once at the top of {@link serializeDocx} and read
+ * by the conversion helpers. Module-scoped rather than threaded through every
+ * signature because exports run sequentially in practice (one UI export or
+ * one MCP export at a time); a re-entrant export would only risk benign
+ * label/number mixups, never corruption.
+ */
+interface DocxCtx {
+  baseDir: string;
+  resolved: Resolved;
+  bibEntries: BibEntry[];
+  /** label → cross-reference target, built in the pre-pass. */
+  labelMap: Map<string, RefTarget>;
+  /** Typst-snippet → rendered raster, built in the pre-pass. */
+  rendered: Map<string, RenderedSnippet>;
+  /** Whether the source enables display-equation numbering. */
+  equationNumbering: boolean;
+  /** Citation rendering style derived from the bibliography setting. */
+  citationMode: 'author-year' | 'numeric';
+  /** Ordered citekey list for numeric citation style. */
+  numericOrder: string[];
+  /** Monotonic counter handing each ordered list its own numbering instance. */
+  orderedInstance: number;
+}
+
+let activeCtx: DocxCtx | null = null;
 
 // ─── Public API ──────────────────────────────────────────────
 
@@ -95,65 +159,82 @@ export async function serializeDocx(
   baseDir: string = '.',
   typstContent?: string,
   style: ProjectStyle | null = null,
+  opts: SerializeDocxOptions = {},
 ): Promise<Buffer> {
   const settings = typstContent ? parseSettings(typstContent) : null;
   const resolved = resolveConfig(settings, style);
 
-  const children: (Paragraph | Table | TableOfContents)[] = [];
-  const footnotes: Record<number, { children: Paragraph[] }> = {};
-  let footnoteCounter = 1;
-
   const bibInfo = findBibliographyInfo(doc, typstContent, baseDir);
-  let bibRendered = false;
 
-  for (const node of doc.content ?? []) {
-    // Replace #outline raw blocks with a localized TOC field.
-    if (isOutlineBlock(node)) {
-      children.push(
-        new Paragraph({
-          heading: HeadingLevel.HEADING_1,
-          children: [new TextRun({ text: label('toc', resolved.lang) })],
-        }),
-        new TableOfContents(label('toc', resolved.lang), {
-          hyperlink: true,
-          headingStyleRange: '1-3',
-        }),
+  // Pre-pass: assign cross-reference numbers, pre-render math / SVG to raster
+  // images, and decide the citation style — all before the synchronous
+  // conversion (which can then look everything up without awaiting).
+  const ctx = await buildExportContext(doc, typstContent ?? '', baseDir, resolved, bibInfo.entries, opts);
+  activeCtx = ctx;
+
+  try {
+    const children: (Paragraph | Table | TableOfContents)[] = [];
+    const footnotes: Record<number, { children: Paragraph[] }> = {};
+    let footnoteCounter = 1;
+    let bibRendered = false;
+
+    for (const node of doc.content ?? []) {
+      // Replace #outline raw blocks with a localized TOC field.
+      if (isOutlineBlock(node)) {
+        children.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: label('toc', resolved.lang) })],
+          }),
+          new TableOfContents(label('toc', resolved.lang), {
+            hyperlink: true,
+            headingStyleRange: '1-3',
+          }),
+        );
+        continue;
+      }
+
+      // Replace bibliography blocks with formatted entries.
+      if (isBibliographyBlock(node) && bibInfo.entries.length > 0) {
+        children.push(...renderBibliography(bibInfo.entries, resolved.lang, ctx));
+        bibRendered = true;
+        continue;
+      }
+
+      const result = convertNode(
+        node,
+        baseDir,
+        footnotes,
+        footnoteCounter,
+        resolved.hasHeadingNumbering,
+        bibInfo.entries,
       );
-      continue;
+      children.push(...result.elements);
+      footnoteCounter = result.nextFootnoteId;
     }
 
-    // Replace bibliography blocks with formatted entries.
-    if (isBibliographyBlock(node) && bibInfo.entries.length > 0) {
-      children.push(...renderBibliography(bibInfo.entries, resolved.lang));
-      bibRendered = true;
-      continue;
+    if (bibInfo.entries.length > 0 && !bibRendered) {
+      children.push(...renderBibliography(bibInfo.entries, resolved.lang, ctx));
     }
 
-    const result = convertNode(
-      node,
-      baseDir,
+    const document = new Document({
+      features: { updateFields: true },
+      styles: buildStyles(resolved),
+      numbering: buildNumbering(resolved),
+      sections: [{
+        properties: buildPageProperties(resolved),
+        ...(resolved.pageNumbering
+          ? { footers: { default: buildPageNumberFooter(resolved) } }
+          : {}),
+        children,
+      }],
       footnotes,
-      footnoteCounter,
-      resolved.hasHeadingNumbering,
-      bibInfo.entries,
-    );
-    children.push(...result.elements);
-    footnoteCounter = result.nextFootnoteId;
+    });
+
+    return Packer.toBuffer(document);
+  } finally {
+    activeCtx = null;
   }
-
-  if (bibInfo.entries.length > 0 && !bibRendered) {
-    children.push(...renderBibliography(bibInfo.entries, resolved.lang));
-  }
-
-  const document = new Document({
-    features: { updateFields: true },
-    styles: buildStyles(resolved),
-    numbering: buildNumbering(resolved),
-    sections: [{ properties: buildPageProperties(resolved), children }],
-    footnotes,
-  });
-
-  return Packer.toBuffer(document);
 }
 
 // ─── Resolve Typst settings → Word-ready configuration ───────
@@ -184,6 +265,7 @@ function resolveConfig(settings: DocumentSettings | null, style: ProjectStyle | 
     margin,
     hasHeadingNumbering: !!headingNumbering,
     headingFormats: parseTypstNumberingPattern(headingNumbering),
+    pageNumbering: !!(style?.layout.pageNumbering && style.layout.pageNumbering.trim()),
   };
 }
 
@@ -561,6 +643,22 @@ function buildNumbering(r: Resolved) {
         },
       ],
     },
+    {
+      // Multi-level ordered-list numbering. Each ordered list is attached with
+      // a distinct `instance`, so separate lists restart at 1; nested lists
+      // cycle decimal → lower-letter → lower-roman per depth.
+      reference: 'ordered-list',
+      levels: [0, 1, 2, 3, 4, 5].map((level) => ({
+        level,
+        format: [
+          LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat.LOWER_ROMAN,
+          LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat.LOWER_ROMAN,
+        ][level],
+        text: `%${level + 1}.`,
+        alignment: AlignmentType.START,
+        style: { paragraph: { indent: { left: 720 * (level + 1), hanging: 360 } } },
+      })),
+    },
   ];
 
   // Live Word multilevel numbering for Headings. Each level reuses the
@@ -647,7 +745,7 @@ function loadBibEntries(bibPath: string, baseDir: string): BibEntry[] {
   return [];
 }
 
-function renderBibliography(entries: BibEntry[], lang: string): Paragraph[] {
+function renderBibliography(entries: BibEntry[], lang: string, ctx: DocxCtx): Paragraph[] {
   const paragraphs: Paragraph[] = [];
 
   paragraphs.push(
@@ -656,6 +754,22 @@ function renderBibliography(entries: BibEntry[], lang: string): Paragraph[] {
       children: [new TextRun({ text: label('bibliography', lang) })],
     }),
   );
+
+  // Numeric style: number entries by first-citation order to match the
+  // `[1]` in-text citations; uncited entries appended after.
+  if (ctx.citationMode === 'numeric') {
+    const ordered = [...ctx.numericOrder];
+    for (const e of entries) if (!ordered.includes(e.citekey)) ordered.push(e.citekey);
+    ordered.forEach((key, i) => {
+      const entry = entries.find(e => e.citekey === key);
+      if (!entry) return;
+      paragraphs.push(new Paragraph({
+        style: 'BibliographyEntry',
+        children: [new TextRun({ text: `[${i + 1}] ` }), ...formatBibEntryRuns(entry)],
+      }));
+    });
+    return paragraphs;
+  }
 
   const sorted = [...entries].sort((a, b) =>
     (a.author || '').localeCompare(b.author || ''),
@@ -748,6 +862,12 @@ function convertNode(
     }
 
     case 'paragraph': {
+      // A paragraph that is nothing but a stray `#func(...)` design call
+      // (emitted as plain text when the deserializer splits a multi-line
+      // design block) carries no manuscript content — drop it.
+      const plain = getPlainText(node.content ?? []).trim();
+      if (/^#[a-zA-Z][\w.-]*\([^]*\)$/.test(plain)) break;
+
       const runs = convertInlineContent(
         node.content ?? [],
         baseDir,
@@ -766,38 +886,15 @@ function convertNode(
       break;
     }
 
-    case 'bulletList': {
-      for (const item of node.content ?? []) {
-        const runs = convertInlineContent(
-          getListItemContent(item),
-          baseDir,
-          footnotes,
-          footnoteId,
-          bibEntries,
-        );
-        footnoteId = runs.nextFootnoteId;
-        elements.push(new Paragraph({ bullet: { level: 0 }, children: runs.children }));
-      }
-      break;
-    }
-
+    case 'bulletList':
     case 'orderedList': {
-      for (const item of node.content ?? []) {
-        const runs = convertInlineContent(
-          getListItemContent(item),
-          baseDir,
-          footnotes,
-          footnoteId,
-          bibEntries,
-        );
-        footnoteId = runs.nextFootnoteId;
-        elements.push(
-          new Paragraph({
-            numbering: { reference: 'default-numbering', level: 0 },
-            children: runs.children,
-          }),
-        );
-      }
+      const ordered = node.type === 'orderedList';
+      // Each ordered list gets its own numbering instance so a second list
+      // restarts at 1 instead of continuing the first list's counter.
+      const instance = ordered && activeCtx ? activeCtx.orderedInstance++ : 0;
+      const r = convertList(node, ordered, 0, instance, baseDir, footnotes, footnoteId, bibEntries);
+      elements.push(...r.elements);
+      footnoteId = r.nextFootnoteId;
       break;
     }
 
@@ -858,20 +955,12 @@ function convertNode(
     }
 
     case 'typstRawBlock': {
-      const rawContent = (node.attrs?.content as string) ?? '';
-      const blockType = (node.attrs?.blockType as string) ?? '';
-
-      // Skip configuration blocks — no Word equivalent.
-      if (isConfigBlock(rawContent, blockType)) break;
-
-      for (const line of rawContent.split('\n')) {
-        elements.push(
-          new Paragraph({
-            style: 'CodeBlock',
-            children: [new TextRun({ text: line })],
-          }),
-        );
-      }
+      // Figures, display-math, #quote, callouts and prose-with-inline-calls
+      // are recognised and rendered as proper Word content; pure layout/design
+      // code is dropped rather than leaked as monospace. See renderRawBlock.
+      const r = renderRawBlock(node, baseDir, footnotes, footnoteId);
+      elements.push(...r.elements);
+      footnoteId = r.nextFootnoteId;
       break;
     }
 
@@ -994,10 +1083,15 @@ function convertInlineContent(
     } else if (node.type === 'footnote') {
       const noteContent = (node.attrs?.content as string) ?? '';
       const currentId = footnoteId++;
+      // Parse the footnote body for inline markup + nested citations instead
+      // of dumping it as one plain run.
+      const fn: FnState = { footnotes, id: footnoteId };
+      const bodyRuns = parseInlineTypst(noteContent, { size: 20 }, fn);
+      footnoteId = fn.id;
       footnotes[currentId] = {
         children: [
           new Paragraph({
-            children: [new TextRun({ text: noteContent, size: 20 })],
+            children: bodyRuns.length ? bodyRuns : [new TextRun({ text: noteContent, size: 20 })],
           }),
         ],
       };
@@ -1005,6 +1099,10 @@ function convertInlineContent(
     } else if (node.type === 'citation') {
       const citekey = (node.attrs?.citekey as string) ?? '';
       children.push(...renderCitation(citekey, bibEntries));
+    } else if (node.type === 'reference') {
+      // Cross-reference pill — was silently dropped before. Resolve to the
+      // numbered target ("Figure 1") via the pre-pass label map.
+      children.push(...renderReference((node.attrs?.label as string) ?? '', (node.attrs?.refType as string) ?? ''));
     } else if (node.type === 'hardBreak') {
       children.push(new TextRun({ text: '', break: 1 }));
     }
@@ -1019,6 +1117,10 @@ function convertInlineContent(
  * opaque `[smith2024]` placeholder users were seeing before.
  */
 function renderCitation(citekey: string, entries: BibEntry[]): TextRun[] {
+  if (activeCtx?.citationMode === 'numeric') {
+    const idx = activeCtx.numericOrder.indexOf(citekey);
+    return [new TextRun({ text: `[${idx >= 0 ? idx + 1 : '?'}]` })];
+  }
   const entry = entries.find(e => e.citekey === citekey);
   if (!entry) {
     return [new TextRun({ text: `[${citekey}]`, color: '666666' })];
@@ -1032,61 +1134,14 @@ function renderCitation(citekey: string, entries: BibEntry[]): TextRun[] {
 
 function convertImage(node: TipTapNode, baseDir: string): Paragraph | null {
   const src = (node.attrs?.src as string) ?? '';
-  const widthAttr = node.attrs?.width as string | null;
-  const align = node.attrs?.align as string | null;
-
-  const imgPath = path.resolve(baseDir, src);
-  if (!fs.existsSync(imgPath)) {
-    return new Paragraph({
-      children: [
-        new TextRun({ text: `[Image: ${src}]`, italics: true, color: '999999' }),
-      ],
-    });
-  }
-
-  try {
-    const imgBuffer = fs.readFileSync(imgPath);
-    const ext = path.extname(imgPath).toLowerCase();
-    const dimensions = readImageDimensions(imgBuffer, ext);
-
-    // Target width in px. Default: 75% of a 600-px text column (~5.9in @ 96dpi).
-    let widthPx = 450;
-    if (widthAttr) {
-      const pct = widthAttr.match(/^(\d+)%$/);
-      if (pct) widthPx = Math.round((parseInt(pct[1]) / 100) * 600);
-      const cm = widthAttr.match(/^([\d.]+)cm$/);
-      if (cm) widthPx = Math.round(parseFloat(cm[1]) * 37.8);
-      const pt = widthAttr.match(/^([\d.]+)pt$/);
-      if (pt) widthPx = Math.round(parseFloat(pt[1]) * 1.33);
-      const inch = widthAttr.match(/^([\d.]+)in$/);
-      if (inch) widthPx = Math.round(parseFloat(inch[1]) * 96);
-    }
-
-    // Derive height from actual image aspect ratio — previously hardcoded
-    // to 0.75× width, which squashed wide figures and stretched portraits.
-    const aspect = dimensions
-      ? dimensions.height / dimensions.width
-      : 0.75;
-    const heightPx = Math.round(widthPx * aspect);
-    const alignment = mapAlignment(align ?? 'left');
-
-    return new Paragraph({
-      children: [
-        new ImageRun({
-          data: imgBuffer,
-          transformation: { width: widthPx, height: heightPx },
-          type: extToImageType(ext),
-        }),
-      ],
-      ...(alignment ? { alignment } : {}),
-    });
-  } catch {
-    return new Paragraph({
-      children: [
-        new TextRun({ text: `[Image: ${src} — could not read]`, italics: true, color: '999999' }),
-      ],
-    });
-  }
+  if (!src) return null;
+  // Delegates to the shared builder, which handles raster files directly and
+  // SVGs via the pre-rendered raster map.
+  return buildImageParagraph(
+    resolveImagePath(baseDir, src),
+    (node.attrs?.width as string) ?? null,
+    (node.attrs?.align as string) ?? null,
+  );
 }
 
 /**
@@ -1210,15 +1265,6 @@ function mapAlignment(align: string | undefined | null): (typeof AlignmentType)[
   }
 }
 
-function getListItemContent(item: TipTapNode): TipTapNode[] {
-  if (!item.content) return [];
-  const inlineNodes: TipTapNode[] = [];
-  for (const child of item.content) {
-    if (child.content) inlineNodes.push(...child.content);
-  }
-  return inlineNodes;
-}
-
 function getBlockContent(node: TipTapNode): TipTapNode[] {
   if (!node.content) return [];
   const inlineNodes: TipTapNode[] = [];
@@ -1238,7 +1284,11 @@ function isConfigBlock(content: string, blockType: string): boolean {
   if (/^#(set|show|import)\s/.test(trimmed)) return true;
   if (trimmed.startsWith('#show ')) return true;
   if (/^\/\/\s*─/.test(trimmed)) return true;
-  if (trimmed.split('\n').every((line) => line.trim().startsWith('//') || line.trim() === '')) return true;
+  // All lines are comments or preamble directives → no manuscript content.
+  if (trimmed.split('\n').every((line) => {
+    const t = line.trim();
+    return t === '' || t.startsWith('//') || /^#(set|show|import|let)\b/.test(t);
+  })) return true;
   if (/^#outline\b/.test(trimmed)) return true;
   if (trimmed === '#pagebreak()') return true;
   return false;
@@ -1260,4 +1310,675 @@ function colorToHex(color: string | undefined): string {
   };
   if (namedColors[color.toLowerCase()]) return namedColors[color.toLowerCase()];
   return '000000';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Raw-block intelligence (Stage A overhaul)
+//
+//  The deserializer leaves figures, display-math, #quote, gentle-clues
+//  callouts and any prose paragraph that contains an inline Typst call
+//  (#emph / #footnote / #raw / …) as `typstRawBlock` nodes. The old
+//  serializer dumped every one of them as monospace code. The functions
+//  below recognise the meaningful ones and render proper Word content,
+//  and *skip* pure layout/design code instead of leaking it.
+// ═══════════════════════════════════════════════════════════════
+
+const REF_WORDS: Record<string, { figure: string; table: string; equation: string; section: string }> = {
+  en: { figure: 'Figure',    table: 'Table',   equation: 'Equation',     section: 'Section'   },
+  de: { figure: 'Abbildung', table: 'Tabelle', equation: 'Gleichung',    section: 'Abschnitt' },
+  fr: { figure: 'Figure',    table: 'Tableau', equation: 'Équation',     section: 'Section'   },
+  es: { figure: 'Figura',    table: 'Tabla',   equation: 'Ecuación',     section: 'Sección'  },
+  it: { figure: 'Figura',    table: 'Tabella', equation: 'Equazione',    section: 'Sezione'  },
+  pt: { figure: 'Figura',    table: 'Tabela',  equation: 'Equação',      section: 'Seção'    },
+  nl: { figure: 'Figuur',    table: 'Tabel',   equation: 'Vergelijking', section: 'Sectie'   },
+};
+function refWords(lang: string) {
+  return REF_WORDS[lang.slice(0, 2).toLowerCase()] ?? REF_WORDS.en;
+}
+
+/** Known numeric (citation-number) bibliography styles. Everything else → author-year. */
+const NUMERIC_BIB_STYLES = new Set([
+  'ieee', 'vancouver', 'numeric', 'american-physics-society', 'nature',
+  'american-medical-association', 'american-chemical-society', 'institute-of-physics-numeric',
+  'springer-basic', 'elsevier-vancouver', 'iso-690-numeric',
+]);
+
+/**
+ * Balanced-bracket extraction. `s[openIdx]` must be `open`; returns the inner
+ * content (exclusive of the brackets) and the index just past the matching
+ * close, honouring nesting. Returns null on imbalance.
+ */
+function matchBracket(s: string, openIdx: number, open: string, close: string): { inner: string; end: number } | null {
+  if (s[openIdx] !== open) return null;
+  let depth = 0;
+  let inStr = false;
+  for (let i = openIdx; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '"' && s[i - 1] !== '\\') inStr = !inStr;
+    if (inStr) continue;
+    if (ch === open) depth++;
+    else if (ch === close) { depth--; if (depth === 0) return { inner: s.slice(openIdx + 1, i), end: i + 1 }; }
+  }
+  return null;
+}
+
+// ─── Raw-block classification ────────────────────────────────
+
+type RawDesc =
+  | { kind: 'math'; tex: string; label?: string }
+  | { kind: 'heading'; level: number; text: string }
+  | { kind: 'figure'; variant: 'image'; imagePath?: string; width?: string | null; caption?: string; label?: string }
+  | { kind: 'figure'; variant: 'table'; tableSrc: string; caption?: string; label?: string }
+  | { kind: 'quote'; body: string }
+  | { kind: 'callout'; variant: string; title?: string; body: string }
+  | { kind: 'prose'; content: string }
+  | { kind: 'skip' };
+
+const CALLOUT_NAMES = new Set([
+  'info', 'tip', 'warning', 'note', 'memo', 'success', 'error', 'task',
+  'question', 'conclusion', 'important', 'abstract', 'example',
+]);
+
+/** Leading layout/design functions that carry no manuscript content. */
+const SKIP_LEADERS = /^#(grid|block|stack|place|box|rect|line|image|wrap-content|dropcap|colbreak|columns|pad|move|scale|rotate|polygon|path|square|circle|ellipse|diagram|cetz|fletcher|highlight|stroke|raw)\b|^#[vh]\(/;
+
+function extractTrailingLabel(s: string): string | undefined {
+  const m = s.trim().match(/<([^>\s]+)>\s*$/);
+  return m ? m[1] : undefined;
+}
+
+function classifyRawBlock(content: string, blockType: string): RawDesc {
+  if (isConfigBlock(content, blockType)) return { kind: 'skip' };
+  const trimmed = content.trim();
+
+  // Display math — must be *only* `$ … $` (optionally + a trailing label).
+  // The deserializer sometimes tags prose-with-inline-math blocks `'math'`
+  // too, so the shape check (not blockType alone) is what gates this.
+  if (/^\$[\s\S]*\$\s*(<[^>]+>)?\s*$/.test(trimmed)) {
+    const label = extractTrailingLabel(trimmed);
+    const tex = trimmed.replace(/<[^>\s]+>\s*$/, '').trim();
+    return { kind: 'math', tex, label };
+  }
+
+  // #heading(...)[Text] — e.g. an unnumbered "Abstract".
+  if (trimmed.startsWith('#heading')) {
+    const lvlMatch = trimmed.match(/level:\s*(\d+)/);
+    const level = lvlMatch ? parseInt(lvlMatch[1]) : 1;
+    const br = trimmed.indexOf('[');
+    const inner = br >= 0 ? matchBracket(trimmed, br, '[', ']') : null;
+    return { kind: 'heading', level, text: inner ? inner.inner.trim() : trimmed.replace(/^#heading[^[]*\[?/, '').replace(/\]$/, '') };
+  }
+
+  // #figure(...) — image figure or table figure.
+  if (trimmed.startsWith('#figure')) {
+    const open = trimmed.indexOf('(');
+    const fig = open >= 0 ? matchBracket(trimmed, open, '(', ')') : null;
+    const inner = fig ? fig.inner : trimmed;
+    const label = extractTrailingLabel(trimmed.slice(fig ? fig.end : 0)) ?? extractTrailingLabel(trimmed);
+    // caption: [ ... ]
+    let caption: string | undefined;
+    const capIdx = inner.search(/caption:\s*\[/);
+    if (capIdx >= 0) {
+      const br = inner.indexOf('[', capIdx);
+      const cap = matchBracket(inner, br, '[', ']');
+      if (cap) caption = cap.inner.trim();
+    }
+    if (/\btable\s*\(/.test(inner) && !/\bimage\s*\(/.test(inner.slice(0, inner.search(/\btable\s*\(/)))) {
+      const tIdx = inner.search(/\btable\s*\(/);
+      const tOpen = inner.indexOf('(', tIdx);
+      const tbl = matchBracket(inner, tOpen, '(', ')');
+      return { kind: 'figure', variant: 'table', tableSrc: tbl ? tbl.inner : inner, caption, label };
+    }
+    const imgMatch = inner.match(/image\(\s*"([^"]+)"/);
+    const widthMatch = inner.match(/image\([^)]*width:\s*([^,)\s]+)/);
+    return { kind: 'figure', variant: 'image', imagePath: imgMatch ? imgMatch[1] : undefined, width: widthMatch ? widthMatch[1] : null, caption, label };
+  }
+
+  // #quote(block: true)[ ... ]
+  if (/^#quote\s*\(/.test(trimmed)) {
+    const br = trimmed.indexOf('[');
+    const inner = br >= 0 ? matchBracket(trimmed, br, '[', ']') : null;
+    if (inner) return { kind: 'quote', body: inner.inner.trim() };
+  }
+
+  // gentle-clues callouts — #info[...] / #warning(title: "x")[...] / …
+  const calloutMatch = trimmed.match(/^#([a-z]+)\s*(\(([^)]*)\))?\s*\[/);
+  if (calloutMatch && CALLOUT_NAMES.has(calloutMatch[1])) {
+    const variant = calloutMatch[1];
+    const argStr = calloutMatch[3] ?? '';
+    const titleM = argStr.match(/title:\s*"([^"]*)"/);
+    const br = trimmed.indexOf('[');
+    const inner = matchBracket(trimmed, br, '[', ']');
+    return { kind: 'callout', variant, title: titleM ? titleM[1] : undefined, body: inner ? inner.inner.trim() : '' };
+  }
+
+  // Pure layout/design code → drop silently (never leak as monospace).
+  if (SKIP_LEADERS.test(trimmed)) return { kind: 'skip' };
+
+  // Everything else is prose (possibly with inline Typst calls).
+  return { kind: 'prose', content };
+}
+
+// ─── Snippet keys (must be identical in pre-pass and render pass) ──
+
+function mathSnippet(tex: string): string {
+  return `#set page(width: auto, height: auto, margin: (x: 2pt, y: 3pt), fill: white)\n#set text(size: 11pt)\n${tex}\n`;
+}
+/** SVG path must be baseDir-relative: Typst treats a leading `/` as
+ *  root-relative (not filesystem-absolute), and the renderer compiles with
+ *  `--root baseDir`. */
+function svgSnippet(relPath: string): string {
+  const p = relPath.replace(/\\/g, '/').replace(/"/g, '\\"');
+  return `#set page(width: auto, height: auto, margin: 0pt, fill: white)\n#image("${p}")\n`;
+}
+/** baseDir-relative POSIX path for use inside a Typst snippet. */
+function toTypstRel(baseDir: string, absPath: string): string {
+  return path.relative(baseDir, absPath).split(path.sep).join('/');
+}
+
+/**
+ * Resolves an image src against the project root. `resolveIncludes` merges
+ * chapters in place without rewriting their image paths, so a figure in
+ * `chapters/03-…typ` still says `image("../assets/x.svg")`. Relative to the
+ * root that `../` points outside the project — so when the direct resolution
+ * misses, strip the leading `../` segments and resolve from the root instead.
+ */
+function resolveImagePath(baseDir: string, src: string): string {
+  const direct = path.resolve(baseDir, src);
+  if (fs.existsSync(direct)) return direct;
+  const climbed = path.resolve(baseDir, src.replace(/^(\.\.[\\/])+/, ''));
+  if (fs.existsSync(climbed)) return climbed;
+  return direct;
+}
+
+// ─── Pre-pass: numbering, raster pre-render, citation style ───
+
+async function buildExportContext(
+  doc: TipTapDoc,
+  typstContent: string,
+  baseDir: string,
+  resolved: Resolved,
+  bibEntries: BibEntry[],
+  opts: SerializeDocxOptions,
+): Promise<DocxCtx> {
+  const labelMap = new Map<string, RefTarget>();
+  const rendered = new Map<string, RenderedSnippet>();
+
+  const eqNumMatch = typstContent.match(/#set\s+math\.equation\([^)]*numbering\s*:\s*"([^"]*)"/);
+  const equationNumbering = !!eqNumMatch;
+  const eqPattern = eqNumMatch ? eqNumMatch[1] : '(1)';
+
+  const bibStyleMatch = typstContent.match(/#bibliography\([^)]*style:\s*"([^"]+)"/);
+  const citationMode: 'author-year' | 'numeric' =
+    bibStyleMatch && NUMERIC_BIB_STYLES.has(bibStyleMatch[1].toLowerCase()) ? 'numeric' : 'author-year';
+
+  let figureN = 0, tableN = 0, equationN = 0;
+  const renderQueue: string[] = [];
+
+  for (const node of doc.content ?? []) {
+    if (node.type === 'typstRawBlock') {
+      const content = (node.attrs?.content as string) ?? '';
+      const blockType = (node.attrs?.blockType as string) ?? '';
+      const desc = classifyRawBlock(content, blockType);
+      if (desc.kind === 'math') {
+        if (equationNumbering) equationN++;
+        const numberText = equationNumbering ? renderEqNumber(eqPattern, equationN) : undefined;
+        if (desc.label) labelMap.set(desc.label, { kind: 'equation', n: equationN, numberText });
+        if (opts.renderTypstSnippet) renderQueue.push(mathSnippet(desc.tex));
+      } else if (desc.kind === 'figure' && desc.variant === 'image') {
+        figureN++;
+        if (desc.label) labelMap.set(desc.label, { kind: 'figure', n: figureN });
+        if (desc.imagePath) {
+          const abs = resolveImagePath(baseDir, desc.imagePath);
+          if (abs.toLowerCase().endsWith('.svg') && opts.renderTypstSnippet) renderQueue.push(svgSnippet(toTypstRel(baseDir, abs)));
+        }
+      } else if (desc.kind === 'figure' && desc.variant === 'table') {
+        tableN++;
+        if (desc.label) labelMap.set(desc.label, { kind: 'table', n: tableN });
+      }
+    } else if (node.type === 'image') {
+      const src = (node.attrs?.src as string) ?? '';
+      if (src.toLowerCase().endsWith('.svg') && opts.renderTypstSnippet) {
+        renderQueue.push(svgSnippet(toTypstRel(baseDir, resolveImagePath(baseDir, src))));
+      }
+    }
+  }
+
+  if (opts.renderTypstSnippet) {
+    const unique = [...new Set(renderQueue)];
+    const results = await Promise.all(
+      unique.map((s) => opts.renderTypstSnippet!(s).catch(() => null)),
+    );
+    unique.forEach((s, i) => { const r = results[i]; if (r) rendered.set(s, r); });
+  }
+
+  const numericOrder: string[] = [];
+  if (citationMode === 'numeric') collectCitekeysInOrder(doc, numericOrder);
+
+  return {
+    baseDir, resolved, bibEntries, labelMap, rendered,
+    equationNumbering, citationMode, numericOrder, orderedInstance: 1,
+  };
+}
+
+function collectCitekeysInOrder(node: TipTapNode | TipTapDoc, out: string[]): void {
+  const n = node as TipTapNode;
+  if (n.type === 'citation') {
+    const key = (n.attrs?.citekey as string) ?? '';
+    if (key && !out.includes(key)) out.push(key);
+  }
+  for (const c of (n.content ?? [])) collectCitekeysInOrder(c, out);
+}
+
+/** Renders a Typst equation-number pattern like "(1)" with the counter value. */
+function renderEqNumber(pattern: string, n: number): string {
+  return pattern.replace(/1/, String(n));
+}
+
+// ─── Rendering rasterised snippets ───────────────────────────
+
+function embedRaster(r: RenderedSnippet, maxWidthPx: number, align: (typeof AlignmentType)[keyof typeof AlignmentType]): Paragraph {
+  let w = Math.max(1, Math.round(r.widthPx * 96 / r.ppi));
+  let h = Math.max(1, Math.round(r.heightPx * 96 / r.ppi));
+  if (w > maxWidthPx) { const s = maxWidthPx / w; w = maxWidthPx; h = Math.max(1, Math.round(h * s)); }
+  return new Paragraph({
+    alignment: align,
+    spacing: { before: 80, after: 120 },
+    children: [new ImageRun({ data: r.png, transformation: { width: w, height: h }, type: 'png' })],
+  });
+}
+
+function widthAttrToPx(widthAttr: string | null | undefined): number | null {
+  if (!widthAttr) return null;
+  const pct = widthAttr.match(/^(\d+)%$/); if (pct) return Math.round((parseInt(pct[1]) / 100) * 600);
+  const cm = widthAttr.match(/^([\d.]+)cm$/); if (cm) return Math.round(parseFloat(cm[1]) * 37.8);
+  const mm = widthAttr.match(/^([\d.]+)mm$/); if (mm) return Math.round(parseFloat(mm[1]) * 3.78);
+  const pt = widthAttr.match(/^([\d.]+)pt$/); if (pt) return Math.round(parseFloat(pt[1]) * 1.33);
+  const inch = widthAttr.match(/^([\d.]+)in$/); if (inch) return Math.round(parseFloat(inch[1]) * 96);
+  return null;
+}
+
+/** Builds an image paragraph from an absolute path — handles raster files
+ *  directly and SVGs via the pre-rendered raster map. */
+function buildImageParagraph(absPath: string, widthAttr: string | null, align: string | null): Paragraph {
+  const alignment = mapAlignment(align ?? 'center') ?? AlignmentType.CENTER;
+  if (absPath.toLowerCase().endsWith('.svg')) {
+    const r = activeCtx?.rendered.get(svgSnippet(toTypstRel(activeCtx?.baseDir ?? path.dirname(absPath), absPath)));
+    if (r) return embedRaster(r, widthAttrToPx(widthAttr) ?? 450, alignment);
+    return new Paragraph({ alignment, children: [new TextRun({ text: `[SVG: ${path.basename(absPath)}]`, italics: true, color: '999999' })] });
+  }
+  if (!fs.existsSync(absPath)) {
+    return new Paragraph({ alignment, children: [new TextRun({ text: `[Image: ${path.basename(absPath)}]`, italics: true, color: '999999' })] });
+  }
+  try {
+    const buf = fs.readFileSync(absPath);
+    const ext = path.extname(absPath).toLowerCase();
+    const dim = readImageDimensions(buf, ext);
+    const widthPx = widthAttrToPx(widthAttr) ?? 450;
+    const aspect = dim ? dim.height / dim.width : 0.75;
+    return new Paragraph({
+      alignment,
+      spacing: { before: 80, after: 80 },
+      children: [new ImageRun({ data: buf, transformation: { width: widthPx, height: Math.round(widthPx * aspect) }, type: extToImageType(ext) })],
+    });
+  } catch {
+    return new Paragraph({ alignment, children: [new TextRun({ text: `[Image: ${path.basename(absPath)} — unreadable]`, italics: true, color: '999999' })] });
+  }
+}
+
+// ─── Raw-block dispatcher ────────────────────────────────────
+
+function renderRawBlock(
+  node: TipTapNode,
+  baseDir: string,
+  footnotes: Record<number, { children: Paragraph[] }>,
+  footnoteId: number,
+): { elements: (Paragraph | Table)[]; nextFootnoteId: number } {
+  const content = (node.attrs?.content as string) ?? '';
+  const blockType = (node.attrs?.blockType as string) ?? '';
+  const desc = classifyRawBlock(content, blockType);
+  const lang = activeCtx?.resolved.lang ?? 'en';
+  const words = refWords(lang);
+  const fn: FnState = { footnotes, id: footnoteId };
+
+  switch (desc.kind) {
+    case 'skip':
+      return { elements: [], nextFootnoteId: footnoteId };
+
+    case 'heading': {
+      const hl = headingLevelMap[desc.level] ?? HeadingLevel.HEADING_1;
+      return { elements: [new Paragraph({ heading: hl, children: [new TextRun({ text: desc.text })] })], nextFootnoteId: footnoteId };
+    }
+
+    case 'math': {
+      const r = activeCtx?.rendered.get(mathSnippet(desc.tex));
+      const numberText = desc.label ? activeCtx?.labelMap.get(desc.label)?.numberText : undefined;
+      if (r) {
+        let w = Math.max(1, Math.round(r.widthPx * 96 / r.ppi));
+        let h = Math.max(1, Math.round(r.heightPx * 96 / r.ppi));
+        if (w > 600) { const s = 600 / w; w = 600; h = Math.max(1, Math.round(h * s)); }
+        const kids: (ImageRun | TextRun)[] = [new ImageRun({ data: r.png, transformation: { width: w, height: h }, type: 'png' })];
+        if (numberText) kids.push(new TextRun({ text: `    ${numberText}` }));
+        return { elements: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 80, after: 120 }, children: kids })], nextFootnoteId: footnoteId };
+      }
+      const tex = desc.tex.replace(/^\$\s*|\s*\$$/g, '');
+      return {
+        elements: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: tex, italics: true }), ...(numberText ? [new TextRun({ text: `    ${numberText}` })] : [])],
+        })],
+        nextFootnoteId: footnoteId,
+      };
+    }
+
+    case 'figure': {
+      const els: (Paragraph | Table)[] = [];
+      const target = desc.label ? activeCtx?.labelMap.get(desc.label) : undefined;
+      const isTable = desc.variant === 'table';
+      const numWord = isTable ? words.table : words.figure;
+      const num = target?.n ?? '';
+      const captionRuns = desc.caption
+        ? parseInlineTypst(desc.caption, { italics: true, size: Math.max(18, (activeCtx?.resolved.bodySize ?? 22) - 2), color: '666666' }, fn)
+        : [];
+      const captionPara = new Paragraph({
+        style: 'Caption',
+        children: [new TextRun({ text: `${numWord} ${num}`.trim() + (captionRuns.length ? ': ' : ''), bold: true, size: Math.max(18, (activeCtx?.resolved.bodySize ?? 22) - 2), color: '666666' }), ...captionRuns],
+      });
+      if (isTable) {
+        els.push(parseTypstTable(desc.tableSrc, fn));
+        els.push(captionPara);
+      } else {
+        if (desc.imagePath) els.push(buildImageParagraph(resolveImagePath(baseDir, desc.imagePath), desc.width ?? null, 'center'));
+        els.push(captionPara);
+      }
+      return { elements: els, nextFootnoteId: fn.id };
+    }
+
+    case 'quote': {
+      const runs = parseInlineTypst(desc.body, {}, fn);
+      return { elements: [new Paragraph({ style: 'Quote', children: runs })], nextFootnoteId: fn.id };
+    }
+
+    case 'callout': {
+      const els = renderCallout(desc.variant, desc.title, desc.body, fn);
+      return { elements: els, nextFootnoteId: fn.id };
+    }
+
+    case 'prose': {
+      // Drop fragments that carry no real words once function calls and
+      // brackets are stripped — these are layout/design tails the deserializer
+      // split off (e.g. a lone `]` plus `#v()` / `#line()`), not prose.
+      const stripped = desc.content
+        .replace(/#[a-zA-Z][\w.-]*(\([^)]*\))?(\[[^\]]*\])?/g, ' ')
+        .replace(/[[\]{}()]/g, ' ')
+        .replace(/[^a-zA-Z0-9]+/g, '');
+      if (stripped.length < 2) return { elements: [], nextFootnoteId: fn.id };
+      const runs = parseInlineTypst(desc.content, {}, fn);
+      if (!runs.some((r) => r instanceof TextRun)) return { elements: [], nextFootnoteId: fn.id };
+      return { elements: [new Paragraph({ children: runs })], nextFootnoteId: fn.id };
+    }
+  }
+}
+
+/** Renders a gentle-clues callout as a shaded, left-bordered single-cell box. */
+function renderCallout(variant: string, title: string | undefined, body: string, fn: FnState): Paragraph[] {
+  const accent: Record<string, string> = {
+    info: '2563EB', tip: '16A34A', success: '16A34A', warning: 'D97706',
+    error: 'DC2626', note: '6B7280', memo: '7C3AED', important: 'DC2626',
+    question: '0891B2', task: '4F46E5', conclusion: '059669', abstract: '6B7280', example: '6B7280',
+  };
+  const color = accent[variant] ?? '6B7280';
+  const fill = 'F4F5F7';
+  const out: Paragraph[] = [];
+  const heading = title ?? variant.charAt(0).toUpperCase() + variant.slice(1);
+  out.push(new Paragraph({
+    shading: { type: ShadingType.SOLID, color: fill },
+    border: { left: { style: BorderStyle.SINGLE, size: 18, color, space: 10 } },
+    spacing: { before: 120, after: 0, line: 260 },
+    children: [new TextRun({ text: heading, bold: true, color })],
+  }));
+  const bodyRuns = parseInlineTypst(body, {}, fn);
+  out.push(new Paragraph({
+    shading: { type: ShadingType.SOLID, color: fill },
+    border: { left: { style: BorderStyle.SINGLE, size: 18, color, space: 10 } },
+    spacing: { before: 0, after: 120, line: 260 },
+    children: bodyRuns.length ? bodyRuns : [new TextRun({ text: body })],
+  }));
+  return out;
+}
+
+/** Parses a Typst `table(...)` body (the inner of the call) into a Word table. */
+function parseTypstTable(tableSrc: string, fn: FnState): Table {
+  // Column count from `columns: (...)` or `columns: N`.
+  let cols = 1;
+  const colMatch = tableSrc.match(/columns:\s*(\([^)]*\)|\d+)/);
+  if (colMatch) {
+    const v = colMatch[1];
+    if (v.startsWith('(')) cols = v.slice(1, -1).split(',').filter((s) => s.trim()).length;
+    else cols = parseInt(v) || 1;
+  }
+  // Collect top-level [ ... ] cell groups.
+  const cells: string[] = [];
+  for (let i = 0; i < tableSrc.length; i++) {
+    if (tableSrc[i] === '[') {
+      const m = matchBracket(tableSrc, i, '[', ']');
+      if (m) { cells.push(m.inner.trim()); i = m.end - 1; }
+    }
+  }
+  if (cols < 1) cols = 1;
+  const rows: TableRow[] = [];
+  for (let r = 0; r < cells.length; r += cols) {
+    const rowCells = cells.slice(r, r + cols);
+    const isHeader = r === 0;
+    rows.push(new TableRow({
+      children: rowCells.map((cell) => {
+        // Strip a single *bold* wrapper used for header cells.
+        const stripped = cell.replace(/^\*(.*)\*$/s, '$1');
+        const runs = parseInlineTypst(stripped, {}, fn);
+        return new TableCell({
+          children: [new Paragraph({ style: isHeader ? 'TableHeader' : 'TableCell', children: runs.length ? runs : [new TextRun({ text: '' })] })],
+          shading: isHeader ? { type: ShadingType.SOLID, color: 'E8E8E8' } : undefined,
+        });
+      }),
+    }));
+  }
+  return new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } });
+}
+
+// ─── Inline Typst markup parser (→ docx runs) ────────────────
+
+interface FnState {
+  footnotes: Record<number, { children: Paragraph[] }>;
+  id: number;
+}
+
+type InlineRun = TextRun | ExternalHyperlink | FootnoteReferenceRun;
+
+/**
+ * Parses a fragment of Typst markup into Word runs. Recovers the inline
+ * constructs that the deserializer currently leaves embedded in raw blocks:
+ * `#emph[…]`, `#strong[…]`, `#raw("…")`, inline `#footnote[…]`,
+ * `#link("…")[…]`, `#text(…)[…]`, `#super/#sub[…]`, `@citekey`, `@label`,
+ * plus `*bold*` / `_italic_` / `` `code` `` markup. Unknown `#fn(…)[…]`
+ * design calls are dropped (their bracket content is discarded) so design
+ * noise never leaks as text.
+ */
+function parseInlineTypst(text: string, base: IRunOptions, fn: FnState): InlineRun[] {
+  const runs: InlineRun[] = [];
+  let buf = '';
+  const flush = () => { if (buf) { runs.push(new TextRun({ ...base, text: buf })); buf = ''; } };
+
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+
+    if (ch === '\\' && i + 1 < text.length) { buf += text[i + 1]; i += 2; continue; }
+
+    if (ch === '#') {
+      const m = text.slice(i).match(/^#([a-zA-Z][a-zA-Z0-9.-]*)/);
+      if (m) {
+        const name = m[1];
+        let j = i + 1 + name.length;
+        let args = '';
+        if (text[j] === '(') { const mb = matchBracket(text, j, '(', ')'); if (mb) { args = mb.inner; j = mb.end; } }
+        let inner: string | null = null;
+        if (text[j] === '[') { const mb = matchBracket(text, j, '[', ']'); if (mb) { inner = mb.inner; j = mb.end; } }
+        flush();
+        const produced = handleInlineFunc(name, args, inner, base, fn);
+        if (produced) runs.push(...produced);
+        i = j;
+        continue;
+      }
+    }
+
+    if (ch === '@') {
+      const m = text.slice(i).match(/^@([a-zA-Z0-9_:.-]+)/);
+      if (m) { flush(); runs.push(...renderAtRef(m[1])); i += m[0].length; continue; }
+    }
+
+    if (ch === '*') {
+      const close = findMarkupClose(text, i + 1, '*');
+      if (close > i) { flush(); runs.push(...parseInlineTypst(text.slice(i + 1, close), { ...base, bold: true }, fn)); i = close + 1; continue; }
+    }
+    if (ch === '_') {
+      const close = findMarkupClose(text, i + 1, '_');
+      if (close > i) { flush(); runs.push(...parseInlineTypst(text.slice(i + 1, close), { ...base, italics: true }, fn)); i = close + 1; continue; }
+    }
+    if (ch === '`') {
+      const close = text.indexOf('`', i + 1);
+      if (close > i) { flush(); runs.push(new TextRun({ ...base, text: text.slice(i + 1, close), font: 'Consolas' })); i = close + 1; continue; }
+    }
+
+    buf += ch;
+    i++;
+  }
+  flush();
+  return runs;
+}
+
+/** Finds the index of a closing markup delimiter that sits at a word boundary. */
+function findMarkupClose(text: string, from: number, delim: string): number {
+  for (let i = from; i < text.length; i++) {
+    if (text[i] === delim) return i;
+    if (text[i] === '\n') return -1;
+  }
+  return -1;
+}
+
+function handleInlineFunc(name: string, args: string, inner: string | null, base: IRunOptions, fn: FnState): InlineRun[] | null {
+  switch (name) {
+    case 'emph':
+      return inner !== null ? parseInlineTypst(inner, { ...base, italics: true }, fn) : null;
+    case 'strong':
+      return inner !== null ? parseInlineTypst(inner, { ...base, bold: true }, fn) : null;
+    case 'text':
+    case 'smallcaps':
+    case 'underline':
+      return inner !== null ? parseInlineTypst(inner, base, fn) : null;
+    case 'super':
+      return inner !== null ? parseInlineTypst(inner, { ...base, superScript: true }, fn) : null;
+    case 'sub':
+      return inner !== null ? parseInlineTypst(inner, { ...base, subScript: true }, fn) : null;
+    case 'raw': {
+      const m = args.match(/"((?:[^"\\]|\\.)*)"/);
+      const code = m ? m[1].replace(/\\"/g, '"') : (inner ?? '');
+      return [new TextRun({ ...base, text: code, font: 'Consolas' })];
+    }
+    case 'footnote': {
+      if (inner === null) return null;
+      const currentId = fn.id++;
+      const bodyRuns = parseInlineTypst(inner, { size: 20 }, fn);
+      fn.footnotes[currentId] = { children: [new Paragraph({ children: bodyRuns.length ? bodyRuns : [new TextRun({ text: inner, size: 20 })] })] };
+      return [new FootnoteReferenceRun(currentId)];
+    }
+    case 'link': {
+      const m = args.match(/"([^"]+)"/);
+      const href = m ? m[1] : '';
+      const label = inner ?? href;
+      return [new ExternalHyperlink({ link: href, children: [new TextRun({ text: label, style: 'Hyperlink' })] })];
+    }
+    case 'cite': {
+      const m = args.match(/"?<?([a-zA-Z0-9_:.-]+)>?"?/);
+      return m ? renderAtRef(m[1]) : null;
+    }
+    default:
+      // Unknown function (design / layout) — drop it and its bracket content.
+      return inner !== null && /^[a-z]/.test(name) === false ? [new TextRun({ ...base, text: inner })] : null;
+  }
+}
+
+/** Heuristic: known label prefixes / a colon → cross-reference; else citation. */
+const REF_PREFIXES = /^(fig|tbl|eq|sec|chap|app|thm|lem|def|cor|prop|algo|lst|figure|table|equation|section|chapter|appendix)\b/i;
+function renderAtRef(name: string): InlineRun[] {
+  if (name.includes(':') || REF_PREFIXES.test(name)) {
+    const refType = name.split(':')[0];
+    return renderReference(name, refType);
+  }
+  return renderCitation(name, activeCtx?.bibEntries ?? []);
+}
+
+// ─── Cross-reference resolution ──────────────────────────────
+
+function renderReference(label: string, _refType: string): TextRun[] {
+  const ctx = activeCtx;
+  const w = refWords(ctx?.resolved.lang ?? 'en');
+  const t = ctx?.labelMap.get(label);
+  if (t) {
+    if (t.kind === 'equation') return [new TextRun({ text: t.numberText ?? `(${t.n})` })];
+    const word = t.kind === 'figure' ? w.figure : t.kind === 'table' ? w.table : t.kind === 'heading' ? w.section : '';
+    return [new TextRun({ text: `${word} ${t.n}`.trim() })];
+  }
+  // Unknown label → readable fallback (strip the prefix).
+  const bare = label.includes(':') ? label.split(':').slice(1).join(':') : label;
+  return [new TextRun({ text: bare })];
+}
+
+// ─── Page-number footer ──────────────────────────────────────
+
+function buildPageNumberFooter(r: Resolved): Footer {
+  return new Footer({
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ children: [PageNumber.CURRENT], size: r.bodySize, font: r.bodyFont })],
+    })],
+  });
+}
+
+/**
+ * Recursively converts a bullet / ordered list. Preserves nesting depth
+ * (mapped to Word list levels) and, for ordered lists, the per-list numbering
+ * instance so separate lists restart at 1 and nested lists cycle their format.
+ */
+function convertList(
+  node: TipTapNode,
+  ordered: boolean,
+  level: number,
+  instance: number,
+  baseDir: string,
+  footnotes: Record<number, { children: Paragraph[] }>,
+  footnoteId: number,
+  bibEntries: BibEntry[],
+): { elements: Paragraph[]; nextFootnoteId: number } {
+  const out: Paragraph[] = [];
+  for (const item of node.content ?? []) {
+    for (const child of item.content ?? []) {
+      if (child.type === 'bulletList' || child.type === 'orderedList') {
+        const nestedOrdered = child.type === 'orderedList';
+        const nestedInstance = nestedOrdered && activeCtx ? activeCtx.orderedInstance++ : instance;
+        const r = convertList(child, nestedOrdered, level + 1, nestedInstance, baseDir, footnotes, footnoteId, bibEntries);
+        out.push(...r.elements);
+        footnoteId = r.nextFootnoteId;
+      } else {
+        const runs = convertInlineContent(child.content ?? [], baseDir, footnotes, footnoteId, bibEntries);
+        footnoteId = runs.nextFootnoteId;
+        out.push(new Paragraph({
+          ...(ordered
+            ? { numbering: { reference: 'ordered-list', level, instance } }
+            : { bullet: { level } }),
+          children: runs.children,
+        }));
+      }
+    }
+  }
+  return { elements: out, nextFootnoteId: footnoteId };
 }

@@ -18,6 +18,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { parseSettings, applySettings, generateSetBlocks, type DocumentSettings } from '../shared/settingsParser.js';
@@ -52,7 +53,7 @@ import { listProjectLabels, type LabelType } from '../main/projectLabels.js';
 import { searchProject, replaceInProject } from '../main/projectSearch.js';
 import { findSourceForCitation } from '../main/citationSources.js';
 import { markdownToTypst } from '../shared/markdownImporter.js';
-import { serializeDocx } from '../shared/docxSerializer.js';
+import { serializeDocx, type RenderedSnippet } from '../shared/docxSerializer.js';
 import { deserializeTypst } from '../editor/lib/deserializer.js';
 import simpleGit from 'simple-git';
 
@@ -85,6 +86,33 @@ function typstCompileArgs(extra: string[]): string[] {
  */
 function typstBinary(): string {
   return process.env.TYPST_BIN || 'typst';
+}
+
+/**
+ * Renderer the DOCX serializer uses to rasterise display-math and SVG figures
+ * (no native Word representation). Compiles each self-contained snippet to a
+ * PNG with the bundled packages + fonts at 300 ppi; returns null on failure so
+ * the serializer falls back to a text placeholder. The temp `.typ` lives in
+ * baseDir so it sits inside the Typst root and SVG figures resolve.
+ */
+function createMcpSnippetRenderer(baseDir: string): (snippet: string) => Promise<RenderedSnippet | null> {
+  return async (snippet: string) => {
+    const stamp = `${process.pid}-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const inFile = path.join(baseDir, `.vswrite-snip-${stamp}.typ`);
+    const outFile = path.join(os.tmpdir(), `vswrite-snip-${stamp}.png`);
+    try {
+      fs.writeFileSync(inFile, snippet, 'utf-8');
+      await execFileAsync(typstBinary(), typstCompileArgs(['--ppi', '300', '--root', baseDir, inFile, outFile]), { timeout: 30000 });
+      const png = fs.readFileSync(outFile);
+      if (png.length < 24 || png.readUInt32BE(0) !== 0x89504e47) return null;
+      return { png, widthPx: png.readUInt32BE(16), heightPx: png.readUInt32BE(20), ppi: 300 };
+    } catch {
+      return null;
+    } finally {
+      try { fs.unlinkSync(inFile); } catch {}
+      try { fs.unlinkSync(outFile); } catch {}
+    }
+  };
 }
 
 // ─── Style helpers (MCP-side mirror of the main process) ────────
@@ -2320,7 +2348,10 @@ server.tool(
 
       const mergedContent = resolveIncludes(rootFile);
       const doc = deserializeTypst(mergedContent);
-      const buffer = await serializeDocx(doc, rootDir, mergedContent);
+      const style = readProjectStyle(rootDir);
+      const buffer = await serializeDocx(doc, rootDir, mergedContent, style, {
+        renderTypstSnippet: createMcpSnippetRenderer(rootDir),
+      });
       fs.writeFileSync(absOutput, buffer);
 
       const stat = fs.statSync(absOutput);

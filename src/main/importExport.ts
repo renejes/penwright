@@ -6,11 +6,12 @@
 import { dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { execFileSync } from 'child_process';
 import { getTypstPath, buildTypstCompileArgs } from './typstPath';
 import { watch, type FSWatcher } from 'chokidar';
 import { deserializeTypst } from './deserializer-bridge';
-import { serializeDocx } from '../shared/docxSerializer';
+import { serializeDocx, type RenderedSnippet } from '../shared/docxSerializer';
 import { markdownToTypst } from '../shared/markdownImporter';
 import { styleTemplates } from '../shared/styleTemplates';
 import { findRootFile } from '../shared/rootFinder';
@@ -124,6 +125,45 @@ function cleanupExportTemp(rootDir: string): void {
   try { fs.unlinkSync(path.join(rootDir, TEMP_EXPORT_BASENAME)); } catch {}
 }
 
+/** Reads PNG width/height from the IHDR header (big-endian). */
+function pngDimensions(buf: Buffer): { width: number; height: number } | null {
+  if (buf.length >= 24 && buf.readUInt32BE(0) === 0x89504e47) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  return null;
+}
+
+/**
+ * Builds the Typst-snippet renderer the DOCX serializer uses to rasterise
+ * display-math and SVG figures (which have no native Word representation).
+ * Compiles each self-contained snippet to a PNG with the bundled packages +
+ * fonts at 300 ppi. Returns null on failure so the serializer falls back to a
+ * readable text placeholder instead of leaking raw source.
+ */
+function createTypstSnippetRenderer(baseDir: string): (snippet: string) => Promise<RenderedSnippet | null> {
+  return async (snippet: string) => {
+    const stamp = `${process.pid}-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    // The input must live inside the Typst root, and SVG figures are referenced
+    // by a baseDir-relative path — so write the temp file into baseDir (same
+    // pattern the filtered-export temp file already uses) with `--root baseDir`.
+    const inFile = path.join(baseDir, `.vswrite-snip-${stamp}.typ`);
+    const outFile = path.join(os.tmpdir(), `vswrite-snip-${stamp}.png`);
+    try {
+      fs.writeFileSync(inFile, snippet, 'utf-8');
+      execFileSync(getTypstPath(), buildTypstCompileArgs(['--ppi', '300', '--root', baseDir, inFile, outFile]), { stdio: 'ignore' });
+      const png = fs.readFileSync(outFile);
+      const dim = pngDimensions(png);
+      if (!dim) return null;
+      return { png, widthPx: dim.width, heightPx: dim.height, ppi: 300 };
+    } catch {
+      return null;
+    } finally {
+      try { fs.unlinkSync(inFile); } catch {}
+      try { fs.unlinkSync(outFile); } catch {}
+    }
+  };
+}
+
 export interface ExportConfig {
   format: 'pdf' | 'docx';
   /** null → everything; otherwise list of include paths to keep. */
@@ -172,7 +212,9 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
       // not in the merged Typst content. Pull them up here so the
       // serializer's resolveConfig can blend both sources.
       const style = appState.projectDir ? getProjectStyle(appState.projectDir) : null;
-      const buffer = await serializeDocx(doc, rootDir, mergedContent, style);
+      const buffer = await serializeDocx(doc, rootDir, mergedContent, style, {
+        renderTypstSnippet: createTypstSnippetRenderer(rootDir),
+      });
       fs.writeFileSync(result.filePath, buffer);
     }
     appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: config.format });
