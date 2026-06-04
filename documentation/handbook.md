@@ -24,7 +24,7 @@ Typical use cases: academic theses, books, longer documents with multi-chapter s
 ### Installation
 
 From v0.7.0:
-- **macOS:** download the DMG from [vswrite.com](https://vswrite.com) and drop it into your Applications folder
+- **macOS:** download the DMG from [penwright.online](https://penwright.online) and drop it into your Applications folder
 - **Windows:** download the NSIS installer and run it
 - **Linux:** download the AppImage, make it executable (`chmod +x`), run it
 
@@ -676,38 +676,33 @@ The app **always starts on the Start Screen** — there is no auto-reopen. This 
 
 ## License Management
 
-Penwright uses a two-tier license model:
+Penwright is a **one-time purchase — €59**. A single license, no subscription, no tiers. **One key (`pw_LIC…`) unlocks everything**, including the MCP server for AI integration.
 
-| Tier | Scope |
-|------|-------|
-| **Basic** | All editor features (WYSIWYG, preview, terminal, Git, import/export) |
-| **Pro** | Everything in Basic + MCP server access for AI integration |
+### Free trial
+
+On first launch you get a **14-day local trial** with the full feature set — no key and no account required. The status bar shows the days remaining, and a slim banner offers **"Buy now – €59"**. When the trial runs out, Penwright is blocked behind a purchase screen until you enter a key.
 
 ### License status in the status bar
 
-The bottom-right of the status bar shows the current license status:
-- **Unlicensed** — no license registered
-- **Licensed** — valid Basic license active
-- **Pro** — valid Pro license active
+The bottom-right of the status bar shows your current state:
+- **Trial: N days** — trial active, N days remaining
+- **Licensed** — a valid key is active
+- **Locked** — trial expired and no key yet; the app is blocked until you activate
 
 **Click the status** to open the License dialog.
 
-### Activating a license
+### Buying & activating
 
-1. Open the License dialog (click the license status in the status bar)
-2. Enter your **License Key** (e.g. `pw_LIC_xxx...`)
-3. The key is validated against **Polar** and stored locally (encrypted in the system keychain)
-4. Once validated, the license is active immediately
-
-**Buy a license:** at [vswrite.com/pricing](https://vswrite.com/pricing) or via the **"Buy License"** button in the License dialog.
+1. **Buy** — the **"Buy"** button (in the trial banner, the License dialog, or the lock screen) opens the **Polar checkout** directly. After payment you receive your `pw_LIC…` key by e-mail.
+2. **Activate** — open the License dialog (click the license status), paste the key, confirm. It is validated against **Polar** and stored locally (encrypted in the system keychain). The license is active immediately and any lock screen disappears.
 
 ### Offline use
 
-Once validated, Penwright works without an internet connection. A **30-day grace period** applies — after 30 days without re-validation the license is deactivated.
+Once validated, Penwright works without an internet connection. A **7-day grace period** applies — after 7 days without an online re-validation it falls back to the trial/locked state until you reconnect. Offline grace never extends the free trial.
 
 ### Security
 
-License data is encrypted via Electron's `safeStorage` and stored in the system keychain (macOS), DPAPI (Windows) or libsecret (Linux). Tampering with the config file alone is not enough to unlock the Pro tier.
+License data is encrypted via Electron's `safeStorage` and stored in the system keychain (macOS), DPAPI (Windows) or libsecret (Linux). The MCP server independently validates the same key on startup.
 
 ---
 
@@ -719,7 +714,7 @@ Accessible via:
 
 The dialog shows:
 - App version and logo
-- Current license status (Unlicensed / Basic / Pro)
+- Current license status (Licensed / Unlicensed)
 - System info: platform + architecture, Electron / Chromium / Node versions
 - Links: User Guide, Website, Report Issue
 - **Copy Diagnostics** — copies version + platform + Electron stack + license tier to the clipboard. Handy when you file an issue.
@@ -730,7 +725,7 @@ The dialog shows:
 
 Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Claude Desktop**, **Codex Desktop** or **Clawdbot** work on your Typst documents directly — without going through the terminal.
 
-> **Note:** the MCP server requires a **Pro** license. See [License Management](#license-management).
+> **Note:** the MCP server requires a **valid license** — the same `pw_LIC…` key as the app (there are no tiers). See [License Management](#license-management).
 
 ### What can the MCP server do?
 
@@ -750,7 +745,7 @@ Over MCP (56 tools) the AI can:
 
 On macOS, Penwright offers to connect Claude Desktop automatically — no JSON editing required. Requirements:
 
-- **Pro license activated** (see [License Management](#license-management)) — the MCP server rejects spawn otherwise
+- **A valid license activated** (see [License Management](#license-management)) — the MCP server rejects spawn otherwise
 - **Claude Desktop installed** at `/Applications/Claude.app` or `~/Applications/Claude.app`
 
 **Flow:**
@@ -760,7 +755,7 @@ On macOS, Penwright offers to connect Claude Desktop automatically — no JSON e
 3. Behind the scenes:
    - The server binary is copied from the .app bundle to `~/Library/Application Support/Penwright/mcp-server/penwright-mcp`
    - `~/Library/Application Support/Claude/claude_desktop_config.json` gets a `Penwright` entry — any pre-existing MCP servers are preserved untouched, and a timestamped backup of your old config is written first
-   - Your Pro license key is written as an environment variable (`PENWRIGHT_LICENSE_KEY`) into the entry
+   - Your license key is written as an environment variable (`PENWRIGHT_LICENSE_KEY`) into the entry
 4. **Restart Claude Desktop** — the Penwright tools appear automatically
 
 **Standalone:** the MCP server runs as an independent process, **decoupled from the Penwright app**. You can quit Penwright, keep using Claude, open Penwright again later — the launch order is irrelevant.
@@ -999,7 +994,7 @@ If Penwright ever crashes, the app writes a plaintext report locally containing:
 - Your recent actions (event types only — no document content)
 - App, OS, and version info
 
-On next launch, a dialog opens automatically with the report — you decide what happens: **Copy to clipboard**, **Prepare e-mail** (opens your mail client pre-filled to `feedback@penwright.app`), **Open folder** (shows all stored reports in Finder), or **Discard** (deletes them).
+On next launch, a dialog opens automatically with the report — you decide what happens: **Copy to clipboard**, **Prepare e-mail** (opens your mail client pre-filled to `feedback@penwright.online`), **Open folder** (shows all stored reports in Finder), or **Discard** (deletes them).
 
 **What Penwright does NOT do:** automatically send data over the internet. There is no external crash telemetry, no account login, no server reading along. Reports stay on your machine until you actively share them.
 
@@ -1011,16 +1006,16 @@ On next launch, a dialog opens automatically with the report — you decide what
 
 ## Updates
 
-The app checks for new versions on each start (5 seconds after start, then every 4 hours). When a new version is available, a native dialog asks whether to download it now and install on next launch.
+Penwright does **not** auto-update. To see your installed version, open the About dialog.
 
-Manual check: open the About dialog — the version shown there is your installed version. For the latest release see [vswrite.com/download](https://vswrite.com) or [releases.penwright.com](https://releases.penwright.com).
+New releases are announced via the **Penwright newsletter**; download the latest build from [penwright.online](https://penwright.online) and replace your installed copy. Your projects are self-contained (everything lives in the project folder), so updating the app never touches your work.
 
 ---
 
 ## Help & Support
 
-- **User Guide (this handbook):** [vswrite.netlify.app/en/docs](https://vswrite.netlify.app/en/docs) — or via the app menu **Help -> User Guide**
+- **User Guide (this handbook):** open it any time from the app menu **Help -> User Guide** — it ships inside the app, no internet needed
 - **Bugs / feature requests:** [github.com/renejes/vswrite-desktop/issues](https://github.com/renejes/vswrite-desktop/issues) — or via the app menu **Help -> Report Issue**
-- **Website:** [vswrite.com](https://vswrite.com)
+- **Website:** [penwright.online](https://penwright.online)
 
 When reporting a bug, it helps a lot to click **"Copy Diagnostics"** in the About dialog and paste the output into the issue — that way the reader immediately sees version, platform and license tier.

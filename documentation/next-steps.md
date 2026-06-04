@@ -81,7 +81,7 @@ Fuer den ersten Release fehlt noch der `"publish"`-Block — siehe 3.4.
 Auslieferung ueber Firebase Hosting — globales CDN, kostenloses SSL, Deploy via `firebase deploy`. Standardmaessig `*.web.app`-URL, Custom Domain optional spaeter.
 
 ```
-User besucht vswrite.com
+User besucht penwright.online
   -> Klickt "Download"
   -> Laedt DMG von https://<penwright-projekt-id>.web.app/
   -> Installiert App
@@ -246,10 +246,10 @@ Die Handbuecher liegen im Repo unter [documentation/handbuch.md](handbuch.md) (D
 
 ### 4.1 Online-Hosting (Pflicht vor Launch)
 
-Die Handbuecher werden nach `vswrite.netlify.app` deployed:
+Die Handbuecher werden nach `penwright.online` deployed:
 
-- Deutsch: `https://vswrite.netlify.app/de/docs`
-- Englisch: `https://vswrite.netlify.app/en/docs`
+- Deutsch: `https://penwright.online/de/docs`
+- Englisch: `https://penwright.online/en/docs`
 
 **Sync-Strategie:** Netlify-Build liest direkt aus `documentation/handbuch.md` und `documentation/handbook.md` im Haupt-Repo (via Netlify-CMS oder `netlify.toml` Build-Command, das die Markdown-Dateien in die Statische-Site-Generierung einbindet). Alternativ ein Docs-Repo `Penwright-docs`, das diese Dateien per Submodule/Pull einzieht.
 
@@ -392,7 +392,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] **macOS DMG bauen, signieren, notarisieren** — wichtigster offener Punkt. Identity (`Developer ID Application: Rene Jesser`) + Notarize-Plugin (`electron-builder-notarize`) sind in `package.json` verkabelt; bisher nie real durchlaufen. Bekannte Stolperkanten: Hardened-Runtime fuer das gebundlete `typst-*`-Binary, JIT-Entitlements fuer das Bun-compiled `penwright-mcp-<arch>` (via `afterPack-sign-mcp.mjs`), Notarize-Wartezeiten von Apple
 - [ ] Auto-Discover-Wizard auf notarisiertem DMG E2E testen — `mcp:setup` muss aus `Contents/Resources/mcp/bin/` korrekt nach `~/Library/Application Support/Penwright/mcp-server/` kopieren und chmod+x setzen, Claude Desktop muss die kopierte signierte Binary spawnen koennen
 - [ ] Artefakte deployen
-- [ ] Download-Link auf vswrite.com einbinden
+- [ ] Download-Link auf penwright.online einbinden
 - [ ] Auto-Updater End-to-End testen (alte Version installieren -> Update)
 
 ### Phase 5: QA & Release
@@ -403,7 +403,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Multi-File-Projekte, Includes, Zitationen
 - [ ] File-Locking, externe Edits, Crash Recovery
 - [ ] Undo AI Edit (Terminal-Edit -> Undo)
-- [ ] **Crash-Reporting E2E:** kuenstlichen Crash provozieren (`throw new Error('test')` in Renderer + Main), Boot-Dialog erscheint mit korrektem Inhalt, Mail-Vorbereitung oeffnet `feedback@penwright.app` mit Body
+- [ ] **Crash-Reporting E2E:** kuenstlichen Crash provozieren (`throw new Error('test')` in Renderer + Main), Boot-Dialog erscheint mit korrektem Inhalt, Mail-Vorbereitung oeffnet `feedback@penwright.online` mit Body
 - [ ] **DOCX-Export auf realer 100-Seiten-Thesis** — in Word / Pages / LibreOffice oeffnen, TOC-Refresh, Heading-Numbering-Live-Test durch Umordnen
 - [ ] Auto-Updater-E2E-Test
 - [ ] Performance auf 100+ Seiten (Tippen, Scrollen im Preview, Recompile)

@@ -7,11 +7,11 @@
   "long_description": "Penwright is a project-first WYSIWYG editor for Typst documents. This extension exposes 52 typed tools that let Claude open and edit your projects, manage chapters and bibliography, drive the structured design surface (themes / palettes / layouts / 19 design elements / per-chapter running heads), search across files, save versions, and export to PDF / DOCX. All Typst compilation runs through the bundled Typst binary, packages, and OFL fonts — no external dependencies, fully offline.",
   "author": {
     "name": "Penwright",
-    "email": "feedback@penwright.app",
-    "url": "https://penwright.app"
+    "email": "feedback@penwright.online",
+    "url": "https://penwright.online"
   },
-  "homepage": "https://penwright.app",
-  "support": "https://penwright.app/support",
+  "homepage": "https://penwright.online",
+  "support": "https://penwright.online/support",
   "license": "Proprietary",
   "keywords": ["typst", "writing", "editor", "academic", "magazine", "design", "penwright"],
   "compatibility": {
@@ -22,7 +22,7 @@
     "license_key": {
       "type": "string",
       "title": "Penwright License Key",
-      "description": "Your Penwright license key (starts with pw_LIC_). Required — the MCP server refuses to start without it. Get one at https://penwright.app.",
+      "description": "Your Penwright license key (starts with pw_LIC_). Required — the MCP server refuses to start without it. Get one at https://penwright.online.",
       "sensitive": true,
       "required": true
     }

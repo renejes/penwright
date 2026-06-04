@@ -268,9 +268,7 @@ export function buildMenu(state: AppState): void {
       submenu: [
         {
           label: 'User Guide',
-          click: () => {
-            shell.openExternal('https://vswrite.netlify.app/de/docs');
-          },
+          click: () => send('showHandbook'),
         },
         {
           label: 'Keyboard Shortcuts',

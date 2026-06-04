@@ -119,10 +119,10 @@
     {/if}
 
     <div class="links">
-      <button class="link-btn" onclick={() => openExternal('https://vswrite.netlify.app/de/docs')}>
+      <button class="link-btn" onclick={() => { uiState.showHandbook = true; onClose(); }}>
         User Guide
       </button>
-      <button class="link-btn" onclick={() => openExternal('https://penwright.app')}>
+      <button class="link-btn" onclick={() => openExternal('https://penwright.online')}>
         Website
       </button>
       <button class="link-btn" onclick={() => openExternal('https://github.com/renejes/vswrite-desktop/issues')}>

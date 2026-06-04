@@ -165,6 +165,9 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'showShortcuts') {
     uiState.showShortcuts = true;
   }
+  if (msg.type === 'showHandbook') {
+    uiState.showHandbook = true;
+  }
   if (msg.type === 'toggleFocusMode') {
     uiState.focusMode = !uiState.focusMode;
   }

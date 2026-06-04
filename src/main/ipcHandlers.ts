@@ -1083,7 +1083,7 @@ export function setupIPC(): void {
     const truncated = content.length > 1500
       ? content.slice(0, 1500) + '\n\n... (gekuerzt — vollstaendiger Bericht im crash-reports/-Ordner)'
       : content;
-    const url = `mailto:feedback@penwright.app?subject=${subject}&body=${encodeURIComponent(truncated)}`;
+    const url = `mailto:feedback@penwright.online?subject=${subject}&body=${encodeURIComponent(truncated)}`;
     shell.openExternal(url);
     return { ok: true };
   });

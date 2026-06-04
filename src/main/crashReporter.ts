@@ -188,7 +188,7 @@ function buildReport(args: {
     '',
     '----',
     'Wie weiter? Du kannst diesen Bericht …',
-    '  • per E-Mail an feedback@penwright.app schicken',
+    '  • per E-Mail an feedback@penwright.online schicken',
     '  • oder als Issue auf https://github.com/renejes/vswrite-desktop/issues anhaengen',
     '',
   ];

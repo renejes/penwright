@@ -21,6 +21,7 @@
   import LicenseDialog from './components/LicenseDialog.svelte';
   import LicenseGate from './components/LicenseGate.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
+  import HandbookViewer from './components/HandbookViewer.svelte';
   import ExportDialog from './components/ExportDialog.svelte';
   import CitationHoverCard from './components/CitationHoverCard.svelte';
   import ReferencePicker from './components/ReferencePicker.svelte';
@@ -770,9 +771,9 @@
   <!-- Trial banner: slim, non-blocking, only during the local trial. -->
   {#if uiState.licenseAccess === 'trial'}
     <div class="trial-banner">
-      <span>Testphase – noch {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'Tag' : 'Tage'}</span>
+      <span>Trial — {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'day' : 'days'} left</span>
       <button class="trial-buy" onclick={openCheckout}>
-        Jetzt kaufen – 59 €
+        Buy now – €59
       </button>
     </div>
   {/if}
@@ -1031,6 +1032,9 @@
         onClose={() => { uiState.showAbout = false; }}
       />
     {/if}
+    {#if uiState.showHandbook}
+      <HandbookViewer onClose={() => { uiState.showHandbook = false; }} />
+    {/if}
     {#if pendingCrash}
       <CrashReportDialog
         content={pendingCrash.content}
@@ -1162,9 +1166,9 @@
         {#if uiState.licenseAccess === 'licensed'}
           Licensed
         {:else if uiState.licenseAccess === 'trial'}
-          Testphase: {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'Tag' : 'Tage'}
+          Trial: {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'day' : 'days'}
         {:else}
-          Gesperrt
+          Locked
         {/if}
       </button>
     </div>

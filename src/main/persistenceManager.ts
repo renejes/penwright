@@ -82,7 +82,7 @@ const DEFAULT_BACKUP_CONFIG: BackupConfig = {
 };
 
 const store = new Store<StoreSchema>({
-  name: 'vswrite-settings',
+  name: 'penwright-settings',
   defaults: {
     windowBounds: {
       width: 1200,

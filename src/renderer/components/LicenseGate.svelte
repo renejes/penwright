@@ -41,32 +41,32 @@
         if (typeof ent.trialDaysLeft === 'number') uiState.trialDaysLeft = ent.trialDaysLeft;
       }
       if (uiState.licenseAccess === 'expired') {
-        recheckNote = 'Noch keine aktive Lizenz gefunden.';
+        recheckNote = 'No active license found yet.';
       }
     } catch {
-      recheckNote = 'Prüfung fehlgeschlagen — bist du online?';
+      recheckNote = 'Check failed — are you online?';
     } finally {
       checking = false;
     }
   }
 </script>
 
-<div class="gate-overlay" role="dialog" aria-modal="true" aria-label="Testphase abgelaufen">
+<div class="gate-overlay" role="dialog" aria-modal="true" aria-label="Trial expired">
   <div class="gate-card">
     <img src={logoUrl} alt="Penwright" class="gate-logo" />
-    <h1>Testphase abgelaufen</h1>
+    <h1>Trial expired</h1>
     <p class="gate-text">
-      Deine 14-tägige Testphase ist vorbei. Mit einer Penwright-Lizenz schaltest
-      du alles dauerhaft frei — inklusive der KI-/MCP-Integration.
+      Your 14-day trial has ended. A Penwright license unlocks everything
+      permanently — including the AI / MCP integration.
     </p>
 
     <div class="gate-actions">
-      <button class="btn btn-primary" onclick={buy}>Lizenz kaufen – 59 €</button>
-      <button class="btn btn-secondary" onclick={enterKey}>Key eingeben</button>
+      <button class="btn btn-primary" onclick={buy}>Buy license – €59</button>
+      <button class="btn btn-secondary" onclick={enterKey}>Enter key</button>
     </div>
 
     <button class="btn-text" onclick={recheck} disabled={checking}>
-      {checking ? 'Prüfe …' : 'Erneut prüfen'}
+      {checking ? 'Checking…' : 'Check again'}
     </button>
     {#if recheckNote}
       <p class="gate-note">{recheckNote}</p>

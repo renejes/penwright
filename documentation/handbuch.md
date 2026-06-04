@@ -24,7 +24,7 @@ Typisches Einsatzgebiet: wissenschaftliche Arbeiten, Buecher, laengere Dokumente
 ### App installieren
 
 Ab v0.7.0:
-- **macOS:** DMG von [vswrite.com](https://vswrite.com) herunterladen und in den Ordner "Programme" ziehen
+- **macOS:** DMG von [penwright.online](https://penwright.online) herunterladen und in den Ordner "Programme" ziehen
 - **Windows:** NSIS-Installer herunterladen und ausfuehren
 - **Linux:** AppImage herunterladen, ausfuehrbar machen (`chmod +x`), starten
 
@@ -676,38 +676,33 @@ Die App **startet immer am Start Screen** — kein Auto-Reopen. Bewusste Designe
 
 ## Lizenz-Management
 
-Penwright verwendet ein Lizenzmodell mit zwei Stufen:
+Penwright ist ein **Einmalkauf — 59 €**. Eine Lizenz, kein Abo, keine Stufen. **Ein Key (`pw_LIC…`) schaltet alles frei**, inklusive des MCP-Servers fuer die KI-Integration.
 
-| Lizenz | Umfang |
-|--------|--------|
-| **Basic** | Alle Editor-Features (WYSIWYG, Preview, Terminal, Git, Import/Export) |
-| **Pro** | Alles aus Basic + MCP-Server-Zugang fuer KI-Integration |
+### Kostenlose Testphase
+
+Beim ersten Start bekommst du eine **14-taegige lokale Testphase** mit vollem Funktionsumfang — ohne Key, ohne Account. Die Status Bar zeigt die verbleibenden Tage, ein schlanker Banner bietet **"Buy now – €59"**. Laeuft die Testphase ab, wird Penwright hinter einem Kauf-Screen gesperrt, bis du einen Key eingibst. (Die Lizenz-Oberflaeche ist auf Englisch, wie der Rest der App.)
 
 ### Lizenzstatus in der Status Bar
 
-In der Status Bar (unten rechts) wird der aktuelle Lizenzstatus angezeigt:
-- **Unlicensed** — keine Lizenz hinterlegt
-- **Licensed** — gueltige Basic-Lizenz aktiv
-- **Pro** — gueltige Pro-Lizenz aktiv
+In der Status Bar (unten rechts) wird dein aktueller Status angezeigt:
+- **Trial: N days** — Testphase aktiv, N Tage verbleibend
+- **Licensed** — ein gueltiger Key ist aktiv
+- **Locked** — Testphase abgelaufen, noch kein Key; die App ist gesperrt, bis du aktivierst
 
 **Klick auf den Lizenzstatus** oeffnet den Lizenz-Dialog.
 
-### Lizenz aktivieren
+### Kaufen & aktivieren
 
-1. Lizenz-Dialog oeffnen (Klick auf Lizenzstatus in der Status Bar)
-2. **License Key** eingeben (z. B. `pw_LIC_xxx...`)
-3. Der Key wird gegen **Polar** validiert und lokal gespeichert (verschluesselt im System-Keychain)
-4. Nach erfolgreicher Validierung ist die Lizenz sofort aktiv
-
-**Lizenz kaufen:** ueber [vswrite.com/pricing](https://vswrite.com/pricing) oder direkt ueber den **"Buy License"**-Button im Lizenz-Dialog.
+1. **Kaufen** — der Kauf-Button (**"Buy now – €59"** im Banner, **"Buy license – €59"** auf dem Sperr-Screen) oeffnet direkt den **Polar-Checkout**. Nach der Zahlung bekommst du deinen `pw_LIC…`-Key per E-Mail.
+2. **Aktivieren** — Lizenz-Dialog oeffnen (Klick auf den Lizenzstatus), Key einfuegen, bestaetigen. Er wird gegen **Polar** validiert und lokal gespeichert (verschluesselt im System-Keychain). Die Lizenz ist sofort aktiv und ein eventueller Sperr-Screen verschwindet.
 
 ### Offline-Nutzung
 
-Wurde die Lizenz einmal validiert, funktioniert Penwright auch ohne Internetverbindung. Es gilt eine **30-Tage Grace Period** — nach 30 Tagen ohne erneute Online-Validierung wird die Lizenz deaktiviert.
+Einmal validiert, funktioniert Penwright ohne Internetverbindung. Es gilt eine **7-Tage Grace Period** — nach 7 Tagen ohne erneute Online-Validierung faellt die App zurueck in den Testphasen-/Sperr-Zustand, bis du wieder online bist. Die Offline-Grace verlaengert die Testphase nie.
 
 ### Sicherheit
 
-Die Lizenzdaten werden mittels Electrons `safeStorage` verschluesselt im System-Keychain (macOS), DPAPI (Windows) oder libsecret (Linux) abgelegt. Manipulieren der Konfigurationsdatei reicht nicht, um die Pro-Stufe freizuschalten.
+Die Lizenzdaten werden mittels Electrons `safeStorage` verschluesselt im System-Keychain (macOS), DPAPI (Windows) oder libsecret (Linux) abgelegt. Der MCP-Server validiert denselben Key beim Start unabhaengig.
 
 ---
 
@@ -719,7 +714,7 @@ Erreichbar ueber:
 
 Der Dialog zeigt:
 - App-Version und Logo
-- Aktuellen Lizenz-Status (Unlicensed / Basic / Pro)
+- Aktuellen Lizenz-Status (Licensed / Unlicensed)
 - System-Info: Platform + Architektur, Electron / Chromium / Node Versionen
 - Links: User Guide, Website, Report Issue
 - **Copy Diagnostics** — kopiert Version + Platform + Electron-Stack + Lizenz-Tier in die Zwischenablage. Hilfreich wenn du ein Issue meldest.
@@ -730,7 +725,7 @@ Der Dialog zeigt:
 
 Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten koennen — ohne das Terminal zu benutzen.
 
-> **Hinweis:** Der MCP Server erfordert eine **Pro-Lizenz**. Siehe [Lizenz-Management](#lizenz-management).
+> **Hinweis:** Der MCP Server erfordert eine **gueltige Lizenz** — denselben `pw_LIC…`-Key wie die App (keine Stufen). Siehe [Lizenz-Management](#lizenz-management).
 
 ### Was kann der MCP-Server?
 
@@ -750,7 +745,7 @@ Die KI kann ueber den MCP-Server (56 Tools):
 
 Beim ersten Start auf macOS bietet Penwright automatisch an, Claude Desktop zu verbinden — du musst keine JSON-Datei selbst editieren. Voraussetzungen:
 
-- **Pro-Lizenz aktiviert** (siehe [Lizenz-Management](#lizenz-management)) — der MCP-Server lehnt sonst beim Start ab
+- **Gueltige Lizenz aktiviert** (siehe [Lizenz-Management](#lizenz-management)) — der MCP-Server lehnt sonst beim Start ab
 - **Claude Desktop installiert** unter `/Applications/Claude.app` oder `~/Applications/Claude.app`
 
 **Ablauf:**
@@ -760,7 +755,7 @@ Beim ersten Start auf macOS bietet Penwright automatisch an, Claude Desktop zu v
 3. Im Hintergrund:
    - Das Server-Binary wird aus dem .app-Bundle nach `~/Library/Application Support/Penwright/mcp-server/penwright-mcp` kopiert
    - `~/Library/Application Support/Claude/claude_desktop_config.json` bekommt einen `Penwright`-Eintrag — andere bestehende MCP-Server bleiben unangetastet, ein Backup deiner alten Config wird angelegt
-   - Dein Pro-Lizenzschluessel wird als Umgebungsvariable (`PENWRIGHT_LICENSE_KEY`) in den Eintrag geschrieben
+   - Dein Lizenzschluessel wird als Umgebungsvariable (`PENWRIGHT_LICENSE_KEY`) in den Eintrag geschrieben
 4. **Claude Desktop neu starten** — die Penwright-Tools erscheinen automatisch
 
 **Standalone:** der MCP-Server laeuft als eigener Prozess, **unabhaengig von der Penwright-App**. Du kannst Penwright beenden, Claude weiterhin nutzen, Penwright spaeter wieder oeffnen — die Reihenfolge ist egal.
@@ -999,7 +994,7 @@ Sollte Penwright einmal abstuerzen, schreibt die App lokal einen Bericht im Klar
 - Deine letzten Aktionen (Bearbeitungs-Schritte, keine Inhalte)
 - App-, OS- und Versions-Informationen
 
-Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du entscheidest selbst, was passiert: **In Zwischenablage kopieren**, **E-Mail vorbereiten** (oeffnet deinen Mail-Client mit `feedback@penwright.app` vorausgefuellt), **Ordner oeffnen** (zeigt alle gespeicherten Berichte im Finder) oder **Verwerfen** (loescht sie).
+Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du entscheidest selbst, was passiert: **In Zwischenablage kopieren**, **E-Mail vorbereiten** (oeffnet deinen Mail-Client mit `feedback@penwright.online` vorausgefuellt), **Ordner oeffnen** (zeigt alle gespeicherten Berichte im Finder) oder **Verwerfen** (loescht sie).
 
 **Was Penwright NICHT tut:** Daten automatisch ins Internet senden. Es gibt keine externe Crash-Telemetrie, keinen Account-Login, keinen Server der mitliest. Berichte bleiben auf deinem Rechner, bis du sie aktiv weitergibst.
 
@@ -1011,16 +1006,16 @@ Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du 
 
 ## Updates
 
-Die App prueft bei jedem Start, ob eine neue Version verfuegbar ist (5 s nach Start, dann alle 4 Stunden). Wenn ja, erscheint ein nativer Dialog mit der Option, das Update herunterzuladen und beim naechsten Start zu installieren.
+Penwright aktualisiert sich **nicht** automatisch. Die installierte Version siehst du im About-Dialog.
 
-Manueller Check: About-Dialog oeffnen -> die Version dort entspricht der installierten Version. Aktuellste Version siehe [vswrite.com/download](https://vswrite.com) oder [releases.penwright.com](https://releases.penwright.com).
+Neue Versionen werden ueber den **Penwright-Newsletter** angekuendigt; die aktuelle Version laedst du von [penwright.online](https://penwright.online) und ersetzt deine installierte Kopie. Deine Projekte sind in sich abgeschlossen (alles liegt im Projektordner), ein App-Update fasst deine Arbeit also nie an.
 
 ---
 
 ## Hilfe & Support
 
-- **User Guide (dieses Handbuch):** [vswrite.netlify.app/de/docs](https://vswrite.netlify.app/de/docs) — oder im App-Menue unter **Help -> User Guide**
+- **User Guide (dieses Handbuch):** jederzeit im App-Menue unter **Help -> User Guide** — es ist in die App eingebaut, kein Internet noetig
 - **Bugs / Feature-Wuensche:** [github.com/renejes/vswrite-desktop/issues](https://github.com/renejes/vswrite-desktop/issues) — oder im App-Menue unter **Help -> Report Issue**
-- **Website:** [vswrite.com](https://vswrite.com)
+- **Website:** [penwright.online](https://penwright.online)
 
 Wenn du einen Bug meldest, hilft es sehr, im About-Dialog **"Copy Diagnostics"** zu klicken und den Output mit ins Issue zu packen — damit sieht man auf einen Blick Version, Plattform und Lizenz-Stufe.

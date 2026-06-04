@@ -31,6 +31,7 @@ export default defineConfig({
       alias: {
         '@shared': path.resolve(__dirname, 'src/shared'),
         '@editor': path.resolve(__dirname, 'src/editor'),
+        '@docs': path.resolve(__dirname, 'documentation'),
       },
     },
     server: {
