@@ -877,7 +877,7 @@ Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.vswr
 - `vswrite_apply_layout` — Tauscht nur `layout.*` (+ optional `scale.base`) — Theme, Farben, Fonts bleiben.
 - `vswrite_list_fonts` — Liefert die sieben gebuendelten OFL-Fonts mit family / category / description.
 - `vswrite_apply_palette` — Setzt die 5-Farb-Palette via `presetId` oder per-Slot-Hex-Overrides (kombinierbar).
-- `vswrite_list_design_elements` — Library der **19** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover.
+- `vswrite_list_design_elements` — Library der **22** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note.
 - `vswrite_insert_design_element` — Fuegt ein Element an einem Anker ein; Snippets referenzieren `style-colors.*` / `style-fonts.*` und re-themen automatisch.
 - `vswrite_generate_layout` — Hoch-Level-NL-Komposit: `intent: "magazine"` waehlt z.B. Editorial-Theme + Magazine-Editorial-Layout + optionalen Hero.
 - `vswrite_list_section_styles` — Per-Chapter-"Rubriken": die fuenf Presets (feature / interview / essay / photo-essay / department), die definierten Varianten + welche Kapitel welche nutzen.

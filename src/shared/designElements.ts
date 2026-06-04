@@ -36,7 +36,10 @@ export type DesignElementId =
   | 'image-overlay'
   | 'stats-box'
   | 'photo-caption-wrap'
-  | 'magazine-cover';
+  | 'magazine-cover'
+  | 'full-bleed-image'
+  | 'spread-opener'
+  | 'margin-note';
 
 export interface DesignElementParam {
   /** Field name in the params object the caller passes. */
@@ -512,6 +515,52 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
 )[{body}]
 `.trim(),
   },
+  {
+    id: 'full-bleed-image',
+    name: 'Full-Bleed Image',
+    description: 'A single image filling an entire page edge-to-edge (zero margins), with an optional caption + credit over a soft gradient at the bottom. Use as a dramatic full-page visual break between articles. Sets `#page(margin: 0pt)` for this page only — the rest of the document keeps its margins. The image fills via the page `background`, so it covers regardless of its native size.',
+    params: [
+      { name: 'image', description: 'Relative path to the image (e.g. "../assets/spread.jpg").', required: true, defaultValue: 'assets/photo.jpg' },
+      { name: 'caption', description: 'Optional caption shown in white over a bottom gradient. Empty = no caption bar.', required: false, defaultValue: '' },
+      { name: 'credit', description: 'Optional photographer credit, appended in italics after the caption.', required: false, defaultValue: '' },
+    ],
+    template: `
+#page(margin: 0pt, background: image("{image}", width: 100%, height: 100%, fit: "cover"))[
+  {caption-block}
+]
+#pagebreak(weak: true)
+`.trim(),
+  },
+  {
+    id: 'spread-opener',
+    name: 'Spread Opener',
+    description: 'A dramatic full-page article opener: a full-bleed image with the kicker, a large white headline, standfirst and byline set over a dark gradient at the bottom. The headline is a level-1 heading so it appears in the outline — so do NOT pair it with a separate H1 / article-opener for the same article. Use to open a major feature on its own page. Place at the very top of the article chapter.',
+    params: [
+      { name: 'image', description: 'Relative path to the full-bleed background image.', required: true, defaultValue: 'assets/hero.jpg' },
+      { name: 'kicker', description: 'Small uppercase category label above the headline. Empty = none.', required: false, defaultValue: '' },
+      { name: 'headline', description: 'The article title — large white display, AND becomes the article H1 (so it shows in the outline).', required: true, defaultValue: 'Headline' },
+      { name: 'standfirst', description: 'Lead paragraph in italics. Empty = none.', required: false, defaultValue: '' },
+      { name: 'byline', description: 'Author / photographer credit. Empty = none.', required: false, defaultValue: '' },
+    ],
+    template: `
+#page(margin: 0pt, background: image("{image}", width: 100%, height: 100%, fit: "cover"))[
+  #place(bottom + left, block(width: 100%, inset: (x: 2.5cm, bottom: 2.5cm, top: 6cm), fill: gradient.linear(angle: 90deg, rgb(0, 0, 0, 0), rgb(0, 0, 0, 190)))[
+    {kicker-block}#heading(level: 1, outlined: true, numbering: none)[#text(fill: white, size: 30pt, weight: "bold", font: style-fonts.heading)[{headline}]]{standfirst-block}{byline-block}
+  ])
+]
+#pagebreak(weak: true)
+`.trim(),
+  },
+  {
+    id: 'margin-note',
+    name: 'Margin Note',
+    description: 'A small side-note in the page margin (marginalia), attached inline at the point of insertion via the bundled `drafting` package. Use for asides, definitions, dates or pointers without interrupting the body flow. Best in a single-column layout with a reasonably wide outer margin. Requires the chapter to import drafting once: `#import "@preview/drafting:0.2.2": margin-note`.',
+    params: [
+      { name: 'note', description: 'The note text (short — a sentence or two). Plain text or Typst markup.', required: true, defaultValue: 'A short aside in the margin.' },
+      { name: 'side', description: 'Which margin: "right" (default) or "left".', required: false, defaultValue: 'right' },
+    ],
+    template: `#margin-note(stroke: none, side: {side})[#text(size: 0.78em, fill: style-colors.muted, font: style-fonts.body)[#line(length: 0.7cm, stroke: 0.6pt + style-colors.accent) #v(0.25em) {note}]]`,
+  },
 ];
 
 /** Get a single element by id. */
@@ -649,6 +698,25 @@ export function renderDesignElement(
         ? `\n    #v(0.5em)\n    #text(size: 1.3em, style: "italic", fill: style-colors.text)[${values.subhead}]`
         : '',
     },
+    'full-bleed-image': {
+      'caption-block': values.caption
+        ? `#place(bottom + left, block(width: 100%, inset: (x: 2cm, bottom: 1.4cm, top: 3cm), fill: gradient.linear(angle: 90deg, rgb(0, 0, 0, 0), rgb(0, 0, 0, 160)))[
+    #text(fill: white, size: 1.05em, font: style-fonts.body)[${values.caption}${values.credit ? ` #text(style: "italic", fill: white.transparentize(30%))[— ${values.credit}]` : ''}]
+  ])`
+        : '',
+    },
+    'spread-opener': {
+      'kicker-block': values.kicker
+        ? `#text(size: 0.85em, weight: "bold", tracking: 0.2em, fill: white.transparentize(15%))[${values.kicker}]\n    #v(0.6em)\n    `
+        : '',
+      'standfirst-block': values.standfirst
+        ? `\n    #v(0.5em)\n    #text(size: 1.15em, style: "italic", fill: white.transparentize(10%))[${values.standfirst}]`
+        : '',
+      'byline-block': values.byline
+        ? `\n    #v(0.8em)\n    #text(size: 0.85em, fill: white.transparentize(35%))[${values.byline}]`
+        : '',
+    },
+    'margin-note': {},
   };
 
   // Substitute conditional blocks first (some contain {placeholder}-style

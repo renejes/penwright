@@ -155,7 +155,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **Projekt & Dateien (5):** set_project, list_files, read_file, write_file, create_project
 - [x] **Dokument-Operationen (4):** get_document, open_file, update_document, **compile** (reiner Verifier — SVG-Mode entfernt, kein Output-Path; Artefakt-Schreiben uebernehmen die Export-Tools)
 - [x] **Settings (2):** get_settings, update_settings (nur lang + bibliographyStyle — alles andere lebt seit Phase A im Design-Block)
-- [x] **Design (15):** get_style, update_style, list_styles (6 Themes), apply_style, list_layouts (7 Presets), apply_layout, list_fonts, apply_palette, list_design_elements (19 Snippets), insert_design_element, generate_layout, **+ Section Styles (Phase E): list_section_styles / define_section_style / apply_section_style / clear_section_style** (per-Chapter Magazin-Rubriken via scoped `#show`)
+- [x] **Design (15):** get_style, update_style, list_styles (6 Themes), apply_style, list_layouts (7 Presets), apply_layout, list_fonts, apply_palette, list_design_elements (22 Snippets), insert_design_element, generate_layout, **+ Section Styles (Phase E): list_section_styles / define_section_style / apply_section_style / clear_section_style** (per-Chapter Magazin-Rubriken via scoped `#show`)
 - [x] **Kapitel & Struktur (6):** get_chapters, reorder_chapters, add_chapter, remove_chapter, merge_document, split_document
 - [x] **Bibliographie & Citations (3):** get_citations, add_citation, ensure_bibliography
 - [x] **Cross-References & Footnotes (3):** list_labels (gefiltert nach Typ), insert_reference (Label-Existenz-Check + Vorschlaege fuer aehnliche Labels, Auto-Space wenn vorheriger Char alphanumerisch), add_footnote (Klammer-Balance-Check auf Body)
@@ -297,6 +297,8 @@ Magazine wie „Neues Lernen" nutzen pro Rubrik (Feature / Interview / Essay / D
 **Step 4 — Preservation + Skill + Doku:** MCP `apply_style` / `generate_layout` erhalten `style.sections` (wie `custom.preamble`). DESIGN_SKILL „Per-chapter rubrics"-Block. Doku (mcp-server.md / Handbuecher / dieser Eintrag).
 
 **Verifikation:** define→apply→swap→clear end-to-end ueber die geteilten Helfer; injizierter Block ueberlebt den Editor-Round-Trip als Fixpunkt; deployment-genaues `#include`-Szenario kompiliert; tsc clean, svelte-check 0 errors, electron-vite + MCP-Builds gruen.
+
+**Round 6 — 3 Magazin-Bausteine + Dogfooding:** Drei neue Design-Elemente (Library 19 → **22**): `full-bleed-image` (randlose Ganzseite + optionale Caption/Credit), `spread-opener` (full-bleed Opener mit Kicker/Headline-im-Outline/Standfirst/Byline ueber Gradient), `margin-note` (Marginalia im Aussenrand via gebundeltem `drafting`-Paket, self-contained mit `stroke: none`). Dabei `magazine-cover`-Bug gefixt (Hintergrundbild war via `#place(width:100%)` nicht full-bleed → jetzt Page-`background:`). Als Dogfooding-Test ein komplettes 13-Seiten-Magazin **„LANGSAM"** gebaut (4 Rubriken + ~22 Features), das alle neuen Tools end-to-end ueber die echten Code-Pfade nutzt.
 
 ### Session 25 (2026-06-04) — DOCX-Overhaul (journal-submission-tauglich)
 
