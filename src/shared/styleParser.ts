@@ -501,3 +501,69 @@ export function ensureStyleInclude(rootFileContents: string): string {
   const suffix = after.length > 0 && after[0] !== '' ? ['', ...after] : after;
   return [...prefix, STYLE_IMPORT_LINE, STYLE_APPLY_LINE, ...suffix].join('\n');
 }
+
+// ─── Per-chapter section-style opt-in (Phase E) ──────────────
+//
+// A chapter opts into a section style with two lines, bracketed by markers so
+// we can swap / remove them idempotently:
+//   // vswrite:section-style
+//   #import "../style.typ": feature-style
+//   #show: feature-style
+//   // vswrite:section-style-end
+// The block is a comment-led raw block, so it round-trips verbatim through the
+// editor and is skipped by the DOCX export.
+
+export const SECTION_BLOCK_START = '// vswrite:section-style';
+export const SECTION_BLOCK_END = '// vswrite:section-style-end';
+
+/** Returns the section-style id a chapter currently opts into, or null. */
+export function getSectionStyleId(chapterSource: string): string | null {
+  const m = chapterSource.match(/#show:\s*([a-z][a-z0-9-]*)-style\b/);
+  if (m && m[1] !== 'apply') return m[1];
+  return null;
+}
+
+/** Removes a previously-injected section-style block (idempotent). */
+export function clearSectionStyle(chapterSource: string): string {
+  const lines = chapterSource.split('\n');
+  const start = lines.findIndex((l) => l.trim() === SECTION_BLOCK_START);
+  if (start === -1) return chapterSource;
+  let end = -1;
+  for (let i = start; i < lines.length; i++) {
+    if (lines[i].trim() === SECTION_BLOCK_END) { end = i; break; }
+  }
+  if (end === -1) return chapterSource;
+  const before = lines.slice(0, start);
+  let after = lines.slice(end + 1);
+  while (after.length && after[0].trim() === '') after = after.slice(1);
+  while (before.length && before[before.length - 1].trim() === '') before.pop();
+  return [...before, ...(before.length && after.length ? [''] : []), ...after].join('\n');
+}
+
+/**
+ * Injects (or swaps) the section-style opt-in at the top of a chapter file.
+ * `importPath` is the chapter-relative path to style.typ (e.g. "../style.typ").
+ * Placed after the chapter's leading comment / import / set / show preamble,
+ * before the first content line. Idempotent — re-applying swaps the variant.
+ */
+export function ensureSectionStyle(chapterSource: string, styleId: string, importPath: string): string {
+  const cleared = clearSectionStyle(chapterSource);
+  const lines = cleared.split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const t = lines[i].trim();
+    if (t === '' || t.startsWith('//') || t.startsWith('#import ') || t.startsWith('#set ') || t.startsWith('#show ')) { i++; continue; }
+    break;
+  }
+  const block = [
+    SECTION_BLOCK_START,
+    `#import "${importPath}": ${styleId}-style`,
+    `#show: ${styleId}-style`,
+    SECTION_BLOCK_END,
+  ];
+  const before = lines.slice(0, i);
+  const after = lines.slice(i);
+  const lead = before.length && before[before.length - 1].trim() !== '' ? [''] : [];
+  const trail = after.length && after[0].trim() !== '' ? [''] : [];
+  return [...before, ...lead, ...block, ...trail, ...after].join('\n');
+}

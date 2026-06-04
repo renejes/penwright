@@ -30,12 +30,17 @@ import {
   COLOR_SLOTS,
   type ProjectStyle,
   type StyleColors,
+  type SectionStyle,
 } from '../shared/styleTypes.js';
 import {
   generateStyleTypst,
   ensureStyleInclude,
   extractCustomBlock,
+  ensureSectionStyle,
+  clearSectionStyle,
+  getSectionStyleId,
 } from '../shared/styleParser.js';
+import { SECTION_PRESETS, getSectionPreset } from '../shared/sectionPresets.js';
 import { THEME_PRESETS } from '../shared/themePresets.js';
 import { LAYOUT_PRESETS } from '../shared/layoutPresets.js';
 import { PALETTE_PRESETS } from '../shared/palettePresets.js';
@@ -1165,6 +1170,162 @@ server.tool(
         }, null, 2),
       }],
     };
+  },
+);
+
+// ─── Section styles (Phase E — per-chapter magazine design) ──
+
+function blankSection(id: string): SectionStyle {
+  return { id, name: id, colors: {}, fonts: {}, scaleBase: '', scaleLeading: '', columns: 0, headings: {} };
+}
+
+/** Recursively lists `.typ` files in the project (skips .git / .vswrite). */
+function walkTypFiles(dir: string, out: string[] = []): string[] {
+  let entries: fs.Dirent[] = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const e of entries) {
+    if (e.name.startsWith('.git') || e.name === '.vswrite' || e.name === 'node_modules') continue;
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) walkTypFiles(full, out);
+    else if (e.name.endsWith('.typ')) out.push(full);
+  }
+  return out;
+}
+
+// ─── Tool: vswrite_list_section_styles ───────────────
+
+server.tool(
+  'vswrite_list_section_styles',
+  'List per-chapter "section styles" (magazine rubrics). Returns the built-in presets, the variants already defined in this project, and which chapters currently use which variant. A section style restyles one chapter (accent / fonts / columns / headings) via a scoped #show — page geometry stays document-level.',
+  {},
+  async () => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const style = readProjectStyle(state.projectDir);
+    const presets = SECTION_PRESETS.map(p => ({ id: p.id, name: p.name, description: p.description }));
+    const defined = style.sections.map(s => ({
+      id: s.id, name: s.name, accent: s.colors.accent ?? null, columns: s.columns || null,
+    }));
+    const assignments: { file: string; styleId: string }[] = [];
+    for (const f of walkTypFiles(state.projectDir)) {
+      try {
+        const id = getSectionStyleId(fs.readFileSync(f, 'utf-8'));
+        if (id) assignments.push({ file: path.relative(state.projectDir, f), styleId: id });
+      } catch { /* ignore unreadable */ }
+    }
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ presets, defined, assignments }, null, 2) }] };
+  },
+);
+
+// ─── Tool: vswrite_define_section_style ──────────────
+
+server.tool(
+  'vswrite_define_section_style',
+  'Create or update a section style (a per-chapter design overlay). Start from a preset via fromPreset and/or pass explicit overrides; writes style.json + regenerates style.typ so the chapter opt-in resolves. Assign it afterwards with vswrite_apply_section_style.',
+  {
+    id: z.string().describe('Slug id (lowercase letters / digits / hyphens) — also the Typst function name, e.g. "feature".'),
+    name: z.string().optional().describe('Display name. Defaults to the id.'),
+    fromPreset: z.string().optional().describe('Built-in preset to start from: feature / interview / essay / photo-essay / department. Overrides below merge on top.'),
+    accent: z.string().optional().describe('Accent colour hex, e.g. "#c2410c".'),
+    primary: z.string().optional().describe('Primary colour hex.'),
+    bodyFont: z.string().optional().describe('Body font family (one of the 7 bundled OFL fonts).'),
+    headingFont: z.string().optional().describe('Heading font family.'),
+    baseSize: z.string().optional().describe('Body size override e.g. "10pt"; "" = inherit.'),
+    leading: z.string().optional().describe('Leading override e.g. "0.8em"; "" = inherit.'),
+    columns: z.number().optional().describe('Column count 1–3; 0 = inherit. Changing columns starts a new page.'),
+    h1Size: z.string().optional().describe('H1 size override, e.g. "34pt".'),
+    h1Weight: z.string().optional().describe('H1 weight, e.g. "bold".'),
+    h1Color: z.string().optional().describe('H1 colour slot: primary / accent / text / background / muted.'),
+  },
+  async (a) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const base: SectionStyle = (a.fromPreset ? getSectionPreset(a.fromPreset) : null) ?? blankSection(a.id);
+    base.id = a.id;
+    base.name = a.name ?? (base.name && base.name !== base.id ? base.name : a.id);
+    if (a.accent) base.colors = { ...base.colors, accent: a.accent };
+    if (a.primary) base.colors = { ...base.colors, primary: a.primary };
+    if (a.bodyFont) base.fonts = { ...base.fonts, body: a.bodyFont };
+    if (a.headingFont) base.fonts = { ...base.fonts, heading: a.headingFont };
+    if (a.baseSize !== undefined) base.scaleBase = a.baseSize;
+    if (a.leading !== undefined) base.scaleLeading = a.leading;
+    if (a.columns !== undefined) base.columns = a.columns;
+    if (a.h1Size || a.h1Weight || a.h1Color) {
+      base.headings = {
+        ...base.headings,
+        h1: {
+          ...(base.headings.h1 ?? {}),
+          ...(a.h1Size ? { size: a.h1Size } : {}),
+          ...(a.h1Weight ? { weight: a.h1Weight } : {}),
+          ...(a.h1Color ? { color: a.h1Color as keyof StyleColors } : {}),
+        },
+      };
+    }
+    const style = readProjectStyle(state.projectDir);
+    const sections = style.sections.filter(s => s.id !== a.id);
+    sections.push(base);
+    const written = writeProjectStyleAndRegenerate(state.projectDir, { ...style, sections });
+    const saved = written.sections.find(s => s.id === a.id);
+    if (!saved) {
+      return { content: [{ type: 'text' as const, text: `Error: section id "${a.id}" was rejected by the sanitizer (must be lowercase letters/digits/hyphens, starting with a letter).` }], isError: true };
+    }
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ defined: saved, note: `Assign it with vswrite_apply_section_style({ file, styleId: "${saved.id}" }).` }, null, 2) }] };
+  },
+);
+
+// ─── Tool: vswrite_apply_section_style ───────────────
+
+server.tool(
+  'vswrite_apply_section_style',
+  'Assign a section style to a chapter file (injects the scoped #show opt-in at the top). If styleId is a built-in preset not yet defined here, it is auto-defined first. Run vswrite_compile afterwards.',
+  {
+    file: z.string().describe('Chapter file, project-relative, e.g. "chapters/03-feature.typ".'),
+    styleId: z.string().describe('Section style id — a defined variant or a built-in preset (feature / interview / essay / photo-essay / department).'),
+  },
+  async ({ file, styleId }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const chapterAbs = resolveInsideProject(file);
+    if (!fs.existsSync(chapterAbs)) {
+      return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
+    }
+    let style = readProjectStyle(state.projectDir);
+    if (!style.sections.some(s => s.id === styleId)) {
+      const preset = getSectionPreset(styleId);
+      if (!preset) {
+        return { content: [{ type: 'text' as const, text: `Error: Unknown section style "${styleId}". Define it with vswrite_define_section_style, or use a preset: ${SECTION_PRESETS.map(p => p.id).join(', ')}.` }], isError: true };
+      }
+      style = writeProjectStyleAndRegenerate(state.projectDir, { ...style, sections: [...style.sections, preset] });
+    }
+    const rootDir = path.dirname(findRootFile(chapterAbs));
+    const importPath = path.relative(path.dirname(chapterAbs), path.join(rootDir, 'style.typ')).split(path.sep).join('/');
+    const src = fs.readFileSync(chapterAbs, 'utf-8');
+    fs.writeFileSync(chapterAbs, ensureSectionStyle(src, styleId, importPath), 'utf-8');
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, styleId, importPath, note: 'Run vswrite_compile to verify.' }, null, 2) }] };
+  },
+);
+
+// ─── Tool: vswrite_clear_section_style ───────────────
+
+server.tool(
+  'vswrite_clear_section_style',
+  'Remove the section-style opt-in from a chapter file (reverts it to the document default look). The variant stays defined in style.json for reuse.',
+  { file: z.string().describe('Chapter file, project-relative.') },
+  async ({ file }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use vswrite_set_project first.' }], isError: true };
+    }
+    const chapterAbs = resolveInsideProject(file);
+    if (!fs.existsSync(chapterAbs)) {
+      return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
+    }
+    const src = fs.readFileSync(chapterAbs, 'utf-8');
+    const had = getSectionStyleId(src);
+    fs.writeFileSync(chapterAbs, clearSectionStyle(src), 'utf-8');
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, cleared: had ?? null }, null, 2) }] };
   },
 );
 

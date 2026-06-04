@@ -28,7 +28,7 @@ import { getTypstPackagePath, getTypstFontPath } from './typstPath';
  * setup version in electron-store is compared against this; mismatch =>
  * the wizard prompts again so updates re-install the binary.
  */
-export const MCP_SETUP_VERSION = '0.7.1';
+export const MCP_SETUP_VERSION = '0.8.0';
 
 /** Key used in Claude Desktop's `mcpServers` map. */
 const MCP_SERVER_KEY = 'vswrite';
