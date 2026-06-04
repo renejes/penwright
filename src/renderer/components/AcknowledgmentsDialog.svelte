@@ -2,7 +2,7 @@
   /**
    * Acknowledgments Dialog — surfaces all bundled third-party Typst
    * packages with their license texts, so users can verify what's
-   * shipped with vswrite and so we satisfy the attribution clauses
+   * shipped with Penwright and so we satisfy the attribution clauses
    * of MIT / Apache / LGPL / Unlicense.
    *
    * Data source: `resources/typst-packages/bundle-licenses.json`,
@@ -95,7 +95,7 @@
       <div>
         <h2 id="ack-title">Open Source Lizenzen</h2>
         <p class="subtitle">
-          vswrite enthält die folgenden Typst-Pakete, jeweils unter ihrer eigenen Lizenz. Die vollständigen Lizenz-Texte siehst du beim Aufklappen.
+          Penwright enthält die folgenden Typst-Pakete, jeweils unter ihrer eigenen Lizenz. Die vollständigen Lizenz-Texte siehst du beim Aufklappen.
         </p>
       </div>
       <button class="close-btn" onclick={onClose} aria-label="Schliessen">×</button>

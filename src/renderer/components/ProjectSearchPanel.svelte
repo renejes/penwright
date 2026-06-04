@@ -130,11 +130,11 @@
       // event that the SearchReplace overlay (if open) or a future jumper
       // can pick up. For now, we re-open the in-editor SearchReplace by
       // setting the global state via a custom event.
-      window.dispatchEvent(new CustomEvent('vswrite:project-search-jump', {
+      window.dispatchEvent(new CustomEvent('penwright:project-search-jump', {
         detail: { filePath: file.filePath, line: match.line, col: match.col, matchText: match.matchText, opened },
       }));
     } catch (err) {
-      console.warn('[vswrite] Could not open file from search result:', err);
+      console.warn('[penwright] Could not open file from search result:', err);
     }
   }
 

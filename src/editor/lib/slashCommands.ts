@@ -140,7 +140,7 @@ const COMMANDS: SlashItem[] = [
     icon: '↳',
     command: () => {
       // Picker is owned by App.svelte; we just open it via a window event.
-      window.dispatchEvent(new CustomEvent('vswrite:open-reference-picker'));
+      window.dispatchEvent(new CustomEvent('penwright:open-reference-picker'));
     },
   },
   {
@@ -149,7 +149,7 @@ const COMMANDS: SlashItem[] = [
     icon: '\uD83D\uDDBC',
     command: () => {
       // Trigger file picker via extension message
-      const vscodeApi = (window as unknown as { vswriteApi: { postMessage(msg: unknown): void } }).vswriteApi;
+      const vscodeApi = (window as unknown as { penwrightApi: { postMessage(msg: unknown): void } }).penwrightApi;
       if (vscodeApi) {
         vscodeApi.postMessage({ type: 'pickImage' });
       }

@@ -125,9 +125,9 @@ function sendImageToExtension(file: File) {
     const base64 = (reader.result as string).split(',')[1];
     const vscodeApi = (
       window as unknown as {
-        vswriteApi: { postMessage(msg: unknown): void };
+        penwrightApi: { postMessage(msg: unknown): void };
       }
-    ).vswriteApi;
+    ).penwrightApi;
     if (vscodeApi) {
       vscodeApi.postMessage({
         type: 'dropImage',
@@ -142,9 +142,9 @@ function sendImageToExtension(file: File) {
 function sendImagePathToExtension(uri: string) {
   const vscodeApi = (
     window as unknown as {
-      vswriteApi: { postMessage(msg: unknown): void };
+      penwrightApi: { postMessage(msg: unknown): void };
     }
-  ).vswriteApi;
+  ).penwrightApi;
   if (vscodeApi) {
     vscodeApi.postMessage({
       type: 'dropImagePath',
@@ -154,7 +154,7 @@ function sendImagePathToExtension(uri: string) {
 }
 
 /**
- * Creates a TipTap editor instance with the vswrite schema.
+ * Creates a TipTap editor instance with the Penwright schema.
  * Includes StarterKit, Link, SlashCommands, and the custom typstRawBlock node.
  */
 export function createEditor(

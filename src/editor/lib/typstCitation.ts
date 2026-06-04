@@ -71,14 +71,14 @@ export const TypstCitation = Node.create({
         if (!citekey) return;
         e.preventDefault();
         e.stopPropagation();
-        window.dispatchEvent(new CustomEvent('vswrite:find-backlinks', {
+        window.dispatchEvent(new CustomEvent('penwright:find-backlinks', {
           detail: { query: `@${citekey}`, wholeWord: true, caseSensitive: true },
         }));
       });
 
       // Hover preview: 350 ms after entering a citation badge, dispatch a
-      // `vswrite:citation-hover` event. The App-level listener decides whether
-      // to mount the hover card. We also dispatch `vswrite:citation-leave`
+      // `penwright:citation-hover` event. The App-level listener decides whether
+      // to mount the hover card. We also dispatch `penwright:citation-leave`
       // so the card can begin its close-with-grace-period.
       let hoverTimer: number | null = null;
       dom.addEventListener('mouseenter', () => {
@@ -88,7 +88,7 @@ export const TypstCitation = Node.create({
         hoverTimer = window.setTimeout(() => {
           hoverTimer = null;
           const rect = dom.getBoundingClientRect();
-          window.dispatchEvent(new CustomEvent('vswrite:citation-hover', {
+          window.dispatchEvent(new CustomEvent('penwright:citation-hover', {
             detail: {
               citekey,
               rect: {
@@ -108,7 +108,7 @@ export const TypstCitation = Node.create({
           window.clearTimeout(hoverTimer);
           hoverTimer = null;
         }
-        window.dispatchEvent(new CustomEvent('vswrite:citation-leave'));
+        window.dispatchEvent(new CustomEvent('penwright:citation-leave'));
       });
 
       return {

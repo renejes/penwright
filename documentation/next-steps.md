@@ -1,14 +1,14 @@
-# vswrite Desktop — Next Steps bis zum Release
+# Penwright Desktop — Next Steps bis zum Release
 
 > Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-20 | App-Version: **0.7.0** (package.json + Doku synchron)
 >
-> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (56 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / vswrite / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (22 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets, 5 Section-Style-Rubriken), Per-Chapter Section Styles (Phase E), DOCX-Overhaul (journal-submission-tauglich), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
+> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (56 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / Penwright / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (22 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets, 5 Section-Style-Rubriken), Per-Chapter Section Styles (Phase E), DOCX-Overhaul (journal-submission-tauglich), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
 
 ---
 
 ## 0. Stand
 
-Die App ist inhaltlich release-ready fuer den akademischen Schreib-Use-Case. **Strategische Entscheidung 2026-05-16:** vswrite startet nicht nur als Akademik-Tool, sondern als Design-Tool fuer beliebige PDF-Outputs (Brochures, Magazines, Reports, CVs, Poster). Der Design-Editor + Typst-Package-Bundling sind inzwischen gebaut (Sessions 20–26, inkl. Per-Chapter Section Styles und journal-grade DOCX) — vswrite startet damit als breitest positioniertes Tool.
+Die App ist inhaltlich release-ready fuer den akademischen Schreib-Use-Case. **Strategische Entscheidung 2026-05-16:** Penwright startet nicht nur als Akademik-Tool, sondern als Design-Tool fuer beliebige PDF-Outputs (Brochures, Magazines, Reports, CVs, Poster). Der Design-Editor + Typst-Package-Bundling sind inzwischen gebaut (Sessions 20–26, inkl. Per-Chapter Section Styles und journal-grade DOCX) — Penwright startet damit als breitest positioniertes Tool.
 
 Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist primaer Distribution**):
 
@@ -68,11 +68,11 @@ Alle `dev`/`build`/`start` Scripts prefixen `unset ELECTRON_RUN_AS_NODE` — noe
 
 Bereits konfiguriert:
 
-- `appId: com.vswrite.desktop`, `productName: vswrite`
+- `appId: com.penwright.desktop`, `productName: Penwright`
 - macOS: `dmg`+`zip` Target, Hardened Runtime, Notarization ueber `electron-builder-notarize`, Identity `Developer ID Application: Rene Jesser (3LAHNFWNT3)`, Entitlements in `build/entitlements.mac.plist`
 - Windows: NSIS-Installer
 - Linux: AppImage + deb
-- Extra-Resources: Typst-Binary aus `resources/bin/` wird pro Platform gebundelt, plus `documentation/vswrite-logo.svg`
+- Extra-Resources: Typst-Binary aus `resources/bin/` wird pro Platform gebundelt, plus `documentation/penwright-logo.svg`
 
 Fuer den ersten Release fehlt noch der `"publish"`-Block — siehe 3.4.
 
@@ -83,11 +83,11 @@ Auslieferung ueber Firebase Hosting — globales CDN, kostenloses SSL, Deploy vi
 ```
 User besucht vswrite.com
   -> Klickt "Download"
-  -> Laedt DMG von https://<vswrite-projekt-id>.web.app/
+  -> Laedt DMG von https://<penwright-projekt-id>.web.app/
   -> Installiert App
 
 App prueft bei jedem Start (nach 5s, dann alle 4h):
-  -> Fragt https://<vswrite-projekt-id>.web.app/latest-mac.yml
+  -> Fragt https://<penwright-projekt-id>.web.app/latest-mac.yml
   -> Vergleicht mit eigener Version
   -> Falls neuer: nativer "Update verfuegbar" Dialog -> Download + Install
 ```
@@ -99,7 +99,7 @@ npm install -g firebase-tools
 firebase login
 
 firebase init hosting
-# - Use existing project: <vswrite-projekt-id>
+# - Use existing project: <penwright-projekt-id>
 # - Public directory: releases
 # - Configure as SPA: No
 # - GitHub Auto-Deploy: No
@@ -137,7 +137,7 @@ firebase init hosting
 `.firebaserc` (committen):
 
 ```json
-{ "projects": { "default": "<vswrite-projekt-id>" } }
+{ "projects": { "default": "<penwright-projekt-id>" } }
 ```
 
 `.gitignore` ergaenzen (Binaries nicht ins Repo, Manifest schon):
@@ -162,7 +162,7 @@ npm install electron-updater
 ```json
 "publish": {
   "provider": "generic",
-  "url": "https://<vswrite-projekt-id>.web.app"
+  "url": "https://<penwright-projekt-id>.web.app"
 }
 ```
 
@@ -199,15 +199,15 @@ export APPLE_TEAM_ID="3LAHNFWNT3"
 npm run build && npm run build:mcp && npm run package:mac
 
 # 3. Output liegt in release/
-#    vswrite-X.Y.Z.dmg              <- User-Download
-#    vswrite-X.Y.Z.dmg.blockmap     <- Differential-Update-Map
-#    vswrite-X.Y.Z-mac.zip          <- Update-Bundle fuer Auto-Updater
-#    vswrite-X.Y.Z-mac.zip.blockmap
+#    Penwright-X.Y.Z.dmg              <- User-Download
+#    Penwright-X.Y.Z.dmg.blockmap     <- Differential-Update-Map
+#    Penwright-X.Y.Z-mac.zip          <- Update-Bundle fuer Auto-Updater
+#    Penwright-X.Y.Z-mac.zip.blockmap
 #    latest-mac.yml                  <- Updater-Manifest (Version + URL + SHA512)
 
 # 4. Artefakte in releases/ kopieren + deployen
-cp release/vswrite-*.dmg \
-   release/vswrite-*-mac.zip \
+cp release/Penwright-*.dmg \
+   release/Penwright-*-mac.zip \
    release/*.blockmap \
    release/latest-mac.yml \
    releases/
@@ -215,8 +215,8 @@ cp release/vswrite-*.dmg \
 firebase deploy --only hosting
 
 # 5. Verifizieren
-curl -s https://<vswrite-projekt-id>.web.app/latest-mac.yml | head -5
-xcrun stapler validate release/vswrite-*.dmg
+curl -s https://<penwright-projekt-id>.web.app/latest-mac.yml | head -5
+xcrun stapler validate release/Penwright-*.dmg
 
 # 6. Git-Tag
 git add package.json releases/latest-mac.yml
@@ -228,15 +228,15 @@ git push && git push --tags
 ### 3.6 Windows & Linux
 
 ```bash
-npm run package:win        # release/vswrite-X.Y.Z-setup.exe + latest.yml
-npm run package:linux      # release/vswrite-X.Y.Z.AppImage + latest-linux.yml
+npm run package:win        # release/Penwright-X.Y.Z-setup.exe + latest.yml
+npm run package:linux      # release/Penwright-X.Y.Z.AppImage + latest-linux.yml
 ```
 
 Windows: Code-Signing optional — ohne Signing zeigt SmartScreen eine Warnung. Fuer signierte Builds EV-Zertifikat (~200 EUR/Jahr) konfigurieren.
 
 ### 3.7 Custom Domain (optional, spaeter)
 
-Firebase Console -> Hosting -> Add custom domain -> `releases.vswrite.com` -> DNS-Records beim Provider. Danach `build.publish.url` in package.json auf neue Domain umstellen. **Wichtig:** Bestehende User behalten den alten `*.web.app`-Endpoint im Updater bis zum naechsten Update — beide Endpoints parallel laufen lassen, bis genug migrierte Versionen draussen sind.
+Firebase Console -> Hosting -> Add custom domain -> `releases.penwright.com` -> DNS-Records beim Provider. Danach `build.publish.url` in package.json auf neue Domain umstellen. **Wichtig:** Bestehende User behalten den alten `*.web.app`-Endpoint im Updater bis zum naechsten Update — beide Endpoints parallel laufen lassen, bis genug migrierte Versionen draussen sind.
 
 ---
 
@@ -251,7 +251,7 @@ Die Handbuecher werden nach `vswrite.netlify.app` deployed:
 - Deutsch: `https://vswrite.netlify.app/de/docs`
 - Englisch: `https://vswrite.netlify.app/en/docs`
 
-**Sync-Strategie:** Netlify-Build liest direkt aus `documentation/handbuch.md` und `documentation/handbook.md` im Haupt-Repo (via Netlify-CMS oder `netlify.toml` Build-Command, das die Markdown-Dateien in die Statische-Site-Generierung einbindet). Alternativ ein Docs-Repo `vswrite-docs`, das diese Dateien per Submodule/Pull einzieht.
+**Sync-Strategie:** Netlify-Build liest direkt aus `documentation/handbuch.md` und `documentation/handbook.md` im Haupt-Repo (via Netlify-CMS oder `netlify.toml` Build-Command, das die Markdown-Dateien in die Statische-Site-Generierung einbindet). Alternativ ein Docs-Repo `Penwright-docs`, das diese Dateien per Submodule/Pull einzieht.
 
 Vorteil: eine Quelle, immer konsistent mit der App-Version die draussen ist.
 
@@ -303,13 +303,13 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [x] `scripts/fetch-typst-packages.mjs` + `scripts/audit-bundled-deps.mjs` — failed bei Deny-List-Hit
 - [x] Main-Process + MCP-Server: `--package-path` via `buildTypstCompileArgs()` und `TYPST_PACKAGE_PATH` env-Var (Wizard schreibt sie in Claude-Config)
 - [x] `AcknowledgmentsDialog.svelte` + Hook im About-Dialog
-- [x] TYPST_SKILL + VSWRITE_SKILL ergaenzt um Bundled-Packages-Sektion mit Code-Beispielen
+- [x] TYPST_SKILL + PENWRIGHT_SKILL ergaenzt um Bundled-Packages-Sektion mit Code-Beispielen
 - [ ] Bundle-Fonts (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Libertinus, Spectral — alle OFL) — kommt in Phase B des [Design-Editors](done/design-editor-plan.md)
 - [ ] **Einmalige Rechtsberatung** (DACH-Anwalt mit OSS-Erfahrung, ~30–60 min) — wegen cetz LGPL-3.0, vor dem ersten kommerziellen Release
 
 **Phase A — Style Variables (Datenmodell + Settings-Dialog-Erweiterung)** (Session 21, 2026-05-17 — abgeschlossen)
 
-- [x] `<project>/.vswrite/style.json` Schema-Implementierung in `persistenceManager.ts` (`getProjectStyle` / `saveProjectStyle` / `hasProjectStyle`)
+- [x] `<project>/.penwright/style.json` Schema-Implementierung in `persistenceManager.ts` (`getProjectStyle` / `saveProjectStyle` / `hasProjectStyle`)
 - [x] `src/shared/styleParser.ts` — JSON → Typst-Preamble Generator (`generateStyleTypst`), `ensureStyleInclude`, `detectStylePreambleConflicts` für Migrations-Warnung
 - [x] `SettingsPanel.svelte` Erweiterung: Tab-Bar (Style/Document), Color-Picker (5 semantische Slots: primary/accent/text/background/muted), Font-Dropdowns (body/heading/code), Scale-Inputs (base/leading), Layout-Picker (paper/margin/columns), Heading-Tuning (H1/H2 Size/Weight/Color-Slot/Margin-Top)
 - [x] Live-Preview-Pipeline: `style:save` IPC schreibt `style.typ` + sichert `#include "style.typ"` im Root-File + ruft Compiler — kein zusätzliches Debounce nötig, weil Apply-Klick der Trigger ist
@@ -319,10 +319,10 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 - [x] Sidebar-Tab "Design" angelegt (DesignPanel.svelte), `panelState.sidebarTab` Union erweitert
 - [x] Color-Palette-Tool: 5 Slots mit @melloware/coloris-Picker, 8 kuratierte Presets, debouncedem `style:save`
-- [x] Font-Browser: 7 OFL-Schriften gebündelt (Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro, Spectral), Cards mit Live-Preview via `vswrite-font://` Protokoll + @font-face, Buttons zum Mapping auf Body/Heading/Code
+- [x] Font-Browser: 7 OFL-Schriften gebündelt (Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro, Spectral), Cards mit Live-Preview via `penwright-font://` Protokoll + @font-face, Buttons zum Mapping auf Body/Heading/Code
 - [x] Bundling-Pipeline: `scripts/fetch-typst-fonts.mjs`, `scripts/audit-bundled-deps.mjs` erweitert um Font-OFL-Check, `--font-path` in `buildTypstCompileArgs()` und MCP-Server `typstCompileArgs()`, `TYPST_FONT_PATH` Env-Var via Setup-Wizard, `AcknowledgmentsDialog.svelte` zeigt Fonts neben Packages
 - [x] Schema-Erweiterung: `custom.preamble` Escape-Hatch (CodeMirror-Editor im Design-Panel) + Round-Trip via `extractCustomBlock()`. Layout (Numbering / Header / Footer / Fill), Scale (paragraphSpacing / firstLineIndent), Headings.numbering ins style.json migriert. DesignPanel um Scale / Layout / Headings Sections erweitert
-- [x] Konsolidierung: Document Settings auf `lang` + `bibliographyStyle` reduziert (Style-Tab raus), QuickSettings schreibt jetzt in style.json, Konflikt-Banner entfernt, Legacy "Style Templates"-Submenu aus dem Menü gezogen (MCP-Tools `vswrite_list_styles` / `vswrite_apply_style` bleiben als Legacy-Path bis das neue Theme-Format steht)
+- [x] Konsolidierung: Document Settings auf `lang` + `bibliographyStyle` reduziert (Style-Tab raus), QuickSettings schreibt jetzt in style.json, Konflikt-Banner entfernt, Legacy "Style Templates"-Submenu aus dem Menü gezogen (MCP-Tools `penwright_list_styles` / `penwright_apply_style` bleiben als Legacy-Path bis das neue Theme-Format steht)
 
 **Phase B Round 2 (Session 22 — komplett)**
 - [x] Heading-Style-Designer mit H1–H6 + collapsible Cards mit Live-Preview-Lines
@@ -332,13 +332,13 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 **Phase C — Design-MCP-Tools** (Session 22 — komplett)
 
-- [x] `vswrite_get_style` / `vswrite_update_style` (deep-merge mit Sanitizer)
-- [x] `vswrite_list_fonts` (gebündelte OFL-Fonts mit family / category / description)
-- [x] `vswrite_apply_palette` (presetId ODER per-slot hex overrides, kombinierbar)
-- [x] `vswrite_list_layouts` / `vswrite_apply_layout` — Layout-Swaps via MCP
-- [x] `vswrite_apply_style` migriert auf THEME_PRESETS
-- [x] `vswrite_list_design_elements` / `vswrite_insert_design_element` mit Library (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider) — Anchor-basiert wie `add_image`
-- [x] `vswrite_generate_layout` (NL-Intent → Theme + Layout + optionaler Hero)
+- [x] `penwright_get_style` / `penwright_update_style` (deep-merge mit Sanitizer)
+- [x] `penwright_list_fonts` (gebündelte OFL-Fonts mit family / category / description)
+- [x] `penwright_apply_palette` (presetId ODER per-slot hex overrides, kombinierbar)
+- [x] `penwright_list_layouts` / `penwright_apply_layout` — Layout-Swaps via MCP
+- [x] `penwright_apply_style` migriert auf THEME_PRESETS
+- [x] `penwright_list_design_elements` / `penwright_insert_design_element` mit Library (Banner / Sidebar / Pull-Quote / Callout / Hero / Divider) — Anchor-basiert wie `add_image`
+- [x] `penwright_generate_layout` (NL-Intent → Theme + Layout + optionaler Hero)
 - [x] Design-Element-Library in `src/shared/designElements.ts`
 - [x] MCP_SETUP_VERSION bumped 0.5.0 → 0.6.0
 
@@ -387,10 +387,10 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] `electron-updater` installieren + in `src/main/index.ts` einbinden
 - [ ] `publish`-Config in `package.json` hinzufuegen
 - [ ] Handbuch-Hosting auf Netlify eingerichtet (de/en)
-- [x] „Open Sample Project"-Logik im StartScreen — Sample lebt unter `resources/sample-project/`, wird via `extraResources` mitgebundelt; `project:openSample` IPC kopiert nach `~/Documents/vswrite-sample-thesis` (mit Suffix-Counter falls vorhanden), `git init` + initialer Version, oeffnet als Projekt
+- [x] „Open Sample Project"-Logik im StartScreen — Sample lebt unter `resources/sample-project/`, wird via `extraResources` mitgebundelt; `project:openSample` IPC kopiert nach `~/Documents/penwright-sample-thesis` (mit Suffix-Counter falls vorhanden), `git init` + initialer Version, oeffnet als Projekt
 - [x] MCP-Binary-Build in den Package-Workflow eingebaut — `package:mac` ruft jetzt `build:mcp-binary:all` (beide Mac-Archs) vorab; `afterPack`-Hook re-signed die Binary mit JIT-Entitlements aus `build/entitlements.mac.mcp.plist`
-- [ ] **macOS DMG bauen, signieren, notarisieren** — wichtigster offener Punkt. Identity (`Developer ID Application: Rene Jesser`) + Notarize-Plugin (`electron-builder-notarize`) sind in `package.json` verkabelt; bisher nie real durchlaufen. Bekannte Stolperkanten: Hardened-Runtime fuer das gebundlete `typst-*`-Binary, JIT-Entitlements fuer das Bun-compiled `vswrite-mcp-<arch>` (via `afterPack-sign-mcp.mjs`), Notarize-Wartezeiten von Apple
-- [ ] Auto-Discover-Wizard auf notarisiertem DMG E2E testen — `mcp:setup` muss aus `Contents/Resources/mcp/bin/` korrekt nach `~/Library/Application Support/vswrite/mcp-server/` kopieren und chmod+x setzen, Claude Desktop muss die kopierte signierte Binary spawnen koennen
+- [ ] **macOS DMG bauen, signieren, notarisieren** — wichtigster offener Punkt. Identity (`Developer ID Application: Rene Jesser`) + Notarize-Plugin (`electron-builder-notarize`) sind in `package.json` verkabelt; bisher nie real durchlaufen. Bekannte Stolperkanten: Hardened-Runtime fuer das gebundlete `typst-*`-Binary, JIT-Entitlements fuer das Bun-compiled `penwright-mcp-<arch>` (via `afterPack-sign-mcp.mjs`), Notarize-Wartezeiten von Apple
+- [ ] Auto-Discover-Wizard auf notarisiertem DMG E2E testen — `mcp:setup` muss aus `Contents/Resources/mcp/bin/` korrekt nach `~/Library/Application Support/Penwright/mcp-server/` kopieren und chmod+x setzen, Claude Desktop muss die kopierte signierte Binary spawnen koennen
 - [ ] Artefakte deployen
 - [ ] Download-Link auf vswrite.com einbinden
 - [ ] Auto-Updater End-to-End testen (alte Version installieren -> Update)
@@ -403,7 +403,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Multi-File-Projekte, Includes, Zitationen
 - [ ] File-Locking, externe Edits, Crash Recovery
 - [ ] Undo AI Edit (Terminal-Edit -> Undo)
-- [ ] **Crash-Reporting E2E:** kuenstlichen Crash provozieren (`throw new Error('test')` in Renderer + Main), Boot-Dialog erscheint mit korrektem Inhalt, Mail-Vorbereitung oeffnet `feedback@vswrite.com` mit Body
+- [ ] **Crash-Reporting E2E:** kuenstlichen Crash provozieren (`throw new Error('test')` in Renderer + Main), Boot-Dialog erscheint mit korrektem Inhalt, Mail-Vorbereitung oeffnet `feedback@penwright.app` mit Body
 - [ ] **DOCX-Export auf realer 100-Seiten-Thesis** — in Word / Pages / LibreOffice oeffnen, TOC-Refresh, Heading-Numbering-Live-Test durch Umordnen
 - [ ] Auto-Updater-E2E-Test
 - [ ] Performance auf 100+ Seiten (Tippen, Scrollen im Preview, Recompile)
@@ -482,17 +482,17 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 > Smoke-Tests am laufenden MCP-Prozess via Claude Desktop oder Cowork. Pro-Lizenz noetig.
 
-- [ ] **Versionen:** `vswrite_save_version` mit Message → erscheint im ProjectPanel-Verlauf; `vswrite_list_versions` liefert sie zurueck; `vswrite_show_version` zeigt Diff; `vswrite_restore_version` rollt zurueck (vorher Test-Version saven)
-- [ ] **Comments:** `vswrite_add_comment` mit anker-basiertem Insert → erscheint im CommentsPanel als gelbes Highlight; `vswrite_list_comments` filtert; `vswrite_resolve_comment` blendet aus; `vswrite_delete_comment` entfernt die `.md`
-- [ ] **Cross-Refs:** `vswrite_list_labels` listet alle `<label>`s aus test_thesis; `vswrite_insert_reference` mit existierendem Label klappt, mit nicht-existierendem schlaegt aehnliche Labels vor
-- [ ] **Footnotes:** `vswrite_add_footnote` mit `afterText` und Body → `#footnote[…]` an der Stelle; Klammer-Balance-Check rejected unbalanced Body
-- [ ] **Search/Replace:** `vswrite_search_project` mit `wholeWord: true` und Query `"@chen2021codex"` findet alle Backlinks; `vswrite_replace_in_project` mit Citekey-Rename funktioniert (vorher save_version!)
-- [ ] **Source-Lookup:** `vswrite_find_source_for_citation({ citekey: "chen2021codex" })` liefert `sources/chen2021codex.pdf`
-- [ ] **Export-Strict:** `vswrite_export_pdf({ outputPath: "exports/test.pdf" })` erstellt `exports/`-Ordner falls fehlt; `outputPath: "/tmp/foo.pdf"` (ausserhalb Projekt) wird abgelehnt
-- [ ] **DOCX:** `vswrite_export_docx({ outputPath: "exports/test.docx" })` produziert ein in Word oeffenbares Dokument mit Multilevel-Numbering
-- [ ] **Markdown-Import:** `vswrite_import_markdown({ markdown: "# Test\n…", destPath: "chapters/06-test.typ" })` schreibt korrekt; `srcPath` mit absolutem Pfad ausserhalb des Projekts funktioniert (read-only)
-- [ ] **Add-Image:** `vswrite_add_image({ srcPath: "/path/to/chart.png", caption: "X", label: "fig:test", file: "chapters/01.typ", afterText: "..." })` kopiert Asset, baut Figure-Snippet, fuegt nach Anker ein, eine Round-Trip statt drei
-- [ ] **Skill-Prompts:** `prompts/get` lieferte alle vier Skills (`typst-reference`, `vswrite-conventions`, `research-workflow`, `writing-style`) aus den deployed `.claude/skills/<name>/SKILL.md`
+- [ ] **Versionen:** `penwright_save_version` mit Message → erscheint im ProjectPanel-Verlauf; `penwright_list_versions` liefert sie zurueck; `penwright_show_version` zeigt Diff; `penwright_restore_version` rollt zurueck (vorher Test-Version saven)
+- [ ] **Comments:** `penwright_add_comment` mit anker-basiertem Insert → erscheint im CommentsPanel als gelbes Highlight; `penwright_list_comments` filtert; `penwright_resolve_comment` blendet aus; `penwright_delete_comment` entfernt die `.md`
+- [ ] **Cross-Refs:** `penwright_list_labels` listet alle `<label>`s aus test_thesis; `penwright_insert_reference` mit existierendem Label klappt, mit nicht-existierendem schlaegt aehnliche Labels vor
+- [ ] **Footnotes:** `penwright_add_footnote` mit `afterText` und Body → `#footnote[…]` an der Stelle; Klammer-Balance-Check rejected unbalanced Body
+- [ ] **Search/Replace:** `penwright_search_project` mit `wholeWord: true` und Query `"@chen2021codex"` findet alle Backlinks; `penwright_replace_in_project` mit Citekey-Rename funktioniert (vorher save_version!)
+- [ ] **Source-Lookup:** `penwright_find_source_for_citation({ citekey: "chen2021codex" })` liefert `sources/chen2021codex.pdf`
+- [ ] **Export-Strict:** `penwright_export_pdf({ outputPath: "exports/test.pdf" })` erstellt `exports/`-Ordner falls fehlt; `outputPath: "/tmp/foo.pdf"` (ausserhalb Projekt) wird abgelehnt
+- [ ] **DOCX:** `penwright_export_docx({ outputPath: "exports/test.docx" })` produziert ein in Word oeffenbares Dokument mit Multilevel-Numbering
+- [ ] **Markdown-Import:** `penwright_import_markdown({ markdown: "# Test\n…", destPath: "chapters/06-test.typ" })` schreibt korrekt; `srcPath` mit absolutem Pfad ausserhalb des Projekts funktioniert (read-only)
+- [ ] **Add-Image:** `penwright_add_image({ srcPath: "/path/to/chart.png", caption: "X", label: "fig:test", file: "chapters/01.typ", afterText: "..." })` kopiert Asset, baut Figure-Snippet, fuegt nach Anker ein, eine Round-Trip statt drei
+- [ ] **Skill-Prompts:** `prompts/get` lieferte alle vier Skills (`typst-reference`, `penwright-conventions`, `research-workflow`, `writing-style`) aus den deployed `.claude/skills/<name>/SKILL.md`
 
 #### Dokument-Zoom (Session 17)
 
@@ -501,7 +501,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] PDF-Zoom: `−` / `+` im Preview-Header und in geoeffneten PDF-Tabs skalieren das PDF crisp (pdfjs-Viewport-Scale, kein verwaschenes Bitmap)
 - [ ] `Cmd+Shift+=` / `Cmd+Shift+-` / `Cmd+Shift+0` als PDF-Zoom-Shortcuts (View-Menue „Preview Zoom"-Submenu)
 - [ ] Scrollbars sichtbar auch bei Zoom > 100 % (horizontal + vertikal)
-- [ ] Zoom-Levels werden in `<project>/.vswrite/preferences.json` persistiert — Projekt schliessen + wieder oeffnen restored die Werte
+- [ ] Zoom-Levels werden in `<project>/.penwright/preferences.json` persistiert — Projekt schliessen + wieder oeffnen restored die Werte
 - [ ] Browser-Zoom (`Cmd+=` etc.) bleibt erhalten unter „Zoom Window In/Out" — separat von Dokument-Zoom
 
 #### MCP Auto-Discover-Wizard (Session 18)
@@ -509,12 +509,12 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Erster Boot mit aktivierter Pro-Lizenz: Wizard erscheint ~2 s nach Start
 - [ ] „Spaeter"-Button stasht die Version — Wizard kommt nicht beim naechsten Boot wieder
 - [ ] „Mit Claude Desktop verbinden…" im Hilfe-Menue triggert den Wizard manuell
-- [ ] Klick auf „Jetzt verbinden": Binary wird nach `~/Library/Application Support/vswrite/mcp-server/vswrite-mcp` kopiert, `chmod 755`, in `claude_desktop_config.json` eingetragen
-- [ ] Andere bestehende `mcpServers`-Eintraege bleiben unangetastet, Backup `.claude_desktop_config.vswrite-bak.<ts>.json` wird angelegt
+- [ ] Klick auf „Jetzt verbinden": Binary wird nach `~/Library/Application Support/Penwright/mcp-server/penwright-mcp` kopiert, `chmod 755`, in `claude_desktop_config.json` eingetragen
+- [ ] Andere bestehende `mcpServers`-Eintraege bleiben unangetastet, Backup `.claude_desktop_config.Penwright-bak.<ts>.json` wird angelegt
 - [ ] Ohne Pro-Lizenz: Wizard zeigt verstaendliche Fehlermeldung und schreibt keine Config
 - [ ] Ohne Claude Desktop: Wizard erkennt das und bietet Download-Link, keine Config-Aenderung
 - [ ] Idempotenz: Wizard zweimal aufrufen → kein Duplikat-Eintrag, `alreadyConfigured: true`
-- [ ] **End-to-End** (auf notarisiertem DMG): nach Wizard-Run Claude Desktop neu starten, vswrite-Tools sind sichtbar, MCP-Server laeuft weiter wenn vswrite gequittet wird
+- [ ] **End-to-End** (auf notarisiertem DMG): nach Wizard-Run Claude Desktop neu starten, Penwright-Tools sind sichtbar, MCP-Server laeuft weiter wenn Penwright gequittet wird
 
 ### Phase 6: Post-Release / Nice-to-Have
 

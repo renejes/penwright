@@ -90,7 +90,7 @@
       setupIntersectionObserver();
     } catch (err) {
       errorMsg = `Failed to load PDF: ${err}`;
-      console.error('[vswrite] PDF load error:', err);
+      console.error('[penwright] PDF load error:', err);
     }
     loading = false;
   }
@@ -178,7 +178,7 @@
       });
       await textLayer.render();
     } catch (err) {
-      console.error(`[vswrite] Failed to render PDF page ${index + 1}:`, err);
+      console.error(`[penwright] Failed to render PDF page ${index + 1}:`, err);
     }
   }
 

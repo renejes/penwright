@@ -2,7 +2,7 @@
  * Lock Manager — File locking for shared folder collaboration.
  *
  * When a .typ file is opened, a .filename.typ.lock file is created next to it.
- * Other vswrite instances (or the same user on another machine via Dropbox etc.)
+ * Other Penwright instances (or the same user on another machine via Dropbox etc.)
  * see the lock and can choose to open read-only.
  *
  * Lock files contain: user, machine, timestamp, pid.
@@ -120,7 +120,7 @@ export function acquireLock(filePath: string): void {
       }
     }, HEARTBEAT_INTERVAL);
   } catch (err) {
-    console.warn('[vswrite] Could not create lock file:', err);
+    console.warn('[penwright] Could not create lock file:', err);
   }
 }
 

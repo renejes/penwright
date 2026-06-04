@@ -31,7 +31,7 @@
 
   onMount(() => {
     loadTree();
-    api.on('vswrite', (data: unknown) => {
+    api.on('penwright', (data: unknown) => {
       const msg = data as { type: string };
       if (msg.type === 'filetreeChanged') {
         loadTree();
@@ -47,7 +47,7 @@
       tree = result.entries;
       hasParent = result.hasParent;
     } catch (e) {
-      console.error('[vswrite] Failed to load file tree:', e);
+      console.error('[penwright] Failed to load file tree:', e);
       tree = [];
     }
     loading = false;
@@ -72,7 +72,7 @@
   function handleDragStart(e: DragEvent, entry: FileEntry) {
     if (!isImageFile(entry.name)) return;
     e.dataTransfer?.setData('text/plain', entry.path);
-    e.dataTransfer?.setData('application/vswrite-image', entry.path);
+    e.dataTransfer?.setData('application/penwright-image', entry.path);
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
   }
 

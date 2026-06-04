@@ -5,8 +5,8 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
-const SEND_CHANNELS = ['vswrite', 'terminal:input', 'terminal:resize', 'terminal:create'];
-const ON_CHANNELS = ['vswrite', 'terminal:data'];
+const SEND_CHANNELS = ['penwright', 'terminal:input', 'terminal:resize', 'terminal:create'];
+const ON_CHANNELS = ['penwright', 'terminal:data'];
 const INVOKE_CHANNELS = [
   'dialog:openFile',
   'dialog:saveFile',

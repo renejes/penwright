@@ -5,7 +5,7 @@
  * (colors + fonts + scale + layout + headings + elements + optional custom
  * preamble). Applying a theme overwrites the whole style.json in one shot.
  *
- * Each theme references bundled OFL fonts that ship with vswrite, so they
+ * Each theme references bundled OFL fonts that ship with Penwright, so they
  * render the same regardless of what the user has installed system-wide.
  *
  * Stable `id`s — Phase C's `penwright_apply_theme` MCP tool references them

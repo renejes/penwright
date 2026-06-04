@@ -74,8 +74,8 @@
   }
 
   onMount(() => {
-    window.addEventListener('vswrite:citation-leave', handleCitationLeave);
-    window.addEventListener('vswrite:citation-hover', handleCitationHover);
+    window.addEventListener('penwright:citation-leave', handleCitationLeave);
+    window.addEventListener('penwright:citation-hover', handleCitationHover);
 
     const api = (window as unknown as {
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
@@ -90,8 +90,8 @@
 
   onDestroy(() => {
     if (leaveTimer != null) window.clearTimeout(leaveTimer);
-    window.removeEventListener('vswrite:citation-leave', handleCitationLeave);
-    window.removeEventListener('vswrite:citation-hover', handleCitationHover);
+    window.removeEventListener('penwright:citation-leave', handleCitationLeave);
+    window.removeEventListener('penwright:citation-hover', handleCitationHover);
   });
 
   function handleOpenPdf() {

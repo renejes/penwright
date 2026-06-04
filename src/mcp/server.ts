@@ -1,7 +1,7 @@
 /**
- * vswrite MCP Server
+ * Penwright MCP Server
  *
- * Exposes vswrite-specific tools via the Model Context Protocol (MCP).
+ * Exposes Penwright-specific tools via the Model Context Protocol (MCP).
  * External AI desktop apps (Claude Desktop, Codex Desktop, etc.) can
  * connect to this server to read, edit, compile and manage Typst documents.
  *
@@ -87,7 +87,7 @@ function typstCompileArgs(extra: string[]): string[] {
  * rather than relying on whatever `typst` happens to be in Claude
  * Desktop's spawn PATH (which is usually nothing useful). Falls back to
  * the bare `typst` name for the legacy wizard install path, which puts
- * vswrite's bundled binary into a PATH-discoverable location.
+ * Penwright's bundled binary into a PATH-discoverable location.
  */
 function typstBinary(): string {
   return process.env.TYPST_BIN || 'typst';
@@ -103,8 +103,8 @@ function typstBinary(): string {
 function createMcpSnippetRenderer(baseDir: string): (snippet: string) => Promise<RenderedSnippet | null> {
   return async (snippet: string) => {
     const stamp = `${process.pid}-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const inFile = path.join(baseDir, `.vswrite-snip-${stamp}.typ`);
-    const outFile = path.join(os.tmpdir(), `vswrite-snip-${stamp}.png`);
+    const inFile = path.join(baseDir, `.penwright-snip-${stamp}.typ`);
+    const outFile = path.join(os.tmpdir(), `penwright-snip-${stamp}.png`);
     try {
       fs.writeFileSync(inFile, snippet, 'utf-8');
       await execFileAsync(typstBinary(), typstCompileArgs(['--ppi', '300', '--root', baseDir, inFile, outFile]), { timeout: 30000 });
@@ -125,7 +125,7 @@ function createMcpSnippetRenderer(baseDir: string): (snippet: string) => Promise
 // reads / writes the project's `.penwright/style.json` directly, then
 // regenerates `style.typ` and ensures `#include "style.typ"` is at the
 // top of the root file. This keeps Claude's edits in lockstep with
-// what the Design panel in vswrite would have written.
+// what the Design panel in Penwright would have written.
 
 function styleJsonPath(projectDir: string): string {
   return path.join(projectDir, '.penwright', 'style.json');
@@ -148,8 +148,8 @@ function readProjectStyle(projectDir: string): ProjectStyle {
  */
 function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): ProjectStyle {
   const style = sanitizeProjectStyle(raw);
-  const vswriteDir = path.dirname(styleJsonPath(projectDir));
-  if (!fs.existsSync(vswriteDir)) fs.mkdirSync(vswriteDir, { recursive: true });
+  const penwrightDir = path.dirname(styleJsonPath(projectDir));
+  if (!fs.existsSync(penwrightDir)) fs.mkdirSync(penwrightDir, { recursive: true });
   fs.writeFileSync(styleJsonPath(projectDir), JSON.stringify(style, null, 2), 'utf-8');
 
   // Write style.typ next to the root file.
@@ -368,7 +368,7 @@ const SKILL_PROMPTS: Array<{ name: string; description: string; skillDir: string
   },
   {
     name: 'design-conventions',
-    description: 'Visual design conventions for vswrite documents — five-slot color theory, typography pairing, heading hierarchy, layout patterns, modern 2026 aesthetics, accessibility & contrast rules, anti-patterns. Load when picking themes, applying palettes, composing layouts, or making "this should look like X" calls.',
+    description: 'Visual design conventions for Penwright documents — five-slot color theory, typography pairing, heading hierarchy, layout patterns, modern 2026 aesthetics, accessibility & contrast rules, anti-patterns. Load when picking themes, applying palettes, composing layouts, or making "this should look like X" calls.',
     skillDir: 'design',
   },
 ];
@@ -394,7 +394,7 @@ for (const prompt of SKILL_PROMPTS) {
 
 server.tool(
   'penwright_set_project',
-  'Sets the active project directory. Call this first to tell vswrite which Typst project to work with. Automatically detects the main .typ file (main.typ, document.typ, or first .typ found).',
+  'Sets the active project directory. Call this first to tell Penwright which Typst project to work with. Automatically detects the main .typ file (main.typ, document.typ, or first .typ found).',
   { projectDir: z.string().describe('Absolute path to the Typst project directory') },
   async ({ projectDir }) => {
     const absDir = path.resolve(projectDir);
@@ -515,7 +515,7 @@ server.tool(
       const { filePath } = readCurrentDocument();
       const rootFile = findRootFile(filePath);
       const dir = path.dirname(rootFile);
-      const tempPath = path.join(dir, '.vswrite-compile-output.pdf');
+      const tempPath = path.join(dir, '.penwright-compile-output.pdf');
 
       try {
         const result = await execFileAsync(typstBinary(), typstCompileArgs([rootFile, tempPath]), { cwd: dir, timeout: 30000 });
@@ -1768,7 +1768,7 @@ async function ensureGitRepo(dir: string): Promise<void> {
     // Default to "main" — older Git versions still default to "master".
     try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
   }
-  // Make sure .gitignore covers vswrite-local state so we don't accidentally
+  // Make sure .gitignore covers Penwright-local state so we don't accidentally
   // commit auto-backups or generated PDFs.
   const gitignorePath = path.join(dir, '.gitignore');
   let existing = '';
@@ -1779,7 +1779,7 @@ async function ensureGitRepo(dir: string): Promise<void> {
   const missing = GITIGNORE_REQUIRED_LINES.filter(req => !lines.includes(req));
   if (missing.length === 0) return;
   const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  const addition = (existing.length === 0 ? '# vswrite\n' : prefix + '\n# vswrite\n') + missing.join('\n') + '\n';
+  const addition = (existing.length === 0 ? '# Penwright\n' : prefix + '\n# Penwright\n') + missing.join('\n') + '\n';
   fs.writeFileSync(gitignorePath, existing + addition, 'utf-8');
 }
 
@@ -1878,7 +1878,7 @@ server.tool(
 
 server.tool(
   'penwright_list_versions',
-  'List version history (newest first, max 200). Returns { sha, message, date, author, isAuto }; isAuto = vswrite auto-versions.',
+  'List version history (newest first, max 200). Returns { sha, message, date, author, isAuto }; isAuto = Penwright auto-versions.',
   async () => {
     try {
       if (!state.projectDir) {
@@ -2123,7 +2123,7 @@ server.tool(
 
 server.tool(
   'penwright_add_comment',
-  'Create a comment anchored to a verbatim text snippet (whitespace-exact, single-paragraph). Renders as yellow highlight in vswrite; never compiled.',
+  'Create a comment anchored to a verbatim text snippet (whitespace-exact, single-paragraph). Renders as yellow highlight in Penwright; never compiled.',
   {
     file: z.string().describe('Project-relative path of the file to anchor the comment to (e.g. "chapters/01-introduction.typ")'),
     anchor: z.string().describe('Exact verbatim text in the file the comment is attached to. Whitespace-sensitive. Should be specific enough to be unique within the file.'),
@@ -2597,7 +2597,7 @@ server.tool(
     width: z.string().optional().describe('Typst width spec, e.g. "80%", "8cm", "300pt". Default: "100%".'),
     alt: z.string().optional().describe('Alt text for accessibility / hover.'),
     caption: z.string().optional().describe('Wraps the image in #figure(...) with this caption. Required if you want the figure cross-referenceable.'),
-    label: z.string().optional().describe('Typst label like "fig:my-chart". Only used together with caption. Use the "fig:" prefix so vswrite picks it up as a figure reference.'),
+    label: z.string().optional().describe('Typst label like "fig:my-chart". Only used together with caption. Use the "fig:" prefix so Penwright picks it up as a figure reference.'),
     file: z.string().optional().describe('Project-relative file to insert the snippet into. If set, afterText is required.'),
     afterText: z.string().optional().describe('Anchor text for inline insertion. Required when `file` is set.'),
     occurrence: z.number().int().min(1).optional().describe('1-based occurrence of afterText.'),
@@ -2742,6 +2742,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('vswrite MCP server failed to start:', err);
+  console.error('Penwright MCP server failed to start:', err);
   process.exit(1);
 });

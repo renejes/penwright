@@ -223,7 +223,7 @@ app.whenReady().then(() => {
   addBreadcrumb('lifecycle', 'window created');
 
   // Open project from command-line arg if a .typ file path was passed
-  // (e.g. "Open With vswrite" from Finder). The parent folder becomes the
+  // (e.g. "Open With Penwright" from Finder). The parent folder becomes the
   // project. We deliberately do NOT auto-reopen the last project on startup —
   // the app always starts at the StartScreen.
   const fileArg = process.argv.find((arg) => arg.endsWith('.typ'));

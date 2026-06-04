@@ -63,7 +63,7 @@ export function findSourceForCitation(projectDir: string, citekey: string): stri
       if (isPathWithin(full, projectDir)) return full;
     }
   } catch (err) {
-    console.warn('[vswrite] findSourceForCitation failed:', err);
+    console.warn('[penwright] findSourceForCitation failed:', err);
   }
   return null;
 }

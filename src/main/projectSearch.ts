@@ -260,16 +260,16 @@ export function replaceInProject(opts: ReplaceOptions, projectDir?: string | nul
       ) {
         appState.currentContent = replaced;
         appState.isDirty = false;
-        appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: replaced });
-        appState.mainWindow?.webContents.send('vswrite', { type: 'saveStatus', saved: true });
+        appState.mainWindow?.webContents.send('penwright', { type: 'update', content: replaced });
+        appState.mainWindow?.webContents.send('penwright', { type: 'saveStatus', saved: true });
       }
     } catch (err) {
-      console.warn('[vswrite] project replace failed for', absPath, err);
+      console.warn('[penwright] project replace failed for', absPath, err);
     }
   }
 
   if (filesChanged > 0) {
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   }
   return { filesChanged, totalReplacements };
 }

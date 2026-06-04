@@ -60,7 +60,7 @@
   onMount(async () => {
     await refreshAll();
 
-    api.on('vswrite', (data: unknown) => {
+    api.on('penwright', (data: unknown) => {
       const msg = data as { type: string };
       if (msg.type === 'filetreeChanged' || msg.type === 'saveStatus' || msg.type === 'currentFile') {
         refreshAll();

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * vswrite-cli — CLI tool for AI agents to work with Typst documents.
+ * penwright-cli — CLI tool for AI agents to work with Typst documents.
  *
  * All commands are stateless: read input, produce output, exit.
  * No VS Code dependency. Pure Node.js.
@@ -199,7 +199,7 @@ function handleApplyStyle(args: string[]) {
   const styleId = styleFlag >= 0 ? args[styleFlag + 1] : args[1];
 
   if (!styleId) {
-    error('No style specified. Use --style <id> or see: vswrite-cli list-styles');
+    error('No style specified. Use --style <id> or see: penwright-cli list-styles');
     process.exit(1);
   }
 
@@ -489,7 +489,7 @@ function handleCheck(args: string[]) {
     // Compile to a temp file, then delete it
     const tmpOutput = path.join(
       require('os').tmpdir(),
-      `vswrite-check-${Date.now()}.pdf`,
+      `penwright-check-${Date.now()}.pdf`,
     );
 
     const result = spawnSync('typst', ['compile', path.resolve(file), tmpOutput], {
@@ -622,7 +622,7 @@ function handleNewProject(args: string[]) {
   const parentDir = dirFlag >= 0 ? args[dirFlag + 1] : '.';
 
   if (!name) {
-    error('Required: vswrite-cli new-project <name> [--template document|thesis|paper|letter|book] [--dir .]');
+    error('Required: penwright-cli new-project <name> [--template document|thesis|paper|letter|book] [--dir .]');
     process.exit(1);
   }
 
@@ -771,9 +771,9 @@ function error(msg: string) {
 }
 
 function printUsage() {
-  console.log(`vswrite-cli — CLI tools for Typst documents
+  console.log(`penwright-cli — CLI tools for Typst documents
 
-Usage: vswrite-cli <command> [options]
+Usage: penwright-cli <command> [options]
 
 Document Operations:
   info <file.typ> [--json]           Document overview (words, headings, images, citations)

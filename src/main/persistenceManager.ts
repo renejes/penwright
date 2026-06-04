@@ -252,7 +252,7 @@ export function getLicenseData(): LicenseData {
 
 export function saveLicenseData(data: LicenseData): void {
   if (!safeStorage.isEncryptionAvailable()) {
-    console.warn('[vswrite] safeStorage unavailable — license cannot be persisted securely.');
+    console.warn('[penwright] safeStorage unavailable — license cannot be persisted securely.');
     return;
   }
   const encrypted = safeStorage.encryptString(JSON.stringify(data));
@@ -299,16 +299,16 @@ export interface BackupSnapshot {
 const BACKED_UP_EXTENSIONS = new Set(['.typ', '.bib']);
 const BACKUP_IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
 
-function vswriteDir(projectDir: string): string {
+function penwrightDir(projectDir: string): string {
   return path.join(projectDir, '.penwright');
 }
 
 function backupsDir(projectDir: string): string {
-  return path.join(vswriteDir(projectDir), 'backups');
+  return path.join(penwrightDir(projectDir), 'backups');
 }
 
 export function aiSnapshotsDir(projectDir: string): string {
-  return path.join(vswriteDir(projectDir), 'ai-snapshots');
+  return path.join(penwrightDir(projectDir), 'ai-snapshots');
 }
 
 function ensureDir(dir: string): void {
@@ -540,7 +540,7 @@ const DEFAULT_PROJECT_PREFERENCES: ProjectPreferences = {
 };
 
 function preferencesPath(projectDir: string): string {
-  return path.join(vswriteDir(projectDir), 'preferences.json');
+  return path.join(penwrightDir(projectDir), 'preferences.json');
 }
 
 function clampZoom(v: unknown): number {
@@ -564,7 +564,7 @@ export function getProjectPreferences(projectDir: string): ProjectPreferences {
 
 export function saveProjectPreferences(projectDir: string, prefs: ProjectPreferences): void {
   if (!fs.existsSync(projectDir)) return;
-  ensureDir(vswriteDir(projectDir));
+  ensureDir(penwrightDir(projectDir));
   const sanitized: ProjectPreferences = {
     editorZoom: clampZoom(prefs.editorZoom),
     pdfZoom: clampZoom(prefs.pdfZoom),
@@ -577,8 +577,8 @@ export function saveProjectPreferences(projectDir: string, prefs: ProjectPrefere
 }
 
 /** Deletes the project's `.penwright` folder entirely. */
-export function clearProjectVswriteData(projectDir: string): void {
-  const dir = vswriteDir(projectDir);
+export function clearProjectPenwrightData(projectDir: string): void {
+  const dir = penwrightDir(projectDir);
   try {
     fs.rmSync(dir, { recursive: true, force: true });
   } catch {}
@@ -591,7 +591,7 @@ export function clearProjectVswriteData(projectDir: string): void {
 // this JSON — lives at `<project>/style.typ` and is `#include`d from main.typ.
 
 function stylePath(projectDir: string): string {
-  return path.join(vswriteDir(projectDir), 'style.json');
+  return path.join(penwrightDir(projectDir), 'style.json');
 }
 
 /** True if a project-local style.json already exists. */
@@ -613,7 +613,7 @@ export function getProjectStyle(projectDir: string): ProjectStyle {
 
 /** Persists the project style after running it through the sanitizer. */
 export function saveProjectStyle(projectDir: string, style: unknown): ProjectStyle {
-  ensureDir(vswriteDir(projectDir));
+  ensureDir(penwrightDir(projectDir));
   const clean = sanitizeProjectStyle(style);
   fs.writeFileSync(stylePath(projectDir), JSON.stringify(clean, null, 2), 'utf-8');
   return clean;

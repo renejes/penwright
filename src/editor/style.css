@@ -21,7 +21,7 @@ body {
 }
 
 /* Layout */
-.vswrite-container {
+.penwright-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -2073,7 +2073,7 @@ mark.search-current {
 }
 
 /* ─── Comment / Annotation Highlight ─────────── */
-.vswrite-comment-mark {
+.penwright-comment-mark {
   background: rgba(255, 213, 79, 0.35);
   border-bottom: 2px solid rgba(232, 168, 50, 0.7);
   cursor: pointer;
@@ -2082,10 +2082,10 @@ mark.search-current {
   transition: background 0.15s;
 }
 
-.vswrite-comment-mark:hover {
+.penwright-comment-mark:hover {
   background: rgba(255, 213, 79, 0.55);
 }
 
-.vswrite-comment-mark.vswrite-comment-active {
+.penwright-comment-mark.penwright-comment-active {
   background: rgba(255, 184, 28, 0.6);
 }

@@ -77,7 +77,7 @@
       labels = result.labels;
       truncated = result.truncated;
     } catch (err) {
-      console.error('[vswrite] listLabels failed:', err);
+      console.error('[penwright] listLabels failed:', err);
     }
     loading = false;
     await tick();

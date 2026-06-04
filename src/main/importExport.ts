@@ -107,7 +107,7 @@ function buildFilteredRoot(rootContent: string, selectedIncludes: string[] | nul
   return out;
 }
 
-const TEMP_EXPORT_BASENAME = '.vswrite-export-temp.typ';
+const TEMP_EXPORT_BASENAME = '.penwright-export-temp.typ';
 
 /**
  * Writes a filtered copy of the root file alongside the original and
@@ -146,8 +146,8 @@ function createTypstSnippetRenderer(baseDir: string): (snippet: string) => Promi
     // The input must live inside the Typst root, and SVG figures are referenced
     // by a baseDir-relative path — so write the temp file into baseDir (same
     // pattern the filtered-export temp file already uses) with `--root baseDir`.
-    const inFile = path.join(baseDir, `.vswrite-snip-${stamp}.typ`);
-    const outFile = path.join(os.tmpdir(), `vswrite-snip-${stamp}.png`);
+    const inFile = path.join(baseDir, `.penwright-snip-${stamp}.typ`);
+    const outFile = path.join(os.tmpdir(), `penwright-snip-${stamp}.png`);
     try {
       fs.writeFileSync(inFile, snippet, 'utf-8');
       execFileSync(getTypstPath(), buildTypstCompileArgs(['--ppi', '300', '--root', baseDir, inFile, outFile]), { stdio: 'ignore' });
@@ -199,7 +199,7 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
   const useFilter = config.selectedIncludes !== null || !config.includeBibliography;
   const sourceFile = useFilter ? writeExportTemp(rootFile, config.selectedIncludes, config.includeBibliography) : rootFile;
 
-  appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: true, format: config.format });
+  appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: true, format: config.format });
   try {
     if (config.format === 'pdf') {
       execFileSync(getTypstPath(), buildTypstCompileArgs([sourceFile, result.filePath]));
@@ -217,7 +217,7 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
       });
       fs.writeFileSync(result.filePath, buffer);
     }
-    appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: config.format });
+    appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: config.format });
 
     const choice = await dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
@@ -227,7 +227,7 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
     if (choice.response === 0) shell.openPath(result.filePath);
     return result.filePath;
   } catch (err) {
-    appState.mainWindow?.webContents.send('vswrite', { type: 'exportStatus', exporting: false, format: config.format });
+    appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: config.format });
     dialog.showErrorBox(
       `${config.format.toUpperCase()} export failed`,
       `${err instanceof Error ? err.message : String(err)}`,
@@ -251,7 +251,7 @@ async function startExport(format: 'pdf' | 'docx'): Promise<void> {
 
   const sections = getExportableSections();
   if (sections && sections.multiChapter) {
-    appState.mainWindow?.webContents.send('vswrite', {
+    appState.mainWindow?.webContents.send('penwright', {
       type: 'showExportDialog',
       format,
       sections,
@@ -347,7 +347,7 @@ export async function handleImportStyleTemplate(): Promise<void> {
       appState.isDirty = true;
       updateTitle();
       autoSave();
-      appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+      appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
     }
 
     if (appState.projectDir || appState.currentFilePath) {
@@ -356,7 +356,7 @@ export async function handleImportStyleTemplate(): Promise<void> {
         fs.mkdirSync(templateDir, { recursive: true });
       }
       fs.copyFileSync(filePath, path.join(templateDir, path.basename(filePath)));
-      appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+      appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     }
 
     dialog.showMessageBox(appState.mainWindow!, {
@@ -412,12 +412,12 @@ export async function handleLinkZotero(): Promise<void> {
       try {
         fs.copyFileSync(zoteroBibPath, destPath);
         handleRequestCitations();
-        appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+        appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
       } catch {}
     });
 
     handleRequestCitations();
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
 
     dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
@@ -467,7 +467,7 @@ export function handleRequestCitations(): void {
     } catch {}
   }
 
-  appState.mainWindow?.webContents.send('vswrite', { type: 'citationData', entries: allEntries });
+  appState.mainWindow?.webContents.send('penwright', { type: 'citationData', entries: allEntries });
 }
 
 export function applyStyleTemplate(styleId: string): void {
@@ -498,5 +498,5 @@ export function applyStyleTemplate(styleId: string): void {
     updateTitle();
     autoSave();
   });
-  appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+  appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
 }

@@ -123,7 +123,7 @@
     lines[lineA] = lines[lineB];
     lines[lineB] = temp;
     const newContent = lines.join('\n');
-    api.send('vswrite', { type: 'edit', content: newContent });
+    api.send('penwright', { type: 'edit', content: newContent });
 
     // Swap in local state immediately for instant UI feedback
     const swapped = [...includes];
@@ -137,7 +137,7 @@
   function removeInclude(index: number) {
     const lines = content.split('\n');
     lines.splice(includes[index].lineIndex, 1);
-    api.send('vswrite', { type: 'edit', content: lines.join('\n') });
+    api.send('penwright', { type: 'edit', content: lines.join('\n') });
 
     // Remove from local state immediately
     includes = includes.filter((_, i) => i !== index);

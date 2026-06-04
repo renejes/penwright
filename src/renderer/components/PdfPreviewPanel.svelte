@@ -93,7 +93,7 @@
         scrollContainer.scrollTop = lastScrollTop;
       }
     } catch (err) {
-      console.error('[vswrite] PDF render error:', err);
+      console.error('[penwright] PDF render error:', err);
     }
   }
 
@@ -188,7 +188,7 @@
       });
       await textLayer.render();
     } catch (err) {
-      console.error(`[vswrite] Failed to render PDF page ${index + 1}:`, err);
+      console.error(`[penwright] Failed to render PDF page ${index + 1}:`, err);
     }
   }
 

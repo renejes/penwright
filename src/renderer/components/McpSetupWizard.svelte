@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * MCP Setup Wizard — opt-in modal that registers the bundled vswrite MCP
+   * MCP Setup Wizard — opt-in modal that registers the bundled Penwright MCP
    * server in Claude Desktop's `claude_desktop_config.json` so users don't
    * have to edit JSON by hand.
    *
@@ -47,7 +47,7 @@
       claudeCheck = check;
       step = check.installed ? 'ready' : 'no_claude';
     } catch (err) {
-      console.warn('[vswrite] mcp setup probe failed:', err);
+      console.warn('[penwright] mcp setup probe failed:', err);
       step = 'ready';
     }
   });
@@ -68,7 +68,7 @@
     try {
       await api.invoke('mcp:openClaude');
     } catch (err) {
-      console.warn('[vswrite] open Claude Desktop failed:', err);
+      console.warn('[penwright] open Claude Desktop failed:', err);
     }
   }
 
@@ -89,7 +89,7 @@
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
       </div>
       <h2 id="mcp-wizard-title">Mit Claude Desktop verbinden</h2>
-      <p>vswrite kann den eingebauten MCP-Server bei Claude Desktop registrieren, damit du deine Typst-Projekte direkt aus Claude heraus bearbeiten kannst.</p>
+      <p>Penwright kann den eingebauten MCP-Server bei Claude Desktop registrieren, damit du deine Typst-Projekte direkt aus Claude heraus bearbeiten kannst.</p>
       <div class="centered-loader">
         <div class="spinner"></div>
         <p class="hint">Pruefe ob Claude Desktop installiert ist…</p>
@@ -110,7 +110,7 @@
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </div>
       <h2 id="mcp-wizard-title">Claude Desktop nicht gefunden</h2>
-      <p>Wir konnten Claude Desktop auf deinem Mac nicht finden. Installiere es zuerst — die Verbindung mit vswrite kannst du danach jederzeit ueber das Hilfe-Menue starten.</p>
+      <p>Wir konnten Claude Desktop auf deinem Mac nicht finden. Installiere es zuerst — die Verbindung mit Penwright kannst du danach jederzeit ueber das Hilfe-Menue starten.</p>
       {#if claudeCheck}
         <details class="paths">
           <summary>Geprueft an diesen Pfaden</summary>
@@ -131,9 +131,9 @@
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       </div>
       <h2 id="mcp-wizard-title">Bereit zum Verbinden</h2>
-      <p>vswrite installiert einen eigenstaendigen MCP-Server in deinem Benutzer-Verzeichnis und traegt ihn in Claude Desktops Konfiguration ein.</p>
+      <p>Penwright installiert einen eigenstaendigen MCP-Server in deinem Benutzer-Verzeichnis und traegt ihn in Claude Desktops Konfiguration ein.</p>
       <ul class="bullets">
-        <li>Server laeuft unabhaengig von vswrite — Reihenfolge beim Starten egal</li>
+        <li>Server laeuft unabhaengig von Penwright — Reihenfolge beim Starten egal</li>
         <li>Andere MCP-Server in deiner Config bleiben unveraendert</li>
         <li>Vor jedem Schreibvorgang wird ein Backup deiner Config angelegt</li>
         <li>Wiederholtes Ausfuehren ist idempotent (kein Duplikat)</li>
@@ -147,7 +147,7 @@
     {:else if step === 'running'}
       <div class="centered-loader big">
         <div class="spinner big"></div>
-        <p class="hint">Verbinde vswrite mit Claude Desktop…</p>
+        <p class="hint">Verbinde Penwright mit Claude Desktop…</p>
       </div>
 
     {:else if step === 'done' && result}
@@ -157,9 +157,9 @@
       <h2 id="mcp-wizard-title">Verbunden!</h2>
       <p>
         {#if result.alreadyConfigured}
-          vswrite war bereits in Claude Desktop registriert — alles unveraendert.
+          Penwright war bereits in Claude Desktop registriert — alles unveraendert.
         {:else}
-          Claude Desktop kennt jetzt den vswrite MCP-Server.
+          Claude Desktop kennt jetzt den Penwright MCP-Server.
         {/if}
       </p>
       <div class="note amber">

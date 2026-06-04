@@ -1,5 +1,5 @@
 /**
- * TipTap Table Extensions configured for vswrite.
+ * TipTap Table Extensions configured for Penwright.
  * Wraps the official @tiptap/extension-table family with Typst-appropriate defaults.
  *
  * Adds a control bar below each table (via ProseMirror widget decorations):

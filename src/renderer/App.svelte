@@ -109,7 +109,7 @@
         if (typeof prefs.pdfZoom === 'number') zoomState.pdf = prefs.pdfZoom;
       }
     } catch (err) {
-      console.warn('[vswrite] loadProjectPreferences failed:', err);
+      console.warn('[penwright] loadProjectPreferences failed:', err);
     }
   }
 
@@ -219,7 +219,7 @@
   }
 
   onMount(() => {
-    (window as unknown as Record<string, unknown>).vswriteApi = vscodeBridge;
+    (window as unknown as Record<string, unknown>).penwrightApi = vscodeBridge;
 
     // Check for a previous-session crash before doing anything else.
     (async () => {
@@ -251,21 +251,21 @@
 
     ipc.onMessage(handleMessage);
     window.addEventListener('keydown', handleGlobalKeydown);
-    window.addEventListener('vswrite:project-search-jump', handleProjectSearchJump as EventListener);
-    window.addEventListener('vswrite:add-comment', addCommentFromSelection as EventListener);
-    window.addEventListener('vswrite:find-backlinks', handleFindBacklinks as EventListener);
-    window.addEventListener('vswrite:citation-hover', handleCitationHover as EventListener);
-    window.addEventListener('vswrite:open-reference-picker', handleOpenReferencePicker as EventListener);
-    window.addEventListener('vswrite:comment-created', onCommentCreatedAtApp as EventListener);
-    window.addEventListener('vswrite:project-closed', onProjectClosed as EventListener);
-    window.addEventListener('vswrite:show-mcp-wizard', () => { showMcpWizard = true; });
+    window.addEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
+    window.addEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
+    window.addEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
+    window.addEventListener('penwright:citation-hover', handleCitationHover as EventListener);
+    window.addEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
+    window.addEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
+    window.addEventListener('penwright:project-closed', onProjectClosed as EventListener);
+    window.addEventListener('penwright:show-mcp-wizard', () => { showMcpWizard = true; });
 
     // Drag & Drop images into the editor
     document.addEventListener('dragover', (e) => e.preventDefault());
     document.addEventListener('drop', (e) => {
       e.preventDefault();
 
-      const sidebarImagePath = e.dataTransfer?.getData('application/vswrite-image');
+      const sidebarImagePath = e.dataTransfer?.getData('application/penwright-image');
       if (sidebarImagePath) {
         ipc.send({ type: 'dropImagePath', path: sidebarImagePath } as unknown as import('../editor/lib/messages').WebviewMessage);
         return;
@@ -360,7 +360,7 @@
     if (!editor) return;
     const typst = serializeTypstCached(editor.state.doc);
     if (!typst && editor.state.doc.content.size > 2) {
-      console.error('[vswrite] Serializer produced empty output — skipping save');
+      console.error('[penwright] Serializer produced empty output — skipping save');
       return;
     }
     tabState.currentContent = typst;
@@ -466,11 +466,11 @@
     // Switch sidebar to Comments and let the panel scroll to the new entry
     panelState.showSidebar = true;
     panelState.sidebarTab = 'comments';
-    window.dispatchEvent(new CustomEvent('vswrite:comment-created', { detail: created }));
+    window.dispatchEvent(new CustomEvent('penwright:comment-created', { detail: created }));
   }
 
   // Backlinks trigger: OutlinePanel hover-button or citation right-click
-  // dispatches `vswrite:find-backlinks` with `{ query, wholeWord, caseSensitive }`.
+  // dispatches `penwright:find-backlinks` with `{ query, wholeWord, caseSensitive }`.
   // We seed the project-search preset (consumed-once on panel mount) and
   // open the panel.
   function handleFindBacklinks(e: Event) {
@@ -489,7 +489,7 @@
     }
   }
 
-  // Citation hover trigger: a badge dwell-fired `vswrite:citation-hover`.
+  // Citation hover trigger: a badge dwell-fired `penwright:citation-hover`.
   // We just store the citekey + viewport rect; CitationHoverCard owns the
   // close-with-grace-period logic so the user can move the mouse from badge
   // to card without it disappearing.
@@ -584,7 +584,7 @@
         .map((c) => ({ id: c.id, anchor: c.anchor, resolved: c.resolved, orphaned: c.orphaned }));
       setCommentMarks(editor, marks);
     } catch (err) {
-      console.warn('[vswrite] refreshCommentMarks failed:', err);
+      console.warn('[penwright] refreshCommentMarks failed:', err);
     }
   }
 
@@ -752,18 +752,18 @@
   onDestroy(() => {
     clearTimeout(debounceTimer);
     window.removeEventListener('keydown', handleGlobalKeydown);
-    window.removeEventListener('vswrite:project-search-jump', handleProjectSearchJump as EventListener);
-    window.removeEventListener('vswrite:add-comment', addCommentFromSelection as EventListener);
-    window.removeEventListener('vswrite:find-backlinks', handleFindBacklinks as EventListener);
-    window.removeEventListener('vswrite:citation-hover', handleCitationHover as EventListener);
-    window.removeEventListener('vswrite:open-reference-picker', handleOpenReferencePicker as EventListener);
-    window.removeEventListener('vswrite:comment-created', onCommentCreatedAtApp as EventListener);
-    window.removeEventListener('vswrite:project-closed', onProjectClosed as EventListener);
+    window.removeEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
+    window.removeEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
+    window.removeEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
+    window.removeEventListener('penwright:citation-hover', handleCitationHover as EventListener);
+    window.removeEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
+    window.removeEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
+    window.removeEventListener('penwright:project-closed', onProjectClosed as EventListener);
     editorRef.current?.destroy();
   });
 </script>
 
-<div class="vswrite-app">
+<div class="penwright-app">
   <!-- Titlebar drag region (macOS hiddenInset) -->
   <div class="titlebar-drag-region"></div>
 
@@ -777,7 +777,7 @@
     </div>
   {/if}
 
-  <div class="vswrite-container" class:focus-mode={uiState.focusMode} class:typewriter-mode={uiState.typewriterMode} class:reading-mode={uiState.readingMode}>
+  <div class="penwright-container" class:focus-mode={uiState.focusMode} class:typewriter-mode={uiState.typewriterMode} class:reading-mode={uiState.readingMode}>
     {#if editorRef.current}
       {@const _ = editorVersion.value}
       {#if !uiState.focusMode}
@@ -1172,7 +1172,7 @@
 </div>
 
 <style>
-  .vswrite-app {
+  .penwright-app {
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -1189,7 +1189,7 @@
     background: #ffffff;
   }
 
-  .vswrite-container {
+  .penwright-container {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -1197,7 +1197,7 @@
   }
 
   /* Toolbar */
-  .vswrite-container :global(.toolbar) {
+  .penwright-container :global(.toolbar) {
     -webkit-app-region: no-drag;
     padding: 6px 20px;
     flex-wrap: wrap;

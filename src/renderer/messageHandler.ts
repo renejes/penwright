@@ -39,7 +39,7 @@ export function handleMessage(message: ExtensionMessage): void {
       const doc = deserializeTypst(message.content);
       reconcileContent(editor, doc);
     } catch (err) {
-      console.error('[vswrite] Deserialize crash:', err);
+      console.error('[penwright] Deserialize crash:', err);
       const fallbackDoc = {
         type: 'doc' as const,
         content: [{
@@ -157,10 +157,10 @@ export function handleMessage(message: ExtensionMessage): void {
     uiState.showProjectSearch = true;
   }
   if (msg.type === 'addComment') {
-    window.dispatchEvent(new CustomEvent('vswrite:add-comment'));
+    window.dispatchEvent(new CustomEvent('penwright:add-comment'));
   }
   if (msg.type === 'showReferencePicker') {
-    window.dispatchEvent(new CustomEvent('vswrite:open-reference-picker'));
+    window.dispatchEvent(new CustomEvent('penwright:open-reference-picker'));
   }
   if (msg.type === 'showShortcuts') {
     uiState.showShortcuts = true;
@@ -214,7 +214,7 @@ export function handleMessage(message: ExtensionMessage): void {
     if (editorRef.current) {
       try { editorRef.current.commands.setContent(''); } catch {}
     }
-    window.dispatchEvent(new CustomEvent('vswrite:project-closed'));
+    window.dispatchEvent(new CustomEvent('penwright:project-closed'));
   }
 
   // Renderer-side hooks for the zoom menu items.
@@ -228,7 +228,7 @@ export function handleMessage(message: ExtensionMessage): void {
   // Help menu → "Mit Claude Desktop verbinden…". The wizard mounts on a
   // window event so App.svelte's listener owns the visibility state.
   if (msg.type === 'showMcpSetupWizard') {
-    window.dispatchEvent(new CustomEvent('vswrite:show-mcp-wizard'));
+    window.dispatchEvent(new CustomEvent('penwright:show-mcp-wizard'));
   }
 }
 

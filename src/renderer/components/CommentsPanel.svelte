@@ -66,7 +66,7 @@
         if (bodyDrafts[c.id] === undefined) bodyDrafts[c.id] = c.body;
       }
     } catch (err) {
-      console.error('[vswrite] Failed to load comments:', err);
+      console.error('[penwright] Failed to load comments:', err);
       comments = [];
     }
     pushDecorations();
@@ -126,17 +126,17 @@
   onMount(async () => {
     await loadProjectInfo();
     await loadComments();
-    api.on('vswrite', (data: unknown) => {
+    api.on('penwright', (data: unknown) => {
       const msg = data as { type: string };
       if (msg.type === 'filetreeChanged' || msg.type === 'currentFile') onFiletreeChanged();
     });
-    window.addEventListener('vswrite:comment-click', onCommentClick as EventListener);
-    window.addEventListener('vswrite:comment-created', onCreateComment as EventListener);
+    window.addEventListener('penwright:comment-click', onCommentClick as EventListener);
+    window.addEventListener('penwright:comment-created', onCreateComment as EventListener);
   });
 
   onDestroy(() => {
-    window.removeEventListener('vswrite:comment-click', onCommentClick as EventListener);
-    window.removeEventListener('vswrite:comment-created', onCreateComment as EventListener);
+    window.removeEventListener('penwright:comment-click', onCommentClick as EventListener);
+    window.removeEventListener('penwright:comment-created', onCreateComment as EventListener);
     for (const id of Object.keys(saveTimers)) clearTimeout(saveTimers[id]);
   });
 
@@ -147,7 +147,7 @@
       try {
         await api.invoke('comments:update', id, { body: bodyDrafts[id] ?? '' });
       } catch (err) {
-        console.error('[vswrite] Could not save comment body:', err);
+        console.error('[penwright] Could not save comment body:', err);
       }
     }, 400);
   }
@@ -157,7 +157,7 @@
       await api.invoke('comments:update', c.id, { resolved: !c.resolved });
       await loadComments();
     } catch (err) {
-      console.error('[vswrite] Could not toggle resolved:', err);
+      console.error('[penwright] Could not toggle resolved:', err);
     }
   }
 
@@ -168,7 +168,7 @@
       delete bodyDrafts[c.id];
       await loadComments();
     } catch (err) {
-      console.error('[vswrite] Could not delete comment:', err);
+      console.error('[penwright] Could not delete comment:', err);
     }
   }
 
@@ -199,8 +199,8 @@
         // Briefly flash the matching highlight
         const el = root.querySelector(`[data-comment-id="${CSS.escape(c.id)}"]`) as HTMLElement | null;
         if (el) {
-          el.classList.add('vswrite-comment-active');
-          setTimeout(() => el.classList.remove('vswrite-comment-active'), 1600);
+          el.classList.add('penwright-comment-active');
+          setTimeout(() => el.classList.remove('penwright-comment-active'), 1600);
         }
         return;
       }

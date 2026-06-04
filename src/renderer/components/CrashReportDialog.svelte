@@ -85,7 +85,7 @@
     {#if view === 'intro'}
       <div class="crash-body">
         <p>
-          vswrite hat einen Bericht erstellt mit dem Fehler-Typ und deinen letzten Aktionen.
+          Penwright hat einen Bericht erstellt mit dem Fehler-Typ und deinen letzten Aktionen.
           <strong>Pfade und Dateiinhalte sind nicht enthalten</strong> — du entscheidest, ob und an wen du den Bericht weitergibst.
         </p>
         <p class="crash-hint">

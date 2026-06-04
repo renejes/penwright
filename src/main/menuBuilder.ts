@@ -15,7 +15,7 @@ export function buildMenu(state: AppState): void {
   const isMac = process.platform === 'darwin';
 
   const send = (type: string, extra: Record<string, unknown> = {}) =>
-    state.mainWindow?.webContents.send('vswrite', { type, ...extra });
+    state.mainWindow?.webContents.send('penwright', { type, ...extra });
 
   const showAbout = () => send('showAbout');
 

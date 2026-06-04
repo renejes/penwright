@@ -28,7 +28,7 @@ export class TypstCompiler extends EventEmitter {
 
   private doCompilePdf(): void {
     const dir = path.dirname(this.filePath);
-    const outPath = path.join(dir, '.vswrite-preview.pdf');
+    const outPath = path.join(dir, '.penwright-preview.pdf');
 
     // Use the bundled-package-aware args helper — appends `--package-path`
     // when the bundled Typst packages are available, so imports like

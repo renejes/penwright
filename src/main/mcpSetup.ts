@@ -1,14 +1,14 @@
 /**
- * MCP-Setup: registers a standalone vswrite MCP server binary in Claude
+ * MCP-Setup: registers a standalone Penwright MCP server binary in Claude
  * Desktop's config so users don't have to edit JSON by hand.
  *
  * Synova-style runtime model:
  *   - The MCP server is a Bun-compiled single-file native binary (built via
  *     `scripts/build-mcp-binary.mjs` → `dist/mcp/bin/penwright-mcp-<triple>`).
  *   - At setup, we COPY the binary out of the .app bundle into a stable
- *     user-writable location: `~/Library/Application Support/vswrite/mcp-server/penwright-mcp`.
+ *     user-writable location: `~/Library/Application Support/Penwright/mcp-server/penwright-mcp`.
  *   - Claude Desktop spawns that copy directly. No Node required. The
- *     process is fully decoupled from the vswrite app — quitting vswrite
+ *     process is fully decoupled from the Penwright app — quitting Penwright
  *     does not affect the MCP child, and the order of launching the two
  *     apps no longer matters.
  *
@@ -139,12 +139,12 @@ function copyExecutable(src: string, dst: string): void {
 }
 
 /**
- * Merge the vswrite entry into Claude Desktop's `mcpServers` map without
+ * Merge the Penwright entry into Claude Desktop's `mcpServers` map without
  * touching any other server entries.
  *
  * Behaviour:
  *   - File exists       → read, take timestamped backup, rewrite.
- *   - File missing/empty → create fresh with only the vswrite entry; no backup.
+ *   - File missing/empty → create fresh with only the Penwright entry; no backup.
  *   - File malformed    → bail out instead of overwriting so the user can
  *                         fix it manually.
  */
@@ -169,13 +169,13 @@ export async function setupMcpServer(): Promise<SetupResult> {
     throw new Error(
       `Bundled MCP binary not found at ${bundled}. ` +
       (app.isPackaged
-        ? 'Reinstall vswrite or contact support — the binary is missing from the bundle.'
+        ? 'Reinstall Penwright or contact support — the binary is missing from the bundle.'
         : 'Run `node scripts/build-mcp-binary.mjs` first.'),
     );
   }
 
   // Copy into a stable, user-writable location. We rewrite on every run
-  // so updating vswrite upgrades the sidecar in lockstep.
+  // so updating Penwright upgrades the sidecar in lockstep.
   const installed = getInstalledBinaryPath();
   copyExecutable(bundled, installed);
 
@@ -224,7 +224,7 @@ export async function setupMcpServer(): Promise<SetupResult> {
   // (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Spectral, …) without
   // needing internet or system-installed fonts. The paths point into
   // the currently-installed .app's Resources — re-running the wizard
-  // after the user moves vswrite refreshes the entry.
+  // after the user moves Penwright refreshes the entry.
   const env: Record<string, string> = { PENWRIGHT_LICENSE_KEY: license.licenseKey };
   const pkgPath = getTypstPackagePath();
   if (pkgPath) env['TYPST_PACKAGE_PATH'] = pkgPath;

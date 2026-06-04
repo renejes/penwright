@@ -24,9 +24,9 @@ declare global {
 
 function createElectronAdapter(): IPCAdapter {
   return {
-    send: (msg) => window.electronAPI!.send('vswrite', msg),
+    send: (msg) => window.electronAPI!.send('penwright', msg),
     onMessage: (handler) =>
-      window.electronAPI!.on('vswrite', (data) =>
+      window.electronAPI!.on('penwright', (data) =>
         handler(data as ExtensionMessage),
       ),
   };

@@ -15,7 +15,7 @@ export function serializeTypst(doc: TipTapNode): string {
   try {
     return doc.content.map((node) => serializeNode(node)).join('\n\n');
   } catch (err) {
-    console.error('[vswrite] Serializer error:', err);
+    console.error('[penwright] Serializer error:', err);
     return '';
   }
 }
@@ -51,7 +51,7 @@ export function serializeTypstCached(pmDoc: PMNode): string {
     });
     return parts.join('\n\n');
   } catch (err) {
-    console.error('[vswrite] Serializer error:', err);
+    console.error('[penwright] Serializer error:', err);
     return '';
   }
 }

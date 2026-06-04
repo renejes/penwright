@@ -25,7 +25,7 @@ export const PALETTE_PRESETS: PalettePreset[] = [
   {
     id: 'modern-tech',
     name: 'Modern Tech',
-    description: 'Slate primary, electric-blue accent. Default vswrite vibe.',
+    description: 'Slate primary, electric-blue accent. Default Penwright vibe.',
     colors: {
       primary:    '#0f172a',
       accent:     '#3b82f6',

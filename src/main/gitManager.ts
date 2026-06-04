@@ -38,7 +38,7 @@ async function ensureGitignore(dir: string): Promise<void> {
   if (missing.length === 0) return;
 
   const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  const addition = (existing.length === 0 ? '# vswrite\n' : prefix + '\n# vswrite\n') + missing.join('\n') + '\n';
+  const addition = (existing.length === 0 ? '# Penwright\n' : prefix + '\n# Penwright\n') + missing.join('\n') + '\n';
   fs.writeFileSync(gitignorePath, existing + addition, 'utf-8');
 }
 

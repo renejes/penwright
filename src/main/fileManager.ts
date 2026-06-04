@@ -64,7 +64,7 @@ function persistAiSnapshot(snap: AiSnapshot): string | undefined {
     }), 'utf-8');
     return name;
   } catch (err) {
-    console.warn('[vswrite] Failed to persist AI snapshot:', err);
+    console.warn('[penwright] Failed to persist AI snapshot:', err);
     return undefined;
   }
 }
@@ -110,7 +110,7 @@ function pushAiSnapshot(filePath: string, content: string): void {
     if (dropped) deletePersistedAiSnapshot(dropped.diskName);
   }
 
-  appState.mainWindow?.webContents.send('vswrite', {
+  appState.mainWindow?.webContents.send('penwright', {
     type: 'aiSnapshotCount',
     count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
   });
@@ -128,11 +128,11 @@ export function popAiSnapshot(): boolean {
         appState.lastSaveTimestamp = Date.now();
         fs.writeFileSync(appState.currentFilePath, snapshot.content, 'utf-8');
       }
-      appState.mainWindow?.webContents.send('vswrite', {
+      appState.mainWindow?.webContents.send('penwright', {
         type: 'update',
         content: appState.currentContent,
       });
-      appState.mainWindow?.webContents.send('vswrite', {
+      appState.mainWindow?.webContents.send('penwright', {
         type: 'aiSnapshotCount',
         count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
       });
@@ -214,7 +214,7 @@ export async function openFile(filePath?: string): Promise<void> {
 
       // Restore AI-edit history for this project
       loadAiSnapshotsFromDisk(appState.projectDir);
-      appState.mainWindow?.webContents.send('vswrite', {
+      appState.mainWindow?.webContents.send('penwright', {
         type: 'aiSnapshotCount',
         count: aiSnapshots.filter(s => s.filePath === filePath).length,
       });
@@ -225,12 +225,12 @@ export async function openFile(filePath?: string): Promise<void> {
     }
     updateTitle();
 
-    appState.mainWindow?.webContents.send('vswrite', {
+    appState.mainWindow?.webContents.send('penwright', {
       type: 'documentBaseUri',
       uri: path.dirname(appState.currentFilePath),
     });
 
-    appState.mainWindow?.webContents.send('vswrite', {
+    appState.mainWindow?.webContents.send('penwright', {
       type: 'update',
       content: appState.currentContent,
     });
@@ -247,18 +247,18 @@ export async function openFile(filePath?: string): Promise<void> {
       try {
         appState.mainWindow?.webContents.session.setSpellCheckerLanguages([resolved]);
       } catch (err) {
-        console.warn('[vswrite] Spellcheck language not available:', resolved, err);
+        console.warn('[penwright] Spellcheck language not available:', resolved, err);
       }
     }
 
     setupCompiler();
 
-    appState.mainWindow?.webContents.send('vswrite', {
+    appState.mainWindow?.webContents.send('penwright', {
       type: 'currentFile',
       path: appState.currentFilePath,
     });
 
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
 
     // Auto-load citations (lazy import to avoid circular deps)
     const { handleRequestCitations } = await import('./importExport');
@@ -293,7 +293,7 @@ export async function saveFile(): Promise<boolean> {
     appState.isDirty = false;
     updateTitle();
     compiler?.compilePdf();
-    appState.mainWindow?.webContents.send('vswrite', {
+    appState.mainWindow?.webContents.send('penwright', {
       type: 'saveStatus',
       saved: true,
       file: appState.currentFilePath,
@@ -350,7 +350,7 @@ export function closeProject(): void {
   appState.lastSaveTimestamp = 0;
 
   updateTitle();
-  appState.mainWindow?.webContents.send('vswrite', { type: 'projectClosed' });
+  appState.mainWindow?.webContents.send('penwright', { type: 'projectClosed' });
   addBreadcrumb('project', 'closed');
 }
 
@@ -378,7 +378,7 @@ export function updateTitle(): void {
   if (!appState.mainWindow) return;
   const fileName = appState.currentFilePath ? path.basename(appState.currentFilePath) : 'Untitled';
   const dirtyMark = appState.isDirty ? ' •' : '';
-  appState.mainWindow.setTitle(`${fileName}${dirtyMark} — vswrite`);
+  appState.mainWindow.setTitle(`${fileName}${dirtyMark} — Penwright`);
 }
 
 // ─── Typst Compiler ───────────────────────────────────
@@ -392,7 +392,7 @@ function setupCompiler(): void {
   compiler = new TypstCompiler(rootFile);
 
   compiler.on('compiledPdf', (pdfBuffer: Buffer) => {
-    appState.mainWindow?.webContents.send('vswrite', {
+    appState.mainWindow?.webContents.send('penwright', {
       type: 'previewPdfUpdate',
       pdfData: pdfBuffer.toString('base64'),
     });
@@ -400,7 +400,7 @@ function setupCompiler(): void {
 
   compiler.on('error', (diagnostics: { message: string }[]) => {
     const errorText = diagnostics.map(d => d.message).join('\n') || 'Compilation failed';
-    appState.mainWindow?.webContents.send('vswrite', {
+    appState.mainWindow?.webContents.send('penwright', {
       type: 'compileError',
       error: errorText,
     });
@@ -446,14 +446,14 @@ export function runProjectBackup(): void {
     });
     if (snap) {
       pruneProjectBackups(appState.projectDir, cfg.maxCount);
-      appState.mainWindow?.webContents.send('vswrite', {
+      appState.mainWindow?.webContents.send('penwright', {
         type: 'backupCreated',
         timestamp: snap.timestampMs,
         backupId: snap.timestamp,
       });
     }
   } catch (err) {
-    console.warn('[vswrite] Project backup failed:', err);
+    console.warn('[penwright] Project backup failed:', err);
   }
 }
 
@@ -474,7 +474,7 @@ function setupFileWatcher(): void {
       '**/.git/**',
       '**/.penwright/**',
       '**/.DS_Store',
-      '**/.vswrite-preview*',
+      '**/.penwright-preview*',
       '**/*.lock',
     ],
   });
@@ -492,11 +492,11 @@ function setupFileWatcher(): void {
           appState.currentContent = diskContent;
           appState.isDirty = false;
           updateTitle();
-          appState.mainWindow?.webContents.send('vswrite', {
+          appState.mainWindow?.webContents.send('penwright', {
             type: 'update',
             content: appState.currentContent,
           });
-          appState.mainWindow?.webContents.send('vswrite', {
+          appState.mainWindow?.webContents.send('penwright', {
             type: 'saveStatus',
             saved: true,
           });
@@ -508,7 +508,7 @@ function setupFileWatcher(): void {
     if (changedPath.endsWith('.typ') || changedPath.endsWith('.bib')) {
       // Don't refresh file tree for our own saves
       if (Date.now() - appState.lastSaveTimestamp >= 3000) {
-        appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+        appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
       }
       if (changedPath.endsWith('.bib')) {
         import('./importExport').then(({ handleRequestCitations }) => {
@@ -520,14 +520,14 @@ function setupFileWatcher(): void {
 
   fileWatcher.on('add', (addedPath: string) => {
     if (Date.now() - appState.lastSaveTimestamp < 3000) return;
-    if (addedPath.includes('.vswrite-preview')) return;
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    if (addedPath.includes('.penwright-preview')) return;
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 
   fileWatcher.on('unlink', (removedPath: string) => {
     if (Date.now() - appState.lastSaveTimestamp < 3000) return;
-    if (removedPath.includes('.vswrite-preview')) return;
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    if (removedPath.includes('.penwright-preview')) return;
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 }
 

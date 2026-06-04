@@ -1,5 +1,5 @@
 /**
- * Style Templates for vswrite.
+ * Style Templates for Penwright.
  * Each style is a Typst preamble (set + show rules) that can be applied
  * to any document to change its visual appearance.
  */

@@ -4,7 +4,7 @@
  * Each comment lives as its own Markdown file inside `<project>/comments/`
  * so that the project folder stays self-explanatory: any file there is a
  * comment, readable in any text editor, diffable, copyable, editable from
- * outside vswrite.
+ * outside Penwright.
  *
  * File format:
  *

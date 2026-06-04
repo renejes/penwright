@@ -300,7 +300,7 @@
   </button>
 
   <button
-    onclick={() => window.dispatchEvent(new CustomEvent('vswrite:add-comment'))}
+    onclick={() => window.dispatchEvent(new CustomEvent('penwright:add-comment'))}
     title="Comment hinzufügen"
     aria-label="Add comment to selection"
   >

@@ -1,4 +1,4 @@
-# vswrite Desktop — Handbuch
+# Penwright Desktop — Handbuch
 
 > **Version:** 0.7.0 (Pre-Release)
 > **Letzte Aktualisierung:** 2026-04-29
@@ -6,9 +6,9 @@
 
 ---
 
-## Was ist vswrite Desktop?
+## Was ist Penwright Desktop?
 
-vswrite Desktop ist ein eigenstaendiger WYSIWYG-Editor fuer Typst-Dokumente. Statt Markup-Code zu sehen, arbeitest du in einem visuellen Editor — aehnlich wie in Google Docs oder Notion. Gleichzeitig bleibt die volle Typst-Funktionalitaet erhalten: Mathe-Formeln, Konfiguration und Layout werden als bearbeitbare Code-Bloecke angezeigt.
+Penwright Desktop ist ein eigenstaendiger WYSIWYG-Editor fuer Typst-Dokumente. Statt Markup-Code zu sehen, arbeitest du in einem visuellen Editor — aehnlich wie in Google Docs oder Notion. Gleichzeitig bleibt die volle Typst-Funktionalitaet erhalten: Mathe-Formeln, Konfiguration und Layout werden als bearbeitbare Code-Bloecke angezeigt.
 
 Typisches Einsatzgebiet: wissenschaftliche Arbeiten, Buecher, laengere Dokumente mit Multi-Chapter-Struktur, Bibliografie und Mathe-Satz — alles, wofuer man sonst LaTeX oder Word bemuehen wuerde.
 
@@ -30,11 +30,11 @@ Ab v0.7.0:
 
 ### Erstes Projekt oeffnen
 
-vswrite arbeitet projekt-basiert: ein Projekt ist ein Ordner mit mindestens einer `.typ`-Datei. Die App startet immer am Start Screen — du entscheidest, was geoeffnet wird.
+Penwright arbeitet projekt-basiert: ein Projekt ist ein Ordner mit mindestens einer `.typ`-Datei. Die App startet immer am Start Screen — du entscheidest, was geoeffnet wird.
 
 - **File -> New Project…** (`Cmd+N`) — Neues Projekt aus Template
 - **File -> Open Project…** (`Cmd+O`) — Ordner waehlen
-- **„Open Sample Project"** auf dem Start Screen — kopiert eine kommentierte Mini-Thesis ueber AI-gestuetztes wissenschaftliches Arbeiten an einen Speicherort deiner Wahl (Default: `~/Documents/vswrite-sample-thesis`). Inkl. fuenf realer Open-Access-Quellen (PDFs in `sources/`), drei Beispiel-Comments und einer initialen Version im Verlauf. Jedes Feature mindestens einmal demonstriert
+- **„Open Sample Project"** auf dem Start Screen — kopiert eine kommentierte Mini-Thesis ueber AI-gestuetztes wissenschaftliches Arbeiten an einen Speicherort deiner Wahl (Default: `~/Documents/penwright-sample-thesis`). Inkl. fuenf realer Open-Access-Quellen (PDFs in `sources/`), drei Beispiel-Comments und einer initialen Version im Verlauf. Jedes Feature mindestens einmal demonstriert
 - **Recent Projects** auf dem Start Screen — letzte Projekte mit einem Klick wieder oeffnen
 
 Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** (`Cmd+Shift+W`) — du kommst zum Start Screen zurueck und kannst ein anderes Projekt oeffnen.
@@ -195,9 +195,9 @@ Jedes neue Projekt bekommt automatisch:
 - Template-Dateien (main.typ, chapters/, bibliography.bib)
 - `assets/` Ordner fuer Bilder
 - `sources/` Ordner fuer Quellen-PDFs und sonstiges Recherchematerial
-- `.claude/skills/` mit Claude Code Skills (typst, vswrite, research)
+- `.claude/skills/` mit Claude Code Skills (typst, Penwright, research)
 - `.git/` Repository + `.gitignore`, damit das Versionssystem von der ersten Speicherung an funktioniert
-- `.vswrite/` Ordner fuer Auto-Backups und AI-Edit-Snapshots (versteckt, projekt-lokal)
+- `.penwright/` Ordner fuer Auto-Backups und AI-Edit-Snapshots (versteckt, projekt-lokal)
 - Einen Initial-Commit mit dem Template-Inhalt
 
 ---
@@ -209,7 +209,7 @@ Die Sidebar hat sechs Tabs:
 ### Files
 - Rekursiver Dateibaum, Back-Button, **Neuer Ordner** (Inline-Eingabefeld — Enter speichert, Esc bricht ab), **Asset hinzufuegen** (Datei-Auswahl, kopiert nach `assets/`)
 - Leere Ordner wie `assets/` und `sources/` bleiben sichtbar, damit du immer weisst, wo Sachen hingehoeren
-- `.claude/` Ordner sichtbar fuer Skills; `.git/` und `.vswrite/` sind ausgeblendet
+- `.claude/` Ordner sichtbar fuer Skills; `.git/` und `.penwright/` sind ausgeblendet
 - Bilder aus `assets/` sind per Drag & Drop in den Editor ziehbar
 - Rechtsklick -> "Open in New Tab"
 
@@ -292,7 +292,7 @@ In beiden Faellen wird eine leere Fussnote an der Cursor-Position eingefuegt und
 
 In Typst kannst du Figuren, Tabellen, Gleichungen oder Headings mit einem `<label>` markieren und von ueberall im Projekt mit `@label` darauf verweisen. Typst nummeriert beim Compilen automatisch — wenn du Kapitel umstellst oder eine Figur einfuegst, aktualisieren sich alle Verweise ohne Zutun.
 
-vswrite gibt dir einen Picker, der jedes `<label>` im Projekt auflistet, damit du dir keine Namen merken musst.
+Penwright gibt dir einen Picker, der jedes `<label>` im Projekt auflistet, damit du dir keine Namen merken musst.
 
 ### Label setzen
 
@@ -327,7 +327,7 @@ Im Editor erscheint die eingefuegte Node als **orangene `↳ label`-Pille** — 
 
 ### Citation vs. Reference — Disambiguierung
 
-Typst nutzt fuer Citations (`@chen2021codex`) und Cross-References (`@fig:scaling`) dieselbe `@…`-Syntax. vswrite unterscheidet sie ueber den Namen:
+Typst nutzt fuer Citations (`@chen2021codex`) und Cross-References (`@fig:scaling`) dieselbe `@…`-Syntax. Penwright unterscheidet sie ueber den Namen:
 
 - Enthaelt einen Doppelpunkt (`:`) — Reference
 - Beginnt mit einem bekannten Praefix (`fig`, `tbl`, `eq`, `sec`, `chap`, `app`, `thm`, `lem`, `def`, `cor`, `prop`, `algo`, `lst` und ihre Vollformen) — Reference
@@ -339,7 +339,7 @@ Deshalb ist das `@`-Autocomplete reserviert fuer Citations (Citekeys sind konven
 
 ## Kommentare & Notizen
 
-Kommentare sind **gelbe Anmerkungen am Text**, die nur im vswrite-Editor sichtbar sind und **nicht** ins PDF/DOCX kompilieren. Geeignet fuer Selbstnotizen („hier noch Quelle ergaenzen") oder Betreuer-Feedback.
+Kommentare sind **gelbe Anmerkungen am Text**, die nur im Penwright-Editor sichtbar sind und **nicht** ins PDF/DOCX kompilieren. Geeignet fuer Selbstnotizen („hier noch Quelle ergaenzen") oder Betreuer-Feedback.
 
 **Speicherung:** Jeder Kommentar ist eine **eigene Markdown-Datei** im sichtbaren Ordner `comments/` im Projekt-Wurzelverzeichnis. Frontmatter (YAML) speichert Anker-Text, Datei, Autor, Datum, Status. Body ist freier Markdown — Listen, Links, Code-Snippets, alles erlaubt.
 
@@ -372,7 +372,7 @@ Vorteil: Cloud-Sync (Dropbox / iCloud) nimmt Kommentare automatisch mit, dein Be
 - **✓ Erledigt** versteckt den Kommentar aus der Liste (umkehrbar mit ↺)
 - **× Loeschen** entfernt die `.md`-Datei nach Bestaetigung
 
-**Reanchoring:** Wenn du Text vor einem kommentierten Abschnitt einfuegst, verschiebt sich der Anker. vswrite findet ihn beim Datei-OEffnen ueber den gespeicherten Anker-Text wieder. Wenn der Anker-Text geloescht oder so stark geaendert wurde, dass er nicht mehr findbar ist, wird der Kommentar **orphaned** markiert (rotes Warndreieck) — du kannst ihn dann manuell neu zuordnen oder loeschen.
+**Reanchoring:** Wenn du Text vor einem kommentierten Abschnitt einfuegst, verschiebt sich der Anker. Penwright findet ihn beim Datei-OEffnen ueber den gespeicherten Anker-Text wieder. Wenn der Anker-Text geloescht oder so stark geaendert wurde, dass er nicht mehr findbar ist, wird der Kommentar **orphaned** markiert (rotes Warndreieck) — du kannst ihn dann manuell neu zuordnen oder loeschen.
 
 **Bekannte MVP-Limitierungen:**
 - Anker-Text muss innerhalb eines Absatzes / einer Ueberschrift liegen — Kommentare, die ueber Absatz-Grenzen hinweg ankern, werden als orphaned markiert.
@@ -382,7 +382,7 @@ Vorteil: Cloud-Sync (Dropbox / iCloud) nimmt Kommentare automatisch mit, dein Be
 
 ## Reading Mode
 
-Zum Korrekturlesen schaltet vswrite den Editor auf **Buchsatz-Typografie** um — Serife, grosszuegiger Zeilenabstand, Justified Text, schmaler Spaltenbereich. Im Gegensatz zur PDF-Preview bleibt das Editing aktiv: Tippfehler kannst du direkt in dieser Ansicht korrigieren.
+Zum Korrekturlesen schaltet Penwright den Editor auf **Buchsatz-Typografie** um — Serife, grosszuegiger Zeilenabstand, Justified Text, schmaler Spaltenbereich. Im Gegensatz zur PDF-Preview bleibt das Editing aktiv: Tippfehler kannst du direkt in dieser Ansicht korrigieren.
 
 **Aktivieren:**
 - Toolbar-Button **𝓡** (zwischen Typewriter und Focus)
@@ -403,7 +403,7 @@ Sidebar und Preview bleiben so, wie du sie hattest. Wer voll ungestoert lesen wi
 
 ## Backlinks — „Wo wird das sonst noch erwaehnt?"
 
-Bei wissenschaftlichem Schreiben ist der Konsistenz-Check wichtig: jede Erwaehnung eines Konzepts oder einer Quelle ueber alle Kapitel hinweg finden. vswrite hat dafuer zwei eingebaute Trigger, die im Hintergrund [Suche im Projekt](#suche-im-projekt) mit der richtigen Query starten.
+Bei wissenschaftlichem Schreiben ist der Konsistenz-Check wichtig: jede Erwaehnung eines Konzepts oder einer Quelle ueber alle Kapitel hinweg finden. Penwright hat dafuer zwei eingebaute Trigger, die im Hintergrund [Suche im Projekt](#suche-im-projekt) mit der richtigen Query starten.
 
 **Heading-Backlinks:**
 - Im **Outline**-Sidebar-Tab: hovern ueber ein Heading laesst rechts einen kleinen Pfeil **↪** erscheinen
@@ -436,7 +436,7 @@ Editor- und PDF-Vorschau lassen sich unabhaengig voneinander zoomen, 50 % bis 20
 - **Editor-Zoom:** unten rechts in der Status-Leiste steht das aktuelle `100 %` als Button. Klick darauf oeffnet einen kleinen Slider mit `−` / `+` und Reset. Per Tastatur: `Cmd+Alt+=` (rein), `Cmd+Alt+-` (raus), `Cmd+Alt+0` (zurueck auf 100 %).
 - **PDF-Vorschau-Zoom:** oben im Preview-Panel ist eine schmale Leiste mit `− 100 % +`. Klick auf das Prozent setzt zurueck. Per Tastatur: `Cmd+Shift+=` (rein), `Cmd+Shift+-` (raus), `Cmd+Shift+0` (zurueck). Der PDF-Zoom gilt sowohl fuer die Live-Vorschau rechts als auch fuer geoeffnete Source-PDFs (z. B. via Citation-Hover „PDF oeffnen").
 - **Scrollbars** sind immer sichtbar — bei Zoom > 100 % wird die Seite breiter als das Panel und du kannst horizontal scrollen.
-- **Pro Projekt gespeichert:** Beim naechsten Oeffnen desselben Projekts sind deine Zoom-Levels wieder da. Die Werte liegen in `<projekt>/.vswrite/preferences.json` und reisen mit, wenn du den Ordner kopierst.
+- **Pro Projekt gespeichert:** Beim naechsten Oeffnen desselben Projekts sind deine Zoom-Levels wieder da. Die Werte liegen in `<projekt>/.penwright/preferences.json` und reisen mit, wenn du den Ordner kopierst.
 - **Browser-Zoom** (`Cmd+=` / `Cmd+-` / `Cmd+0`) zoomt das ganze Fenster und bleibt im View-Menue unter „Zoom Window In/Out" verfuegbar — selten noetig, aber unveraendert.
 
 ---
@@ -489,7 +489,7 @@ Das DOCX wird mit echten Word-Styles erzeugt und deckt jetzt die reichen akademi
 
 ## Design-Panel — visueller Style-Editor
 
-Jede Design-Entscheidung lebt im **Design**-Sidebar-Tab. Klick auf ein Theme uebernimmt einen kompletten Look; Klick auf ein Palette-Preset tauscht nur die Farben; Einzelfelder (Font, Padding, Heading-Groesse, Tabellen-Rahmenfarbe) sind frei justierbar. Jede Aenderung schreibt nach `<project>/.vswrite/style.json` und regeneriert `<project>/style.typ` — `main.typ` zieht die Regeln per `#import "style.typ": *` plus `#show: apply-style` rein.
+Jede Design-Entscheidung lebt im **Design**-Sidebar-Tab. Klick auf ein Theme uebernimmt einen kompletten Look; Klick auf ein Palette-Preset tauscht nur die Farben; Einzelfelder (Font, Padding, Heading-Groesse, Tabellen-Rahmenfarbe) sind frei justierbar. Jede Aenderung schreibt nach `<project>/.penwright/style.json` und regeneriert `<project>/style.typ` — `main.typ` zieht die Regeln per `#import "style.typ": *` plus `#show: apply-style` rein.
 
 ### Sections im Design-Tab
 
@@ -519,11 +519,11 @@ Die Custom-Typst-Code-Section unten im Design-Panel akzeptiert beliebigen Typst 
 
 ### Design-Elemente (Library)
 
-Eine **22 Elemente** umfassende Library parametrischer Snippets — Banner, Sidebar, Pull-Quote (drei Varianten: regular / Display / Block), Callout, Hero, Section-Divider (drei Varianten: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image-Gallery 2-up / 3-up / asymmetric (1 gross + 2 klein), Image-Overlay (Foto mit Gradient + Headline drueber), Stats-Box ("By the numbers"-Sidebar), Photo-Caption-Wrap (kleines Foto mit Caption drumherum via wrap-it), Magazine-Cover, Full-Bleed-Image (randlose Ganzseite), Spread-Opener (full-bleed Opener mit Headline ueber Gradient), Margin-Note (Marginalia im Aussenrand via drafting). Sie werden ueber die MCP-Tools `vswrite_list_design_elements` / `vswrite_insert_design_element` von Claude Desktop aus eingefuegt; jede Referenz auf `style-colors.*` / `style-fonts.*` bedeutet das Element re-themed sich automatisch wenn du Palette oder Fonts wechselst. Der `magazine-cover` setzt `#page(margin: 0pt)` fuer die Coverseite — der Rest des Dokuments behaelt seine konfigurierten Raender. `style.typ` exportiert dafuer drei Modul-level Werte: `style-colors`, `style-fonts` und `figure-caption-credit(caption, credit)` (fuer Foto-Quellen-Captions).
+Eine **22 Elemente** umfassende Library parametrischer Snippets — Banner, Sidebar, Pull-Quote (drei Varianten: regular / Display / Block), Callout, Hero, Section-Divider (drei Varianten: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image-Gallery 2-up / 3-up / asymmetric (1 gross + 2 klein), Image-Overlay (Foto mit Gradient + Headline drueber), Stats-Box ("By the numbers"-Sidebar), Photo-Caption-Wrap (kleines Foto mit Caption drumherum via wrap-it), Magazine-Cover, Full-Bleed-Image (randlose Ganzseite), Spread-Opener (full-bleed Opener mit Headline ueber Gradient), Margin-Note (Marginalia im Aussenrand via drafting). Sie werden ueber die MCP-Tools `penwright_list_design_elements` / `penwright_insert_design_element` von Claude Desktop aus eingefuegt; jede Referenz auf `style-colors.*` / `style-fonts.*` bedeutet das Element re-themed sich automatisch wenn du Palette oder Fonts wechselst. Der `magazine-cover` setzt `#page(margin: 0pt)` fuer die Coverseite — der Rest des Dokuments behaelt seine konfigurierten Raender. `style.typ` exportiert dafuer drei Modul-level Werte: `style-colors`, `style-fonts` und `figure-caption-credit(caption, credit)` (fuer Foto-Quellen-Captions).
 
 ### Gebuendelte OFL-Fonts (offline-tauglich)
 
-Sieben Font-Familien sind mit vswrite ausgeliefert — keine System-Installation noetig, kein Internet beim Compile:
+Sieben Font-Familien sind mit Penwright ausgeliefert — keine System-Installation noetig, kein Internet beim Compile:
 
 | Familie | Kategorie | Geeignet fuer |
 |---------|-----------|---------------|
@@ -537,19 +537,19 @@ Sieben Font-Familien sind mit vswrite ausgeliefert — keine System-Installation
 
 ### Style-Templates-Menue (Legacy)
 
-Das alte **Document → Style Templates** Submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) wurde in Session 22 ersetzt durch die Themes-Section im Design-Tab. Die MCP-Tools `vswrite_list_styles` und `vswrite_apply_style` funktionieren weiterhin — sie zeigen jetzt auf die neuen Theme-Presets.
+Das alte **Document → Style Templates** Submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) wurde in Session 22 ersetzt durch die Themes-Section im Design-Tab. Die MCP-Tools `penwright_list_styles` und `penwright_apply_style` funktionieren weiterhin — sie zeigen jetzt auf die neuen Theme-Presets.
 
 ---
 
 ## Versionen & Auto-Backup
 
-vswrite haelt drei unabhaengige Schichten zur Absicherung deiner Arbeit — jede mit klar abgegrenztem Zweck:
+Penwright haelt drei unabhaengige Schichten zur Absicherung deiner Arbeit — jede mit klar abgegrenztem Zweck:
 
 | Schicht | Ausloeser | Zweck | Wo es lebt |
 |---------|-----------|-------|------------|
 | **Versionen** | Du klickst **Version speichern** | Bewusste Meilensteine im Projektverlauf | `<projekt>/.git/` |
-| **Auto-Backup** | Timer (konfigurierbar, Default alle 30 s) | Crash-/Hänger-Schutz — nie mehr als X Sekunden Arbeit verlieren | `<projekt>/.vswrite/backups/` |
-| **AI-Edit-Undo** | Externe Aenderung (Terminal / MCP) | Schnelles Rueckgaengig der letzten AI-Aenderung | `<projekt>/.vswrite/ai-snapshots/` |
+| **Auto-Backup** | Timer (konfigurierbar, Default alle 30 s) | Crash-/Hänger-Schutz — nie mehr als X Sekunden Arbeit verlieren | `<projekt>/.penwright/backups/` |
+| **AI-Edit-Undo** | Externe Aenderung (Terminal / MCP) | Schnelles Rueckgaengig der letzten AI-Aenderung | `<projekt>/.penwright/ai-snapshots/` |
 
 Alle drei leben **innerhalb des Projektordners**, das Projekt ist also self-contained: kopierst oder verschiebst du es, wandert der vollstaendige Verlauf mit.
 
@@ -580,7 +580,7 @@ Eine kleine Status-Zeile am unteren Rand des **Project**-Tabs zeigt, wann das le
 
 ### AI-Edit-Undo
 
-Wenn ein externes Tool (Claude Code im Terminal, der MCP-Server, …) eine offene Datei aendert, sichert vswrite den vorherigen Inhalt **vor** der Aenderung in den AI-Snapshot-Ringpuffer. Mit dem Menue-Eintrag **Undo AI Edit** gehst du Schritt fuer Schritt zurueck. Snapshots ueberleben App-Neustarts (sie liegen in `.vswrite/ai-snapshots/`).
+Wenn ein externes Tool (Claude Code im Terminal, der MCP-Server, …) eine offene Datei aendert, sichert Penwright den vorherigen Inhalt **vor** der Aenderung in den AI-Snapshot-Ringpuffer. Mit dem Menue-Eintrag **Undo AI Edit** gehst du Schritt fuer Schritt zurueck. Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`).
 
 ### Cloud-Backup (optional)
 
@@ -601,7 +601,7 @@ Externe Dateiaenderungen (z. B. durch Claude Code im Terminal) werden automatisc
 - `.bib` geaendert -> Citations werden neu geladen
 - Dateien hinzugefuegt/geloescht -> File-Tree refresht
 - Eigene Saves werden ignoriert (3s Schutzfenster)
-- Der `.vswrite/`-Ordner wird vom Watcher ausgeschlossen, damit Backups keine Refresh-Schleifen ausloesen
+- Der `.penwright/`-Ordner wird vom Watcher ausgeschlossen, damit Backups keine Refresh-Schleifen ausloesen
 
 Zum Rueckgaengig-Machen von AI-Edits siehe Abschnitt [Versionen & Auto-Backup](#versionen--auto-backup).
 
@@ -647,13 +647,13 @@ Echtes PTY-Terminal (xterm.js + node-pty):
   - **Dateiname** des aktiven Tabs
   - **Lizenz-Tier**-Badge (Unlicensed / Licensed / Pro)
 - Warnung beim Schliessen bei ungespeicherten AEnderungen
-- **Crash Recovery:** Auto-Backups werden nach `<projekt>/.vswrite/backups/<timestamp>/` geschrieben (Intervall konfigurierbar, Default 30 s). Wenn die App abstuerzt und das juengste Backup neuer ist als die zuletzt gespeicherte Datei auf der Platte, bietet vswrite beim Wiederoeffnen des Projekts an, den Backup-Stand zurueckzuholen. Details siehe [Versionen & Auto-Backup](#versionen--auto-backup).
+- **Crash Recovery:** Auto-Backups werden nach `<projekt>/.penwright/backups/<timestamp>/` geschrieben (Intervall konfigurierbar, Default 30 s). Wenn die App abstuerzt und das juengste Backup neuer ist als die zuletzt gespeicherte Datei auf der Platte, bietet Penwright beim Wiederoeffnen des Projekts an, den Backup-Stand zurueckzuholen. Details siehe [Versionen & Auto-Backup](#versionen--auto-backup).
 
 ---
 
 ## Persistenz
 
-vswrite trennt zwei Arten von Zustand: **App-Einstellungen**, die global zur Installation gehoeren, und **Projekt-Zustand**, der mit jedem Projektordner mitwandert.
+Penwright trennt zwei Arten von Zustand: **App-Einstellungen**, die global zur Installation gehoeren, und **Projekt-Zustand**, der mit jedem Projektordner mitwandert.
 
 **Global** (im OS-User-Data-Ordner):
 - Fenster-Position & -Groesse
@@ -666,17 +666,17 @@ vswrite trennt zwei Arten von Zustand: **App-Einstellungen**, die global zur Ins
 
 **Pro Projekt** (im Projektordner):
 - Versionsverlauf (`.git/`)
-- Auto-Backups (`.vswrite/backups/`)
-- AI-Edit-Snapshots (`.vswrite/ai-snapshots/`)
+- Auto-Backups (`.penwright/backups/`)
+- AI-Edit-Snapshots (`.penwright/ai-snapshots/`)
 - Claude Code Skills (`.claude/skills/`)
 
-Die App **startet immer am Start Screen** — kein Auto-Reopen. Bewusste Designentscheidung, damit das OEffnen von vswrite dich nie mit einem Projekt ueberrascht, mit dem du gar nicht arbeiten wolltest.
+Die App **startet immer am Start Screen** — kein Auto-Reopen. Bewusste Designentscheidung, damit das OEffnen von Penwright dich nie mit einem Projekt ueberrascht, mit dem du gar nicht arbeiten wolltest.
 
 ---
 
 ## Lizenz-Management
 
-vswrite verwendet ein Lizenzmodell mit zwei Stufen:
+Penwright verwendet ein Lizenzmodell mit zwei Stufen:
 
 | Lizenz | Umfang |
 |--------|--------|
@@ -695,7 +695,7 @@ In der Status Bar (unten rechts) wird der aktuelle Lizenzstatus angezeigt:
 ### Lizenz aktivieren
 
 1. Lizenz-Dialog oeffnen (Klick auf Lizenzstatus in der Status Bar)
-2. **License Key** eingeben (z. B. `VSWRITE_PRO_xxxx...`)
+2. **License Key** eingeben (z. B. `pw_LIC_xxx...`)
 3. Der Key wird gegen **Polar** validiert und lokal gespeichert (verschluesselt im System-Keychain)
 4. Nach erfolgreicher Validierung ist die Lizenz sofort aktiv
 
@@ -703,7 +703,7 @@ In der Status Bar (unten rechts) wird der aktuelle Lizenzstatus angezeigt:
 
 ### Offline-Nutzung
 
-Wurde die Lizenz einmal validiert, funktioniert vswrite auch ohne Internetverbindung. Es gilt eine **30-Tage Grace Period** — nach 30 Tagen ohne erneute Online-Validierung wird die Lizenz deaktiviert.
+Wurde die Lizenz einmal validiert, funktioniert Penwright auch ohne Internetverbindung. Es gilt eine **30-Tage Grace Period** — nach 30 Tagen ohne erneute Online-Validierung wird die Lizenz deaktiviert.
 
 ### Sicherheit
 
@@ -714,8 +714,8 @@ Die Lizenzdaten werden mittels Electrons `safeStorage` verschluesselt im System-
 ## About-Dialog
 
 Erreichbar ueber:
-- **macOS:** `vswrite -> About vswrite`
-- **Windows/Linux:** `Help -> About vswrite`
+- **macOS:** `Penwright -> About Penwright`
+- **Windows/Linux:** `Help -> About Penwright`
 
 Der Dialog zeigt:
 - App-Version und Logo
@@ -728,7 +728,7 @@ Der Dialog zeigt:
 
 ## MCP Server — KI-Integration mit Claude Desktop & Co.
 
-vswrite enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten koennen — ohne das Terminal zu benutzen.
+Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten koennen — ohne das Terminal zu benutzen.
 
 > **Hinweis:** Der MCP Server erfordert eine **Pro-Lizenz**. Siehe [Lizenz-Management](#lizenz-management).
 
@@ -744,11 +744,11 @@ Die KI kann ueber den MCP-Server (56 Tools):
 - PDF und DOCX exportieren (DOCX mit echten Word-Styles + Live-Multilevel-Numbering, rendert Abbildungen, Display-Math, Tabellen, Cross-References, Fussnoten und Callouts; reiner Design-Code wird uebersprungen)
 - Markdown importieren und Bilder einfuegen (Content-Hash-Dedup + Figure-Builder)
 - Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (19 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries inkl. asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover) anker-basiert einfuegen, per-Chapter Section Styles (Magazin-Rubriken: feature / interview / essay / …) zuweisen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
-- Zwischen Projekten wechseln, Git-Operationen ausfuehren, Skill-Prompts abfragen (typst-reference / vswrite-conventions / research-workflow / writing-style / design-conventions)
+- Zwischen Projekten wechseln, Git-Operationen ausfuehren, Skill-Prompts abfragen (typst-reference / penwright-conventions / research-workflow / writing-style / design-conventions)
 
 ### Einrichtung: Auto-Setup-Wizard (macOS)
 
-Beim ersten Start auf macOS bietet vswrite automatisch an, Claude Desktop zu verbinden — du musst keine JSON-Datei selbst editieren. Voraussetzungen:
+Beim ersten Start auf macOS bietet Penwright automatisch an, Claude Desktop zu verbinden — du musst keine JSON-Datei selbst editieren. Voraussetzungen:
 
 - **Pro-Lizenz aktiviert** (siehe [Lizenz-Management](#lizenz-management)) — der MCP-Server lehnt sonst beim Start ab
 - **Claude Desktop installiert** unter `/Applications/Claude.app` oder `~/Applications/Claude.app`
@@ -758,12 +758,12 @@ Beim ersten Start auf macOS bietet vswrite automatisch an, Claude Desktop zu ver
 1. Wizard erscheint nach ein paar Sekunden automatisch (oder ueber `Hilfe → "Mit Claude Desktop verbinden…"`)
 2. Klick auf **„Jetzt verbinden"**
 3. Im Hintergrund:
-   - Das Server-Binary wird aus dem .app-Bundle nach `~/Library/Application Support/vswrite/mcp-server/vswrite-mcp` kopiert
-   - `~/Library/Application Support/Claude/claude_desktop_config.json` bekommt einen `vswrite`-Eintrag — andere bestehende MCP-Server bleiben unangetastet, ein Backup deiner alten Config wird angelegt
-   - Dein Pro-Lizenzschluessel wird als Umgebungsvariable (`VSWRITE_LICENSE_KEY`) in den Eintrag geschrieben
-4. **Claude Desktop neu starten** — die vswrite-Tools erscheinen automatisch
+   - Das Server-Binary wird aus dem .app-Bundle nach `~/Library/Application Support/Penwright/mcp-server/penwright-mcp` kopiert
+   - `~/Library/Application Support/Claude/claude_desktop_config.json` bekommt einen `Penwright`-Eintrag — andere bestehende MCP-Server bleiben unangetastet, ein Backup deiner alten Config wird angelegt
+   - Dein Pro-Lizenzschluessel wird als Umgebungsvariable (`PENWRIGHT_LICENSE_KEY`) in den Eintrag geschrieben
+4. **Claude Desktop neu starten** — die Penwright-Tools erscheinen automatisch
 
-**Standalone:** der MCP-Server laeuft als eigener Prozess, **unabhaengig von der vswrite-App**. Du kannst vswrite beenden, Claude weiterhin nutzen, vswrite spaeter wieder oeffnen — die Reihenfolge ist egal.
+**Standalone:** der MCP-Server laeuft als eigener Prozess, **unabhaengig von der Penwright-App**. Du kannst Penwright beenden, Claude weiterhin nutzen, Penwright spaeter wieder oeffnen — die Reihenfolge ist egal.
 
 **Idempotenz:** wiederholtes Ausfuehren ist sicher — kein Duplikat-Eintrag. Falls du spaeter eine neue Lizenz aktivierst, fuehre den Wizard ueber das Hilfe-Menue nochmal aus, damit der neue Key in die Config geschrieben wird.
 
@@ -771,7 +771,7 @@ Beim ersten Start auf macOS bietet vswrite automatisch an, Claude Desktop zu ver
 
 Auf Windows / Linux ist der Wizard derzeit nicht verfuegbar. Auch auf macOS kannst du manuell konfigurieren wenn du moechtest:
 
-**Schritt 1:** Im vswrite-Repo das Server-Binary bauen (einmalig):
+**Schritt 1:** Im Penwright-Repo das Server-Binary bauen (einmalig):
 
 ```bash
 npm run build:mcp-binary       # nur Host-Arch
@@ -779,7 +779,7 @@ npm run build:mcp-binary       # nur Host-Arch
 npm run build:mcp-binary:all   # arm64 + x86_64
 ```
 
-Output: `dist/mcp/bin/vswrite-mcp-<arch>` (~64 MB Single-File-Binary, kein Node noetig).
+Output: `dist/mcp/bin/penwright-mcp-<arch>` (~64 MB Single-File-Binary, kein Node noetig).
 
 Alternativ kannst du den klassischen Node-Pfad nehmen (erfordert Node ≥ 20 auf der Maschine):
 
@@ -792,14 +792,14 @@ npm run build:mcp   # → dist/mcp/server.mjs
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-**Schritt 3:** vswrite als MCP-Server eintragen. Mit Standalone-Binary (empfohlen):
+**Schritt 3:** Penwright als MCP-Server eintragen. Mit Standalone-Binary (empfohlen):
 
 ```json
 {
   "mcpServers": {
-    "vswrite": {
-      "command": "/PFAD/ZU/vswrite-desktop/dist/mcp/bin/vswrite-mcp",
-      "env": { "VSWRITE_LICENSE_KEY": "VSWRITE_PRO_xxxx..." }
+    "Penwright": {
+      "command": "/PFAD/ZU/vswrite-desktop/dist/mcp/bin/penwright-mcp",
+      "env": { "PENWRIGHT_LICENSE_KEY": "pw_LIC_xxx..." }
     }
   }
 }
@@ -810,10 +810,10 @@ Oder via Node + `.mjs`:
 ```json
 {
   "mcpServers": {
-    "vswrite": {
+    "Penwright": {
       "command": "node",
       "args": ["/PFAD/ZU/vswrite-desktop/dist/mcp/server.mjs"],
-      "env": { "VSWRITE_LICENSE_KEY": "VSWRITE_PRO_xxxx..." }
+      "env": { "PENWRIGHT_LICENSE_KEY": "pw_LIC_xxx..." }
     }
   }
 }
@@ -823,7 +823,7 @@ Oder via Node + `.mjs`:
 
 ### Benutzung
 
-Nach dem Neustart sieht Claude die vswrite-Tools. Du kannst direkt in Claude Desktop sagen:
+Nach dem Neustart sieht Claude die Penwright-Tools. Du kannst direkt in Claude Desktop sagen:
 
 - *"OEffne mein Thesis-Projekt in /Users/.../my-thesis"*
 - *"Zeig mir den Inhalt meines Typst-Dokuments"*
@@ -831,7 +831,7 @@ Nach dem Neustart sieht Claude die vswrite-Tools. Du kannst direkt in Claude Des
 - *"Kompiliere mein Dokument und zeig mir die Fehler"*
 - *"Exportiere das Dokument als PDF nach ~/Desktop/thesis.pdf"*
 
-Claude nutzt dafuer automatisch die vswrite-Tools im Hintergrund. Alle Pfade werden gegen das Projekt-Verzeichnis validiert — der Agent kann nicht versehentlich aus dem Projekt ausbrechen.
+Claude nutzt dafuer automatisch die Penwright-Tools im Hintergrund. Alle Pfade werden gegen das Projekt-Verzeichnis validiert — der Agent kann nicht versehentlich aus dem Projekt ausbrechen.
 
 ### Projekt wechseln
 
@@ -839,7 +839,7 @@ Du musst die Config **nicht** jedes Mal aendern, wenn du das Projekt wechselst. 
 
 *"Wechsle zum Projekt /Users/.../anderes-projekt"*
 
-Claude ruft dann `vswrite_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
+Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
 ### Verfuegbare Tools (56)
 
@@ -847,107 +847,107 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 
 **Projekt & Dateien (5)**
 
-- `vswrite_set_project` — Setzt das aktive Projekt-Verzeichnis; auto-detected `main.typ` / `document.typ`. Muss als Erstes aufgerufen werden.
-- `vswrite_list_files` — Liefert den Projekt-Dateibaum (`.typ`, `.bib`, `.md`, `.yaml`, `.json`, `.pdf`, Bilder).
-- `vswrite_read_file` — Liest eine Datei im Projekt; Text-Inhalt als String, Binaer-Dateien als Base64.
-- `vswrite_write_file` — Schreibt Inhalt in eine Datei im Projekt; erzeugt Parent-Ordner automatisch.
-- `vswrite_create_project` — Legt ein neues Typst-Projekt aus einer Vorlage an (`document`, `thesis`, `paper`, `letter`, `book`, `magazine`). Die `magazine`-Vorlage ist fuer die [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer)-Pipeline.
+- `penwright_set_project` — Setzt das aktive Projekt-Verzeichnis; auto-detected `main.typ` / `document.typ`. Muss als Erstes aufgerufen werden.
+- `penwright_list_files` — Liefert den Projekt-Dateibaum (`.typ`, `.bib`, `.md`, `.yaml`, `.json`, `.pdf`, Bilder).
+- `penwright_read_file` — Liest eine Datei im Projekt; Text-Inhalt als String, Binaer-Dateien als Base64.
+- `penwright_write_file` — Schreibt Inhalt in eine Datei im Projekt; erzeugt Parent-Ordner automatisch.
+- `penwright_create_project` — Legt ein neues Typst-Projekt aus einer Vorlage an (`document`, `thesis`, `paper`, `letter`, `book`, `magazine`). Die `magazine`-Vorlage ist fuer die [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer)-Pipeline.
 
 **Dokument-Operationen (4)**
 
-- `vswrite_get_document` — Liefert das aktuelle Dokument (Inhalt, Pfad, Projekt-Verzeichnis, Word-Count).
-- `vswrite_open_file` — OEffnet eine `.typ`-Datei als aktuelles Dokument; Pfad absolut oder projekt-relativ.
-- `vswrite_update_document` — Ersetzt den Inhalt des aktuellen Dokuments und speichert auf Disk.
-- `vswrite_compile` — Verifiziert dass das Dokument fehlerfrei kompiliert; nur PDF, Artefakt wird wieder geloescht — fuer Real-Output `export_pdf` / `export_docx` benutzen.
+- `penwright_get_document` — Liefert das aktuelle Dokument (Inhalt, Pfad, Projekt-Verzeichnis, Word-Count).
+- `penwright_open_file` — OEffnet eine `.typ`-Datei als aktuelles Dokument; Pfad absolut oder projekt-relativ.
+- `penwright_update_document` — Ersetzt den Inhalt des aktuellen Dokuments und speichert auf Disk.
+- `penwright_compile` — Verifiziert dass das Dokument fehlerfrei kompiliert; nur PDF, Artefakt wird wieder geloescht — fuer Real-Output `export_pdf` / `export_docx` benutzen.
 
 **Settings (2)**
 
-- `vswrite_get_settings` — Liest die Document-Settings (Sprache + Bibliographie-Stil; alles andere lebt seit Phase A im Design-Editor).
-- `vswrite_update_settings` — Aendert Document-Settings; nur uebergebene Keys werden modifiziert.
+- `penwright_get_settings` — Liest die Document-Settings (Sprache + Bibliographie-Stil; alles andere lebt seit Phase A im Design-Editor).
+- `penwright_update_settings` — Aendert Document-Settings; nur uebergebene Keys werden modifiziert.
 
 **Design (15) — Themes, Layouts, Palette, Fonts, Elements, Section Styles**
 
-Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.vswrite/style.json`, regeneriert `style.typ`, stellt sicher dass die Root-`.typ`-Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Theme-/Layout-Swaps preservieren `style.custom.preamble` (User-Escape-Hatch-Code) und `style.sections` (per-Chapter Section Styles).
+Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.penwright/style.json`, regeneriert `style.typ`, stellt sicher dass die Root-`.typ`-Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Theme-/Layout-Swaps preservieren `style.custom.preamble` (User-Escape-Hatch-Code) und `style.sections` (per-Chapter Section Styles).
 
-- `vswrite_get_style` — Liefert das vollstaendige `ProjectStyle`-JSON (colors / fonts / scale / layout / headings / elements / custom).
-- `vswrite_update_style` — Partial-Patch mit Deep-Merge und Per-Leaf-Sanitizer; ungueltige Werte fallen auf den alten zurueck.
-- `vswrite_list_styles` — Listet die sechs Built-in-Themes (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis).
-- `vswrite_apply_style` — Wendet ein Theme an; ersetzt colors/fonts/scale/layout/headings/elements, behaelt `custom.preamble`.
-- `vswrite_list_layouts` — Liefert die sieben Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial).
-- `vswrite_apply_layout` — Tauscht nur `layout.*` (+ optional `scale.base`) — Theme, Farben, Fonts bleiben.
-- `vswrite_list_fonts` — Liefert die sieben gebuendelten OFL-Fonts mit family / category / description.
-- `vswrite_apply_palette` — Setzt die 5-Farb-Palette via `presetId` oder per-Slot-Hex-Overrides (kombinierbar).
-- `vswrite_list_design_elements` — Library der **22** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note.
-- `vswrite_insert_design_element` — Fuegt ein Element an einem Anker ein; Snippets referenzieren `style-colors.*` / `style-fonts.*` und re-themen automatisch.
-- `vswrite_generate_layout` — Hoch-Level-NL-Komposit: `intent: "magazine"` waehlt z.B. Editorial-Theme + Magazine-Editorial-Layout + optionalen Hero.
-- `vswrite_list_section_styles` — Per-Chapter-"Rubriken": die fuenf Presets (feature / interview / essay / photo-essay / department), die definierten Varianten + welche Kapitel welche nutzen.
-- `vswrite_define_section_style` — Section-Overlay anlegen/aendern (aus Preset und/oder explizite accent / fonts / columns / heading-Overrides); regeneriert ein `#let <id>-style` pro Variante.
-- `vswrite_apply_section_style` — Variante einem Kapitel zuweisen (injiziert das scoped `#show`; auto-definiert Preset falls noetig). Restyled nur dieses Kapitel; Page-Geometrie bleibt dokument-level.
-- `vswrite_clear_section_style` — Section-Opt-in aus einem Kapitel entfernen.
+- `penwright_get_style` — Liefert das vollstaendige `ProjectStyle`-JSON (colors / fonts / scale / layout / headings / elements / custom).
+- `penwright_update_style` — Partial-Patch mit Deep-Merge und Per-Leaf-Sanitizer; ungueltige Werte fallen auf den alten zurueck.
+- `penwright_list_styles` — Listet die sechs Built-in-Themes (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis).
+- `penwright_apply_style` — Wendet ein Theme an; ersetzt colors/fonts/scale/layout/headings/elements, behaelt `custom.preamble`.
+- `penwright_list_layouts` — Liefert die sieben Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial).
+- `penwright_apply_layout` — Tauscht nur `layout.*` (+ optional `scale.base`) — Theme, Farben, Fonts bleiben.
+- `penwright_list_fonts` — Liefert die sieben gebuendelten OFL-Fonts mit family / category / description.
+- `penwright_apply_palette` — Setzt die 5-Farb-Palette via `presetId` oder per-Slot-Hex-Overrides (kombinierbar).
+- `penwright_list_design_elements` — Library der **22** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note.
+- `penwright_insert_design_element` — Fuegt ein Element an einem Anker ein; Snippets referenzieren `style-colors.*` / `style-fonts.*` und re-themen automatisch.
+- `penwright_generate_layout` — Hoch-Level-NL-Komposit: `intent: "magazine"` waehlt z.B. Editorial-Theme + Magazine-Editorial-Layout + optionalen Hero.
+- `penwright_list_section_styles` — Per-Chapter-"Rubriken": die fuenf Presets (feature / interview / essay / photo-essay / department), die definierten Varianten + welche Kapitel welche nutzen.
+- `penwright_define_section_style` — Section-Overlay anlegen/aendern (aus Preset und/oder explizite accent / fonts / columns / heading-Overrides); regeneriert ein `#let <id>-style` pro Variante.
+- `penwright_apply_section_style` — Variante einem Kapitel zuweisen (injiziert das scoped `#show`; auto-definiert Preset falls noetig). Restyled nur dieses Kapitel; Page-Geometrie bleibt dokument-level.
+- `penwright_clear_section_style` — Section-Opt-in aus einem Kapitel entfernen.
 
 **Kapitel & Struktur (6)**
 
-- `vswrite_get_chapters` — Liefert die `#include`-Struktur (Reihenfolge, Pfade, ob Dateien existieren).
-- `vswrite_reorder_chapters` — Aendert die Reihenfolge der `#include`-Statements im Hauptdokument.
-- `vswrite_add_chapter` — Legt eine neue Kapitel-Datei in `chapters/` an und fuegt einen `#include` ein.
-- `vswrite_remove_chapter` — Entfernt einen `#include`-Eintrag aus dem Hauptdokument; die Datei selbst bleibt.
-- `vswrite_merge_document` — Loest alle `#include`-Statements rekursiv auf und liefert das fertige Gesamtdokument als String (read-only).
-- `vswrite_split_document` — Splittet das aktuelle Dokument an `=` Heading-1-Grenzen in einzelne Kapitel-Dateien.
+- `penwright_get_chapters` — Liefert die `#include`-Struktur (Reihenfolge, Pfade, ob Dateien existieren).
+- `penwright_reorder_chapters` — Aendert die Reihenfolge der `#include`-Statements im Hauptdokument.
+- `penwright_add_chapter` — Legt eine neue Kapitel-Datei in `chapters/` an und fuegt einen `#include` ein.
+- `penwright_remove_chapter` — Entfernt einen `#include`-Eintrag aus dem Hauptdokument; die Datei selbst bleibt.
+- `penwright_merge_document` — Loest alle `#include`-Statements rekursiv auf und liefert das fertige Gesamtdokument als String (read-only).
+- `penwright_split_document` — Splittet das aktuelle Dokument an `=` Heading-1-Grenzen in einzelne Kapitel-Dateien.
 
 **Bibliographie & Citations (3)**
 
-- `vswrite_get_citations` — Liefert alle BibTeX-Eintraege aus den `.bib`-Dateien im Projekt.
-- `vswrite_add_citation` — Fuegt einen BibTeX-Eintrag zu `references.bib` hinzu; legt Datei und `#bibliography`-Statement bei Bedarf an.
-- `vswrite_ensure_bibliography` — Stellt sicher dass das Projekt eine `references.bib` und einen `#bibliography`-Eintrag hat.
+- `penwright_get_citations` — Liefert alle BibTeX-Eintraege aus den `.bib`-Dateien im Projekt.
+- `penwright_add_citation` — Fuegt einen BibTeX-Eintrag zu `references.bib` hinzu; legt Datei und `#bibliography`-Statement bei Bedarf an.
+- `penwright_ensure_bibliography` — Stellt sicher dass das Projekt eine `references.bib` und einen `#bibliography`-Eintrag hat.
 
 **Cross-References & Footnotes (3)**
 
-- `vswrite_list_labels` — Liefert alle `<label>`-Definitionen im Projekt mit Typ-Klassifikation (figure / table / equation / heading / other) und Caption-Vorschau.
-- `vswrite_insert_reference` — Fuegt eine Typst-Cross-Reference (`@label`) an einem Anker ein; validiert dass das Label existiert und schlaegt aehnliche vor.
-- `vswrite_add_footnote` — Fuegt eine Typst-Footnote (`#footnote[…]`) an einem Anker ein; mit Klammer-Balance-Check fuer den Body.
+- `penwright_list_labels` — Liefert alle `<label>`-Definitionen im Projekt mit Typ-Klassifikation (figure / table / equation / heading / other) und Caption-Vorschau.
+- `penwright_insert_reference` — Fuegt eine Typst-Cross-Reference (`@label`) an einem Anker ein; validiert dass das Label existiert und schlaegt aehnliche vor.
+- `penwright_add_footnote` — Fuegt eine Typst-Footnote (`#footnote[…]`) an einem Anker ein; mit Klammer-Balance-Check fuer den Body.
 
 **Comments & Annotations (4)**
 
-- `vswrite_list_comments` — Listet alle vswrite-Comments (oder nur die einer Datei); Comments leben als `.md`-Dateien in `comments/` und werden nie kompiliert.
-- `vswrite_add_comment` — Legt einen Comment an einem Verbatim-Anker an; generiert ID, Frontmatter und Offset-Hints.
-- `vswrite_resolve_comment` — Markiert einen Comment als „erledigt" (oder hebt das wieder auf); Eintrag bleibt im Projekt erhalten.
-- `vswrite_delete_comment` — Loescht einen Comment endgueltig (entfernt die `.md`-Datei).
+- `penwright_list_comments` — Listet alle Penwright-Comments (oder nur die einer Datei); Comments leben als `.md`-Dateien in `comments/` und werden nie kompiliert.
+- `penwright_add_comment` — Legt einen Comment an einem Verbatim-Anker an; generiert ID, Frontmatter und Offset-Hints.
+- `penwright_resolve_comment` — Markiert einen Comment als „erledigt" (oder hebt das wieder auf); Eintrag bleibt im Projekt erhalten.
+- `penwright_delete_comment` — Loescht einen Comment endgueltig (entfernt die `.md`-Datei).
 
 **Versionen (4) — entspricht dem Project-Panel-Vokabular**
 
-- `vswrite_save_version` — Speichert eine benannte Version (Git-Commit); initialisiert das Repo falls noch keins da ist; lokal-only, kein Push.
-- `vswrite_list_versions` — Liefert die Versions-Historie (max. 200, neueste zuerst) inkl. `isAuto`-Flag fuer vswrite-interne Auto-Versionen.
-- `vswrite_show_version` — Zeigt den Per-File-Diff einer Version (added/modified/deleted/renamed + Unified-Diff-Hunks).
-- `vswrite_restore_version` — Stellt Dateien aus einer historischen Version wieder her; vorher selbst eine Version speichern!
+- `penwright_save_version` — Speichert eine benannte Version (Git-Commit); initialisiert das Repo falls noch keins da ist; lokal-only, kein Push.
+- `penwright_list_versions` — Liefert die Versions-Historie (max. 200, neueste zuerst) inkl. `isAuto`-Flag fuer Penwright-interne Auto-Versionen.
+- `penwright_show_version` — Zeigt den Per-File-Diff einer Version (added/modified/deleted/renamed + Unified-Diff-Hunks).
+- `penwright_restore_version` — Stellt Dateien aus einer historischen Version wieder her; vorher selbst eine Version speichern!
 
 **Discovery — Suche & Quellen (3)**
 
-- `vswrite_search_project` — Sucht in allen `.typ`-Dateien (optional `.bib`); whole-word funktioniert dank Lookarounds auch bei `@citekey`-Backlinks; max. 1000 Treffer.
-- `vswrite_replace_in_project` — Ersetzt alle Vorkommen einer Suche projektweit; **destruktiv** — vorher `save_version` aufrufen.
-- `vswrite_find_source_for_citation` — Sucht ein PDF in `sources/` das zum Citekey passt (`<citekey>.pdf` bevorzugt, Suffix-Varianten erlaubt).
+- `penwright_search_project` — Sucht in allen `.typ`-Dateien (optional `.bib`); whole-word funktioniert dank Lookarounds auch bei `@citekey`-Backlinks; max. 1000 Treffer.
+- `penwright_replace_in_project` — Ersetzt alle Vorkommen einer Suche projektweit; **destruktiv** — vorher `save_version` aufrufen.
+- `penwright_find_source_for_citation` — Sucht ein PDF in `sources/` das zum Citekey passt (`<citekey>.pdf` bevorzugt, Suffix-Varianten erlaubt).
 
 **Export (2)**
 
-- `vswrite_export_pdf` — Kompiliert und exportiert als PDF; Output-Pfad muss im Projekt liegen, Konvention `exports/<name>.pdf`.
-- `vswrite_export_docx` — Exportiert als DOCX mit echten Word-Styles (Heading1-6, Quote, CodeBlock, Caption …) und Live-Multilevel-Numbering — der Betreuer kann in Word umordnen und die Nummern aktualisieren sich. Rendert auch die reichen Konstrukte: Abbildungen → Bild + „Abbildung N"-Caption, `#figure(table())` → echte Word-Tabelle, Display-Math + SVG → Bilder via gebundeltem Typst, `@fig/@tbl/@eq`-Cross-Refs → aufgeloest, Fussnoten → echte Word-Fussnoten, Callouts → Akzent-Box; reiner Design-/Layout-Code wird uebersprungen statt geleakt (DOCX = Manuskript, PDF = Design).
+- `penwright_export_pdf` — Kompiliert und exportiert als PDF; Output-Pfad muss im Projekt liegen, Konvention `exports/<name>.pdf`.
+- `penwright_export_docx` — Exportiert als DOCX mit echten Word-Styles (Heading1-6, Quote, CodeBlock, Caption …) und Live-Multilevel-Numbering — der Betreuer kann in Word umordnen und die Nummern aktualisieren sich. Rendert auch die reichen Konstrukte: Abbildungen → Bild + „Abbildung N"-Caption, `#figure(table())` → echte Word-Tabelle, Display-Math + SVG → Bilder via gebundeltem Typst, `@fig/@tbl/@eq`-Cross-Refs → aufgeloest, Fussnoten → echte Word-Fussnoten, Callouts → Akzent-Box; reiner Design-/Layout-Code wird uebersprungen statt geleakt (DOCX = Manuskript, PDF = Design).
 
 **Import & Assets (2)**
 
-- `vswrite_import_markdown` — Konvertiert Markdown zu Typst und schreibt in eine Projekt-Datei; inline-Markdown oder `srcPath` zu einer `.md`-Datei.
-- `vswrite_add_image` — Importiert ein Bild nach `assets/` (Content-Hash-Dedup), baut den Typst-Snippet (mit optionaler Caption + Label → `#figure(…)`) und kann ihn direkt am Anker einfuegen.
+- `penwright_import_markdown` — Konvertiert Markdown zu Typst und schreibt in eine Projekt-Datei; inline-Markdown oder `srcPath` zu einer `.md`-Datei.
+- `penwright_add_image` — Importiert ein Bild nach `assets/` (Content-Hash-Dedup), baut den Typst-Snippet (mit optionaler Caption + Label → `#figure(…)`) und kann ihn direkt am Anker einfuegen.
 
 **Git Low-Level (3) — fuer Sync mit Remote**
 
-- `vswrite_git_status` — Liefert Branch, ahead/behind und geaenderte Dateien.
-- `vswrite_git_commit` — Stagt alle Aenderungen und committet mit der gegebenen Message.
-- `vswrite_git_push` — Pusht commits zum Remote-Repository.
+- `penwright_git_status` — Liefert Branch, ahead/behind und geaenderte Dateien.
+- `penwright_git_commit` — Stagt alle Aenderungen und committet mit der gegebenen Message.
+- `penwright_git_push` — Pusht commits zum Remote-Repository.
 
 Alle datei-beruehrenden Tools laufen ueber `resolveInsideProject` — symlink-aware, blockiert `../`-Traversal. Anker-basierte Tools (`add_comment` / `insert_reference` / `add_footnote` / `add_image`) nehmen einen `afterText`/`anchor` plus optional einen 1-basierten `occurrence`, wenn der Anker mehrfach vorkommt — der Agent muss keine Offsets selbst berechnen.
 
-Der MCP-Server bietet zusaetzlich fuenf **Prompts** (`typst-reference`, `vswrite-conventions`, `research-workflow`, `writing-style`, `design-conventions`), gespeist aus den deployed `.claude/skills/<name>/SKILL.md`-Dateien:
+Der MCP-Server bietet zusaetzlich fuenf **Prompts** (`typst-reference`, `penwright-conventions`, `research-workflow`, `writing-style`, `design-conventions`), gespeist aus den deployed `.claude/skills/<name>/SKILL.md`-Dateien:
 
 - **typst-reference** — Typst-Sprachreferenz (Syntax, Math, Layout, Cross-Refs, Footnotes, Bibliographie, gebuendelte Packages mit Code-Beispielen).
-- **vswrite-conventions** — Projekt-Konventionen (Ordnerstruktur, Persistenz-Schichten, Design-Surface, Comments, Cross-Refs, Mode-Toggles).
+- **penwright-conventions** — Projekt-Konventionen (Ordnerstruktur, Persistenz-Schichten, Design-Surface, Comments, Cross-Refs, Mode-Toggles).
 - **research-workflow** — Vier-Phasen-Workflow (Discover / Capture / Synthesize / Integrate) plus End-to-End-Recipes mit MCP-Tools.
 - **writing-style** — Stil-Checkliste fuer akademische Prosa mit vier Sektionen: **Source Discipline** (nie Quellen / BibTeX-Eintraege / Zitate erfinden, Pre-Submission-Audit), **Anti-AI-Tells** (Em-Dash-Inflation, "Not just X, but Y", Dreierlisten-Reflex, Buzzwords wie `delve into`/`Landschaft`), **Aktiv-Prinzipien**, **Akademik-Konventionen** (Tempus, Hedging, Citation-Integration). Zweisprachig (EN + DE).
 - **design-conventions** — Visuelle Design-Konventionen: Color-Theory (5 semantische Slots, WCAG-Kontrast-Regeln), Typografie-Pairing, Heading-Hierarchy, Layout-Patterns, "Modern Looks 2026", Anti-Patterns (z.B. mehrere Drop-Caps pro Section, doppelte Article-Opener), Workflow-Rezept fuer Composing-Design-Decisions.
@@ -992,16 +992,16 @@ Auf Windows/Linux jeweils `Ctrl` statt `Cmd`.
 
 ## Crash-Berichte
 
-Sollte vswrite einmal abstuerzen, schreibt die App lokal einen Bericht im Klartext:
+Sollte Penwright einmal abstuerzen, schreibt die App lokal einen Bericht im Klartext:
 
 - Was fuer ein Fehler aufgetreten ist
 - Stack-Trace mit Datei + Zeile
 - Deine letzten Aktionen (Bearbeitungs-Schritte, keine Inhalte)
 - App-, OS- und Versions-Informationen
 
-Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du entscheidest selbst, was passiert: **In Zwischenablage kopieren**, **E-Mail vorbereiten** (oeffnet deinen Mail-Client mit `feedback@vswrite.com` vorausgefuellt), **Ordner oeffnen** (zeigt alle gespeicherten Berichte im Finder) oder **Verwerfen** (loescht sie).
+Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du entscheidest selbst, was passiert: **In Zwischenablage kopieren**, **E-Mail vorbereiten** (oeffnet deinen Mail-Client mit `feedback@penwright.app` vorausgefuellt), **Ordner oeffnen** (zeigt alle gespeicherten Berichte im Finder) oder **Verwerfen** (loescht sie).
 
-**Was vswrite NICHT tut:** Daten automatisch ins Internet senden. Es gibt keine externe Crash-Telemetrie, keinen Account-Login, keinen Server der mitliest. Berichte bleiben auf deinem Rechner, bis du sie aktiv weitergibst.
+**Was Penwright NICHT tut:** Daten automatisch ins Internet senden. Es gibt keine externe Crash-Telemetrie, keinen Account-Login, keinen Server der mitliest. Berichte bleiben auf deinem Rechner, bis du sie aktiv weitergibst.
 
 **Was anonymisiert wird:** Pfade wie `/Users/<Vorname>/...` werden vor dem Schreiben durch `/Users/<redacted>/...` ersetzt. Datei-Inhalte landen nie in den Berichten — nur Datei-**Endungen** und Aktions-Typen (etwa „Datei gespeichert", „Projekt geoeffnet").
 
@@ -1013,7 +1013,7 @@ Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du 
 
 Die App prueft bei jedem Start, ob eine neue Version verfuegbar ist (5 s nach Start, dann alle 4 Stunden). Wenn ja, erscheint ein nativer Dialog mit der Option, das Update herunterzuladen und beim naechsten Start zu installieren.
 
-Manueller Check: About-Dialog oeffnen -> die Version dort entspricht der installierten Version. Aktuellste Version siehe [vswrite.com/download](https://vswrite.com) oder [releases.vswrite.com](https://releases.vswrite.com).
+Manueller Check: About-Dialog oeffnen -> die Version dort entspricht der installierten Version. Aktuellste Version siehe [vswrite.com/download](https://vswrite.com) oder [releases.penwright.com](https://releases.penwright.com).
 
 ---
 

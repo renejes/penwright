@@ -38,7 +38,7 @@
     }
   }
 
-  const vswriteTheme = EditorView.theme({
+  const penwrightTheme = EditorView.theme({
     '&': {
       height: '100%',
       fontSize: '13px',
@@ -85,7 +85,7 @@
       history(),
       highlightSelectionMatches(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      vswriteTheme,
+      penwrightTheme,
       keymap.of([
         ...closeBracketsKeymap,
         ...defaultKeymap,

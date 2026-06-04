@@ -55,7 +55,7 @@
   function findBacklinks(heading: HeadingEntry, e: MouseEvent) {
     e.stopPropagation();
     if (!heading.title || heading.title === '(untitled)') return;
-    window.dispatchEvent(new CustomEvent('vswrite:find-backlinks', {
+    window.dispatchEvent(new CustomEvent('penwright:find-backlinks', {
       detail: { query: heading.title, wholeWord: false, caseSensitive: false },
     }));
   }

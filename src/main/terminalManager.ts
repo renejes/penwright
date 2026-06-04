@@ -9,7 +9,7 @@ let pty: typeof import('node-pty') | null = null;
 try {
   pty = require('node-pty');
 } catch {
-  console.warn('[vswrite] node-pty not available — terminal disabled');
+  console.warn('[penwright] node-pty not available — terminal disabled');
 }
 
 type IPty = import('node-pty').IPty;
@@ -44,7 +44,7 @@ export class TerminalManager {
       cwd,
       env: {
         ...process.env,
-        TERM_PROGRAM: 'vswrite',
+        TERM_PROGRAM: 'penwright',
         COLORTERM: 'truecolor',
       } as Record<string, string>,
     });
@@ -58,7 +58,7 @@ export class TerminalManager {
         this.respawnCount++;
         setTimeout(() => this.spawn(cwd), 100);
       } else {
-        console.warn('[vswrite] Terminal respawn limit reached');
+        console.warn('[penwright] Terminal respawn limit reached');
       }
     });
   }

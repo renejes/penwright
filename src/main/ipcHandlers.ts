@@ -82,21 +82,21 @@ const PENWRIGHT_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_u6Fn7z0pPvGUX6pWvP
 
 export function setupIPC(): void {
   // Renderer sends edited content
-  ipcMain.on('vswrite', (_event, msg: { type: string; [key: string]: unknown }) => {
+  ipcMain.on('penwright', (_event, msg: { type: string; [key: string]: unknown }) => {
     switch (msg.type) {
       case 'ready': {
         if (appState.currentFilePath) {
-          appState.mainWindow?.webContents.send('vswrite', {
+          appState.mainWindow?.webContents.send('penwright', {
             type: 'documentBaseUri',
             uri: path.dirname(appState.currentFilePath),
           });
-          appState.mainWindow?.webContents.send('vswrite', {
+          appState.mainWindow?.webContents.send('penwright', {
             type: 'currentFile',
             path: appState.currentFilePath,
           });
         }
         if (appState.currentContent) {
-          appState.mainWindow?.webContents.send('vswrite', {
+          appState.mainWindow?.webContents.send('penwright', {
             type: 'update',
             content: appState.currentContent,
           });
@@ -115,7 +115,7 @@ export function setupIPC(): void {
           appState.currentContent = content;
           appState.isDirty = true;
           updateTitle();
-          appState.mainWindow?.webContents.send('vswrite', { type: 'saveStatus', saved: false });
+          appState.mainWindow?.webContents.send('penwright', { type: 'saveStatus', saved: false });
           autoSave();
         }
         break;
@@ -149,7 +149,7 @@ export function setupIPC(): void {
       }
 
       case 'newProject': {
-        appState.mainWindow?.webContents.send('vswrite', {
+        appState.mainWindow?.webContents.send('penwright', {
           type: 'showNewProjectDialog',
           templates: projectTemplates.map(t => ({ id: t.id, label: t.label, description: t.description })),
         });
@@ -175,7 +175,7 @@ export function setupIPC(): void {
             appState.currentContent = merged;
             appState.isDirty = true;
             updateTitle();
-            appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+            appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
           } catch (err) {
             dialog.showErrorBox('Merge failed', String(err));
           }
@@ -218,8 +218,8 @@ export function setupIPC(): void {
             appState.isDirty = true;
             updateTitle();
             autoSave();
-            appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
-            appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+            appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
+            appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
           } catch (err) {
             dialog.showErrorBox('Split failed', String(err));
           }
@@ -230,7 +230,7 @@ export function setupIPC(): void {
       case 'setWordGoal': {
         const goal = msg.goal as number;
         const wordCount = appState.currentContent.split(/\s+/).filter(Boolean).length;
-        appState.mainWindow?.webContents.send('vswrite', { type: 'wordGoal', goal, current: wordCount });
+        appState.mainWindow?.webContents.send('penwright', { type: 'wordGoal', goal, current: wordCount });
         break;
       }
 
@@ -263,13 +263,13 @@ export function setupIPC(): void {
                   appState.currentContent = after;
                   appState.isDirty = false;
                   updateTitle();
-                  appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+                  appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
                 }
               }
             }
             getCompiler()?.compilePdf();
           } catch (err) {
-            console.warn('[vswrite] quickSettings style write failed:', err);
+            console.warn('[penwright] quickSettings style write failed:', err);
           }
         }
         if (qs.lang) {
@@ -300,9 +300,9 @@ export function setupIPC(): void {
             appState.isDirty = true;
             updateTitle();
             autoSave();
-            appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+            appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
           }
-          appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+          appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
         }
         break;
       }
@@ -317,7 +317,7 @@ export function setupIPC(): void {
           const sourcesDir = path.join(path.dirname(appState.currentFilePath), 'sources');
           if (!fs.existsSync(sourcesDir)) fs.mkdirSync(sourcesDir, { recursive: true });
           shell.openPath(sourcesDir);
-          appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+          appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
         }
         break;
       }
@@ -340,7 +340,7 @@ export function setupIPC(): void {
       case 'undoLastAiEdit': {
         const undone = popAiSnapshot();
         if (!undone) {
-          appState.mainWindow?.webContents.send('vswrite', {
+          appState.mainWindow?.webContents.send('penwright', {
             type: 'notification',
             message: 'No AI edits to undo.',
           });
@@ -363,7 +363,7 @@ export function setupIPC(): void {
 
       case 'deserializeError': {
         const error = msg.error as string;
-        console.error('[vswrite] Deserialize error in renderer:', error);
+        console.error('[penwright] Deserialize error in renderer:', error);
         break;
       }
     }
@@ -467,7 +467,7 @@ export function setupIPC(): void {
     }
 
     if (filePath.match(/\.(bib|txt|md|yaml|yml|toml|json|csv|tex)$/i)) {
-      appState.mainWindow?.webContents.send('vswrite', {
+      appState.mainWindow?.webContents.send('penwright', {
         type: 'openTextFile',
         path: filePath,
       });
@@ -475,7 +475,7 @@ export function setupIPC(): void {
     }
 
     if (filePath.match(/\.pdf$/i)) {
-      appState.mainWindow?.webContents.send('vswrite', {
+      appState.mainWindow?.webContents.send('penwright', {
         type: 'openPdfFile',
         path: filePath,
       });
@@ -494,7 +494,7 @@ export function setupIPC(): void {
       const parent = path.dirname(dir);
       if (parent !== dir) {
         appState.projectDir = parent;
-        appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+        appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
         return { dir: parent, entries: readDirTree(parent), hasParent: path.dirname(parent) !== parent };
       }
     }
@@ -511,7 +511,7 @@ export function setupIPC(): void {
       if (typFiles.length > 0) {
         openFile(path.join(appState.projectDir, typFiles[0]));
       }
-      appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+      appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     }
   });
 
@@ -536,7 +536,7 @@ export function setupIPC(): void {
       throw new Error('Access denied: path is outside the project directory.');
     }
     await fs.promises.writeFile(filePath, content, 'utf-8');
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 
   // ─── Includes Handlers ──────────────────────────
@@ -566,7 +566,7 @@ export function setupIPC(): void {
     try {
       appState.mainWindow?.webContents.session.setSpellCheckerLanguages([resolved]);
     } catch (err) {
-      console.warn('[vswrite] Spellcheck language not available:', resolved, err);
+      console.warn('[penwright] Spellcheck language not available:', resolved, err);
     }
   });
 
@@ -593,8 +593,8 @@ export function setupIPC(): void {
     appState.isDirty = true;
     updateTitle();
     autoSave();
-    appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 
   // ─── Persistence Handlers ─────────────────────
@@ -711,14 +711,14 @@ export function setupIPC(): void {
           appState.currentContent = f.content;
           appState.isDirty = false;
           updateTitle();
-          appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+          appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
         }
       } catch (err) {
-        console.warn('[vswrite] Could not restore backup file:', f.relPath, err);
+        console.warn('[penwright] Could not restore backup file:', f.relPath, err);
       }
     }
 
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     return { ok: true, restored };
   });
 
@@ -848,7 +848,7 @@ export function setupIPC(): void {
             appState.currentContent = after;
             appState.isDirty = false;
             updateTitle();
-            appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: appState.currentContent });
+            appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
           }
         }
       } catch (err) {
@@ -859,7 +859,7 @@ export function setupIPC(): void {
     // 3. Recompile so the live preview reflects the change.
     getCompiler()?.compilePdf();
 
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     return { ok: true as const, style, conflicts };
   });
 
@@ -885,7 +885,7 @@ export function setupIPC(): void {
           appState.currentContent = after;
           appState.isDirty = false;
           updateTitle();
-          appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: after });
+          appState.mainWindow?.webContents.send('penwright', { type: 'update', content: after });
         }
       }
     }
@@ -912,7 +912,7 @@ export function setupIPC(): void {
       appState.currentContent = content;
       appState.isDirty = false;
       updateTitle();
-      appState.mainWindow?.webContents.send('vswrite', { type: 'update', content });
+      appState.mainWindow?.webContents.send('penwright', { type: 'update', content });
     }
     getCompiler()?.compilePdf();
   }
@@ -1013,7 +1013,7 @@ export function setupIPC(): void {
     if (!appState.projectDir) return null;
     const created = createComment(appState.projectDir, args);
     if (created) {
-      appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+      appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     }
     return created;
   });
@@ -1027,7 +1027,7 @@ export function setupIPC(): void {
     if (!appState.projectDir) return false;
     const ok = deleteComment(appState.projectDir, id);
     if (ok) {
-      appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+      appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     }
     return ok;
   });
@@ -1079,11 +1079,11 @@ export function setupIPC(): void {
   // truncated for mailto length safety; the user can attach the full file
   // separately if they want.
   ipcMain.handle('crash:openMail', (_event, content: string) => {
-    const subject = encodeURIComponent('vswrite Crash Report');
+    const subject = encodeURIComponent('Penwright Crash Report');
     const truncated = content.length > 1500
       ? content.slice(0, 1500) + '\n\n... (gekuerzt — vollstaendiger Bericht im crash-reports/-Ordner)'
       : content;
-    const url = `mailto:feedback@vswrite.com?subject=${subject}&body=${encodeURIComponent(truncated)}`;
+    const url = `mailto:feedback@penwright.app?subject=${subject}&body=${encodeURIComponent(truncated)}`;
     shell.openExternal(url);
     return { ok: true };
   });

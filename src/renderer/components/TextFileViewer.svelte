@@ -54,7 +54,7 @@
       originalContent = content;
       isDirty = false;
     } catch (e) {
-      console.error('[vswrite] Failed to save:', e);
+      console.error('[penwright] Failed to save:', e);
     }
     saving = false;
   }

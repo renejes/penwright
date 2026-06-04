@@ -8,7 +8,7 @@
  * (ephemeral, render-only) rather than document marks. The source stays
  * clean and never compiles a comment into the PDF/DOCX output.
  *
- * On click, we dispatch a `vswrite:comment-click` event with the comment id
+ * On click, we dispatch a `penwright:comment-click` event with the comment id
  * so the renderer can scroll the side-panel to that entry.
  */
 
@@ -28,9 +28,9 @@ interface SetMarksMeta {
   marks: CommentMark[];
 }
 
-const commentsKey = new PluginKey<DecorationSet>('vswriteComments');
+const commentsKey = new PluginKey<DecorationSet>('penwrightComments');
 
-// Module-level cache: a single editor instance is enough for vswrite, and
+// Module-level cache: a single editor instance is enough for Penwright, and
 // keeping the marks here lets `apply()` re-derive decorations after every
 // `docChanged` transaction without having to re-pump them through.
 let currentMarks: CommentMark[] = [];
@@ -67,7 +67,7 @@ function buildDecorations(doc: PMNode, marks: CommentMark[]): DecorationSet {
         const to = from + mark.anchor.length;
         decorations.push(
           Decoration.inline(from, to, {
-            class: 'vswrite-comment-mark',
+            class: 'penwright-comment-mark',
             'data-comment-id': mark.id,
           }),
         );
@@ -105,11 +105,11 @@ export const CommentDecorations = Extension.create({
             return this.getState(state);
           },
           handleClick(_view, _pos, event) {
-            const target = (event.target as HTMLElement | null)?.closest('.vswrite-comment-mark') as HTMLElement | null;
+            const target = (event.target as HTMLElement | null)?.closest('.penwright-comment-mark') as HTMLElement | null;
             if (!target) return false;
             const id = target.dataset.commentId;
             if (!id) return false;
-            window.dispatchEvent(new CustomEvent('vswrite:comment-click', { detail: { id } }));
+            window.dispatchEvent(new CustomEvent('penwright:comment-click', { detail: { id } }));
             return false; // don't swallow — let the cursor still move
           },
         },

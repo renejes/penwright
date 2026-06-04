@@ -10,7 +10,7 @@ import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile } from '../shared/rootFinder';
-import { TYPST_SKILL, VSWRITE_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
+import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
 import { addBreadcrumb } from './crashReporter';
 
@@ -47,11 +47,11 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
   }
 
   // .penwright/ skeleton
-  const vswriteDir = path.join(dir, '.penwright');
-  if (!fs.existsSync(vswriteDir)) fs.mkdirSync(vswriteDir, { recursive: true });
-  const backupsDir = path.join(vswriteDir, 'backups');
+  const penwrightDir = path.join(dir, '.penwright');
+  if (!fs.existsSync(penwrightDir)) fs.mkdirSync(penwrightDir, { recursive: true });
+  const backupsDir = path.join(penwrightDir, 'backups');
   if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
-  const aiDir = path.join(vswriteDir, 'ai-snapshots');
+  const aiDir = path.join(penwrightDir, 'ai-snapshots');
   if (!fs.existsSync(aiDir)) fs.mkdirSync(aiDir, { recursive: true });
 
   // Git repo + initial commit (idempotent)
@@ -68,7 +68,7 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
       }
     }
   } catch (err) {
-    console.warn('[vswrite] Failed to initialise git repo for project:', err);
+    console.warn('[penwright] Failed to initialise git repo for project:', err);
   }
 }
 
@@ -166,7 +166,7 @@ export async function handleCreateProject(templateId: string, projectName: strin
   appState.projectDir = dir;
   const { openFile } = await import('./fileManager');
   openFile(path.join(dir, 'main.typ'));
-  appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+  appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
 }
 
 // ─── Open Project ────────────────────────────────────
@@ -247,8 +247,8 @@ export async function openProject(projectDir?: string): Promise<string | null> {
     await openFile(entry);
   } else {
     // Empty folder — still treat it as the project so the file tree shows
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
-    appState.mainWindow?.webContents.send('vswrite', { type: 'projectOpened', dir: projectDir });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'projectOpened', dir: projectDir });
   }
 
   addBreadcrumb('project', `opened ${entry ? '(with entry file)' : '(empty)'}`);
@@ -376,7 +376,7 @@ export async function openSampleProject(): Promise<string | null> {
     const git = simpleGit(targetDir);
     await git.init();
     try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
-    // .gitignore for vswrite-local state — match what ensureProjectInfrastructure does.
+    // .gitignore for Penwright-local state — match what ensureProjectInfrastructure does.
     const gitignorePath = path.join(targetDir, '.gitignore');
     if (!fs.existsSync(gitignorePath)) {
       fs.writeFileSync(gitignorePath, '# Penwright\n.penwright/\n*.pdf\n\n# OS\n.DS_Store\nThumbs.db\n', 'utf-8');
@@ -384,7 +384,7 @@ export async function openSampleProject(): Promise<string | null> {
     await git.add('-A');
     await git.commit('Sample 0.7.0 — initial state');
   } catch (err) {
-    console.warn('[vswrite] sample-project git init failed (non-fatal):', err);
+    console.warn('[penwright] sample-project git init failed (non-fatal):', err);
   }
 
   return openProject(targetDir);
@@ -420,7 +420,7 @@ export async function handleNewFolder(parentRelPath: string, name: string): Prom
 
   try {
     fs.mkdirSync(targetAbs, { recursive: true });
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -467,12 +467,12 @@ export async function handleAddAssets(): Promise<{ added: string[]; error?: stri
       fs.copyFileSync(src, dest);
       added.push(path.relative(appState.projectDir, dest).replace(/\\/g, '/'));
     } catch (err) {
-      console.warn('[vswrite] Failed to copy asset:', src, err);
+      console.warn('[penwright] Failed to copy asset:', src, err);
     }
   }
 
   if (added.length > 0) {
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   }
   return { added };
 }
@@ -496,8 +496,8 @@ export async function handlePickImage(): Promise<void> {
     fs.copyFileSync(imagePath, destPath);
 
     const relPath = 'assets/' + path.basename(imagePath);
-    appState.mainWindow?.webContents.send('vswrite', { type: 'insertImage', src: relPath });
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   }
 }
 
@@ -512,8 +512,8 @@ export function handleDropImage(name: string, dataBase64: string): void {
   fs.writeFileSync(destPath, buffer);
 
   const relPath = 'assets/' + name;
-  appState.mainWindow?.webContents.send('vswrite', { type: 'insertImage', src: relPath });
-  appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+  appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
+  appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
 }
 
 export function handleDropImagePath(imagePath: string): void {
@@ -524,7 +524,7 @@ export function handleDropImagePath(imagePath: string): void {
 
   if (cleanPath.startsWith(docDir) || cleanPath.startsWith(rootDir)) {
     const relPath = path.relative(path.dirname(appState.currentFilePath), cleanPath).replace(/\\/g, '/');
-    appState.mainWindow?.webContents.send('vswrite', { type: 'insertImage', src: relPath });
+    appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
     return;
   }
 
@@ -535,10 +535,10 @@ export function handleDropImagePath(imagePath: string): void {
   try {
     fs.copyFileSync(cleanPath, destPath);
     const relPath = 'assets/' + path.basename(cleanPath);
-    appState.mainWindow?.webContents.send('vswrite', { type: 'insertImage', src: relPath });
-    appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
+    appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   } catch (err) {
-    console.error('[vswrite] Failed to copy image:', err);
+    console.error('[penwright] Failed to copy image:', err);
   }
 }
 
@@ -546,7 +546,7 @@ export function handleDropImagePath(imagePath: string): void {
 
 export function handleRequestSettings(): void {
   const settings = parseSettings(appState.currentContent);
-  appState.mainWindow?.webContents.send('vswrite', {
+  appState.mainWindow?.webContents.send('penwright', {
     type: 'settingsData',
     settings,
   });
@@ -560,7 +560,7 @@ export function handleUpdateSettings(settings: Record<string, string>): void {
     autoSave();
   });
 
-  appState.mainWindow?.webContents.send('vswrite', {
+  appState.mainWindow?.webContents.send('penwright', {
     type: 'update',
     content: appState.currentContent,
   });
@@ -570,7 +570,7 @@ export function handleUpdateSettings(settings: Record<string, string>): void {
 
 const SKILL_FILES: Array<{ slug: string; content: string }> = [
   { slug: 'typst', content: TYPST_SKILL },
-  { slug: 'penwright', content: VSWRITE_SKILL },
+  { slug: 'penwright', content: PENWRIGHT_SKILL },
   { slug: 'research', content: RESEARCH_SKILL },
   { slug: 'writing-style', content: WRITING_STYLE_SKILL },
   { slug: 'design', content: DESIGN_SKILL },

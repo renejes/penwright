@@ -1,11 +1,11 @@
 /**
  * Skill Templates — content of `.claude/skills/<name>/SKILL.md` files
- * deployed into every new vswrite project.
+ * deployed into every new Penwright project.
  *
  * Each template covers the same conventions for two audiences:
  *   1. Agents with direct filesystem access (Claude Code in the integrated
  *      terminal, VS Code Claude, Cowork with folder permission)
- *   2. Agents using the vswrite MCP server (Claude Desktop, Codex Desktop)
+ *   2. Agents using the Penwright MCP server (Claude Desktop, Codex Desktop)
  *
  * Markdown uses tilde fences (~~~) instead of backticks so the templates
  * embed cleanly in TypeScript template literals without escape noise.
@@ -18,15 +18,15 @@ description: Typst language reference — syntax, math, layout, cross-references
 
 # Typst Language Reference
 
-Typst is a modern typesetting system. This skill covers the syntax and constructs you need to author and edit \`.typ\` files in a vswrite project.
+Typst is a modern typesetting system. This skill covers the syntax and constructs you need to author and edit \`.typ\` files in a Penwright project.
 
 ## Document Structure
 
-A Typst document starts with optional **#set / #show / #let** rules (the preamble), followed by the body. In multi-chapter projects (vswrite default), the preamble lives in \`main.typ\` and chapters are pulled in via \`#include\`.
+A Typst document starts with optional **#set / #show / #let** rules (the preamble), followed by the body. In multi-chapter projects (Penwright default), the preamble lives in \`main.typ\` and chapters are pulled in via \`#include\`.
 
-### vswrite-projects: \`style.typ\` + \`apply-style\` instead of inline \`#set\`
+### Penwright projects: \`style.typ\` + \`apply-style\` instead of inline \`#set\`
 
-vswrite generates a \`style.typ\` file from the project's \`.penwright/style.json\` (the Design panel's source of truth). \`main.typ\` pulls it in with this two-line preamble:
+Penwright generates a \`style.typ\` file from the project's \`.penwright/style.json\` (the Design panel's source of truth). \`main.typ\` pulls it in with this two-line preamble:
 
 ~~~typst
 // main.typ
@@ -45,9 +45,9 @@ vswrite generates a \`style.typ\` file from the project's \`.penwright/style.jso
 
 **Critical gotcha:** \`#include "style.typ"\` was an earlier (broken) pattern. In Typst, \`#set\` rules inside an \`#include\`d file apply only to content within that file's own evaluation — they do NOT propagate to the includer's scope. \`#show: apply-style\` is the correct way.
 
-### Other (non-vswrite-managed) projects
+### Other (non-Penwright-managed) projects
 
-A plain Typst project without vswrite's Design panel uses the classic inline preamble:
+A plain Typst project without Penwright's Design panel uses the classic inline preamble:
 
 ~~~typst
 #set text(font: "Libertinus Serif", size: 11pt, lang: "de")
@@ -133,7 +133,7 @@ As shown in @fig:arch, the architecture …
 See @sec:method for details, particularly @eq:attention.
 ~~~
 
-**Label-prefix conventions** (vswrite uses these to disambiguate references from citations):
+**Label-prefix conventions** (Penwright uses these to disambiguate references from citations):
 
 - \`fig:\` — figures
 - \`tbl:\` / \`tab:\` — tables
@@ -175,23 +175,23 @@ This finding aligns with @chen2021codex.
 
 Available styles: \`apa\`, \`chicago-author-date\`, \`ieee\`, \`mla\`, ~80 others — see Typst's CSL list.
 
-## Source Comments — \`//\` ≠ vswrite annotations
+## Source Comments — \`//\` ≠ Penwright annotations
 
 \`// single-line\` and \`/* block */\` are stripped at compile time.
 
-These are **not** vswrite comments. vswrite annotations live as separate Markdown files in \`comments/\` and are managed via the comments-panel or the \`penwright_add_comment\` MCP tool — they never touch the \`.typ\` source. See the \`vswrite\` skill for details.
+These are **not** Penwright comments. Penwright annotations live as separate Markdown files in \`comments/\` and are managed via the comments-panel or the \`penwright_add_comment\` MCP tool — they never touch the \`.typ\` source. See the \`Penwright\` skill for details.
 
 ## Common Pitfalls
 
 - \`#set math.equation(numbering: "(1)")\` is required before any \`@eq:…\` reference.
 - Block constructs like \`#figure(...)\` need their own paragraph (blank lines around) — pasting them mid-sentence breaks layout.
 - Heading-number renumbering when chapters are reordered is automatic because Typst processes the merged document.
-- Citekeys are bare slugs (no colon); label names use the prefix conventions above. Mixing them up confuses both Typst and vswrite's badge classifier.
+- Citekeys are bare slugs (no colon); label names use the prefix conventions above. Mixing them up confuses both Typst and Penwright's badge classifier.
 - Image paths in \`#include\`d chapter files: use \`../assets/foo.png\`, not \`assets/foo.png\` — Typst resolves paths from the file containing the \`#image\` call, not the root.
 
-## Bundled Packages — Available Offline in Every vswrite Project
+## Bundled Packages — Available Offline in Every Penwright Project
 
-vswrite ships with a curated set of Typst packages pre-installed in the app bundle. They work **offline** without first-compile downloads. Use them freely when the feature matches; reach for raw Typst only when no bundled package fits.
+Penwright ships with a curated set of Typst packages pre-installed in the app bundle. They work **offline** without first-compile downloads. Use them freely when the feature matches; reach for raw Typst only when no bundled package fits.
 
 ### Layout & Page Flow
 
@@ -341,11 +341,11 @@ fn main() {
 
 - **Reach for the bundled package first** when its feature matches the need. Costs zero, keeps the document offline-compileable, avoids version drift.
 - **Lazy-fetch is fine for the long tail** — packages not in this list can still be \`#import\`ed via \`@preview/<name>:<version>\`. Typst auto-downloads on first compile (requires internet). The doc won't compile offline until the cache is warm.
-- **Use the exact bundled version numbers** — vswrite ships specific pinned versions (listed above). \`@preview/cetz:0.5.0\` would not match the bundled \`0.5.2\` and would trigger a lazy-fetch.
+- **Use the exact bundled version numbers** — Penwright ships specific pinned versions (listed above). \`@preview/cetz:0.5.0\` would not match the bundled \`0.5.2\` and would trigger a lazy-fetch.
 - **Use \`@preview/codly-languages:0.1.7\`** alongside \`codly\` for the language-icon feature.
 `;
 
-export const VSWRITE_SKILL = `---
+export const PENWRIGHT_SKILL = `---
 name: penwright
 description: Penwright project conventions — folder structure, persistence layers, comments, cross-references, mode toggles. Load when working in a Penwright project.
 ---
@@ -365,7 +365,7 @@ my-thesis/
 ├── references.bib           # BibTeX bibliography
 ├── assets/                  # Images, diagrams (referenced by #image)
 ├── sources/                 # Citation PDFs (one per citekey)
-├── comments/                # vswrite annotations — never compiled
+├── comments/                # Penwright annotations — never compiled
 │   └── 2026-04-29-1432-a3f.md
 ├── exports/                 # PDF / DOCX outputs (auto-created on first export)
 ├── .claude/skills/          # These skills, deployed per project
@@ -416,7 +416,7 @@ resolved: false
 Quelle ergänzen — vielleicht den Müller-Artikel?
 ~~~
 
-- **anchor** is the verbatim text the comment is attached to. vswrite re-locates it on file load using \`indexOf\` when offsets drift.
+- **anchor** is the verbatim text the comment is attached to. Penwright re-locates it on file load using \`indexOf\` when offsets drift.
 - Comments are **never compiled** into PDF / DOCX — the source stays clean.
 - Visible in the file tree, cloud-sync-friendly (Dropbox / iCloud), git-diffable, editable from any text editor.
 - Anchors that span paragraphs get marked \`orphaned: true\` automatically.
@@ -425,7 +425,7 @@ When creating comments programmatically, **prefer \`penwright_add_comment\`** ov
 
 ## Cross-References vs. Citations — Disambiguation
 
-Typst uses the same \`@…\` syntax for both. vswrite tells them apart by the name:
+Typst uses the same \`@…\` syntax for both. Penwright tells them apart by the name:
 
 - Has a colon (\`@fig:scaling\`) → **cross-reference**
 - Starts with a known prefix (\`fig|tbl|eq|sec|chap|app|thm|lem|def|cor|prop|algo|lst\` and full forms) → **cross-reference**
@@ -449,7 +449,7 @@ These are display-only — toggling them never modifies \`.typ\` files.
 
 ## Design surface — \`style.json\` + \`style.typ\` + \`apply-style\`
 
-vswrite projects keep all visual design tokens in a single typed file: \`<project>/.penwright/style.json\`. The vswrite app regenerates \`<project>/style.typ\` from that JSON whenever the user (or an MCP tool) writes to it, then ensures the root \`.typ\` file has:
+Penwright projects keep all visual design tokens in a single typed file: \`<project>/.penwright/style.json\`. The Penwright app regenerates \`<project>/style.typ\` from that JSON whenever the user (or an MCP tool) writes to it, then ensures the root \`.typ\` file has:
 
 ~~~typst
 #import "style.typ": *
@@ -506,20 +506,20 @@ If the user has a populated \`style.json\`, **don't** hand-edit \`#set\` / \`#sh
 - Patch \`style.json\` via \`penwright_update_style\` (deep-merge), or
 - Append the rule to \`style.custom.preamble\` (escape hatch) so it ends up inside \`apply-style\` and survives regeneration.
 
-## Working with vswrite — Two Paths
+## Working with Penwright — Two Paths
 
 ### Direct filesystem access
 
-If you have read/write access to the project folder (Terminal Claude, VS Code Claude, Cowork with folder permission), edit \`.typ\` and \`.bib\` files directly. The vswrite editor watches the filesystem and updates within seconds.
+If you have read/write access to the project folder (Terminal Claude, VS Code Claude, Cowork with folder permission), edit \`.typ\` and \`.bib\` files directly. The Penwright editor watches the filesystem and updates within seconds.
 
 **Watcher quirks:**
 - \`.penwright/\` is excluded — backup writes don't trigger refresh loops.
-- vswrite saves are tagged with a 3-second self-write guard; your external writes always go through.
+- Penwright saves are tagged with a 3-second self-write guard; your external writes always go through.
 - Don't edit \`.penwright/\` or \`.git/\` directly. Both are managed state.
 
 ### MCP tools (Claude Desktop, Codex Desktop, …)
 
-When connected via the vswrite MCP server, you have **52 dedicated tools** instead of raw filesystem access. They enforce project boundaries (every path validated against the project root, symlink-aware), generate ids and YAML, validate cross-reference labels, regenerate \`style.typ\` from \`style.json\`, etc.
+When connected via the Penwright MCP server, you have **52 dedicated tools** instead of raw filesystem access. They enforce project boundaries (every path validated against the project root, symlink-aware), generate ids and YAML, validate cross-reference labels, regenerate \`style.typ\` from \`style.json\`, etc.
 
 **Prefer the dedicated tool over raw \`penwright_write_file\`** when one exists:
 
@@ -625,8 +625,8 @@ User asks "make this look like a brochure":
 User pastes a list of references they want cited:
 
 1. \`penwright_ensure_bibliography\` — creates \`references.bib\` and \`#bibliography\` directive if missing
-2. For each entry the user provided: \`penwright_add_citation({ entry: "<full BibTeX block>" })\` — vswrite parses + validates + appends
-3. After all citations are in: \`penwright_get_citations\` — verify the citekeys vswrite assigned
+2. For each entry the user provided: \`penwright_add_citation({ entry: "<full BibTeX block>" })\` — Penwright parses + validates + appends
+3. After all citations are in: \`penwright_get_citations\` — verify the citekeys Penwright assigned
 4. For each citekey the user wants in a specific spot: \`penwright_search_project\` to find the anchor text, then NO insert tool needed — citations are typed inline as \`@citekey\` (use \`penwright_update_document\` to splice; cross-references via labels DO need \`penwright_insert_reference\` but raw \`@\` citations are plain text)
 5. For each source the user has a PDF for: \`penwright_find_source_for_citation({ citekey })\` to confirm the user dropped the file in \`sources/\` correctly
 6. \`penwright_compile\` — Typst will resolve all \`@citekey\` references against \`references.bib\`
@@ -659,7 +659,7 @@ Before declaring done on an academic paper or thesis:
 
 ## Bundled Typst Packages (Offline, Always Available)
 
-vswrite ships **13 Typst packages plus their transitive dependencies** pre-installed in the .app, so projects compile offline without first-run downloads. The high-value ones:
+Penwright ships **13 Typst packages plus their transitive dependencies** pre-installed in the .app, so projects compile offline without first-run downloads. The high-value ones:
 
 | Category | Packages |
 |---|---|
@@ -674,7 +674,7 @@ Packages outside this list still work via \`#import "@preview/<name>:<version>"\
 
 ## Constraints to Remember
 
-- **Edit \`.typ\` files, never the rendered output.** Source comments (\`//\`) are compile-only; vswrite annotations are separate files.
+- **Edit \`.typ\` files, never the rendered output.** Source comments (\`//\`) are compile-only; Penwright annotations are separate files.
 - **Style templates only apply to the root file.** Don't paste preamble code into a chapter.
 - **Image paths are relative to the file containing \`#image\`.** Drop new images into \`assets/\` and reference as \`assets/foo.png\`.
 - **Citekeys go in \`.bib\` files; labels go in \`.typ\` files.** Keep the colon convention (\`@chen2021codex\` vs \`@fig:arch\`).
@@ -684,12 +684,12 @@ Packages outside this list still work via \`#import "@preview/<name>:<version>"\
 
 export const WRITING_STYLE_SKILL = `---
 name: writing-style
-description: Prose conventions for vswrite — source discipline (anti-hallucination), anti-AI-tells, active prose principles, academic conventions. Load when writing or revising prose in .typ files. Bilingual coverage (English + German) because the tells aren't symmetrical across languages.
+description: Prose conventions for Penwright — source discipline (anti-hallucination), anti-AI-tells, active prose principles, academic conventions. Load when writing or revising prose in .typ files. Bilingual coverage (English + German) because the tells aren't symmetrical across languages.
 ---
 
 # Writing Style
 
-Prose checklist that catches "AI sound" before it leaves the document. Two-language coverage because vswrite serves both English- and German-speaking academics, and the tells differ between them.
+Prose checklist that catches "AI sound" before it leaves the document. Two-language coverage because Penwright serves both English- and German-speaking academics, and the tells differ between them.
 
 ## Mental Model
 
@@ -874,7 +874,7 @@ Read your sentence WITHOUT the citation. If it makes a coherent claim, the citat
 ❌ Chen et al. (2021) state that codex models work. (citation is the subject)
 ✅ Codex-style models close the gap on standard benchmarks @chen2021codex. (claim first, citation supports)
 
-vswrite-specific: prefer the badge form \`@chen2021codex\` over prose-form \`(Chen et al., 2021)\` — Typst handles author/year formatting at compile time depending on the chosen \`#bibliography(style: ...)\`.
+Penwright-specific: prefer the badge form \`@chen2021codex\` over prose-form \`(Chen et al., 2021)\` — Typst handles author/year formatting at compile time depending on the chosen \`#bibliography(style: ...)\`.
 
 ### C4. Lists Used Right
 
@@ -950,7 +950,7 @@ This applies to German Zitate just as strictly. \`„nach Vossen sei der Effekt 
 
 ### D5. Verify Page Numbers
 
-Typst supports \`@chen2021codex[p. 42]\`. If you cite a specific page, **you must have looked at that page**. Don't approximate. If you don't have the page, drop the page reference (\`@chen2021codex\` alone) and add a vswrite-comment "find page" so it isn't forgotten.
+Typst supports \`@chen2021codex[p. 42]\`. If you cite a specific page, **you must have looked at that page**. Don't approximate. If you don't have the page, drop the page reference (\`@chen2021codex\` alone) and add a Penwright comment "find page" so it isn't forgotten.
 
 The same goes for line numbers in code citations or specific clause references in legal documents.
 
@@ -1017,7 +1017,7 @@ When using \`penwright_replace_in_project\` for stylistic bulk-edits (e.g. "remo
 
 ## Don't
 
-- **Never fabricate a citation.** If unsure: no citation, plus a vswrite-comment "needs source". This is non-negotiable in academic work.
+- **Never fabricate a citation.** If unsure: no citation, plus a Penwright comment "needs source". This is non-negotiable in academic work.
 - **Never type a BibTeX entry from memory.** Look the source up — DOI, arXiv, publisher, Zotero — and copy the canonical metadata.
 - **Never quote from memory.** Open the source or paraphrase. A misquote is fabrication attributed to a real person.
 - **Don't apply Section A mechanically to dialogue or fiction.** The rules are for academic / nonfiction prose. A character can say "delve into" without it being an AI tell.
@@ -1029,12 +1029,12 @@ When using \`penwright_replace_in_project\` for stylistic bulk-edits (e.g. "remo
 
 export const RESEARCH_SKILL = `---
 name: research
-description: Research workflow for vswrite — find sources, create BibTeX, write notes, link sources to citations, run consistency checks. Load when researching a topic for a Typst document.
+description: Research workflow for Penwright — find sources, create BibTeX, write notes, link sources to citations, run consistency checks. Load when researching a topic for a Typst document.
 ---
 
-# Research Workflow for vswrite
+# Research Workflow for Penwright
 
-End-to-end research → integration loop for academic / non-fiction work in vswrite. Assumes the conventions in the \`vswrite\` skill and the syntax in the \`typst\` skill.
+End-to-end research → integration loop for academic / non-fiction work in Penwright. Assumes the conventions in the \`Penwright\` skill and the syntax in the \`typst\` skill.
 
 ## Four Phases
 
@@ -1061,7 +1061,7 @@ For each source you'll cite:
 
 1. **BibTeX entry** in \`references.bib\`. Citekey is a slug (no colon — colons are reserved for label prefixes). Convention: \`<lastauthor><year><firstword>\` → \`chen2021codex\`.
 
-2. **Source PDF** in \`sources/\`, named so the basename starts with the citekey. \`sources/chen2021codex.pdf\` is preferred; \`chen2021codex_supplement.pdf\` etc. work as fallback. Naming matters: vswrite's hover-card and \`penwright_find_source_for_citation\` match on this prefix.
+2. **Source PDF** in \`sources/\`, named so the basename starts with the citekey. \`sources/chen2021codex.pdf\` is preferred; \`chen2021codex_supplement.pdf\` etc. work as fallback. Naming matters: Penwright's hover-card and \`penwright_find_source_for_citation\` match on this prefix.
 
 3. **Notes** as Markdown in a scratch location (or directly as \`.typ\` in \`chapters/\` once it's a real chapter).
 
@@ -1176,7 +1176,7 @@ penwright_add_comment({
 })
 ~~~
 
-Comments are never compiled into PDF / DOCX. The supervisor sees them in the vswrite editor, can resolve / delete them, can edit the \`.md\` from any text editor.
+Comments are never compiled into PDF / DOCX. The supervisor sees them in the Penwright editor, can resolve / delete them, can edit the \`.md\` from any text editor.
 
 ### Add a figure with caption + label in one shot
 
@@ -1212,16 +1212,16 @@ This copies the asset into \`assets/\` (with content-hash dedup), builds the \`#
 
 export const DESIGN_SKILL = `---
 name: design
-description: Visual design conventions for vswrite — palette / typography pairing, layout patterns, modern aesthetics 2026, accessibility & contrast, anti-patterns. Load when picking themes, applying palettes, composing layouts, or making "this should look like X" decisions.
+description: Visual design conventions for Penwright — palette / typography pairing, layout patterns, modern aesthetics 2026, accessibility & contrast, anti-patterns. Load when picking themes, applying palettes, composing layouts, or making "this should look like X" decisions.
 ---
 
 # Design
 
-A working reference for visual decisions in a vswrite project. Focused on the structured surface vswrite exposes (\`style.json\` colors / fonts / scale / layout / headings / elements) and the design-element library. Not a comprehensive design treatise — short rules with reasoning, so an agent can decide without searching elsewhere.
+A working reference for visual decisions in a Penwright project. Focused on the structured surface Penwright exposes (\`style.json\` colors / fonts / scale / layout / headings / elements) and the design-element library. Not a comprehensive design treatise — short rules with reasoning, so an agent can decide without searching elsewhere.
 
 ## Mental Model
 
-vswrite's design surface is built around **semantic slots** and **presets that fill them**. Five color slots (\`primary\`, \`accent\`, \`text\`, \`background\`, \`muted\`), three font slots (\`body\`, \`heading\`, \`code\`), six heading levels, four block elements (Blockquote / Code-Block / Figure / Table). Apply a theme, then tune slots — don't hand-pick every value from scratch.
+Penwright's design surface is built around **semantic slots** and **presets that fill them**. Five color slots (\`primary\`, \`accent\`, \`text\`, \`background\`, \`muted\`), three font slots (\`body\`, \`heading\`, \`code\`), six heading levels, four block elements (Blockquote / Code-Block / Figure / Table). Apply a theme, then tune slots — don't hand-pick every value from scratch.
 
 Always ask: **what is this document for?** "Brochure" / "Thesis" / "Magazine" / "Tech docs" / "Essay" map to different decisions. The wrong question is "what would look cool here" — the right one is "what will the reader expect of this kind of document, and how do I deliver it crisply?"
 
@@ -1334,7 +1334,7 @@ Each level should be clearly smaller than the previous one — at least 20 % siz
 
 ### Running heads (per-chapter)
 
-vswrite's page header / footer fields in the Design panel (Layout section) accept two placeholders that resolve **per page** at compile time:
+Penwright's page header / footer fields in the Design panel (Layout section) accept two placeholders that resolve **per page** at compile time:
 
 - \`{chapter}\` — the body of the most recent H1 (chapter / top-level heading) visible on or before the current page.
 - \`{section}\` — same, but for H2.
@@ -1383,7 +1383,7 @@ The \`magazine-editorial\` layout preset uses \`{chapter}  ·  ISSUE 1\` by defa
 
 Real magazines don't use one look for the whole issue — each rubric (Feature,
 Interview, Essay, Department) has its own accent, type and column treatment.
-vswrite supports this with **section styles**: a named overlay applied to a
+Penwright supports this with **section styles**: a named overlay applied to a
 single chapter via a scoped \`#show\`, while page geometry and running heads stay
 document-level. The override actually re-themes that chapter (it emits literal
 colours, not the global palette reference).

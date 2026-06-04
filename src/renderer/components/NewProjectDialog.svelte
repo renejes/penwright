@@ -16,7 +16,7 @@
 
   function create() {
     if (!projectName.trim()) return;
-    api.send('vswrite', {
+    api.send('penwright', {
       type: 'createProject',
       templateId: selectedTemplate,
       projectName: projectName.trim().replace(/\s+/g, '-').toLowerCase(),

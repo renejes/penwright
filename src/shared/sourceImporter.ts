@@ -323,7 +323,7 @@ export class SourceImporter {
     return new Promise((resolve, reject) => {
       https.get(url, {
         headers: {
-          'User-Agent': 'vswrite/0.1 (VS Code Typst Editor)',
+          'User-Agent': 'Penwright/0.1 (VS Code Typst Editor)',
           'Accept': 'application/json',
         },
       }, (res) => {

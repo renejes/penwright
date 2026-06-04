@@ -25,7 +25,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
   <div class="welcome-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
     <div class="welcome-header">
-      <h1>Welcome to vswrite</h1>
+      <h1>Welcome to Penwright</h1>
       <p class="welcome-tagline">
         A visual editor for Typst documents — write like in a word processor, compile to beautiful PDFs.
       </p>

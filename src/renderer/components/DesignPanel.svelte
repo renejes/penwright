@@ -1798,7 +1798,7 @@
     font-size: 12px;
   }
 
-  /* Coloris theme override — vswrite uses a slightly lighter chrome than the
+  /* Coloris theme override — Penwright uses a slightly lighter chrome than the
      Coloris default so the popover doesn't feel out of place. */
 
   :global(.clr-picker) {
