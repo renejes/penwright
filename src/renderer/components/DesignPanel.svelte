@@ -20,6 +20,7 @@
     type ProjectStyle,
     type StyleColors,
     type StyleHeadings,
+    type SectionStyle,
     DEFAULT_PROJECT_STYLE,
     COLOR_SLOTS,
     HEADING_LEVELS,
@@ -28,6 +29,7 @@
   import { PALETTE_PRESETS } from '../../shared/palettePresets';
   import { THEME_PRESETS } from '../../shared/themePresets';
   import { LAYOUT_PRESETS } from '../../shared/layoutPresets';
+  import { SECTION_PRESETS, getSectionPreset } from '../../shared/sectionPresets';
   import CodeEditor from './CodeEditor.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
@@ -197,8 +199,12 @@
     const t = THEME_PRESETS.find(p => p.id === themeId);
     if (!t) return;
     const preservedCustom = style.custom?.preamble ?? '';
+    // Preserve project-specific data the theme doesn't carry: the custom-code
+    // escape hatch and the per-chapter section styles (Phase E).
+    const preservedSections = style.sections ?? [];
     style = cloneProjectStyle({
       ...t.style,
+      sections: preservedSections,
       custom: { preamble: preservedCustom },
     });
   }
@@ -214,6 +220,30 @@
     if (!p) return;
     style.layout = { ...p.layout };
     if (p.baseSize) style.scale.base = p.baseSize;
+  }
+
+  // ─── Section styles (Phase E — per-chapter magazine rubrics) ───
+  let sectionsExpanded = $state(false);
+
+  const COLUMN_OPTIONS = [
+    { value: 0, label: 'inherit' },
+    { value: 1, label: '1 col' },
+    { value: 2, label: '2 cols' },
+    { value: 3, label: '3 cols' },
+  ];
+
+  function addSectionFromPreset(presetId: string): void {
+    const preset = getSectionPreset(presetId);
+    if (!preset) return;
+    let id = preset.id;
+    let n = 2;
+    while (style.sections.some(s => s.id === id)) id = `${preset.id}-${n++}`;
+    style.sections = [...style.sections, { ...preset, id }];
+    sectionsExpanded = true;
+  }
+
+  function removeSection(id: string): void {
+    style.sections = style.sections.filter(s => s.id !== id);
   }
 
   function setFont(slot: FontSlot, family: string): void {
@@ -961,6 +991,69 @@
         {/if}
       </div>
     </div>
+  </section>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <button
+        type="button"
+        class="custom-toggle"
+        onclick={() => (sectionsExpanded = !sectionsExpanded)}
+        aria-expanded={sectionsExpanded}
+      >
+        <span class="custom-toggle-chev">{sectionsExpanded ? '▾' : '▸'}</span>
+        <h3>Section Styles</h3>
+        {#if style.sections.length > 0}
+          <span class="custom-toggle-badge">{style.sections.length}</span>
+        {/if}
+      </button>
+    </header>
+
+    {#if sectionsExpanded}
+      <p class="design-hint">
+        Per-chapter “rubrics” for magazine layouts. Define a variant here, then
+        assign it to a chapter in the <strong>Chapters</strong> tab — it restyles
+        just that chapter (accent / fonts / columns / headings). Page geometry and
+        running heads stay document-level. Fine-tune fonts / headings via the MCP
+        tools or the generated <code>style.typ</code>.
+      </p>
+
+      {#if style.sections.length > 0}
+        <div class="section-list">
+          {#each style.sections as s (s.id)}
+            <div class="section-row">
+              <input
+                class="section-swatch"
+                type="color"
+                value={s.colors.accent ?? style.colors.accent}
+                onchange={(e) => (s.colors = { ...s.colors, accent: (e.currentTarget as HTMLInputElement).value.toLowerCase() })}
+                title="Accent colour"
+              />
+              <input class="section-name" type="text" bind:value={s.name} spellcheck="false" />
+              <select
+                class="section-cols"
+                value={String(s.columns)}
+                onchange={(e) => (s.columns = parseInt((e.currentTarget as HTMLSelectElement).value, 10))}
+                title="Column count for this rubric"
+              >
+                {#each COLUMN_OPTIONS as c}
+                  <option value={String(c.value)}>{c.label}</option>
+                {/each}
+              </select>
+              <code class="section-id">{s.id}</code>
+              <button class="section-del" onclick={() => removeSection(s.id)} title="Delete variant" aria-label="Delete variant">×</button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      <div class="section-add">
+        <span class="section-add-label">Add rubric:</span>
+        {#each SECTION_PRESETS as p}
+          <button type="button" class="section-add-btn" onclick={() => addSectionFromPreset(p.id)} title={p.description}>+ {p.name}</button>
+        {/each}
+      </div>
+    {/if}
   </section>
 
   <section class="design-section">
@@ -1727,5 +1820,109 @@
        you get when hand-computing from the configured input height. */
     top: 50%;
     transform: translateY(-50%);
+  }
+
+  /* ─── Section styles (Phase E) ─── */
+  .section-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 0 10px;
+  }
+
+  .section-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .section-swatch {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+
+  .section-name {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    border: 1px solid #e2e2e2;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+
+  .section-cols {
+    flex-shrink: 0;
+    padding: 4px 6px;
+    border: 1px solid #e2e2e2;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: inherit;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  .section-id {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #aaa;
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .section-del {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #bbb;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .section-del:hover {
+    background: #fdecec;
+    color: #e55;
+  }
+
+  .section-add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .section-add-label {
+    font-size: 11px;
+    color: #999;
+  }
+
+  .section-add-btn {
+    padding: 4px 9px;
+    border: 1px dashed #d5d5d5;
+    border-radius: 14px;
+    background: transparent;
+    color: #777;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .section-add-btn:hover {
+    border-color: #4f7df9;
+    color: #4f7df9;
+    background: #f5f8ff;
   }
 </style>

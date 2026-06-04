@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SECTION_PRESETS } from '../../shared/sectionPresets';
 
   let {
     content = '',
@@ -18,6 +19,19 @@
 
   let includes: IncludeEntry[] = $state([]);
 
+  // ─── Section styles (Phase E — per-chapter magazine rubrics) ───
+  let definedSections: { id: string; name: string }[] = $state([]);
+  let chapterSections: Record<string, string | null> = $state({});
+  let lastPathsKey = '';
+
+  // Available rubrics = the project's defined variants ∪ the built-in presets.
+  const sectionOptions = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const p of SECTION_PRESETS) map.set(p.id, p.name);
+    for (const s of definedSections) map.set(s.id, s.name);
+    return [...map.entries()].map(([id, name]) => ({ id, name }));
+  });
+
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
     send(channel: string, data: unknown): void;
@@ -27,6 +41,37 @@
     if (content && currentFile) parseIncludes();
     else includes = [];
   });
+
+  onMount(loadSections);
+
+  async function loadSections() {
+    try {
+      const result = await api.invoke('style:get') as { style?: { sections?: { id: string; name: string }[] } } | null;
+      definedSections = result?.style?.sections ?? [];
+    } catch { definedSections = []; }
+  }
+
+  async function loadChapterSections() {
+    const next: Record<string, string | null> = {};
+    for (const e of includes) {
+      try { next[e.path] = await api.invoke('section:get', e.path) as string | null; }
+      catch { next[e.path] = null; }
+    }
+    chapterSections = next;
+  }
+
+  async function setChapterSection(path: string, styleId: string) {
+    if (styleId === '') {
+      await api.invoke('section:clear', path);
+      chapterSections = { ...chapterSections, [path]: null };
+    } else {
+      const res = await api.invoke('section:apply', path, styleId) as { ok: boolean } | null;
+      if (res?.ok) {
+        chapterSections = { ...chapterSections, [path]: styleId };
+        await loadSections(); // a preset may have been auto-defined
+      }
+    }
+  }
 
   async function parseIncludes() {
     const lines = content.split('\n');
@@ -49,6 +94,15 @@
       } catch {}
     }
     includes = parsed;
+
+    // Reload each chapter's assigned rubric only when the set of paths changes
+    // (not on every keystroke that edits the root file's content).
+    const pathsKey = parsed.map(p => p.path).join('|');
+    if (pathsKey !== lastPathsKey) {
+      lastPathsKey = pathsKey;
+      loadSections();        // pick up variants defined in the Design tab
+      loadChapterSections();
+    }
   }
 
   function openInclude(entry: IncludeEntry) {
@@ -104,6 +158,18 @@
             <span class="include-dot" class:warn={!entry.exists}></span>
             {entry.displayName}
           </button>
+          <select
+            class="rubric-select"
+            class:assigned={!!chapterSections[entry.path]}
+            value={chapterSections[entry.path] ?? ''}
+            onchange={(e) => setChapterSection(entry.path, (e.currentTarget as HTMLSelectElement).value)}
+            title="Section style (magazine rubric) — restyles just this chapter"
+          >
+            <option value="">Default</option>
+            {#each sectionOptions as opt}
+              <option value={opt.id}>{opt.name}</option>
+            {/each}
+          </select>
           <div class="include-actions">
             {#if i > 0}
               <button class="move-btn" onclick={() => moveInclude(i, 'up')} title="Move up">
@@ -205,6 +271,34 @@
 
   .include-dot.warn {
     background: #e88a3a;
+  }
+
+  .rubric-select {
+    flex-shrink: 0;
+    max-width: 92px;
+    margin-right: 4px;
+    padding: 2px 4px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #aaa;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .include-row:hover .rubric-select {
+    opacity: 1;
+    border-color: #eee;
+  }
+
+  .rubric-select.assigned {
+    opacity: 1;
+    color: #4f7df9;
+    border-color: #dbe4fd;
+    background: #f5f8ff;
   }
 
   .include-actions {

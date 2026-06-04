@@ -48,7 +48,12 @@ import {
   ensureStyleInclude,
   detectStylePreambleConflicts,
   extractCustomBlock,
+  ensureSectionStyle,
+  clearSectionStyle,
+  getSectionStyleId,
 } from '../shared/styleParser';
+import { getSectionPreset } from '../shared/sectionPresets';
+import type { ProjectStyle } from '../shared/styleTypes';
 import { findRootFile } from '../shared/rootFinder';
 import { getCompiler } from './fileManager';
 import {
@@ -849,6 +854,101 @@ export function setupIPC(): void {
 
     appState.mainWindow?.webContents.send('vswrite', { type: 'filetreeChanged' });
     return { ok: true as const, style, conflicts };
+  });
+
+  // ─── Section styles (Phase E — per-chapter design) ───
+  // Variant definitions live in style.json (saved via style:save, which
+  // regenerates style.typ with one `#let <id>-style` per variant). These
+  // handlers manage the per-chapter opt-in: which variant a chapter uses, and
+  // injecting / clearing the scoped `#show` at the top of a chapter file.
+
+  function regenerateStyleTyp(style: ProjectStyle): void {
+    if (!appState.projectDir) return;
+    const rootFile = appState.currentFilePath ? findRootFile(appState.currentFilePath) : path.join(appState.projectDir, 'main.typ');
+    const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
+    appState.lastSaveTimestamp = Date.now();
+    fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(style), 'utf-8');
+    if (fs.existsSync(rootFile)) {
+      const before = fs.readFileSync(rootFile, 'utf-8');
+      const after = ensureStyleInclude(before);
+      if (after !== before) {
+        appState.lastSaveTimestamp = Date.now();
+        fs.writeFileSync(rootFile, after, 'utf-8');
+        if (appState.currentFilePath && path.resolve(rootFile) === path.resolve(appState.currentFilePath)) {
+          appState.currentContent = after;
+          appState.isDirty = false;
+          updateTitle();
+          appState.mainWindow?.webContents.send('vswrite', { type: 'update', content: after });
+        }
+      }
+    }
+  }
+
+  function resolveChapter(relPath: string): string | null {
+    if (!appState.projectDir) return null;
+    const abs = path.resolve(appState.projectDir, relPath);
+    if (!isPathWithin(abs, appState.projectDir) || !fs.existsSync(abs)) return null;
+    return abs;
+  }
+
+  function chapterImportPath(chapterAbs: string): string {
+    const rootFile = appState.currentFilePath ? findRootFile(appState.currentFilePath) : path.join(appState.projectDir!, 'main.typ');
+    const rootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir!;
+    return path.relative(path.dirname(chapterAbs), path.join(rootDir, 'style.typ')).split(path.sep).join('/');
+  }
+
+  /** Writes a chapter file, syncing the open editor buffer + recompiling. */
+  function writeChapterSynced(chapterAbs: string, content: string): void {
+    appState.lastSaveTimestamp = Date.now();
+    fs.writeFileSync(chapterAbs, content, 'utf-8');
+    if (appState.currentFilePath && path.resolve(chapterAbs) === path.resolve(appState.currentFilePath)) {
+      appState.currentContent = content;
+      appState.isDirty = false;
+      updateTitle();
+      appState.mainWindow?.webContents.send('vswrite', { type: 'update', content });
+    }
+    getCompiler()?.compilePdf();
+  }
+
+  ipcMain.handle('section:get', (_event, relPath: string) => {
+    const abs = resolveChapter(relPath);
+    if (!abs) return null;
+    try { return getSectionStyleId(fs.readFileSync(abs, 'utf-8')); } catch { return null; }
+  });
+
+  ipcMain.handle('section:apply', (_event, relPath: string, styleId: string) => {
+    if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
+    const abs = resolveChapter(relPath);
+    if (!abs) return { ok: false as const, error: 'Chapter not found.' };
+    // Ensure the variant is defined + style.typ regenerated so the import resolves.
+    const style = getProjectStyle(appState.projectDir);
+    if (!style.sections.some(s => s.id === styleId)) {
+      const preset = getSectionPreset(styleId);
+      if (!preset) return { ok: false as const, error: `Unknown section style "${styleId}".` };
+      style.sections.push(preset);
+      const saved = saveProjectStyle(appState.projectDir, style);
+      regenerateStyleTyp(saved);
+    }
+    try {
+      const src = fs.readFileSync(abs, 'utf-8');
+      writeChapterSynced(abs, ensureSectionStyle(src, styleId, chapterImportPath(abs)));
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+    return { ok: true as const };
+  });
+
+  ipcMain.handle('section:clear', (_event, relPath: string) => {
+    if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
+    const abs = resolveChapter(relPath);
+    if (!abs) return { ok: false as const, error: 'Chapter not found.' };
+    try {
+      const src = fs.readFileSync(abs, 'utf-8');
+      writeChapterSynced(abs, clearSectionStyle(src));
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+    return { ok: true as const };
   });
 
   ipcMain.handle('project:open', async (_event, projectDir?: string) => {
