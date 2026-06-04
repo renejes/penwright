@@ -103,6 +103,48 @@ export const HEADING_LEVELS: ReadonlyArray<keyof Pick<StyleHeadings, 'h1' | 'h2'
   ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
 
 /**
+ * Per-level heading override inside a section style. Every field is optional —
+ * an unset field inherits the base heading at that level.
+ */
+export interface SectionHeadingOverlay {
+  size?: string;
+  weight?: string;
+  color?: keyof StyleColors;
+  marginTop?: string;
+}
+
+/**
+ * A named "section style" — a partial overlay applied to one chapter via a
+ * scoped `#show: <id>-style` (the Phase E magazine mechanism). The generator
+ * deep-merges the overlay onto the base `ProjectStyle` and emits a
+ * `#let <id>-style(body)` function that a chapter file opts into. Only
+ * typography / colour / heading / column knobs are overridable — page
+ * geometry and running heads stay document-level.
+ *
+ * Empty / zero fields mean "inherit the base value", so an overlay that only
+ * sets `colors.accent` re-themes just the accent for that chapter.
+ */
+export interface SectionStyle {
+  /** Slug — used verbatim as the `#let <id>-style` Typst function name, so it
+   *  must be a valid identifier (lowercase letters / digits / hyphens). */
+  id: string;
+  /** Display name for the UI / MCP listing. */
+  name: string;
+  /** Colour-slot overrides (typically just `accent` / `primary`). */
+  colors: Partial<StyleColors>;
+  /** Font-slot overrides (body / heading / code). */
+  fonts: Partial<StyleFonts>;
+  /** Base font-size override — Typst length, or "" to inherit. */
+  scaleBase: string;
+  /** Leading override — Typst length, or "" to inherit. */
+  scaleLeading: string;
+  /** Column-count override (1–3); 0 = inherit. Changing columns starts a new page. */
+  columns: number;
+  /** Per-level heading overrides. */
+  headings: Partial<Record<keyof Pick<StyleHeadings, 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'>, SectionHeadingOverlay>>;
+}
+
+/**
  * Per-element design tokens for the recurring "non-heading" block types.
  * Each element produces one or two `#show` rules in style.typ that wrap
  * the Typst element with the configured colors / spacing. Anything that
@@ -209,6 +251,8 @@ export interface ProjectStyle {
   layout: StyleLayout;
   headings: StyleHeadings;
   elements: StyleElements;
+  /** Named per-chapter style overlays (Phase E). Default []. */
+  sections: SectionStyle[];
   custom: StyleCustom;
 }
 
@@ -282,6 +326,7 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
       cellPadding: '6pt',
     },
   },
+  sections: [],
   custom: { preamble: '' },
 };
 
@@ -441,6 +486,77 @@ function sanitizeElements(raw: unknown): StyleElements {
   };
 }
 
+/** Typst-identifier slug for a section-style id. */
+const SECTION_ID = /^[a-z][a-z0-9-]{0,40}$/;
+
+function sanitizePartialColors(raw: unknown): Partial<StyleColors> {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const out: Partial<StyleColors> = {};
+  for (const slot of COLOR_SLOTS) {
+    const v = r[slot];
+    if (typeof v === 'string' && HEX.test(v.trim())) out[slot] = v.trim().toLowerCase();
+  }
+  return out;
+}
+
+function sanitizePartialFonts(raw: unknown): Partial<StyleFonts> {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const out: Partial<StyleFonts> = {};
+  for (const k of ['body', 'heading', 'code'] as const) {
+    const v = r[k];
+    if (typeof v === 'string' && v.trim().length > 0 && v.length < 100) out[k] = v.trim();
+  }
+  return out;
+}
+
+function sanitizeSectionHeadingOverlay(raw: unknown): SectionHeadingOverlay {
+  const r = (raw ?? {}) as Partial<StyleHeading>;
+  const o: SectionHeadingOverlay = {};
+  if (typeof r.size === 'string' && TYPST_LEN.test(r.size.trim())) o.size = r.size.trim();
+  if (typeof r.weight === 'string' && WEIGHT.test(r.weight.trim())) o.weight = r.weight.trim();
+  if (typeof r.color === 'string' && (COLOR_SLOTS as readonly string[]).includes(r.color)) o.color = r.color as keyof StyleColors;
+  if (typeof r.marginTop === 'string' && TYPST_LEN.test(r.marginTop.trim())) o.marginTop = r.marginTop.trim();
+  return o;
+}
+
+function sanitizeSection(raw: unknown): SectionStyle | null {
+  const r = (raw ?? {}) as Partial<SectionStyle>;
+  const id = typeof r.id === 'string' ? r.id.trim().toLowerCase() : '';
+  if (!SECTION_ID.test(id)) return null;
+  const name = typeof r.name === 'string' && r.name.trim() ? r.name.trim().slice(0, 60) : id;
+  const headings: SectionStyle['headings'] = {};
+  const rh = (r.headings ?? {}) as Record<string, unknown>;
+  for (const lvl of HEADING_LEVELS) {
+    if (rh[lvl] && typeof rh[lvl] === 'object') {
+      const o = sanitizeSectionHeadingOverlay(rh[lvl]);
+      if (Object.keys(o).length > 0) headings[lvl] = o;
+    }
+  }
+  return {
+    id,
+    name,
+    colors: sanitizePartialColors(r.colors),
+    fonts: sanitizePartialFonts(r.fonts),
+    scaleBase: pickLenOrEmpty(r.scaleBase, ''),
+    scaleLeading: pickLenOrEmpty(r.scaleLeading, ''),
+    columns: pickInt(r.columns, 0, 3, 0),
+    headings,
+  };
+}
+
+/** Coerces a JSON array into a deduped list of valid section styles (max 12). */
+function sanitizeSections(raw: unknown): SectionStyle[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SectionStyle[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const s = sanitizeSection(item);
+    if (s && !seen.has(s.id)) { seen.add(s.id); out.push(s); }
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
 /**
  * Coerces an arbitrary JSON value into a valid ProjectStyle.
  * Missing or invalid fields fall back to defaults. Always returns a fresh
@@ -495,6 +611,7 @@ export function sanitizeProjectStyle(raw: unknown): ProjectStyle {
       numbering: pickFreeString(headings.numbering, D.headings.numbering, 32),
     },
     elements: sanitizeElements(r.elements),
+    sections: sanitizeSections(r.sections),
     custom: sanitizeCustom(r.custom),
   };
 }

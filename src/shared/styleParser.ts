@@ -18,7 +18,7 @@
  *  - explanatory header comment so users opening style.typ understand it
  */
 
-import { HEADING_LEVELS, ProjectStyle } from './styleTypes';
+import { HEADING_LEVELS, ProjectStyle, SectionStyle, StyleColors, StyleFonts } from './styleTypes';
 
 /** Marker line at top of generated style.typ — used to detect ownership. */
 export const STYLE_TYPST_MARKER = '// vswrite:generated-style — edit via Settings → Style';
@@ -104,6 +104,109 @@ function colorLiteral(hex: string): string {
     value = value.split('').map(c => c + c).join('');
   }
   return `rgb("#${value.toLowerCase()}")`;
+}
+
+interface RuleCtx {
+  /** Resolves a colour slot to a Typst expression. */
+  color: (slot: keyof StyleColors) => string;
+  /** Resolves a font slot to a Typst expression (always a literal). */
+  font: (slot: keyof StyleFonts) => string;
+  /** Section scope skips document-level concerns (heading numbering). */
+  forSection: boolean;
+}
+
+/**
+ * Emits the typography / heading / block-element rules shared by the document
+ * `apply-style` and each per-chapter section style. Page geometry and running
+ * heads are NOT emitted here — they stay document-level. `ctx.color` resolves a
+ * slot to either the module-level `style-colors` dict (document scope, so a
+ * palette swap re-themes) or an inlined literal (section scope, from the merged
+ * overlay). Lines are pre-indented two spaces to sit inside the `{ … }` body.
+ */
+function emitCoreRules(style: ProjectStyle, ctx: RuleCtx): string[] {
+  const out: string[] = [];
+  const push = (s: string = '') => out.push(s);
+
+  push(`  set text(font: ${ctx.font('body')}, size: ${style.scale.base}, fill: ${ctx.color('text')})`);
+
+  const parProps: string[] = [`leading: ${style.scale.leading}`];
+  if (style.scale.paragraphSpacing.trim()) parProps.push(`spacing: ${style.scale.paragraphSpacing.trim()}`);
+  if (style.scale.firstLineIndent.trim()) parProps.push(`first-line-indent: ${style.scale.firstLineIndent.trim()}`);
+  push(`  set par(${parProps.join(', ')})`);
+
+  push(`  show raw: set text(font: ${ctx.font('code')})`);
+  push();
+
+  if (!ctx.forSection && style.headings.numbering.trim()) {
+    push(`  set heading(numbering: "${escapeQuotedString(style.headings.numbering)}")`);
+  }
+
+  HEADING_LEVELS.forEach((levelName, idx) => {
+    const level = idx + 1;
+    const h = style.headings[levelName];
+    push(`  show heading.where(level: ${level}): set text(font: ${ctx.font('heading')}, size: ${h.size}, weight: "${h.weight}", fill: ${ctx.color(h.color)})`);
+    push(`  show heading.where(level: ${level}): it => block(above: ${h.marginTop}, it)`);
+  });
+  push();
+
+  const e = style.elements;
+  {
+    const b = e.blockquote;
+    const italicStyle = b.italic ? `, style: "italic"` : '';
+    push(`  show quote.where(block: true): it => block(stroke: (left: ${b.borderWidth} + ${ctx.color(b.borderColor)}), inset: (left: ${b.paddingLeft}, top: 0.4em, bottom: 0.4em), text(fill: ${ctx.color(b.textColor)}${italicStyle}, it.body))`);
+  }
+  {
+    const c = e.codeBlock;
+    const fillProp = c.background.trim() ? `, fill: ${c.background.trim()}` : '';
+    const radiusProp = c.borderRadius.trim() ? `, radius: ${c.borderRadius.trim()}` : '';
+    const insetProp = (c.paddingX.trim() || c.paddingY.trim())
+      ? `, inset: (x: ${c.paddingX.trim() || '0pt'}, y: ${c.paddingY.trim() || '0pt'})`
+      : '';
+    push(`  show raw.where(block: true): it => block(width: 100%${fillProp}${radiusProp}${insetProp}, it)`);
+  }
+  {
+    const f = e.figure;
+    const sepLiteral = `"${escapeQuotedString(f.captionSeparator)}"`;
+    push(`  set figure.caption(position: ${f.captionPosition}, separator: ${sepLiteral})`);
+    push(`  show figure.caption: it => align(${f.captionAlign}, text(size: ${f.captionSize}, fill: ${ctx.color(f.captionColor)}, it))`);
+  }
+  {
+    const t = e.table;
+    const stroke = `0.5pt + ${ctx.color(t.borderColor)}`;
+    if (t.alternateRowFill) {
+      push(`  set table(stroke: ${stroke}, inset: ${t.cellPadding}, fill: (col, row) => if row == 0 { ${ctx.color(t.headerBackground)} } else if calc.rem(row, 2) == 0 { ${ctx.color('muted')}.lighten(85%) } else { none })`);
+    } else {
+      push(`  set table(stroke: ${stroke}, inset: ${t.cellPadding}, fill: (col, row) => if row == 0 { ${ctx.color(t.headerBackground)} } else { none })`);
+    }
+    push(`  show table.cell.where(y: 0): it => text(fill: ${ctx.color(t.headerTextColor)}, weight: "bold", it.body)`);
+  }
+  push();
+
+  return out;
+}
+
+/**
+ * Deep-merges a section overlay onto the base style, producing a full
+ * ProjectStyle whose values feed {@link emitCoreRules} for that section's
+ * `#let <id>-style(body)` function. Only the overridable knobs are applied;
+ * page geometry / running heads / custom code stay as the base.
+ */
+export function mergeSectionStyle(base: ProjectStyle, s: SectionStyle): ProjectStyle {
+  const m: ProjectStyle = JSON.parse(JSON.stringify(base));
+  Object.assign(m.colors, s.colors);
+  Object.assign(m.fonts, s.fonts);
+  if (s.scaleBase) m.scale.base = s.scaleBase;
+  if (s.scaleLeading) m.scale.leading = s.scaleLeading;
+  if (s.columns >= 1) m.layout.columns = s.columns;
+  for (const lvl of HEADING_LEVELS) {
+    const ov = s.headings[lvl];
+    if (!ov) continue;
+    if (ov.size !== undefined) m.headings[lvl].size = ov.size;
+    if (ov.weight !== undefined) m.headings[lvl].weight = ov.weight;
+    if (ov.color !== undefined) m.headings[lvl].color = ov.color;
+    if (ov.marginTop !== undefined) m.headings[lvl].marginTop = ov.marginTop;
+  }
+  return m;
 }
 
 export function generateStyleTypst(style: ProjectStyle): string {
@@ -210,66 +313,14 @@ export function generateStyleTypst(style: ProjectStyle): string {
   }
   bpush(`  set page(${pageProps.join(', ')})`);
 
-  // ─── Text ───
-  bpush(`  set text(font: ${fontLiteral(style.fonts.body)}, size: ${style.scale.base}, fill: style-colors.text)`);
-
-  // ─── Paragraph ───
-  const parProps: string[] = [`leading: ${style.scale.leading}`];
-  if (style.scale.paragraphSpacing.trim()) parProps.push(`spacing: ${style.scale.paragraphSpacing.trim()}`);
-  if (style.scale.firstLineIndent.trim()) parProps.push(`first-line-indent: ${style.scale.firstLineIndent.trim()}`);
-  bpush(`  set par(${parProps.join(', ')})`);
-
-  // ─── Code / raw ───
-  bpush(`  show raw: set text(font: ${fontLiteral(style.fonts.code)})`);
-  bpush();
-
-  // ─── Heading numbering ───
-  if (style.headings.numbering.trim()) {
-    bpush(`  set heading(numbering: "${escapeQuotedString(style.headings.numbering)}")`);
-  }
-
-  // ─── Headings (six levels) ───
-  HEADING_LEVELS.forEach((levelName, idx) => {
-    const level = idx + 1;
-    const h = style.headings[levelName];
-    bpush(`  show heading.where(level: ${level}): set text(font: ${fontLiteral(style.fonts.heading)}, size: ${h.size}, weight: "${h.weight}", fill: style-colors.${h.color})`);
-    bpush(`  show heading.where(level: ${level}): it => block(above: ${h.marginTop}, it)`);
-  });
-  bpush();
-
-  // ─── Block-level elements ────────────────────────────
-  const e = style.elements;
-  {
-    const b = e.blockquote;
-    const italicStyle = b.italic ? `, style: "italic"` : '';
-    bpush(`  show quote.where(block: true): it => block(stroke: (left: ${b.borderWidth} + style-colors.${b.borderColor}), inset: (left: ${b.paddingLeft}, top: 0.4em, bottom: 0.4em), text(fill: style-colors.${b.textColor}${italicStyle}, it.body))`);
-  }
-  {
-    const c = e.codeBlock;
-    const fillProp = c.background.trim() ? `, fill: ${c.background.trim()}` : '';
-    const radiusProp = c.borderRadius.trim() ? `, radius: ${c.borderRadius.trim()}` : '';
-    const insetProp = (c.paddingX.trim() || c.paddingY.trim())
-      ? `, inset: (x: ${c.paddingX.trim() || '0pt'}, y: ${c.paddingY.trim() || '0pt'})`
-      : '';
-    bpush(`  show raw.where(block: true): it => block(width: 100%${fillProp}${radiusProp}${insetProp}, it)`);
-  }
-  {
-    const f = e.figure;
-    const sepLiteral = `"${escapeQuotedString(f.captionSeparator)}"`;
-    bpush(`  set figure.caption(position: ${f.captionPosition}, separator: ${sepLiteral})`);
-    bpush(`  show figure.caption: it => align(${f.captionAlign}, text(size: ${f.captionSize}, fill: style-colors.${f.captionColor}, it))`);
-  }
-  {
-    const t = e.table;
-    const stroke = `0.5pt + style-colors.${t.borderColor}`;
-    if (t.alternateRowFill) {
-      bpush(`  set table(stroke: ${stroke}, inset: ${t.cellPadding}, fill: (col, row) => if row == 0 { style-colors.${t.headerBackground} } else if calc.rem(row, 2) == 0 { style-colors.muted.lighten(85%) } else { none })`);
-    } else {
-      bpush(`  set table(stroke: ${stroke}, inset: ${t.cellPadding}, fill: (col, row) => if row == 0 { style-colors.${t.headerBackground} } else { none })`);
-    }
-    bpush(`  show table.cell.where(y: 0): it => text(fill: style-colors.${t.headerTextColor}, weight: "bold", it.body)`);
-  }
-  bpush();
+  // ─── Typography / headings / block elements ───
+  // Document scope: colours reference the module-level `style-colors` dict so
+  // a palette swap re-themes; fonts are inlined literals (as before).
+  body.push(...emitCoreRules(style, {
+    color: (slot) => `style-colors.${slot}`,
+    font: (slot) => fontLiteral(style.fonts[slot]),
+    forSection: false,
+  }));
 
   // ─── Custom additions (escape-hatch) ─────────────────
   // Always emit the fenced block — even when empty — so future regenerations
@@ -303,6 +354,33 @@ export function generateStyleTypst(style: ProjectStyle): string {
   lines.push(...body);
   push('}');
   push();
+
+  // ─── Per-chapter section styles (Phase E) ───
+  // Each is a module-level `#let <id>-style(body)` a chapter opts into via
+  // `#import "../style.typ": <id>-style` + `#show: <id>-style`. The overlay is
+  // merged onto the base and emitted with literal colours/fonts so the
+  // override actually takes effect (a section rule can't reference
+  // `style-colors`, which still holds the base palette).
+  for (const section of style.sections) {
+    const merged = mergeSectionStyle(style, section);
+    push(`// Section style "${section.name}" — opt in from a chapter file with:`);
+    push(`//   #import "../style.typ": ${section.id}-style`);
+    push(`//   #show: ${section.id}-style`);
+    push(`#let ${section.id}-style(body) = {`);
+    if (section.columns >= 1) {
+      push(`  set page(columns: ${section.columns})`);
+    }
+    for (const l of emitCoreRules(merged, {
+      color: (slot) => colorLiteral(merged.colors[slot]),
+      font: (slot) => fontLiteral(merged.fonts[slot]),
+      forSection: true,
+    })) {
+      push(l);
+    }
+    push(`  body`);
+    push('}');
+    push();
+  }
 
   return lines.join('\n');
 }
