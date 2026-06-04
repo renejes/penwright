@@ -308,8 +308,7 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
       { name: 'image', description: 'Optional path to a cover image (relative to the document). If provided, fills the page behind the type. Empty = no background image.', required: false, defaultValue: '' },
     ],
     template: `
-#page(margin: 0pt)[
-  {image-bg}
+#page(margin: 0pt{image-bg})[
   #pad(x: 2cm, y: 2cm)[
     #text(size: 4em, weight: "bold", tracking: 0.05em, fill: style-colors.primary, font: style-fonts.heading)[{title}]
     #v(0.4em)
@@ -639,8 +638,12 @@ export function renderDesignElement(
         : '',
     },
     'magazine-cover': {
+      // Full-bleed via the page `background` argument — reliably fills the
+      // page edge-to-edge regardless of the image's intrinsic size (a `#place`
+      // with `width: 100%` resolves against the image, not the page, so a
+      // smaller-than-page image would not cover it).
       'image-bg': values.image
-        ? `#place(top + left, image("${values.image}", width: 100%, height: 100%, fit: "cover"))`
+        ? `, background: image("${values.image}", width: 100%, height: 100%, fit: "cover")`
         : '',
       'subhead-block': values.subhead
         ? `\n    #v(0.5em)\n    #text(size: 1.3em, style: "italic", fill: style-colors.text)[${values.subhead}]`
