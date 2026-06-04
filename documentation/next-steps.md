@@ -2,24 +2,24 @@
 
 > Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-20 | App-Version: **0.7.0** (package.json + Doku synchron)
 >
-> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (52 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / vswrite / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (19 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
+> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (56 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / vswrite / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (22 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets, 5 Section-Style-Rubriken), Per-Chapter Section Styles (Phase E), DOCX-Overhaul (journal-submission-tauglich), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
 
 ---
 
 ## 0. Stand
 
-Die App ist inhaltlich release-ready fuer den akademischen Schreib-Use-Case. **Strategische Entscheidung 2026-05-16:** vswrite startet nicht nur als Akademik-Tool, sondern als Design-Tool fuer beliebige PDF-Outputs (Brochures, Magazines, Reports, CVs, Poster). Der Design-Editor + Typst-Package-Bundling werden noch vor v1.0 eingebaut — der Launch verschiebt sich dadurch um ~6 Wochen, ist es aber wert weil vswrite damit als breitestes positioniertes Tool startet.
+Die App ist inhaltlich release-ready fuer den akademischen Schreib-Use-Case. **Strategische Entscheidung 2026-05-16:** vswrite startet nicht nur als Akademik-Tool, sondern als Design-Tool fuer beliebige PDF-Outputs (Brochures, Magazines, Reports, CVs, Poster). Der Design-Editor + Typst-Package-Bundling sind inzwischen gebaut (Sessions 20–26, inkl. Per-Chapter Section Styles und journal-grade DOCX) — vswrite startet damit als breitest positioniertes Tool.
 
-Was zwischen heute und v1.0 noch fehlt:
+Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist primaer Distribution**):
 
-1. **Typst-Package-Bundling-Setup** — Hybrid-Strategie aus [third-party-licensing.md](done/third-party-licensing.md); Bundle-Liste finalisieren, Audit-Script + Acknowledgments-Dialog (~4–6 Tage)
-2. **Design-Editor + MCP-Tools** — Phasen A bis D aus [design-editor-plan.md](done/design-editor-plan.md) (~7 Wochen)
+1. ~~**Typst-Package-Bundling-Setup**~~ — **erledigt** (Session 20): 24 Packages gebundelt, Audit-Script + Acknowledgments-Dialog.
+2. ~~**Design-Editor + MCP-Tools**~~ — **erledigt** (Sessions 21–26): Themes / Palettes / Layouts / Fonts / 22 Design-Elemente / Per-Chapter Section Styles (Phase E).
 3. **Distribution einrichten** — Firebase-Hosting + electron-updater + DMG-Build & Notarization
 4. **Handbuch-Online-Hosting** auf Netlify
 5. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters) **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread)
 6. ~~**DOCX-Iteration**~~ — **erledigt in Session 25** (DOCX-Overhaul: Figures / Display-Math / Tabellen / Cross-Refs / Fussnoten / Callouts gerendert, `#raw("…")` inline, Code-Leak eliminiert; Prosa-mit-Inline ueberlebt im Editor). Bewusst offen (geringer Nutzen): live Word-SEQ/REF-Felder, Inline-Math-als-Bild
 
-Reihenfolge sinnvoll: **Bundling → Design-Editor → Distribution → Handbuch-Hosting → QA → DMG**.
+Reihenfolge der verbleibenden Arbeit: **Distribution → Handbuch-Hosting → QA → DMG**.
 
 ---
 
@@ -364,10 +364,19 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [x] **MCP-Binary-Rebuild:** `MCP_SETUP_VERSION` 0.6.0 → 0.7.0, Bun-Binary neu für aarch64 + x86_64 darwin
 
 **Bewusst out of scope** (für eine spätere Iteration aufgehoben, falls Bedarf):
-- [ ] Full-Bleed-Images mit Per-Section-Page-Margin-Overrides (Schema-Arbeit, ~1 Woche)
-- [ ] Marginalia / Side-Notes (drafting-Package-Wrapper)
+- [x] Full-Bleed-Images → **erledigt Session 26** (`full-bleed-image` + `spread-opener` Elemente, Round 6)
+- [x] Marginalia / Side-Notes → **erledigt Session 26** (`margin-note` via drafting-Package, Round 6)
 - [ ] Mosaik-Grids (3+ asymmetrische Bilder)
 - [ ] Initialen-Heading-Differenzierung (erste Seite eines Kapitels vs. Folgeseiten)
+
+### Phase 3.7: DOCX-Overhaul + Per-Chapter Section Styles (Sessions 25–26, 2026-06-04 — **komplett**)
+
+> Volle Details im Session-Log von [project_status.md](project_status.md) (Sessions 25 + 26).
+
+- [x] **DOCX-Overhaul (Session 25):** Serializer rendert Figures (Bild + „Abbildung N"), `#figure(table())` → echte Word-Tabelle, Display-Math + SVG → via Typst rasterisiert, `@fig/@tbl/@eq`-Cross-Refs aufgelöst, echte Word-Fussnoten, gentle-clues-Callouts → Box, Seitenzahl-Footer, numerischer/Autor-Jahr-Zitierstil. Roher Layout-/Design-Code wird übersprungen statt geleakt. Deserializer: Prosa mit `#emph/#strong/#raw/#footnote` (auch mehrzeilig) überlebt als echte Nodes (Editor + DOCX). Sample: 355 → 0 Code-Leaks, 0 → 3 eingebettete Bilder.
+- [x] **Per-Chapter Section Styles / Phase E (Session 26):** `ProjectStyle.sections` + Generator (`emitCoreRules` + `#let <id>-style`), 5 Rubrik-Presets, 4 MCP-Tools (`list/define/apply/clear_section_style`), `section:*` IPC, UI (DesignPanel-Editor + Chapters-Dropdown). Scoped `#show: <id>-style` pro Kapitel; Theme/Layout-Apply erhält `sections`.
+- [x] **Round-6 Magazin-Bausteine (Session 26):** `full-bleed-image`, `spread-opener`, `margin-note` (Library 19 → **22**); `magazine-cover` Full-Bleed-Bug gefixt. Dogfooding: 13-Seiten-Demo-Magazin „LANGSAM".
+- [x] **MCP-Binary:** `MCP_SETUP_VERSION` 0.7.1 → **0.8.0**, Bun-Binary neu für beide Mac-Archs.
 
 ### Phase 4: Distribution
 
