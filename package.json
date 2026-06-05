@@ -10,11 +10,12 @@
     "build": "unset ELECTRON_RUN_AS_NODE && electron-vite build",
     "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview",
     "package:mac": "npm run build && npm run build:mcp-binary:all && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --mac",
-    "package:win": "npm run build && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --win",
+    "package:win": "npm run build && npm run build:mcp-binary:win && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --win",
     "package:linux": "npm run build && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --linux",
     "build:mcp": "node esbuild.mcp.mjs",
     "build:mcp-binary": "node scripts/build-mcp-binary.mjs",
     "build:mcp-binary:all": "node scripts/build-mcp-binary.mjs --all",
+    "build:mcp-binary:win": "node scripts/build-mcp-binary.mjs --win",
     "build:mcpb": "node scripts/build-mcpb.mjs",
     "fetch:packages": "node scripts/fetch-typst-packages.mjs",
     "fetch:fonts": "node scripts/fetch-typst-fonts.mjs",
@@ -139,9 +140,8 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "notarize": true,
-      "identity": "Developer ID Application: Rene Jesser (3LAHNFWNT3)"
+      "identity": "Rene Jesser (3LAHNFWNT3)"
     },
-    "afterSign": "electron-builder-notarize",
     "win": {
       "icon": "build/icons/icon.png",
       "target": [

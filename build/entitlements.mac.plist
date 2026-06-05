@@ -8,6 +8,15 @@
     <true/>
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
+    <!-- The bundled Bun-compiled MCP binary maps freshly-written executable
+         pages (JSC JIT) and loads its own embedded libs; library validation
+         would reject it. electron-builder signs every nested Mach-O (incl.
+         the extraResources MCP + Typst binaries in Contents/Resources) with
+         THESE entitlements in one pass, so they notarize cleanly. The app
+         already allows JIT + unsigned executable memory, so the marginal
+         surface of this flag is small. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
     <key>com.apple.security.network.client</key>
     <true/>
     <key>com.apple.security.files.user-selected.read-write</key>

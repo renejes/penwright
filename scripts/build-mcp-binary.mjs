@@ -12,10 +12,13 @@
  *     order of launching the two apps no longer matters.
  *
  * Usage:
- *   node scripts/build-mcp-binary.mjs              # host arch only
- *   node scripts/build-mcp-binary.mjs --all        # arm64 + x86_64
+ *   node scripts/build-mcp-binary.mjs                  # host arch only
+ *   node scripts/build-mcp-binary.mjs --all            # both darwin arches
+ *   node scripts/build-mcp-binary.mjs --win            # windows x64 (.exe)
+ *   node scripts/build-mcp-binary.mjs --all-platforms  # darwin arm64+x64 + win x64
  *
- * Requires Bun to be installed (https://bun.sh).
+ * Bun can cross-compile to the Windows target from macOS, so `--win` works
+ * on the dev machine. Requires Bun to be installed (https://bun.sh).
  */
 
 import { spawnSync } from 'node:child_process';
@@ -30,15 +33,26 @@ const OUT_DIR = join(ROOT, 'dist', 'mcp', 'bin');
 
 mkdirSync(OUT_DIR, { recursive: true });
 
-const TARGETS_ALL = [
-  { bunTarget: 'bun-darwin-arm64', triple: 'aarch64-apple-darwin' },
-  { bunTarget: 'bun-darwin-x64', triple: 'x86_64-apple-darwin' },
+const TARGETS_DARWIN = [
+  { bunTarget: 'bun-darwin-arm64', triple: 'aarch64-apple-darwin', ext: '' },
+  { bunTarget: 'bun-darwin-x64', triple: 'x86_64-apple-darwin', ext: '' },
+];
+const TARGETS_WIN = [
+  { bunTarget: 'bun-windows-x64', triple: 'x86_64-pc-windows-msvc', ext: '.exe' },
 ];
 
-const wantAll = process.argv.includes('--all');
+const argv = process.argv.slice(2);
+const wantAll = argv.includes('--all');                    // both darwin (mac packaging)
+const wantWin = argv.includes('--win');                    // windows x64 only
+const wantAllPlatforms = argv.includes('--all-platforms'); // darwin + windows
 const isArm = process.arch === 'arm64';
-const hostTarget = isArm ? TARGETS_ALL[0] : TARGETS_ALL[1];
-const targets = wantAll ? TARGETS_ALL : [hostTarget];
+const hostTarget = isArm ? TARGETS_DARWIN[0] : TARGETS_DARWIN[1];
+
+let targets;
+if (wantAllPlatforms) targets = [...TARGETS_DARWIN, ...TARGETS_WIN];
+else if (wantWin) targets = TARGETS_WIN;
+else if (wantAll) targets = TARGETS_DARWIN;
+else targets = [hostTarget];
 
 // Resolve bun. Prefer PATH, but fall back to the common install location so
 // CI / packaging scripts don't need shell setup.
@@ -58,7 +72,7 @@ if (!BUN) {
 }
 
 for (const target of targets) {
-  const outFile = join(OUT_DIR, `penwright-mcp-${target.triple}`);
+  const outFile = join(OUT_DIR, `penwright-mcp-${target.triple}${target.ext ?? ''}`);
   console.log(`[build-mcp-binary] ${target.bunTarget} → ${outFile}`);
 
   const proc = spawnSync(BUN, [
@@ -81,8 +95,11 @@ for (const target of targets) {
 }
 
 // Drop a "penwright-mcp" alias pointing at the host build so dev/test scripts
-// can invoke it without the triple suffix.
-const aliasSrc = join(OUT_DIR, `penwright-mcp-${hostTarget.triple}`);
-const aliasDst = join(OUT_DIR, 'penwright-mcp');
-copyFileSync(aliasSrc, aliasDst);
-console.log(`[build-mcp-binary] alias dist/mcp/bin/penwright-mcp → penwright-mcp-${hostTarget.triple}`);
+// can invoke it without the triple suffix. Only when we actually built the
+// host (darwin) target — a windows-only build has nothing to alias.
+if (targets.some(t => t.triple === hostTarget.triple)) {
+  const aliasSrc = join(OUT_DIR, `penwright-mcp-${hostTarget.triple}`);
+  const aliasDst = join(OUT_DIR, 'penwright-mcp');
+  copyFileSync(aliasSrc, aliasDst);
+  console.log(`[build-mcp-binary] alias dist/mcp/bin/penwright-mcp → penwright-mcp-${hostTarget.triple}`);
+}

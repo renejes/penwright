@@ -1,7 +1,14 @@
 node_modules/
 dist/
 out/
+release/
 .DS_Store
 *.vsix
 .vite/
 *.lock
+
+# Secrets / local env — NEVER commit (Apple app-specific password etc.)
+.env
+.env.*
+*.env.local
+build/notarize.env.local
