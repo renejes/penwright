@@ -131,6 +131,17 @@ function createWindow(): void {
       menuItems.push({ type: 'separator' });
     }
 
+    // "Design after writing" — pin the selection and hand it to Claude.
+    // Only meaningful when there's a selection; the renderer captures the
+    // anchor + design snapshot and flips the sidebar to the Design tab.
+    if (params.selectionText && params.selectionText.trim().length > 0) {
+      menuItems.push({
+        label: '✨ Design with AI',
+        click: () => appState.mainWindow?.webContents.send('penwright', { type: 'designSelection' }),
+      });
+      menuItems.push({ type: 'separator' });
+    }
+
     // Standard edit actions
     menuItems.push(
       { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut },

@@ -20,6 +20,8 @@ import {
   checkForFileRecovery,
   getBackupConfig,
   aiSnapshotsDir,
+  getSelectionPin,
+  clearSelectionPin,
 } from './persistenceManager';
 import { addBreadcrumb } from './crashReporter';
 
@@ -481,6 +483,20 @@ function setupFileWatcher(): void {
 
   fileWatcher.on('change', async (changedPath: string) => {
     if (Date.now() - appState.lastSaveTimestamp < 3000) return;
+
+    // "Design after writing": if the externally-changed file is the one with a
+    // pinned selection, Claude has likely applied the design. Clear the pin and
+    // tell the renderer to toast + refresh the Design hub card. The self-save
+    // guard above means our own writes never reach here.
+    try {
+      if (appState.projectDir) {
+        const pin = getSelectionPin(appState.projectDir);
+        if (pin && path.resolve(changedPath) === path.resolve(appState.projectDir, pin.file)) {
+          clearSelectionPin(appState.projectDir);
+          appState.mainWindow?.webContents.send('penwright', { type: 'selectionApplied', file: pin.file });
+        }
+      }
+    } catch {}
 
     if (changedPath === appState.currentFilePath) {
       try {

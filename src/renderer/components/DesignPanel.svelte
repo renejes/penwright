@@ -30,6 +30,7 @@
   import { THEME_PRESETS } from '../../shared/themePresets';
   import { LAYOUT_PRESETS } from '../../shared/layoutPresets';
   import { SECTION_PRESETS, getSectionPreset } from '../../shared/sectionPresets';
+  import type { SelectionPin } from '../../shared/selectionTypes';
   import CodeEditor from './CodeEditor.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
@@ -50,12 +51,92 @@
   let style: ProjectStyle = $state(cloneProjectStyle(DEFAULT_PROJECT_STYLE));
   let initialized = $state(false);
   let status: Status = $state('idle');
+  // The project's design home (root document) — global style always targets it,
+  // never the open chapter. Shown as the scope label of the "Globale Styles" zone.
+  let rootFileName = $state('main.typ');
+  // Collapsible "?" help for each zone header.
+  let showGlobalHelp = $state(false);
+  let showSectionHelp = $state(false);
   let fonts: BundledFont[] = $state([]);
   let fontFaceStyles = $state('');
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   // Set when we mutate `style` programmatically (preset / extraction). Keeps
   // the $effect-driven save from firing during the initial load.
   let suppressSave = true;
+
+  // ─── "Design after writing" pin (hub card) ──────
+  // The pinned selection lives in `.penwright/selection.json` (written by
+  // `selection:pin` from the editor's right-click). This card reflects it and
+  // offers the Claude handoff. `pinApplied` shows a short toast after the
+  // watcher reports Claude edited the pinned file.
+  let pin: SelectionPin | null = $state(null);
+  let pinCopied = $state(false);
+  let pinApplied = $state(false);
+
+  async function loadPin(): Promise<void> {
+    if (!api) return;
+    try {
+      pin = (await api.invoke('selection:get')) as SelectionPin | null;
+    } catch {
+      pin = null;
+    }
+  }
+
+  function onSelectionChanged(): void {
+    pinApplied = false;
+    loadPin();
+  }
+
+  function onSelectionApplied(): void {
+    pin = null;
+    pinApplied = true;
+    setTimeout(() => { pinApplied = false; }, 6000);
+  }
+
+  /** Human-readable theme name for the pin's context digest. */
+  function pinThemeName(p: SelectionPin): string {
+    if (!p.context.theme) return 'Eigenes Design';
+    return THEME_PRESETS.find(t => t.id === p.context.theme)?.name ?? p.context.theme;
+  }
+
+  /** Section-style label for the digest (preset name if known, else the id). */
+  function pinSectionName(id: string): string {
+    return getSectionPreset(id)?.name ?? id;
+  }
+
+  function truncate(s: string, n: number): string {
+    return s.length > n ? s.slice(0, n).trimEnd() + '…' : s;
+  }
+
+  // Static starter prompt — Claude pulls the actual text + look via
+  // `penwright_get_selection`, so the prompt only needs to point it there and
+  // leave a placeholder for the user's intent.
+  const STARTER_PROMPT = [
+    'Gestalte die in Penwright gepinnte Auswahl — ruf zuerst `penwright_get_selection` auf,',
+    'um den Text und den aktuellen Look zu sehen. Mach daraus: <hier beschreiben>.',
+    'Halte es konsistent mit dem bestehenden Theme, der Palette und dem Layout.',
+  ].join(' ');
+
+  async function copyPinPrompt(): Promise<void> {
+    if (!pin) return;
+    try {
+      await navigator.clipboard.writeText(STARTER_PROMPT);
+      pinCopied = true;
+      setTimeout(() => { pinCopied = false; }, 1800);
+    } catch (err) {
+      console.warn('[DesignPanel] clipboard write failed:', err);
+    }
+  }
+
+  function openClaude(): void {
+    api?.invoke('mcp:openClaude');
+  }
+
+  async function unpin(): Promise<void> {
+    if (!api) return;
+    try { await api.invoke('selection:clear'); } catch {}
+    pin = null;
+  }
 
   // ─── Slot labels — short user-facing names for each semantic slot.
   const SLOT_LABEL: Record<keyof StyleColors, string> = {
@@ -80,10 +161,11 @@
 
     try {
       const result = await api.invoke('style:get') as
-        { style: ProjectStyle; initialized: boolean } | null;
+        { style: ProjectStyle; initialized: boolean; rootFile?: string } | null;
       if (result?.style) {
         style = cloneProjectStyle(result.style);
         initialized = result.initialized;
+        if (result.rootFile) rootFileName = result.rootFile;
       }
     } catch (err) {
       console.warn('[DesignPanel] style:get failed:', err);
@@ -146,10 +228,18 @@
     // Allow the auto-save effect to fire from here on.
     suppressSave = false;
     status = 'idle';
+
+    // Reflect any selection pinned before this panel mounted, and react to
+    // pins / applied-designs while it's open.
+    await loadPin();
+    window.addEventListener('penwright:selection-changed', onSelectionChanged);
+    window.addEventListener('penwright:selection-applied', onSelectionApplied);
   });
 
   onDestroy(() => {
     if (saveTimer) clearTimeout(saveTimer);
+    window.removeEventListener('penwright:selection-changed', onSelectionChanged);
+    window.removeEventListener('penwright:selection-applied', onSelectionApplied);
   });
 
   $effect(() => {
@@ -370,6 +460,90 @@
       <span class="design-status saved">Gespeichert</span>
     {:else if status === 'error'}
       <span class="design-status error">Fehler</span>
+    {/if}
+  </div>
+
+  <!-- "Design after writing" hub: pinned selection + the AI handoff. -->
+  {#if pin}
+    <section class="design-section pin-card">
+      <header class="design-section-header pin-card-header">
+        <h3>✨ Design with AI</h3>
+        <button class="pin-unpin" onclick={unpin} title="Pin entfernen">Lösen</button>
+      </header>
+      <div class="pin-scope">Gestaltet <strong>diese eine Stelle</strong></div>
+      <div class="pin-file">{pin.file}</div>
+      <blockquote class="pin-preview">{truncate(pin.selectionText, 220)}</blockquote>
+
+      <div class="pin-context">
+        <div class="pin-context-label">Die KI sieht außerdem:</div>
+        <ul class="pin-context-list">
+          <li><span>Theme</span><strong>{pinThemeName(pin)}</strong></li>
+          <li>
+            <span>Akzent</span>
+            <strong><i class="pin-swatch" style="background:{pin.context.palette.accent}"></i>{pin.context.palette.accent}</strong>
+          </li>
+          <li><span>Schriften</span><strong>{pin.context.fonts.body} / {pin.context.fonts.heading}</strong></li>
+          <li><span>Layout</span><strong>{pin.context.layout.paper.toUpperCase()} · {pin.context.layout.columns}-spaltig</strong></li>
+          {#if pin.context.sectionStyle}
+            <li><span>Sektionsstil</span><strong>{pinSectionName(pin.context.sectionStyle)}</strong></li>
+          {/if}
+          {#if pin.context.usedElements.length}
+            <li><span>Genutzt</span><strong>{pin.context.usedElements.join(', ')}</strong></li>
+          {/if}
+        </ul>
+      </div>
+
+      <div class="pin-actions">
+        <button class="pin-btn primary" onclick={copyPinPrompt}>{pinCopied ? '✓ Kopiert' : 'Prompt kopieren'}</button>
+        <button class="pin-btn" onclick={openClaude}>Claude öffnen</button>
+      </div>
+      <p class="pin-hint">In Claude Desktop einfügen, „&lt;hier beschreiben&gt;“ ersetzen und absenden. Die Änderung erscheint nach dem Speichern automatisch hier.</p>
+    </section>
+  {:else}
+    <section class="design-section pin-card pin-card--empty">
+      {#if pinApplied}
+        <div class="pin-toast">✓ Dokument aktualisiert</div>
+      {/if}
+      <header class="design-section-header">
+        <h3>✨ Design with AI</h3>
+      </header>
+      <p class="pin-empty-text">
+        Drei Wege, ein Dokument zu gestalten:
+      </p>
+      <ul class="pin-levels">
+        <li><strong>Direkte Formatierung</strong> — die Buttons oben in der Editor-Leiste
+          (fett, kursiv, Überschriften …), wie in Word. Für einzelne Wörter und Absätze.</li>
+        <li><strong>Eine bestimmte Stelle</strong> — Text markieren → Rechtsklick →
+          „✨ Design with AI“. Die Auswahl wird gepinnt und an die KI übergeben, die den
+          passenden Typst-Code für genau diese Stelle schreibt.</li>
+        <li><strong>Das ganze Dokument</strong> — die <em>Globalen Styles</em> unten
+          (Palette, Themes, Layout, Fonts …) oder einfach die KI bitten
+          („mach das ganze Dokument magazin-mäßig“).</li>
+      </ul>
+    </section>
+  {/if}
+
+  <!-- Zone: global styles — everything here targets the whole document. -->
+  <div class="zone-divider">
+    <div class="zone-head">
+      <span class="zone-title">Globale Styles</span>
+      <button
+        type="button"
+        class="zone-help-btn"
+        onclick={() => (showGlobalHelp = !showGlobalHelp)}
+        aria-expanded={showGlobalHelp}
+        aria-label="Hilfe: Globale Styles"
+        title="Was bewirken die globalen Styles?"
+      >?</button>
+    </div>
+    <div class="zone-scope">Wirkt auf das <strong>ganze Dokument</strong> → <code>{rootFileName}</code></div>
+    {#if showGlobalHelp}
+      <p class="zone-help">
+        Diese Regler schreiben ins projektweite <code>style.typ</code> und wirken auf das
+        gesamte Dokument (alle Kapitel). <strong>Egal welche Datei gerade offen ist</strong> —
+        die Änderung landet immer an der Root (<code>{rootFileName}</code>), nie im einzelnen
+        Kapitel. Du kannst von überall aus gefahrlos gestalten.
+      </p>
     {/if}
   </div>
 
@@ -998,6 +1172,63 @@
       <button
         type="button"
         class="custom-toggle"
+        onclick={() => (customExpanded = !customExpanded)}
+        aria-expanded={customExpanded}
+      >
+        <span class="custom-toggle-chev">{customExpanded ? '▾' : '▸'}</span>
+        <h3>Custom Typst-Code</h3>
+        {#if style.custom?.preamble && style.custom.preamble.trim().length > 0}
+          <span class="custom-toggle-badge">{style.custom.preamble.split(/\r?\n/).length} Zeilen</span>
+        {/if}
+      </button>
+      {#if customExpanded}
+        <span class="design-section-hint">
+          Wird ans Ende von <code>style.typ</code> angehängt — überschreibt alles oben. Hier kommen <code>#show heading.where(level: 1): it =&gt; …</code> mit Linien, <code>#import</code>-Statements und alles, was der Designer noch nicht kann.
+        </span>
+      {/if}
+    </header>
+
+    {#if customExpanded}
+      <div class="custom-editor-wrap">
+        <CodeEditor
+          content={style.custom?.preamble ?? ''}
+          fileExt="typ"
+          onChange={onCustomCodeChange}
+        />
+      </div>
+    {/if}
+  </section>
+
+  <!-- Zone: section styles — per-chapter overlays, assigned in the Chapters tab. -->
+  <div class="zone-divider">
+    <div class="zone-head">
+      <span class="zone-title">Section Styles</span>
+      <button
+        type="button"
+        class="zone-help-btn"
+        onclick={() => (showSectionHelp = !showSectionHelp)}
+        aria-expanded={showSectionHelp}
+        aria-label="Hilfe: Section Styles"
+        title="Was bewirken Section Styles?"
+      >?</button>
+    </div>
+    <div class="zone-scope">Überschreibt den Look <strong>einzelner Kapitel</strong></div>
+    {#if showSectionHelp}
+      <p class="zone-help">
+        Ein Section Style ist ein benanntes Overlay (Akzent, Fonts, Spalten,
+        Heading-Größen) für <strong>magazinartige Rubriken</strong>. Du definierst die
+        Varianten hier und weist sie dann im <strong>Kapitel-Tab</strong> einem einzelnen
+        Kapitel zu — es restyled <strong>nur dieses Kapitel</strong>. Seitenformat, Ränder
+        und Kopfzeilen bleiben dokumentweit (global).
+      </p>
+    {/if}
+  </div>
+
+  <section class="design-section">
+    <header class="design-section-header">
+      <button
+        type="button"
+        class="custom-toggle"
         onclick={() => (sectionsExpanded = !sectionsExpanded)}
         aria-expanded={sectionsExpanded}
       >
@@ -1011,11 +1242,9 @@
 
     {#if sectionsExpanded}
       <p class="design-hint">
-        Per-chapter “rubrics” for magazine layouts. Define a variant here, then
-        assign it to a chapter in the <strong>Chapters</strong> tab — it restyles
-        just that chapter (accent / fonts / columns / headings). Page geometry and
-        running heads stay document-level. Fine-tune fonts / headings via the MCP
-        tools or the generated <code>style.typ</code>.
+        Variante hier definieren, dann im <strong>Kapitel-Tab</strong> einem Kapitel
+        zuweisen. Feinschliff (Fonts / Headings) via MCP-Tools oder direkt in
+        <code>style.typ</code>. <button type="button" class="zone-help-inline" onclick={() => (showSectionHelp = !showSectionHelp)}>Was ist das?</button>
       </p>
 
       {#if style.sections.length > 0}
@@ -1056,37 +1285,6 @@
     {/if}
   </section>
 
-  <section class="design-section">
-    <header class="design-section-header">
-      <button
-        type="button"
-        class="custom-toggle"
-        onclick={() => (customExpanded = !customExpanded)}
-        aria-expanded={customExpanded}
-      >
-        <span class="custom-toggle-chev">{customExpanded ? '▾' : '▸'}</span>
-        <h3>Custom Typst-Code</h3>
-        {#if style.custom?.preamble && style.custom.preamble.trim().length > 0}
-          <span class="custom-toggle-badge">{style.custom.preamble.split(/\r?\n/).length} Zeilen</span>
-        {/if}
-      </button>
-      {#if customExpanded}
-        <span class="design-section-hint">
-          Wird ans Ende von <code>style.typ</code> angehängt — überschreibt alles oben. Hier kommen <code>#show heading.where(level: 1): it =&gt; …</code> mit Linien, <code>#import</code>-Statements und alles, was der Designer noch nicht kann.
-        </span>
-      {/if}
-    </header>
-
-    {#if customExpanded}
-      <div class="custom-editor-wrap">
-        <CodeEditor
-          content={style.custom?.preamble ?? ''}
-          fileExt="typ"
-          onChange={onCustomCodeChange}
-        />
-      </div>
-    {/if}
-  </section>
 </div>
 
 <!-- @font-face injection for the bundled fonts. Lives outside the panel
@@ -1169,6 +1367,271 @@
     padding: 1px 4px;
     border-radius: 3px;
     font-size: 10px;
+  }
+
+  /* ─── "Design after writing" hub card ───────────── */
+  .pin-card {
+    position: relative;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #ece6dd;
+    border-left: 3px solid #a8503a;
+    border-radius: 6px;
+    background: #faf7f2;
+  }
+
+  .pin-card--empty {
+    border-left-color: #ddd5c8;
+    background: #fbfaf7;
+  }
+
+  .pin-card-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pin-card-header h3 { color: #a8503a; }
+
+  .pin-unpin {
+    border: none;
+    background: transparent;
+    color: #998f7f;
+    font-size: 10.5px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+  .pin-unpin:hover { background: rgba(0, 0, 0, 0.05); color: #6b6356; }
+
+  .pin-file {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    color: #8a8174;
+    word-break: break-all;
+  }
+
+  .pin-preview {
+    margin: 0;
+    padding: 6px 10px;
+    border-left: 2px solid #d8cfc1;
+    background: #fff;
+    border-radius: 0 3px 3px 0;
+    font-style: italic;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: #3a352e;
+    max-height: 6.5em;
+    overflow: hidden;
+  }
+
+  .pin-context {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .pin-context-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #999;
+  }
+
+  .pin-context-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .pin-context-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .pin-context-list li span {
+    flex: 0 0 70px;
+    color: #998f7f;
+  }
+
+  .pin-context-list li strong {
+    font-weight: 500;
+    color: #3a352e;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .pin-swatch {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  .pin-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .pin-btn {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #d8cfc1;
+    border-radius: 4px;
+    background: #fff;
+    color: #3a352e;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .pin-btn:hover { background: #f4f1ec; }
+
+  .pin-btn.primary {
+    background: #a8503a;
+    border-color: #a8503a;
+    color: #fff;
+  }
+  .pin-btn.primary:hover { background: #95462f; }
+
+  .pin-hint {
+    margin: 0;
+    font-size: 10px;
+    color: #998f7f;
+    line-height: 1.45;
+  }
+
+  .pin-empty-text {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #5c554a;
+  }
+  .pin-empty-text strong { color: #3a352e; }
+
+  .pin-scope {
+    font-size: 10.5px;
+    color: #8a8174;
+    margin-top: -4px;
+  }
+  .pin-scope strong { color: #a8503a; font-weight: 600; }
+
+  .pin-levels {
+    margin: 2px 0 0;
+    padding-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #5c554a;
+  }
+  .pin-levels strong { color: #3a352e; }
+
+  .pin-toast {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #f0fdf4;
+    color: #16a34a;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  /* ─── Zone dividers (Globale Styles / Section Styles) ──── */
+  .zone-divider {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid #e7e1d7;
+  }
+
+  .zone-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .zone-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b6356;
+  }
+
+  .zone-help-btn {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    border: 1px solid #cfc6b8;
+    border-radius: 50%;
+    background: #fff;
+    color: #8a8174;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .zone-help-btn:hover { background: #a8503a; border-color: #a8503a; color: #fff; }
+
+  .zone-scope {
+    font-size: 10.5px;
+    color: #8a8174;
+  }
+  .zone-scope strong { color: #3a352e; font-weight: 600; }
+  .zone-scope code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: #6b6356;
+  }
+
+  .zone-help {
+    margin: 2px 0 0;
+    padding: 7px 9px;
+    background: #faf7f2;
+    border: 1px solid #ece6dd;
+    border-radius: 4px;
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: #5c554a;
+  }
+  .zone-help code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 9.5px;
+  }
+  .zone-help strong { color: #3a352e; }
+
+  .zone-help-inline {
+    border: none;
+    background: transparent;
+    color: #a8503a;
+    font-size: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
   }
 
   /* Sits directly under a .design-field input — narrower, tighter than

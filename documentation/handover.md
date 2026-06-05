@@ -1,9 +1,94 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-06-04, Ende der Session „Rebrand-Abschluss + Lizenz + Handbuch-Viewer".
-> **Branch:** alles auf `main` gemerged **und gepusht** (letzter Commit `ecde226`).
-> **Nächste Aufgabe:** das **„Design nach dem Schreiben"-Feature** (zwei Ebenen, Rechtsklick → Claude). Detaillierter, datei-genauer Plan liegt in **[design-on-selection-plan.md](design-on-selection-plan.md)**.
-> Lies diesen Handover, dann `CLAUDE.md`, dann den Plan — danach loslegen.
+> **Stand:** 2026-06-05, Ende der Session „Design after writing".
+> **Branch:** `design-on-selection` (ab `main`), **noch nicht committet/gepusht** —
+> Working Tree enthält das fertige Feature, wartet auf Commit-Freigabe.
+> **Nächste Aufgabe:** das **Bundling-/„Just-Works"-Audit** + DMG/Notarization (siehe §4).
+> Lies diesen Handover, dann `CLAUDE.md` → danach loslegen.
+
+---
+
+## ✅ Erledigt diese Session: „Design after writing" (zwei Ebenen)
+
+Das in **[design-on-selection-plan.md](design-on-selection-plan.md)** geplante Feature
+ist **vollständig gebaut** (alle drei Stages). Builds grün (`electron-vite build` +
+`esbuild.mcp` + `tsc --noEmit` clean).
+
+- **Ebene 1 (Gesamt-Design)** funktioniert wie gehabt über die bestehenden Design-Tools;
+  neu ist nur das **Framing** im `DESIGN_SKILL` („Designing on Request").
+- **Ebene 2 (Stelle gestalten) — neu:** Text markieren → Rechtsklick **„✨ Design with
+  AI"** → `App.svelte` `pinSelectionForDesign()` pinnt Anker (`anchorText` +
+  1-basierte `occurrence` + `nodeType`) via `selection:pin`; der Main-Prozess hängt einen
+  **Design-Snapshot** an (Theme / Palette / Fonts / Layout / sectionStyle / grober
+  `usedElements`-Scan) und schreibt `.penwright/selection.json`. Der **Design-Tab** öffnet
+  mit einer **Hub-Karte** (`DesignPanel.svelte`): Vorschau + Kontext-Digest + Buttons
+  „Prompt kopieren" / „Claude öffnen" / „Lösen".
+- **MCP:** neues Tool **`penwright_get_selection`** (`server.ts` + Manifest), liest den Pin.
+  `MCP_SETUP_VERSION` → **`0.11.0`** (Wizard re-deployt das Binary).
+- **Auto-Unpin:** der chokidar-Watcher (`fileManager.ts`) räumt den Pin, sobald Claude die
+  gepinnte Datei extern ändert, und schickt `selectionApplied` → Karte toastet
+  „Dokument aktualisiert".
+- **Klarstellung Design-Tab (gleiche Session):** das Feature heißt UI-seitig jetzt
+  **„Design with AI"** (generisch; der „Claude öffnen"-Button bleibt, weil er buchstäblich
+  Claude Desktop öffnet). Der Design-Tab ist in **drei Flächen** gegliedert: Pin-Karte
+  „Design with AI" = *eine Stelle*; Zone **„Globale Styles"** (Palette/Themes/Layout/Fonts/
+  Headings/Elements/Custom) = *ganzes Dokument* (Scope-Label mit Root-Dateiname + „?"-Hilfe);
+  Zone **„Section Styles"** = *pro Kapitel* (eigene „?"-Hilfe). **Harte Schreib-Sicherung**:
+  `resolveStyleRootFile()` (ipcHandlers) schreibt globales Design immer an die Projekt-Root
+  (`main.typ`/`document.typ`/`index.typ`), **nie** in ein offenes Kapitel → der „zerschießt
+  das Kapitel"-Footgun ist tot. `style:get` liefert den Root-Basename fürs Label.
+- **Geänderte Dateien:** `persistenceManager`, `ipcHandlers`, `preload-entry`, `index.ts`
+  (Kontextmenü), `fileManager`, `App.svelte`, `messageHandler`, `DesignPanel.svelte`,
+  `mcp/server.ts`, `mcp/manifest.template.json`, `mcpSetup.ts`, `skillTemplates.ts`,
+  neu: `src/shared/selectionTypes.ts`. Doku in `CLAUDE.md` aktualisiert.
+- **Offen / noch zu prüfen:** **manueller E2E-Test** mit Claude Desktop (Pin → Claude liest
+  `penwright_get_selection` → wendet etwas an → Editor lädt neu → Pin verschwindet). Skill-Update
+  greift auf **bestehenden** Projekten erst nach Löschen der alten
+  `.claude/skills/design/SKILL.md` (neue Projekte automatisch via `ensureClaudeSkills`).
+
+---
+
+## ✅ Erledigt diese Session: Bundling-Audit + 3 Fixes
+
+Der **Ist-Zustand ist gut**: Typst-Binary (arm64), 22 Typst-Packages, 7 Fonts (inkl.
+Brand-Fonts Crimson Pro + Spectral), Sample-Projekt, Icons, Handbuch (`?raw`), MCP-Binary
+(beide darwin-Triples) sind gebündelt und im App-Pfad korrekt verdrahtet
+(`buildTypstCompileArgs` → `--font-path` + `--package-path`). Die **App selbst ist auf
+Apple Silicon self-contained.** Drei Lücken gefixt:
+
+1. **`TYPST_BIN` fehlte im MCP-Wizard** → die aus der .app herauskopierte MCP-Binary fiel
+   auf bare `typst` zurück und konnte auf einer sauberen Maschine **nicht** kompilieren/
+   exportieren. `mcpSetup.ts` setzt jetzt `TYPST_BIN` (+ Package/Font-Path, war schon da).
+2. **Notarize-Doppelkonfig** (`mac.notarize:true` **und** `afterSign: electron-builder-notarize`)
+   → das redundante afterSign-Plugin entfernt; der eingebaute notarytool-Pfad bleibt.
+3. **Signierung der gebündelten Binaries**: `disable-library-validation` in die Haupt-
+   `entitlements.mac.plist` gezogen (der eine Sign-Pass deckt MCP + Typst ab); `afterPack-
+   sign-mcp.mjs` robust umgeschrieben (globt MCP **und** Typst, invertierter Arch-Bug behoben)
+   als Absicherung. **Wichtig:** `afterPack` läuft **vor** electron-builders Sign-Pass
+   (in app-builder-lib 26 verifiziert), darum ist der Hook nur Insurance, nicht der Primär-Signer.
+
+- **Offen (Build-Zeit, braucht echten `package:mac`):** Notarisierten DMG bauen +
+  **prüfen**, dass die Nested-Binaries (Typst, MCP) in `Contents/Resources` signiert+hardened
+  sind und durchnotarisieren. Apple-Credentials als Env: `APPLE_ID`,
+  `APPLE_APP_SPECIFIC_PASSWORD` (erstellen unter account.apple.com → Anmeldung & Sicherheit →
+  App-spezifische Passwörter), `APPLE_TEAM_ID` (Identity `3LAHNFWNT3` ist gesetzt).
+- **Plattform:** v1 = **nur Apple Silicon**.
+
+### Windows-Scaffolding (vorbereitet, ungetestet)
+
+Code-seitig vorbereitet, ohne Windows/Cert testbar:
+- `typstPath.ts` — `.exe`-Handling fürs gebündelte Typst-Binary (`typst-x64-win32.exe`).
+- `build-mcp-binary.mjs` — Bun-Windows-Target (`--win` → `penwright-mcp-x86_64-pc-windows-msvc.exe`,
+  cross-compile von macOS möglich). `package:win` baut die MCP-Binary jetzt mit.
+- `mcpSetup.ts` — voller win32-Branch: `isMcpSetupSupported()`, `platformBinary()`,
+  Config-Pfad `%APPDATA%\Claude`, Install `%APPDATA%\Penwright\mcp-server\penwright-mcp.exe`,
+  Claude-Discovery `%LOCALAPPDATA%\…\Claude.exe`. `mcp:getSetupStatus.supported` nutzt das jetzt.
+
+**Noch offen für Windows (braucht Windows-Maschine / Entscheidungen):**
+- **Typst-`.exe` besorgen** und nach `resources/bin/typst-x64-win32.exe` legen (kein Fetch-Script).
+- **Code-Signing bewusst weggelassen** (EV/OV-Zertifikat ~300 €/Jahr) → Nutzer sehen SmartScreen.
+- Echter Test auf Windows + Claude Desktop (Config-Pfad, Bun-`.exe`-Spawn, node-pty/Terminal).
+- Linux: App ginge standalone, aber Claude Desktop gibt's dort nicht → MCP moot.
 
 ---
 
@@ -13,15 +98,16 @@
 - **Lizenzmodell (M8.7) ist fertig:** Einmalkauf **59 €**, lokaler **14-Tage-Trial** → danach `LicenseGate` (gesperrt), **ein** `pw_LIC…`-Key schaltet alles frei (inkl. MCP), Offline-Grace **7 Tage**, „Buy" geht direkt zum Polar-Checkout. Lizenz-UI ist **englisch**.
 - **In-App-Handbuch:** `HandbookViewer.svelte` rendert das gebündelte Handbuch (`marked`, EN/DE), „Help → User Guide" + About-Button öffnen es. Kein externes Docs-Hosting mehr.
 - **Kanonische Domain:** `penwright.online` (muss noch registriert werden). Support-Mail `feedback@penwright.online`.
-- **Alles auf `main` gepusht.** Working Tree sauber.
+- **Rebrand + Lizenz + Handbuch** sind auf `main` gepusht (`ecde226`). Das
+  **„Design after writing"-Feature** liegt fertig auf Branch `design-on-selection`
+  (noch **uncommitted** — siehe ✅-Block oben).
 
-**→ Jetzt bauen wir die nächste große Fähigkeit: Design nach dem Schreiben.**
-**Direkt danach** kommt das **Bundling-/„Just-Works"-Audit** (User installiert nur
-Penwright → hat alles, keine Zusatz-Installs) + DMG/Notarization — Details in §4.
+**→ Jetzt: das Bundling-/„Just-Works"-Audit** (User installiert nur Penwright → hat
+alles, keine Zusatz-Installs) + DMG/Notarization — Details in §4.
 
 ---
 
-## 1. Die nächste Aufgabe: „Design after writing" (zwei Ebenen)
+## 1. ✅ (Erledigt) „Design after writing" (zwei Ebenen) — Hintergrund
 
 **Ziel:** Schreiben und Gestalten entkoppeln. Zwei Ebenen:
 
@@ -42,7 +128,7 @@ Penwright → hat alles, keine Zusatz-Installs) + DMG/Notarization — Details i
   Claude würde die Selektion sonst kollabieren). Der Pin macht die Reihenfolge
   sichtbar.
 - **Der Design-Sidebar-Tab ist der Hub.** Alles Gestalterische an einem Ort. Im
-  Editor lebt nur der leichte Pin-Auslöser (Rechtsklick „✨ Design with Claude").
+  Editor lebt nur der leichte Pin-Auslöser (Rechtsklick „✨ Design with AI").
 - **Nichts feuert automatisch** — die Hub-Karte zeigt die Buttons (Copy Prompt /
   Open Claude), der User klickt selbst.
 - **Claude bekommt immer den Design-Kontext** (Theme/Palette/Fonts/Layout/
@@ -151,5 +237,5 @@ npm run package:mac
 > „Lies `documentation/handover.md`, dann `CLAUDE.md`, dann
 > `documentation/design-on-selection-plan.md`. Wir bauen das **„Design after
 > writing"-Feature** (zwei Ebenen: Gesamt-Design via Claude-Chat; Abschnitts-Design
-> via Markieren → Rechtsklick „Design with Claude" → Pin → `penwright_get_selection`).
+> via Markieren → Rechtsklick „Design with AI" → Pin → `penwright_get_selection`).
 > Leg einen Branch `design-on-selection` ab `main` an und fang mit **Stage 1** an."

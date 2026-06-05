@@ -37,12 +37,21 @@ import {
   getProjectStyle,
   saveProjectStyle,
   hasProjectStyle,
+  saveSelectionPin,
+  getSelectionPin,
+  clearSelectionPin,
   getMcpSetupVersion,
   saveMcpSetupVersion,
   type PanelState,
   type BackupConfig,
   type ProjectPreferences,
 } from './persistenceManager';
+import { THEME_PRESETS } from '../shared/themePresets';
+import {
+  SELECTION_PIN_VERSION,
+  type SelectionPin,
+  type SelectionAnchorInput,
+} from '../shared/selectionTypes';
 import {
   generateStyleTypst,
   ensureStyleInclude,
@@ -60,6 +69,7 @@ import {
   checkClaudeDesktopInstalled,
   setupMcpServer,
   openClaudeDesktop,
+  isMcpSetupSupported,
   MCP_SETUP_VERSION,
 } from './mcpSetup';
 import { activateLicense, validateLicense, deactivateLicense, getEntitlement } from './licenseManager';
@@ -79,6 +89,73 @@ import { listComments, createComment, updateComment, deleteComment, type CreateA
 
 /** Direct Polar checkout for the Penwright license (one-time, €59). */
 const PENWRIGHT_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_u6Fn7z0pPvGUX6pWvPJE4U9bWSBg80fiNdJw12vbJzm';
+
+// ─── Selection-pin design snapshot (helpers) ─────────────────────
+// Used when pinning a selection ("Design with AI") to capture the
+// document's current look so Claude designs the spot in harmony.
+
+/**
+ * Best-effort match of the current style against a built-in theme. Compares
+ * the five colour slots + body/heading fonts; returns the theme id or null
+ * if the look has been customised away from any preset.
+ */
+function matchThemeId(style: ProjectStyle): string | null {
+  for (const t of THEME_PRESETS) {
+    const c = t.style.colors, f = t.style.fonts;
+    if (
+      c.primary === style.colors.primary && c.accent === style.colors.accent &&
+      c.text === style.colors.text && c.background === style.colors.background &&
+      c.muted === style.colors.muted &&
+      f.body === style.fonts.body && f.heading === style.fonts.heading
+    ) return t.id;
+  }
+  return null;
+}
+
+/**
+ * Coarse, best-effort scan for design constructs already present in a file —
+ * so Claude can avoid introducing a clashing third variant. Each signature
+ * targets the generated `designElements.ts` template or a distinctive Typst
+ * construct; a miss is harmless (Claude still gets palette/fonts/layout). Not
+ * meant to be exhaustive.
+ */
+function scanUsedDesignSignals(content: string): string[] {
+  const signals: Array<{ tag: string; re: RegExp }> = [
+    { tag: 'columns',       re: /#columns\s*\(/ },
+    { tag: 'margin-note',   re: /margin-note\s*\(/ },
+    { tag: 'wrapped-photo', re: /wrap-content\s*\(/ },
+    { tag: 'drop-cap',      re: /drop-?cap|dropcap/i },
+    { tag: 'pull-quote',    re: /length:\s*25%,\s*stroke:\s*1pt\s*\+\s*style-colors\.accent/ },
+    { tag: 'divider',       re: /stroke:\s*0\.5pt\s*\+\s*style-colors\.muted/ },
+    { tag: 'callout',       re: /stroke:\s*\(left:\s*4pt\s*\+\s*style-colors\.accent\)/ },
+    { tag: 'sidebar',       re: /stroke:\s*\(left:\s*3pt\s*\+\s*style-colors\.accent\)/ },
+    { tag: 'banner',        re: /width:\s*100%,\s*fill:\s*style-colors\.primary/ },
+    { tag: 'hero',          re: /size:\s*2\.8em,\s*weight:\s*"bold",\s*fill:\s*style-colors\.primary/ },
+  ];
+  return signals.filter(s => s.re.test(content)).map(s => s.tag);
+}
+
+/**
+ * Resolves the project's **design home** — the root document that global
+ * style is written next to (style.typ sibling + the `#show: apply-style`
+ * import). Global design must NEVER be written into an open chapter file (it
+ * would inject page setup + duplicate the show rule and break compilation), so
+ * we prefer a conventional root document at the project root over
+ * `findRootFile(openFile)`. Mirrors the MCP server's candidate resolution.
+ *
+ * Order: main.typ / document.typ / index.typ at the project root → else walk
+ * up the include chain from the open file → else `<project>/main.typ`.
+ */
+function resolveStyleRootFile(): string {
+  const dir = appState.projectDir;
+  if (!dir) return path.join(appState.currentFilePath ? path.dirname(appState.currentFilePath) : '', 'main.typ');
+  for (const name of ['main.typ', 'document.typ', 'index.typ']) {
+    const candidate = path.join(dir, name);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  if (appState.currentFilePath) return findRootFile(appState.currentFilePath);
+  return path.join(dir, 'main.typ');
+}
 
 export function setupIPC(): void {
   // Renderer sends edited content
@@ -619,7 +696,7 @@ export function setupIPC(): void {
     current: MCP_SETUP_VERSION,
     installed: getMcpSetupVersion(),
     needsSetup: getMcpSetupVersion() !== MCP_SETUP_VERSION,
-    supported: process.platform === 'darwin',
+    supported: isMcpSetupSupported(),
   }));
   ipcMain.handle('mcp:skipSetup', () => {
     // User dismissed the wizard — stash the current version so we don't
@@ -789,9 +866,7 @@ export function setupIPC(): void {
     // so the Designer doesn't silently overwrite it on next save.
     if (!style.custom?.preamble) {
       try {
-        const rootFile = appState.currentFilePath
-          ? findRootFile(appState.currentFilePath)
-          : path.join(appState.projectDir, 'main.typ');
+        const rootFile = resolveStyleRootFile();
         const styleTyp = path.join(
           fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir,
           'style.typ',
@@ -809,6 +884,9 @@ export function setupIPC(): void {
     return {
       style,
       initialized: hasProjectStyle(appState.projectDir),
+      // The design home — shown in the Design panel so the user knows global
+      // style always targets this file, never the open chapter.
+      rootFile: path.basename(resolveStyleRootFile()),
     };
   });
 
@@ -817,10 +895,10 @@ export function setupIPC(): void {
 
     const style = saveProjectStyle(appState.projectDir, raw);
 
-    // 1. Write style.typ next to the root file (sibling of main.typ).
-    const rootFile = appState.currentFilePath
-      ? findRootFile(appState.currentFilePath)
-      : path.join(appState.projectDir, 'main.typ');
+    // 1. Write style.typ next to the project's design home (root document).
+    // resolveStyleRootFile() guarantees we never target an open chapter — global
+    // style always lands at main.typ / the root, regardless of which file is open.
+    const rootFile = resolveStyleRootFile();
     const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
     const styleTypPath = path.join(projectRootDir, 'style.typ');
 
@@ -871,7 +949,7 @@ export function setupIPC(): void {
 
   function regenerateStyleTyp(style: ProjectStyle): void {
     if (!appState.projectDir) return;
-    const rootFile = appState.currentFilePath ? findRootFile(appState.currentFilePath) : path.join(appState.projectDir, 'main.typ');
+    const rootFile = resolveStyleRootFile();
     const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
     appState.lastSaveTimestamp = Date.now();
     fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(style), 'utf-8');
@@ -899,7 +977,7 @@ export function setupIPC(): void {
   }
 
   function chapterImportPath(chapterAbs: string): string {
-    const rootFile = appState.currentFilePath ? findRootFile(appState.currentFilePath) : path.join(appState.projectDir!, 'main.typ');
+    const rootFile = resolveStyleRootFile();
     const rootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir!;
     return path.relative(path.dirname(chapterAbs), path.join(rootDir, 'style.typ')).split(path.sep).join('/');
   }
@@ -955,6 +1033,60 @@ export function setupIPC(): void {
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
+    return { ok: true as const };
+  });
+
+  // ─── Selection pin ("Design after writing") ───
+  // The renderer captures the selection anchor (text + occurrence + node type)
+  // from the editor; main assembles the design snapshot (theme / palette /
+  // fonts / layout / section style / used elements) and writes the full pin to
+  // `.penwright/selection.json`, which the MCP `penwright_get_selection` reads.
+
+  ipcMain.handle('selection:pin', (_event, input: SelectionAnchorInput) => {
+    if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
+    const projectDir = appState.projectDir;
+    const abs = path.resolve(projectDir, input.file);
+    if (!isPathWithin(abs, projectDir)) return { ok: false as const, error: 'File outside project.' };
+
+    // Prefer the live editor buffer if the pinned file is the open one;
+    // otherwise read from disk (best-effort — only used for the snapshot).
+    let content = '';
+    if (appState.currentFilePath && path.resolve(appState.currentFilePath) === abs) {
+      content = appState.currentContent ?? '';
+    } else {
+      try { content = fs.readFileSync(abs, 'utf-8'); } catch { content = ''; }
+    }
+
+    const style = getProjectStyle(projectDir);
+    const pin: SelectionPin = {
+      version: SELECTION_PIN_VERSION,
+      pinnedAt: Date.now(),
+      file: input.file.replace(/\\/g, '/'),
+      selectionText: input.selectionText,
+      anchorText: input.anchorText,
+      occurrence: input.occurrence,
+      nodeType: input.nodeType,
+      context: {
+        theme: matchThemeId(style),
+        palette: { ...style.colors },
+        fonts: { body: style.fonts.body, heading: style.fonts.heading, code: style.fonts.code },
+        layout: { paper: style.layout.paper, orientation: style.layout.orientation, columns: style.layout.columns },
+        sectionStyle: getSectionStyleId(content),
+        usedElements: scanUsedDesignSignals(content),
+      },
+    };
+    saveSelectionPin(projectDir, pin);
+    return { ok: true as const, pin };
+  });
+
+  ipcMain.handle('selection:get', () => {
+    if (!appState.projectDir) return null;
+    return getSelectionPin(appState.projectDir);
+  });
+
+  ipcMain.handle('selection:clear', () => {
+    if (!appState.projectDir) return { ok: false as const };
+    clearSelectionPin(appState.projectDir);
     return { ok: true as const };
   });
 

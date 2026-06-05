@@ -64,6 +64,7 @@
     { "name": "penwright_list_design_elements", "description": "Library of 19 parametric design-element snippets (Banner / Sidebar / Pull-Quote variants / Callout / Hero / Divider variants / Drop-Cap / Article-Opener / Section-Opener / Gallery 2up+3up+asymmetric / Image-Overlay / Stats-Box / Photo-Caption-Wrap / Magazine-Cover)." },
     { "name": "penwright_insert_design_element", "description": "Inserts a design element at an anchor; snippets reference style-colors.* / style-fonts.* so they re-theme automatically." },
     { "name": "penwright_generate_layout", "description": "High-level NL composite: intent (\"brochure\" / \"magazine\" / \"thesis\" / etc.) → theme + layout + optional hero." },
+    { "name": "penwright_get_selection", "description": "Returns the passage the user pinned via 'Design with AI' plus a design snapshot (theme / palette / fonts / layout / sectionStyle / usedElements); use anchorText + occurrence to design that exact spot." },
     { "name": "penwright_get_chapters", "description": "Returns the #include structure (order, paths, file-exists flag)." },
     { "name": "penwright_reorder_chapters", "description": "Reorders the #include statements in the root document." },
     { "name": "penwright_add_chapter", "description": "Creates a new chapter file in chapters/ and adds an #include." },

@@ -159,6 +159,16 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'addComment') {
     window.dispatchEvent(new CustomEvent('penwright:add-comment'));
   }
+  // Native context-menu → "✨ Design with AI": pin the selection + open
+  // the Design tab. App.svelte owns the capture via this window event.
+  if (msg.type === 'designSelection') {
+    window.dispatchEvent(new CustomEvent('penwright:design-selection'));
+  }
+  // The watcher detected an external change to the pinned file → Claude
+  // applied the design. The DesignPanel hub card toasts + clears its pin view.
+  if (msg.type === 'selectionApplied') {
+    window.dispatchEvent(new CustomEvent('penwright:selection-applied'));
+  }
   if (msg.type === 'showReferencePicker') {
     window.dispatchEvent(new CustomEvent('penwright:open-reference-picker'));
   }

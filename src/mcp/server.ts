@@ -131,6 +131,10 @@ function styleJsonPath(projectDir: string): string {
   return path.join(projectDir, '.penwright', 'style.json');
 }
 
+function selectionJsonPath(projectDir: string): string {
+  return path.join(projectDir, '.penwright', 'selection.json');
+}
+
 function readProjectStyle(projectDir: string): ProjectStyle {
   const file = styleJsonPath(projectDir);
   if (!fs.existsSync(file)) return sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
@@ -864,6 +868,31 @@ server.tool(
     }
     const style = readProjectStyle(state.projectDir);
     return { content: [{ type: 'text' as const, text: JSON.stringify(style, null, 2) }] };
+  },
+);
+
+// ─── Tool: penwright_get_selection ─────────────────────
+// Reads the pinned selection the user handed off via Penwright's
+// "✨ Design with AI". Returns the passage + a snapshot of the current
+// look so Claude can design that exact spot in harmony with the document.
+
+server.tool(
+  'penwright_get_selection',
+  'Return the pinned selection from `.penwright/selection.json` — the passage the user right-clicked in Penwright → "Design with AI", plus a design snapshot (theme / palette / fonts / layout / sectionStyle / usedElements). Pass anchorText + occurrence to the anchor-based tools (penwright_insert_design_element, …) to act on the exact spot, or write localized Typst there. Returns a clear note if nothing is pinned.',
+  async () => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
+    }
+    const file = selectionJsonPath(state.projectDir);
+    if (!fs.existsSync(file)) {
+      return { content: [{ type: 'text' as const, text: 'No selection pinned. Ask the user to select a passage in Penwright and right-click → "✨ Design with AI" — or design the whole document instead (penwright_get_style, then apply_style / apply_palette / apply_layout / generate_layout; no selection needed).' }] };
+    }
+    try {
+      const pin = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      return { content: [{ type: 'text' as const, text: JSON.stringify(pin, null, 2) }] };
+    } catch {
+      return { content: [{ type: 'text' as const, text: 'Error: .penwright/selection.json is unreadable or corrupt.' }], isError: true };
+    }
   },
 );
 

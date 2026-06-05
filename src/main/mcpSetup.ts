@@ -12,8 +12,10 @@
  *     does not affect the MCP child, and the order of launching the two
  *     apps no longer matters.
  *
- * macOS-only for now; Windows + Linux can extend the platform branches
- * later (different config paths + binary triples).
+ * macOS is the tested target. Windows is wired (config path %APPDATA%\Claude,
+ * binary triple x86_64-pc-windows-msvc.exe, install path %APPDATA%\Penwright)
+ * but needs verification on a real Windows + Claude Desktop install. Linux is
+ * excluded — Claude Desktop isn't available there.
  */
 
 import { app, shell } from 'electron';
@@ -21,14 +23,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { getLicenseData } from './persistenceManager';
-import { getTypstPackagePath, getTypstFontPath } from './typstPath';
+import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath';
 
 /**
  * Bump when the bundled MCP binary or the config schema changes. Persisted
  * setup version in electron-store is compared against this; mismatch =>
  * the wizard prompts again so updates re-install the binary.
  */
-export const MCP_SETUP_VERSION = '0.10.0';
+export const MCP_SETUP_VERSION = '0.11.0';
 
 /** Key used in Claude Desktop's `mcpServers` map. */
 const MCP_SERVER_KEY = 'penwright';
@@ -50,8 +52,24 @@ export interface SetupResult {
 
 // ─── Path resolution ────────────────────────────────
 
-function darwinTriple(): string {
-  return process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
+/**
+ * Platforms where the MCP setup wizard is supported. macOS is the primary
+ * target; Windows is wired but needs real-device testing. Linux is excluded —
+ * Claude Desktop isn't available there.
+ */
+export function isMcpSetupSupported(): boolean {
+  return process.platform === 'darwin' || process.platform === 'win32';
+}
+
+/** Triple + executable extension of the bundled MCP binary for this platform. */
+function platformBinary(): { triple: string; ext: string } {
+  if (process.platform === 'win32') {
+    return { triple: 'x86_64-pc-windows-msvc', ext: '.exe' };
+  }
+  return {
+    triple: process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin',
+    ext: '',
+  };
 }
 
 /**
@@ -61,8 +79,8 @@ function darwinTriple(): string {
  * directly because the .app path changes when users move the app.
  */
 export function getBundledBinaryPath(): string {
-  const triple = darwinTriple();
-  const filename = `penwright-mcp-${triple}`;
+  const { triple, ext } = platformBinary();
+  const filename = `penwright-mcp-${triple}${ext}`;
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'mcp', 'bin', filename);
   }
@@ -71,6 +89,10 @@ export function getBundledBinaryPath(): string {
 
 /** Stable, user-writable location the binary is copied to during setup. */
 export function getInstalledBinaryPath(): string {
+  if (process.platform === 'win32') {
+    const base = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    return path.join(base, 'Penwright', 'mcp-server', 'penwright-mcp.exe');
+  }
   return path.join(
     os.homedir(),
     'Library',
@@ -84,12 +106,21 @@ export function getInstalledBinaryPath(): string {
 // ─── Claude Desktop discovery ───────────────────────
 
 function claudeAppCandidates(): string[] {
-  if (process.platform !== 'darwin') return [];
   const home = os.homedir();
-  return [
-    '/Applications/Claude.app',
-    path.join(home, 'Applications', 'Claude.app'),
-  ];
+  if (process.platform === 'darwin') {
+    return [
+      '/Applications/Claude.app',
+      path.join(home, 'Applications', 'Claude.app'),
+    ];
+  }
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    return [
+      path.join(localAppData, 'Programs', 'Claude', 'Claude.exe'),
+      path.join(localAppData, 'Claude', 'Claude.exe'),
+    ];
+  }
+  return [];
 }
 
 export function checkClaudeDesktopInstalled(): ClaudeCheck {
@@ -101,23 +132,28 @@ export function checkClaudeDesktopInstalled(): ClaudeCheck {
 }
 
 export function getClaudeConfigPath(): string {
-  if (process.platform !== 'darwin') {
-    throw new Error('MCP setup is only supported on macOS in this build.');
+  const home = os.homedir();
+  if (process.platform === 'darwin') {
+    return path.join(
+      home,
+      'Library',
+      'Application Support',
+      'Claude',
+      'claude_desktop_config.json',
+    );
   }
-  return path.join(
-    os.homedir(),
-    'Library',
-    'Application Support',
-    'Claude',
-    'claude_desktop_config.json',
-  );
+  if (process.platform === 'win32') {
+    const base = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    return path.join(base, 'Claude', 'claude_desktop_config.json');
+  }
+  throw new Error('MCP setup is only supported on macOS and Windows.');
 }
 
 // ─── Open Claude.app ────────────────────────────────
 
 export async function openClaudeDesktop(): Promise<void> {
-  if (process.platform !== 'darwin') {
-    throw new Error('Opening Claude Desktop is only supported on macOS in this build.');
+  if (!isMcpSetupSupported()) {
+    throw new Error('Opening Claude Desktop is only supported on macOS and Windows.');
   }
   const target = claudeAppCandidates().find(p => fs.existsSync(p));
   if (!target) throw new Error('Claude Desktop is not installed.');
@@ -149,8 +185,8 @@ function copyExecutable(src: string, dst: string): void {
  *                         fix it manually.
  */
 export async function setupMcpServer(): Promise<SetupResult> {
-  if (process.platform !== 'darwin') {
-    throw new Error('MCP setup is only supported on macOS in this build.');
+  if (!isMcpSetupSupported()) {
+    throw new Error('MCP setup is only supported on macOS and Windows.');
   }
 
   // The MCP server enforces a valid license at startup. Pull the key the
@@ -218,14 +254,20 @@ export async function setupMcpServer(): Promise<SetupResult> {
   // and isn't displayed alongside the command path. The config file
   // itself sits in the user-only-readable Library directory.
   //
-  // We also pass `TYPST_PACKAGE_PATH` and `TYPST_FONT_PATH` so the MCP
-  // server's `typst compile` calls find the bundled Typst packages
-  // (cetz, fletcher, showybox, codly, …) and the bundled OFL fonts
-  // (Inter, IBM Plex, JetBrains Mono, Crimson Pro, Spectral, …) without
-  // needing internet or system-installed fonts. The paths point into
-  // the currently-installed .app's Resources — re-running the wizard
-  // after the user moves Penwright refreshes the entry.
+  // We also pass `TYPST_BIN`, `TYPST_PACKAGE_PATH` and `TYPST_FONT_PATH` so the
+  // MCP server's `typst compile` calls work on a machine with NO system Typst:
+  //   - TYPST_BIN     → the bundled Typst binary (compile / export / verify).
+  //   - TYPST_PACKAGE_PATH → bundled @preview/* packages (cetz, fletcher, …).
+  //   - TYPST_FONT_PATH    → bundled OFL fonts (Inter, IBM Plex, Crimson Pro,
+  //                          Spectral, …) so nothing depends on system fonts.
+  // All three point into the currently-installed .app's Resources — re-running
+  // the wizard after the user moves Penwright refreshes the entry. Without
+  // TYPST_BIN the MCP server falls back to bare `typst` on PATH, which a clean
+  // machine doesn't have → compile/export would fail. (The .mcpb distribution
+  // sets the same var via its manifest; the in-app wizard must match.)
   const env: Record<string, string> = { PENWRIGHT_LICENSE_KEY: license.licenseKey };
+  const typstBin = getTypstPath();
+  if (typstBin && path.isAbsolute(typstBin)) env['TYPST_BIN'] = typstBin;
   const pkgPath = getTypstPackagePath();
   if (pkgPath) env['TYPST_PACKAGE_PATH'] = pkgPath;
   const fontPath = getTypstFontPath();

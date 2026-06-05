@@ -1225,6 +1225,39 @@ Penwright's design surface is built around **semantic slots** and **presets that
 
 Always ask: **what is this document for?** "Brochure" / "Thesis" / "Magazine" / "Tech docs" / "Essay" map to different decisions. The wrong question is "what would look cool here" — the right one is "what will the reader expect of this kind of document, and how do I deliver it crisply?"
 
+## Designing on Request (two levels)
+
+Penwright decouples writing from design: the user writes first, then asks *how* it should look. A design request is one of two levels — figure out which **before** touching anything.
+
+### Level 1 — the whole document
+
+Phrases like "make the whole document feel like a magazine", "give this an academic look", "redesign this". No selection involved.
+
+1. \`penwright_get_style\` — see what's there (and don't clobber \`custom.preamble\`).
+2. Apply at the document level: \`penwright_apply_style\` / \`penwright_apply_palette\` / \`penwright_apply_layout\`, or \`penwright_generate_layout({ intent })\` for a one-shot theme+layout.
+3. \`penwright_compile\` to verify, then tell the user what changed.
+
+### Level 2 — a specific spot (the pinned selection)
+
+Phrases like "design **this**", "make the selection a pull-quote", "set **this region** in two columns", "pull **this sentence** out as a margin note". The user pinned the passage in Penwright (right-click → "✨ Design with AI"), so:
+
+1. **Always call \`penwright_get_selection\` first.** It returns the pinned \`anchorText\` + \`occurrence\` (the exact spot, no offset math) **and** a \`context\` snapshot of the current look (theme / palette / fonts / layout / sectionStyle / usedElements). If it says nothing is pinned, ask the user to pin a passage — or treat it as a Level-1 request.
+2. **Act on the spot**, two ways:
+   - A library element fits → \`penwright_insert_design_element({ elementId, afterText: <anchorText>, occurrence, params })\`.
+   - Nothing fits → write **localized Typst** directly at the anchor. You're not limited to the snippet library. Examples:
+     - two-column region → \`#columns(2)[ … ]\`
+     - margin note → the bundled \`drafting\` package's \`#margin-note[…]\` (needs a wide outer margin)
+     - full-bleed image, a one-off accent box, a custom rule, etc.
+3. **Harmonise with the \`context\`:**
+   - Reference \`style-colors.*\` / \`style-fonts.*\`, **never raw hex** — so the spot re-themes with the document.
+   - Match the document's density and voice; don't introduce a *third* variant of something the \`usedElements\` digest already shows (e.g. a second divider style).
+   - Respect the \`sectionStyle\` if the chapter has one.
+4. **Per-element semantics — does the treatment *contain* or *duplicate* the text?**
+   - A Callout / Banner / Article-Opener / Section-Opener **contains** the pinned text — the paragraph *becomes* the box. Don't leave the original prose behind as well.
+   - A Pull-Quote usually **duplicates** an excerpt — it highlights a striking sentence *in addition to* the body, which stays put.
+   - Decide per element; getting this wrong either drops the text or doubles it.
+5. After applying, \`penwright_compile\` and briefly tell the user what changed — they'll see it reload in Penwright (the pin auto-clears).
+
 ## Color Theory — Five Slots, One Job Each
 
 | Slot | Job |

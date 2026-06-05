@@ -35,15 +35,17 @@ function isExecutableFile(p: string): boolean {
 export function getTypstPath(): string {
   if (resolvedPath) return resolvedPath;
 
-  // 1. Bundled binary (production)
+  // 1. Bundled binary (production). Windows executables need the `.exe`
+  //    extension to spawn, so the bundled file is `typst-x64-win32.exe`.
   if (app.isPackaged) {
-    const binaryName = `typst-${process.arch}-${process.platform}`;
+    const exe = process.platform === 'win32' ? '.exe' : '';
+    const binaryName = `typst-${process.arch}-${process.platform}${exe}`;
     const bundledPath = path.join(process.resourcesPath, 'bin', binaryName);
     if (isExecutableFile(bundledPath)) {
       resolvedPath = bundledPath;
       return resolvedPath;
     }
-    const simplePath = path.join(process.resourcesPath, 'bin', 'typst');
+    const simplePath = path.join(process.resourcesPath, 'bin', `typst${exe}`);
     if (isExecutableFile(simplePath)) {
       resolvedPath = simplePath;
       return resolvedPath;

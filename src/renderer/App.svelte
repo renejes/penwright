@@ -254,6 +254,7 @@
     window.addEventListener('keydown', handleGlobalKeydown);
     window.addEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
     window.addEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
+    window.addEventListener('penwright:design-selection', pinSelectionForDesign as EventListener);
     window.addEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
     window.addEventListener('penwright:citation-hover', handleCitationHover as EventListener);
     window.addEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
@@ -468,6 +469,86 @@
     panelState.showSidebar = true;
     panelState.sidebarTab = 'comments';
     window.dispatchEvent(new CustomEvent('penwright:comment-created', { detail: created }));
+  }
+
+  // ─── Design after writing ───────────────────────
+  // Pin the current selection (text + fuzzy anchor + node type) to
+  // `.penwright/selection.json` via `selection:pin`; the main process attaches
+  // the design snapshot. Then flip the sidebar to the Design tab, whose hub
+  // card shows the pin + the Claude handoff. Modeled on
+  // `addCommentFromSelection()` for the selection→anchor capture.
+  async function pinSelectionForDesign() {
+    const editor = editorRef.current;
+    if (!editor || !tabState.currentFile) {
+      alert('Bitte zuerst eine Datei öffnen.');
+      return;
+    }
+    const { state } = editor;
+    const { from, to } = state.selection;
+    let selectionText = state.doc.textBetween(from, to, ' ', ' ').trim();
+
+    // No selection → expand to the surrounding word (same fallback as comments).
+    if (!selectionText) {
+      const resolved = state.doc.resolve(from);
+      const parent = resolved.parent;
+      const text = parent.textBetween(0, parent.content.size, ' ', ' ');
+      const offsetInParent = resolved.parentOffset;
+      let start = offsetInParent;
+      let end = offsetInParent;
+      while (start > 0 && /\S/.test(text[start - 1])) start--;
+      while (end < text.length && /\S/.test(text[end])) end++;
+      selectionText = text.slice(start, end);
+      if (!selectionText) {
+        alert('Bitte Text markieren, der gestaltet werden soll.');
+        return;
+      }
+    }
+
+    // Anchor = first 200 chars of the selection (whitespace-exact), which the
+    // anchor-based MCP tools consume. Occurrence = 1 + how many identical
+    // anchors precede the selection in the rendered text (best-effort dedupe).
+    const anchorText = selectionText.length > 200 ? selectionText.slice(0, 200) : selectionText;
+    const prefix = state.doc.textBetween(0, from, ' ', ' ');
+    let occurrence = 1;
+    if (anchorText) {
+      let count = 0;
+      let idx = prefix.indexOf(anchorText);
+      while (idx !== -1) { count++; idx = prefix.indexOf(anchorText, idx + 1); }
+      occurrence = count + 1;
+    }
+    const nodeType = state.selection.$from.parent.type.name;
+
+    const api = (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+
+    const projectInfo = await api.invoke('project:getInfo') as { projectDir: string | null };
+    if (!projectInfo.projectDir) {
+      alert('Kein Projekt geöffnet.');
+      return;
+    }
+
+    const rel = tabState.currentFile.startsWith(projectInfo.projectDir + '/')
+      ? tabState.currentFile.slice(projectInfo.projectDir.length + 1)
+      : tabState.currentFile.replace(/^.*\//, '');
+
+    const result = await api.invoke('selection:pin', {
+      file: rel.replace(/\\/g, '/'),
+      selectionText,
+      anchorText,
+      occurrence,
+      nodeType,
+    }) as { ok: boolean; error?: string };
+
+    if (!result?.ok) {
+      alert('Auswahl konnte nicht gepinnt werden.' + (result?.error ? `\n${result.error}` : ''));
+      return;
+    }
+
+    // Open the Design tab; the hub card reads the pin and shows the handoff.
+    panelState.showSidebar = true;
+    panelState.sidebarTab = 'design';
+    window.dispatchEvent(new CustomEvent('penwright:selection-changed'));
   }
 
   // Backlinks trigger: OutlinePanel hover-button or citation right-click
@@ -755,6 +836,7 @@
     window.removeEventListener('keydown', handleGlobalKeydown);
     window.removeEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
     window.removeEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
+    window.removeEventListener('penwright:design-selection', pinSelectionForDesign as EventListener);
     window.removeEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
     window.removeEventListener('penwright:citation-hover', handleCitationHover as EventListener);
     window.removeEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);

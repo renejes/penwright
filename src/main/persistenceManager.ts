@@ -17,6 +17,7 @@ import {
   DEFAULT_PROJECT_STYLE,
   sanitizeProjectStyle,
 } from '../shared/styleTypes';
+import type { SelectionPin } from '../shared/selectionTypes';
 
 export interface RecentProject {
   path: string;
@@ -617,4 +618,50 @@ export function saveProjectStyle(projectDir: string, style: unknown): ProjectSty
   const clean = sanitizeProjectStyle(style);
   fs.writeFileSync(stylePath(projectDir), JSON.stringify(clean, null, 2), 'utf-8');
   return clean;
+}
+
+// ─── Selection Pin ("Design after writing") ─────────────────────
+// `.penwright/selection.json` holds a single pinned passage + a snapshot of
+// the current look, written when the user right-clicks a selection →
+// "Design with AI". The MCP server reads it via `penwright_get_selection`.
+// Mirrors the stylePath / saveProjectStyle pattern above; lives under
+// `.penwright/` so it's already git-ignored.
+
+function selectionPath(projectDir: string): string {
+  return path.join(penwrightDir(projectDir), 'selection.json');
+}
+
+/** Writes the pin to disk (caller assembles the full object). Best-effort. */
+export function saveSelectionPin(projectDir: string, pin: SelectionPin): void {
+  if (!fs.existsSync(projectDir)) return;
+  ensureDir(penwrightDir(projectDir));
+  try {
+    fs.writeFileSync(selectionPath(projectDir), JSON.stringify(pin, null, 2), 'utf-8');
+  } catch {
+    // best-effort
+  }
+}
+
+/** Returns the stored pin, or null if none is pinned / the file is corrupt. */
+export function getSelectionPin(projectDir: string): SelectionPin | null {
+  const file = selectionPath(projectDir);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    if (raw && typeof raw === 'object' && typeof raw.anchorText === 'string') {
+      return raw as SelectionPin;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Removes the pin (unpin / after Claude applied a change). Best-effort. */
+export function clearSelectionPin(projectDir: string): void {
+  try {
+    fs.unlinkSync(selectionPath(projectDir));
+  } catch {
+    // already gone — fine
+  }
 }
