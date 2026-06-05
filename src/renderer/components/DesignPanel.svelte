@@ -30,7 +30,6 @@
   import { THEME_PRESETS } from '../../shared/themePresets';
   import { LAYOUT_PRESETS } from '../../shared/layoutPresets';
   import { SECTION_PRESETS, getSectionPreset } from '../../shared/sectionPresets';
-  import type { SelectionPin } from '../../shared/selectionTypes';
   import CodeEditor from './CodeEditor.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
@@ -48,6 +47,10 @@
     electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
   }).electronAPI;
 
+  // `mainView` = rendered as the full-width Look designer (when style.typ is
+  // open) rather than in the narrow sidebar. Currently only affects width.
+  let { mainView = false }: { mainView?: boolean } = $props();
+
   let style: ProjectStyle = $state(cloneProjectStyle(DEFAULT_PROJECT_STYLE));
   let initialized = $state(false);
   let status: Status = $state('idle');
@@ -63,80 +66,6 @@
   // Set when we mutate `style` programmatically (preset / extraction). Keeps
   // the $effect-driven save from firing during the initial load.
   let suppressSave = true;
-
-  // ─── "Design after writing" pin (hub card) ──────
-  // The pinned selection lives in `.penwright/selection.json` (written by
-  // `selection:pin` from the editor's right-click). This card reflects it and
-  // offers the Claude handoff. `pinApplied` shows a short toast after the
-  // watcher reports Claude edited the pinned file.
-  let pin: SelectionPin | null = $state(null);
-  let pinCopied = $state(false);
-  let pinApplied = $state(false);
-
-  async function loadPin(): Promise<void> {
-    if (!api) return;
-    try {
-      pin = (await api.invoke('selection:get')) as SelectionPin | null;
-    } catch {
-      pin = null;
-    }
-  }
-
-  function onSelectionChanged(): void {
-    pinApplied = false;
-    loadPin();
-  }
-
-  function onSelectionApplied(): void {
-    pin = null;
-    pinApplied = true;
-    setTimeout(() => { pinApplied = false; }, 6000);
-  }
-
-  /** Human-readable theme name for the pin's context digest. */
-  function pinThemeName(p: SelectionPin): string {
-    if (!p.context.theme) return 'Eigenes Design';
-    return THEME_PRESETS.find(t => t.id === p.context.theme)?.name ?? p.context.theme;
-  }
-
-  /** Section-style label for the digest (preset name if known, else the id). */
-  function pinSectionName(id: string): string {
-    return getSectionPreset(id)?.name ?? id;
-  }
-
-  function truncate(s: string, n: number): string {
-    return s.length > n ? s.slice(0, n).trimEnd() + '…' : s;
-  }
-
-  // Static starter prompt — Claude pulls the actual text + look via
-  // `penwright_get_selection`, so the prompt only needs to point it there and
-  // leave a placeholder for the user's intent.
-  const STARTER_PROMPT = [
-    'Gestalte die in Penwright gepinnte Auswahl — ruf zuerst `penwright_get_selection` auf,',
-    'um den Text und den aktuellen Look zu sehen. Mach daraus: <hier beschreiben>.',
-    'Halte es konsistent mit dem bestehenden Theme, der Palette und dem Layout.',
-  ].join(' ');
-
-  async function copyPinPrompt(): Promise<void> {
-    if (!pin) return;
-    try {
-      await navigator.clipboard.writeText(STARTER_PROMPT);
-      pinCopied = true;
-      setTimeout(() => { pinCopied = false; }, 1800);
-    } catch (err) {
-      console.warn('[DesignPanel] clipboard write failed:', err);
-    }
-  }
-
-  function openClaude(): void {
-    api?.invoke('mcp:openClaude');
-  }
-
-  async function unpin(): Promise<void> {
-    if (!api) return;
-    try { await api.invoke('selection:clear'); } catch {}
-    pin = null;
-  }
 
   // ─── Slot labels — short user-facing names for each semantic slot.
   const SLOT_LABEL: Record<keyof StyleColors, string> = {
@@ -231,15 +160,13 @@
 
     // Reflect any selection pinned before this panel mounted, and react to
     // pins / applied-designs while it's open.
-    await loadPin();
-    window.addEventListener('penwright:selection-changed', onSelectionChanged);
-    window.addEventListener('penwright:selection-applied', onSelectionApplied);
+    await refreshCanUndo();
+    window.addEventListener('penwright:design-changed', onDesignChanged);
   });
 
   onDestroy(() => {
     if (saveTimer) clearTimeout(saveTimer);
-    window.removeEventListener('penwright:selection-changed', onSelectionChanged);
-    window.removeEventListener('penwright:selection-applied', onSelectionApplied);
+    window.removeEventListener('penwright:design-changed', onDesignChanged);
   });
 
   $effect(() => {
@@ -260,16 +187,75 @@
       status = 'saving';
       try {
         // Spread to detach from the $state proxy (structured-clone safety).
-        await api!.invoke('style:save', JSON.parse(serialized));
-        lastSavedSerialized = serialized;
-        status = 'saved';
-        // Drop the "saved" pill after a moment so the panel feels quiet.
-        setTimeout(() => { if (status === 'saved') status = 'idle'; }, 1500);
+        const res = await api!.invoke('style:save', JSON.parse(serialized)) as
+          { ok: boolean; kept?: boolean } | undefined;
+        if (res && res.ok === false) {
+          // Safe-apply rolled the change back (it would have broken the doc).
+          // Revert the panel to what's actually applied so controls match.
+          await reloadStyleFromDisk();
+          status = 'error';
+          designMsg = 'Nicht angewendet — dein Dokument ist unverändert.';
+          setTimeout(() => { if (designMsg) designMsg = ''; }, 5000);
+        } else {
+          lastSavedSerialized = serialized;
+          status = 'saved';
+          setTimeout(() => { if (status === 'saved') status = 'idle'; }, 1500);
+        }
       } catch (err) {
         console.warn('[DesignPanel] style:save failed:', err);
         status = 'error';
       }
+      await refreshCanUndo();
     }, 300);
+  }
+
+  // ─── Safe-apply: rollback feedback + design undo ────
+  let designMsg = $state('');           // transient "kept your doc" / "undone" note
+  let canUndo = $state(false);
+  let undoLabel = $state<string | null>(null);
+
+  async function refreshCanUndo(): Promise<void> {
+    if (!api) return;
+    try {
+      const r = await api.invoke('design:canUndo') as { canUndo: boolean; label: string | null };
+      canUndo = !!r?.canUndo;
+      undoLabel = r?.label ?? null;
+    } catch { /* ignore */ }
+  }
+
+  /** Reloads `style` from disk without re-triggering a save (used after a
+   *  rollback or an undo, so the controls reflect what's actually applied). */
+  async function reloadStyleFromDisk(): Promise<void> {
+    if (!api) return;
+    suppressSave = true;
+    try {
+      const result = await api.invoke('style:get') as { style?: ProjectStyle } | null;
+      if (result?.style) {
+        style = cloneProjectStyle(result.style);
+        lastSavedSerialized = JSON.stringify(style);
+      }
+    } catch { /* ignore */ }
+    // Re-enable saves after the style-assignment $effect has settled.
+    setTimeout(() => { suppressSave = false; }, 0);
+  }
+
+  async function undoDesign(): Promise<void> {
+    if (!api || !canUndo) return;
+    try {
+      const res = await api.invoke('design:undo') as { ok: boolean } | undefined;
+      if (res?.ok) {
+        await reloadStyleFromDisk();
+        designMsg = 'Rückgängig gemacht.';
+        setTimeout(() => { if (designMsg) designMsg = ''; }, 2500);
+      }
+    } catch { /* ignore */ }
+    await refreshCanUndo();
+  }
+
+  function onDesignChanged(): void {
+    // A design change happened elsewhere (e.g. the chapter-look dropdown).
+    reloadStyleFromDisk();
+    refreshCanUndo();
   }
 
   function applyPreset(presetId: string): void {
@@ -451,9 +437,9 @@
   }
 </script>
 
-<div class="design-panel">
+<div class="design-panel" class:main-view={mainView}>
   <div class="design-header">
-    <div class="design-title">Design</div>
+    <div class="design-title">{mainView ? 'Look — ganzes Dokument' : 'Design'}</div>
     {#if status === 'saving'}
       <span class="design-status saving">Speichere…</span>
     {:else if status === 'saved'}
@@ -461,66 +447,13 @@
     {:else if status === 'error'}
       <span class="design-status error">Fehler</span>
     {/if}
+    {#if canUndo}
+      <button class="design-undo-btn" onclick={undoDesign} title={undoLabel ? `Rückgängig: ${undoLabel}` : 'Letzte Design-Änderung rückgängig'}>↩ Rückgängig</button>
+    {/if}
   </div>
 
-  <!-- "Design after writing" hub: pinned selection + the AI handoff. -->
-  {#if pin}
-    <section class="design-section pin-card">
-      <header class="design-section-header pin-card-header">
-        <h3>✨ Design with AI</h3>
-        <button class="pin-unpin" onclick={unpin} title="Pin entfernen">Lösen</button>
-      </header>
-      <div class="pin-scope">Gestaltet <strong>diese eine Stelle</strong></div>
-      <div class="pin-file">{pin.file}</div>
-      <blockquote class="pin-preview">{truncate(pin.selectionText, 220)}</blockquote>
-
-      <div class="pin-context">
-        <div class="pin-context-label">Die KI sieht außerdem:</div>
-        <ul class="pin-context-list">
-          <li><span>Theme</span><strong>{pinThemeName(pin)}</strong></li>
-          <li>
-            <span>Akzent</span>
-            <strong><i class="pin-swatch" style="background:{pin.context.palette.accent}"></i>{pin.context.palette.accent}</strong>
-          </li>
-          <li><span>Schriften</span><strong>{pin.context.fonts.body} / {pin.context.fonts.heading}</strong></li>
-          <li><span>Layout</span><strong>{pin.context.layout.paper.toUpperCase()} · {pin.context.layout.columns}-spaltig</strong></li>
-          {#if pin.context.sectionStyle}
-            <li><span>Sektionsstil</span><strong>{pinSectionName(pin.context.sectionStyle)}</strong></li>
-          {/if}
-          {#if pin.context.usedElements.length}
-            <li><span>Genutzt</span><strong>{pin.context.usedElements.join(', ')}</strong></li>
-          {/if}
-        </ul>
-      </div>
-
-      <div class="pin-actions">
-        <button class="pin-btn primary" onclick={copyPinPrompt}>{pinCopied ? '✓ Kopiert' : 'Prompt kopieren'}</button>
-        <button class="pin-btn" onclick={openClaude}>Claude öffnen</button>
-      </div>
-      <p class="pin-hint">In Claude Desktop einfügen, „&lt;hier beschreiben&gt;“ ersetzen und absenden. Die Änderung erscheint nach dem Speichern automatisch hier.</p>
-    </section>
-  {:else}
-    <section class="design-section pin-card pin-card--empty">
-      {#if pinApplied}
-        <div class="pin-toast">✓ Dokument aktualisiert</div>
-      {/if}
-      <header class="design-section-header">
-        <h3>✨ Design with AI</h3>
-      </header>
-      <p class="pin-empty-text">
-        Drei Wege, ein Dokument zu gestalten:
-      </p>
-      <ul class="pin-levels">
-        <li><strong>Direkte Formatierung</strong> — die Buttons oben in der Editor-Leiste
-          (fett, kursiv, Überschriften …), wie in Word. Für einzelne Wörter und Absätze.</li>
-        <li><strong>Eine bestimmte Stelle</strong> — Text markieren → Rechtsklick →
-          „✨ Design with AI“. Die Auswahl wird gepinnt und an die KI übergeben, die den
-          passenden Typst-Code für genau diese Stelle schreibt.</li>
-        <li><strong>Das ganze Dokument</strong> — die <em>Globalen Styles</em> unten
-          (Palette, Themes, Layout, Fonts …) oder einfach die KI bitten
-          („mach das ganze Dokument magazin-mäßig“).</li>
-      </ul>
-    </section>
+  {#if designMsg}
+    <div class="design-rollback-note">{designMsg}</div>
   {/if}
 
   <!-- Zone: global styles — everything here targets the whole document. -->
@@ -1306,6 +1239,21 @@
     color: #1a1a1a;
   }
 
+  /* Full-width Look designer (style.typ view): constrain to a readable
+     column and centre it so the controls don't stretch across the screen. */
+  .design-panel.main-view {
+    padding: 24px 32px 60px;
+    gap: 20px;
+    align-items: stretch;
+  }
+  .design-panel.main-view > :global(*) {
+    width: 100%;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .design-panel.main-view .design-title { font-size: 15px; color: #211e1a; text-transform: none; letter-spacing: 0; }
+
   .design-header {
     display: flex;
     align-items: center;
@@ -1333,6 +1281,32 @@
   .design-status.saving { background: #f0f4ff; color: #3b82f6; }
   .design-status.saved  { background: #f0fdf4; color: #16a34a; }
   .design-status.error  { background: #fef2f2; color: #dc2626; }
+
+  .design-undo-btn {
+    margin-left: auto;
+    border: 1px solid #d8cfc1;
+    background: #fff;
+    color: #6b6356;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .design-undo-btn:hover { background: #f4f1ec; color: #3a352e; }
+  /* When a status pill is present it already took margin-left:auto, so the
+     undo button just sits next to it. */
+  .design-status + .design-undo-btn { margin-left: 6px; }
+
+  .design-rollback-note {
+    margin: -8px 0 0;
+    padding: 7px 10px;
+    background: #fef2f2;
+    border: 1px solid #fadcdc;
+    border-radius: 5px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #b4402e;
+  }
 
   .design-section {
     display: flex;
@@ -1367,185 +1341,6 @@
     padding: 1px 4px;
     border-radius: 3px;
     font-size: 10px;
-  }
-
-  /* ─── "Design after writing" hub card ───────────── */
-  .pin-card {
-    position: relative;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid #ece6dd;
-    border-left: 3px solid #a8503a;
-    border-radius: 6px;
-    background: #faf7f2;
-  }
-
-  .pin-card--empty {
-    border-left-color: #ddd5c8;
-    background: #fbfaf7;
-  }
-
-  .pin-card-header {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .pin-card-header h3 { color: #a8503a; }
-
-  .pin-unpin {
-    border: none;
-    background: transparent;
-    color: #998f7f;
-    font-size: 10.5px;
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 3px;
-  }
-  .pin-unpin:hover { background: rgba(0, 0, 0, 0.05); color: #6b6356; }
-
-  .pin-file {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 10px;
-    color: #8a8174;
-    word-break: break-all;
-  }
-
-  .pin-preview {
-    margin: 0;
-    padding: 6px 10px;
-    border-left: 2px solid #d8cfc1;
-    background: #fff;
-    border-radius: 0 3px 3px 0;
-    font-style: italic;
-    font-size: 11.5px;
-    line-height: 1.45;
-    color: #3a352e;
-    max-height: 6.5em;
-    overflow: hidden;
-  }
-
-  .pin-context {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .pin-context-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #999;
-  }
-
-  .pin-context-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .pin-context-list li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-  }
-
-  .pin-context-list li span {
-    flex: 0 0 70px;
-    color: #998f7f;
-  }
-
-  .pin-context-list li strong {
-    font-weight: 500;
-    color: #3a352e;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .pin-swatch {
-    display: inline-block;
-    width: 11px;
-    height: 11px;
-    border-radius: 2px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-  }
-
-  .pin-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 2px;
-  }
-
-  .pin-btn {
-    flex: 1;
-    padding: 6px 10px;
-    border: 1px solid #d8cfc1;
-    border-radius: 4px;
-    background: #fff;
-    color: #3a352e;
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-  .pin-btn:hover { background: #f4f1ec; }
-
-  .pin-btn.primary {
-    background: #a8503a;
-    border-color: #a8503a;
-    color: #fff;
-  }
-  .pin-btn.primary:hover { background: #95462f; }
-
-  .pin-hint {
-    margin: 0;
-    font-size: 10px;
-    color: #998f7f;
-    line-height: 1.45;
-  }
-
-  .pin-empty-text {
-    margin: 0;
-    font-size: 11px;
-    line-height: 1.5;
-    color: #5c554a;
-  }
-  .pin-empty-text strong { color: #3a352e; }
-
-  .pin-scope {
-    font-size: 10.5px;
-    color: #8a8174;
-    margin-top: -4px;
-  }
-  .pin-scope strong { color: #a8503a; font-weight: 600; }
-
-  .pin-levels {
-    margin: 2px 0 0;
-    padding-left: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 11px;
-    line-height: 1.5;
-    color: #5c554a;
-  }
-  .pin-levels strong { color: #3a352e; }
-
-  .pin-toast {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: #f0fdf4;
-    color: #16a34a;
-    font-size: 10.5px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 3px;
   }
 
   /* ─── Zone dividers (Globale Styles / Section Styles) ──── */

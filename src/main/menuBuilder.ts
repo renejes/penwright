@@ -267,6 +267,10 @@ export function buildMenu(state: AppState): void {
       label: 'Help',
       submenu: [
         {
+          label: 'Show Introduction',
+          click: () => send('showOnboarding'),
+        },
+        {
           label: 'User Guide',
           click: () => send('showHandbook'),
         },

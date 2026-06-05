@@ -160,7 +160,8 @@ function sendImagePathToExtension(uri: string) {
 export function createEditor(
   element: HTMLElement,
   options: {
-    onTransaction?: () => void;
+    /** `docChanged` lets callers skip work on selection-only transactions. */
+    onTransaction?: (props: { docChanged: boolean }) => void;
     onUpdate?: () => void;
   } = {},
 ): Editor {
@@ -205,7 +206,9 @@ export function createEditor(
       CommentDecorations,
     ],
     content: { type: 'doc', content: [{ type: 'paragraph' }] },
-    onTransaction: options.onTransaction,
+    onTransaction: options.onTransaction
+      ? ({ transaction }) => options.onTransaction!({ docChanged: transaction.docChanged })
+      : undefined,
     onUpdate: options.onUpdate,
   });
   return editor;

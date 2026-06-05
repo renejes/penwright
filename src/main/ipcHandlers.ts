@@ -37,6 +37,7 @@ import {
   getProjectStyle,
   saveProjectStyle,
   hasProjectStyle,
+  getStyleJsonPath,
   saveSelectionPin,
   getSelectionPin,
   clearSelectionPin,
@@ -62,7 +63,7 @@ import {
   getSectionStyleId,
 } from '../shared/styleParser';
 import { getSectionPreset } from '../shared/sectionPresets';
-import type { ProjectStyle } from '../shared/styleTypes';
+import { type ProjectStyle, type SectionStyle, sanitizeProjectStyle, sanitizeSection } from '../shared/styleTypes';
 import { findRootFile } from '../shared/rootFinder';
 import { getCompiler } from './fileManager';
 import {
@@ -155,6 +156,99 @@ function resolveStyleRootFile(): string {
   }
   if (appState.currentFilePath) return findRootFile(appState.currentFilePath);
   return path.join(dir, 'main.typ');
+}
+
+// ─── Safe-apply engine ("every design change is a safe experiment") ──────
+// Design mutations (global style, per-chapter looks) are staged, then the
+// document is compiled to verify it still works BEFORE the change is
+// committed. If a change would break a previously-working document, it's
+// rolled back and the last-good look stays on screen — the document is never
+// left in a non-compiling state by a design action, and every applied change
+// can be undone via the design-undo stack.
+
+interface DesignUndoEntry {
+  label: string;
+  files: { abs: string; old: string | null }[];   // old === null → file didn't exist
+}
+const designUndoStack: DesignUndoEntry[] = [];
+const DESIGN_UNDO_MAX = 25;
+
+function pushDesignUndo(label: string, files: { abs: string; old: string | null }[]): void {
+  designUndoStack.push({ label, files });
+  if (designUndoStack.length > DESIGN_UNDO_MAX) designUndoStack.shift();
+}
+
+/** If `abs` is the currently-open file, push the new content into the editor. */
+function syncOpenBuffer(abs: string, content: string): void {
+  if (appState.currentFilePath && path.resolve(abs) === path.resolve(appState.currentFilePath)) {
+    appState.currentContent = content;
+    appState.isDirty = false;
+    updateTitle();
+    appState.mainWindow?.webContents.send('penwright', { type: 'update', content });
+  }
+}
+
+/**
+ * Write the given files, verify the document still compiles, then commit
+ * (emit the fresh preview + record an undo entry) or roll back (restore the
+ * previous files; the last-good preview stays). When the document was already
+ * failing to compile, the change is committed without a verify (a design
+ * action shouldn't be blamed for a pre-existing content error).
+ */
+async function safeApplyDesign(
+  writes: { abs: string; content: string }[],
+  label: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const olds = writes.map((w) => ({
+    abs: w.abs,
+    old: fs.existsSync(w.abs) ? fs.readFileSync(w.abs, 'utf-8') : null,
+  }));
+
+  // Stage the new contents.
+  appState.lastSaveTimestamp = Date.now();
+  for (const w of writes) {
+    fs.mkdirSync(path.dirname(w.abs), { recursive: true });
+    fs.writeFileSync(w.abs, w.content, 'utf-8');
+  }
+
+  const compiler = getCompiler();
+
+  // Can't (or needn't) verify: no compiler yet, or the doc was already broken
+  // → commit and let the normal compile run.
+  if (!compiler || !appState.lastCompileOk) {
+    for (const w of writes) syncOpenBuffer(w.abs, w.content);
+    pushDesignUndo(label, olds);
+    compiler?.compilePdf();
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    return { ok: true };
+  }
+
+  const result = await compiler.verify();
+  if (result.ok) {
+    for (const w of writes) syncOpenBuffer(w.abs, w.content);
+    pushDesignUndo(label, olds);
+    appState.lastCompileOk = true;
+    appState.mainWindow?.webContents.send('penwright', {
+      type: 'previewPdfUpdate',
+      pdfData: result.pdf.toString('base64'),
+    });
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    return { ok: true };
+  }
+
+  // Roll back to the previous (working) state. Preview is untouched, so the
+  // last-good look stays visible.
+  appState.lastSaveTimestamp = Date.now();
+  for (const o of olds) {
+    if (o.old === null) {
+      try { fs.unlinkSync(o.abs); } catch {}
+    } else {
+      try { fs.writeFileSync(o.abs, o.old, 'utf-8'); } catch {}
+      syncOpenBuffer(o.abs, o.old);
+    }
+  }
+  const error = result.errors.map((e) => e.message).join('\n') || 'Compilation failed';
+  return { ok: false, error };
 }
 
 export function setupIPC(): void {
@@ -426,7 +520,10 @@ export function setupIPC(): void {
       }
 
       case 'openUserGuide': {
-        shell.openExternal('https://vswrite.netlify.app/de/docs');
+        // The user guide ships in-app (HandbookViewer); open it instead of an
+        // external URL. (The old vswrite.netlify.app domain is dead + a hijack
+        // risk, and contradicts the in-app-handbook design.)
+        appState.mainWindow?.webContents.send('penwright', { type: 'showHandbook' });
         break;
       }
 
@@ -679,6 +776,7 @@ export function setupIPC(): void {
   ipcMain.handle('persist:savePanelState', (_event, state: PanelState) => savePanelState(state));
   ipcMain.handle('persist:getRecentProjects', () => getRecentProjects());
   ipcMain.handle('persist:isOnboardingSeen', () => isOnboardingSeen());
+  ipcMain.handle('persist:setOnboardingSeen', (_event, seen: boolean) => { setOnboardingSeen(!!seen); return { ok: true }; });
   ipcMain.handle('persist:getZoteroBibPath', () => getZoteroBibPath());
 
   // ─── MCP Setup (Claude Desktop integration) ───
@@ -890,55 +988,40 @@ export function setupIPC(): void {
     };
   });
 
-  ipcMain.handle('style:save', (_event, raw: unknown) => {
+  ipcMain.handle('style:save', async (_event, raw: unknown) => {
     if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
 
-    const style = saveProjectStyle(appState.projectDir, raw);
+    const clean = sanitizeProjectStyle(raw);
 
-    // 1. Write style.typ next to the project's design home (root document).
-    // resolveStyleRootFile() guarantees we never target an open chapter — global
-    // style always lands at main.typ / the root, regardless of which file is open.
+    // style.typ lands next to the project's design home (root document).
+    // resolveStyleRootFile() guarantees we never target an open chapter.
     const rootFile = resolveStyleRootFile();
     const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
-    const styleTypPath = path.join(projectRootDir, 'style.typ');
 
-    appState.lastSaveTimestamp = Date.now();
-    try {
-      fs.writeFileSync(styleTypPath, generateStyleTypst(style), 'utf-8');
-    } catch (err) {
-      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
-    }
+    // Batch the three files so a failed compile rolls ALL of them back together
+    // (incl. style.json, so the Design panel reflects what's actually applied).
+    const writes: { abs: string; content: string }[] = [
+      { abs: getStyleJsonPath(appState.projectDir), content: JSON.stringify(clean, null, 2) },
+      { abs: path.join(projectRootDir, 'style.typ'), content: generateStyleTypst(clean) },
+    ];
 
-    // 2. Ensure the root file pulls style.typ in. If we can detect conflicting
-    // top-level #set rules, surface them so the renderer can warn — but still
-    // do the include (Typst's later-wins rule keeps user code working).
+    // Ensure the root file pulls style.typ in (one-time). Surface conflicting
+    // top-level #set rules so the renderer can warn — but still do the include.
     const conflicts: string[] = [];
     if (fs.existsSync(rootFile)) {
       try {
         const before = fs.readFileSync(rootFile, 'utf-8');
         conflicts.push(...detectStylePreambleConflicts(before));
         const after = ensureStyleInclude(before);
-        if (after !== before) {
-          appState.lastSaveTimestamp = Date.now();
-          fs.writeFileSync(rootFile, after, 'utf-8');
-          // If we just modified the open buffer, sync the editor state.
-          if (appState.currentFilePath && path.resolve(rootFile) === path.resolve(appState.currentFilePath)) {
-            appState.currentContent = after;
-            appState.isDirty = false;
-            updateTitle();
-            appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
-          }
-        }
+        if (after !== before) writes.push({ abs: rootFile, content: after });
       } catch (err) {
         return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
       }
     }
 
-    // 3. Recompile so the live preview reflects the change.
-    getCompiler()?.compilePdf();
-
-    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
-    return { ok: true as const, style, conflicts };
+    const res = await safeApplyDesign(writes, 'Design geändert');
+    if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
+    return { ok: true as const, style: clean, conflicts };
   });
 
   // ─── Section styles (Phase E — per-chapter design) ───
@@ -982,30 +1065,99 @@ export function setupIPC(): void {
     return path.relative(path.dirname(chapterAbs), path.join(rootDir, 'style.typ')).split(path.sep).join('/');
   }
 
-  /** Writes a chapter file, syncing the open editor buffer + recompiling. */
-  function writeChapterSynced(chapterAbs: string, content: string): void {
-    appState.lastSaveTimestamp = Date.now();
-    fs.writeFileSync(chapterAbs, content, 'utf-8');
-    if (appState.currentFilePath && path.resolve(chapterAbs) === path.resolve(appState.currentFilePath)) {
-      appState.currentContent = content;
-      appState.isDirty = false;
-      updateTitle();
-      appState.mainWindow?.webContents.send('penwright', { type: 'update', content });
-    }
-    getCompiler()?.compilePdf();
-  }
-
   ipcMain.handle('section:get', (_event, relPath: string) => {
     const abs = resolveChapter(relPath);
     if (!abs) return null;
     try { return getSectionStyleId(fs.readFileSync(abs, 'utf-8')); } catch { return null; }
   });
 
-  ipcMain.handle('section:apply', (_event, relPath: string, styleId: string) => {
+  // Context for the "chapter look" control: is the given file a real content
+  // chapter (a .typ pulled in via `#include` by the document), and which look
+  // does it use? `#import`ed modules (macros.typ / style.typ) are NOT chapters
+  // — findRootFile only walks `#include` edges, so a file it can climb out of
+  // is genuinely included content; one that's its own root is not.
+  ipcMain.handle('section:context', (_event, filePath: string) => {
+    if (!appState.projectDir) return { isChapter: false, styleId: null };
+    const abs = path.resolve(appState.projectDir, filePath);
+    if (!isPathWithin(abs, appState.projectDir) || !fs.existsSync(abs) || !abs.endsWith('.typ')) {
+      return { isChapter: false, styleId: null };
+    }
+    if (path.basename(abs) === 'style.typ') return { isChapter: false, styleId: null };
+    const isChapter = path.resolve(findRootFile(abs)) !== abs;
+    let styleId: string | null = null;
+    try { styleId = getSectionStyleId(fs.readFileSync(abs, 'utf-8')); } catch { /* none */ }
+    return { isChapter, styleId };
+  });
+
+  // Full definition of a rubric (for the chapter-look editor): the project's
+  // defined variant if present, else the built-in preset.
+  ipcMain.handle('section:getStyle', (_event, styleId: string) => {
+    if (!appState.projectDir || !styleId) return null;
+    const style = getProjectStyle(appState.projectDir);
+    return style.sections.find(s => s.id === styleId) ?? getSectionPreset(styleId) ?? null;
+  });
+
+  // Save an edited rubric. `scope: 'all'` updates the shared rubric (every
+  // chapter using it re-themes); `scope: 'this'` forks a chapter-unique copy
+  // and assigns it to just this chapter. Both go through safe-apply.
+  ipcMain.handle('section:saveStyle', async (_event, args: { chapterPath: string; styleId: string; style: unknown; scope: 'all' | 'this' }) => {
+    if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
+    const projectDir = appState.projectDir;
+    const edited = sanitizeSection(args.style);
+    if (!edited) return { ok: false as const, error: 'Invalid section style.' };
+
+    const current = getProjectStyle(projectDir);
+    const sections: SectionStyle[] = [...current.sections];
+    let finalId = args.styleId;
+    let chapterAbs: string | null = null;
+
+    if (args.scope === 'all') {
+      edited.id = args.styleId;
+      const idx = sections.findIndex(s => s.id === args.styleId);
+      if (idx >= 0) sections[idx] = edited; else sections.push(edited);
+    } else {
+      // Fork into a chapter-unique rubric.
+      const chapterName = path.basename(args.chapterPath, '.typ');
+      let forkId = `${args.styleId}-${chapterName}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      if (!forkId) forkId = `${args.styleId}-x`;
+      let n = 2;
+      while (sections.some(s => s.id === forkId)) forkId = `${args.styleId}-${n++}`;
+      edited.id = forkId;
+      edited.name = `${edited.name} (${chapterName})`;
+      sections.push(edited);
+      finalId = forkId;
+      chapterAbs = resolveChapter(args.chapterPath);
+      if (!chapterAbs) return { ok: false as const, error: 'Chapter not found.' };
+    }
+
+    const newStyle = sanitizeProjectStyle({ ...current, sections });
+    const rootFile = resolveStyleRootFile();
+    const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : projectDir;
+    const writes: { abs: string; content: string }[] = [
+      { abs: getStyleJsonPath(projectDir), content: JSON.stringify(newStyle, null, 2) },
+      { abs: path.join(projectRootDir, 'style.typ'), content: generateStyleTypst(newStyle) },
+    ];
+    if (chapterAbs) {
+      try {
+        const src = fs.readFileSync(chapterAbs, 'utf-8');
+        writes.push({ abs: chapterAbs, content: ensureSectionStyle(src, finalId, chapterImportPath(chapterAbs)) });
+      } catch (err) {
+        return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
+    const res = await safeApplyDesign(writes, 'Kapitel-Look angepasst');
+    if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
+    return { ok: true as const, styleId: finalId };
+  });
+
+  ipcMain.handle('section:apply', async (_event, relPath: string, styleId: string) => {
     if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
     const abs = resolveChapter(relPath);
     if (!abs) return { ok: false as const, error: 'Chapter not found.' };
-    // Ensure the variant is defined + style.typ regenerated so the import resolves.
+    // Ensure the variant is defined + style.typ regenerated so the import
+    // resolves. Section presets are well-formed, so this structured write
+    // doesn't go through safe-apply; the risky part is the chapter injection.
     const style = getProjectStyle(appState.projectDir);
     if (!style.sections.some(s => s.id === styleId)) {
       const preset = getSectionPreset(styleId);
@@ -1014,26 +1166,68 @@ export function setupIPC(): void {
       const saved = saveProjectStyle(appState.projectDir, style);
       regenerateStyleTyp(saved);
     }
+    let injected: string;
     try {
-      const src = fs.readFileSync(abs, 'utf-8');
-      writeChapterSynced(abs, ensureSectionStyle(src, styleId, chapterImportPath(abs)));
+      injected = ensureSectionStyle(fs.readFileSync(abs, 'utf-8'), styleId, chapterImportPath(abs));
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
+    // Verify the chapter still compiles with the look applied; roll back if not.
+    const res = await safeApplyDesign([{ abs, content: injected }], `Kapitel-Look: ${styleId}`);
+    if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
     return { ok: true as const };
   });
 
-  ipcMain.handle('section:clear', (_event, relPath: string) => {
+  ipcMain.handle('section:clear', async (_event, relPath: string) => {
     if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
     const abs = resolveChapter(relPath);
     if (!abs) return { ok: false as const, error: 'Chapter not found.' };
+    let cleared: string;
     try {
-      const src = fs.readFileSync(abs, 'utf-8');
-      writeChapterSynced(abs, clearSectionStyle(src));
+      cleared = clearSectionStyle(fs.readFileSync(abs, 'utf-8'));
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
+    const res = await safeApplyDesign([{ abs, content: cleared }], 'Kapitel-Look entfernt');
+    if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
     return { ok: true as const };
+  });
+
+  // ─── Design undo ───
+  // Pops the last design change off the safe-apply stack and restores the
+  // files it touched, then recompiles. Lets the user fearlessly try looks.
+  // Absolute path of the document's style.typ (the global Look file). Opened
+  // by the "Look" status control to show the visual designer.
+  ipcMain.handle('project:lookFile', () => {
+    if (!appState.projectDir) return null;
+    const rootFile = resolveStyleRootFile();
+    const dir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
+    return path.join(dir, 'style.typ');
+  });
+
+  ipcMain.handle('design:canUndo', () => ({
+    canUndo: designUndoStack.length > 0,
+    label: designUndoStack[designUndoStack.length - 1]?.label ?? null,
+  }));
+
+  ipcMain.handle('design:undo', () => {
+    const entry = designUndoStack.pop();
+    if (!entry) return { ok: false as const, error: 'Nothing to undo.' };
+    appState.lastSaveTimestamp = Date.now();
+    for (const f of entry.files) {
+      try {
+        if (f.old === null) {
+          if (fs.existsSync(f.abs)) fs.unlinkSync(f.abs);
+        } else {
+          fs.mkdirSync(path.dirname(f.abs), { recursive: true });
+          fs.writeFileSync(f.abs, f.old, 'utf-8');
+          syncOpenBuffer(f.abs, f.old);
+        }
+      } catch { /* best-effort per file */ }
+    }
+    getCompiler()?.compilePdf();
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    return { ok: true as const, label: entry.label, remaining: designUndoStack.length };
   });
 
   // ─── Selection pin ("Design after writing") ───

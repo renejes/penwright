@@ -85,6 +85,14 @@
       "!dist/mcp/**"
     ],
     "afterPack": "scripts/afterPack-sign-mcp.mjs",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableCookieEncryption": true,
+      "onlyLoadAppFromAsar": true,
+      "resetAdHocDarwinSignature": true
+    },
     "extraResources": [
       {
         "from": "documentation/penwright-logo.svg",

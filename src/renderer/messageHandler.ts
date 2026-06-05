@@ -178,6 +178,10 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'showHandbook') {
     uiState.showHandbook = true;
   }
+  // Help → "Show Introduction": re-open the first-run onboarding tour.
+  if (msg.type === 'showOnboarding') {
+    window.dispatchEvent(new CustomEvent('penwright:show-onboarding'));
+  }
   if (msg.type === 'toggleFocusMode') {
     uiState.focusMode = !uiState.focusMode;
   }

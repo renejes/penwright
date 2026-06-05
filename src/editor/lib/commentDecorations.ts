@@ -92,10 +92,16 @@ export const CommentDecorations = Extension.create({
           apply(tr, oldDeco, _oldState, newState) {
             const meta = tr.getMeta(commentsKey) as SetMarksMeta | undefined;
             if (meta) {
+              // Marks list changed → rebuild from scratch.
               return buildDecorations(newState.doc, meta.marks);
             }
             if (tr.docChanged) {
-              return buildDecorations(newState.doc, currentMarks);
+              // PERF: remap existing decorations through the transaction's
+              // changes (O(changes)) instead of re-scanning the whole document
+              // on every keystroke. Positions stay anchored as text shifts;
+              // deleted ranges drop out. Stable anchoring is also more correct
+              // than re-running indexOf (which could jump to a new occurrence).
+              return oldDeco.map(tr.mapping, newState.doc);
             }
             return oldDeco;
           },

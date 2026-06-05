@@ -27,6 +27,10 @@
   import ReferencePicker from './components/ReferencePicker.svelte';
   import CrashReportDialog from './components/CrashReportDialog.svelte';
   import McpSetupWizard from './components/McpSetupWizard.svelte';
+  import OnboardingWizard from './components/OnboardingWizard.svelte';
+  import LookStatus from './components/LookStatus.svelte';
+  import DesignAiPopover from './components/DesignAiPopover.svelte';
+  import SectionLookEditor from './components/SectionLookEditor.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
@@ -158,34 +162,48 @@
   let activeTab = $derived(tabState.activeTabIndex >= 0 ? tabState.openTabs[tabState.activeTabIndex] : null);
   let textViewerFile = $derived(activeTab?.type === 'text' || activeTab?.type === 'rawtyp' ? activeTab.path : '');
   let pdfViewerFile = $derived(activeTab?.type === 'pdf' ? activeTab.path : '');
+  let designViewerFile = $derived(activeTab?.type === 'design' ? activeTab.path : '');
   let hasFileOpen = $derived(tabState.openTabs.length > 0 || !!tabState.currentFile);
 
-  // Word count + reading time. We walk the editor's JSON instead of using
-  // editor.getText() so we can skip raw Typst blocks and code blocks —
-  // their content isn't prose and shouldn't inflate the count.
-  function extractProseText(node: { type?: string; text?: string; content?: unknown[] } | null): string[] {
-    if (!node) return [];
-    if (node.type === 'typstRawBlock' || node.type === 'codeBlock' || node.type === 'pagebreak') return [];
-    if (typeof node.text === 'string') return [node.text];
-    if (Array.isArray(node.content)) {
-      return node.content.flatMap((c) => extractProseText(c as { type?: string; text?: string; content?: unknown[] }));
+  // Bumped only on transactions that change the document (not cursor moves),
+  // so derivations that depend on content don't re-run on every selection.
+  let docVersion = $state(0);
+
+  // Word count + reading time. PERF: walk the live ProseMirror doc directly
+  // (no `editor.getJSON()` — that clones the whole document into plain objects
+  // on every call) and recompute only when the document actually changes
+  // (`docVersion`, bumped on `docChanged` transactions — not on cursor moves),
+  // debounced so a fast typist on a long doc doesn't recount per keystroke.
+  let wordStats = $state({ words: 0, minutes: 0 });
+  let wordStatsTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function recomputeWordStats() {
+    const editor = editorRef.current;
+    if (!editor || !hasFileOpen) {
+      wordStats = { words: 0, minutes: 0 };
+      return;
     }
-    return [];
+    let words = 0;
+    editor.state.doc.descendants((node) => {
+      const t = node.type.name;
+      // Skip non-prose subtrees (their content isn't reading material).
+      if (t === 'typstRawBlock' || t === 'codeBlock' || t === 'pagebreak') return false;
+      if (node.isText && node.text) {
+        const trimmed = node.text.trim();
+        if (trimmed) words += trimmed.split(/\s+/).length;
+      }
+      return true;
+    });
+    const minutes = words === 0 ? 0 : Math.max(1, Math.round(words / 200));
+    wordStats = { words, minutes };
   }
 
-  let wordStats = $derived.by(() => {
-    // Tracks editor mutations so the count stays live while typing.
-    void editorVersion.value;
-    const editor = editorRef.current;
-    if (!editor || !hasFileOpen) return { words: 0, minutes: 0 };
-    try {
-      const text = extractProseText(editor.getJSON() as { content?: unknown[] }).join(' ');
-      const words = text.trim().split(/\s+/).filter(Boolean).length;
-      const minutes = words === 0 ? 0 : Math.max(1, Math.round(words / 200));
-      return { words, minutes };
-    } catch {
-      return { words: 0, minutes: 0 };
-    }
+  $effect(() => {
+    void docVersion;      // re-run only on real document changes
+    void hasFileOpen;
+    clearTimeout(wordStatsTimer);
+    wordStatsTimer = setTimeout(recomputeWordStats, 400);
+    return () => clearTimeout(wordStatsTimer);
   });
 
   // IPC adapter for CommandHub/QuickSettings compatibility
@@ -208,6 +226,12 @@
   // MCP setup wizard — auto-shown on first launch (or after MCP_SETUP_VERSION
   // bumps); also opens via Help → "Mit Claude Desktop verbinden…".
   let showMcpWizard = $state(false);
+  // First-run onboarding tour (shown once, tracked via `onboardingSeen`).
+  let showOnboarding = $state(false);
+  // Design-with-AI handoff popover, positioned at the pinned selection.
+  let designAiPopover = $state<{ x: number; y: number } | null>(null);
+  // Chapter-look editor modal (opened by the "✎" in the status bar).
+  let editChapterLook = $state<{ chapterPath: string; styleId: string } | null>(null);
 
   async function dismissCrashDialog() {
     pendingCrash = null;
@@ -234,8 +258,9 @@
     })();
 
     editorRef.current = createEditor(editorElement, {
-      onTransaction() {
+      onTransaction({ docChanged }) {
         editorVersion.value++;
+        if (docChanged) docVersion++;
         if (uiState.typewriterMode) {
           requestAnimationFrame(() => scrollCursorToCenter());
         }
@@ -261,6 +286,8 @@
     window.addEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.addEventListener('penwright:project-closed', onProjectClosed as EventListener);
     window.addEventListener('penwright:show-mcp-wizard', () => { showMcpWizard = true; });
+    window.addEventListener('penwright:show-onboarding', () => { showOnboarding = true; });
+    window.addEventListener('penwright:edit-chapter-look', (e) => { editChapterLook = (e as CustomEvent).detail; });
 
     // Drag & Drop images into the editor
     document.addEventListener('dragover', (e) => e.preventDefault());
@@ -327,17 +354,26 @@
         });
       });
 
-      // MCP setup probe — show the wizard if the user hasn't completed setup
-      // for the current MCP_SETUP_VERSION. Delayed 2s so it never competes
-      // with the crash dialog or other boot UI for attention.
-      setTimeout(() => {
-        electronAPI.invoke('mcp:getSetupStatus').then((status) => {
-          const s = status as { needsSetup: boolean; supported: boolean };
-          if (s?.needsSetup && s?.supported && !pendingCrash) {
-            showMcpWizard = true;
-          }
-        }).catch(() => { /* ignore */ });
-      }, 2000);
+      // First-run onboarding tour, then the MCP setup probe. On the very first
+      // launch only the onboarding shows; the MCP wizard is reachable from its
+      // own step + the Help menu and only auto-pops on later launches, so two
+      // modals never stack at boot.
+      electronAPI.invoke('persist:isOnboardingSeen').then((seenVal) => {
+        const seenAtBoot = !!seenVal;
+        if (!seenAtBoot) {
+          setTimeout(() => { if (!pendingCrash) showOnboarding = true; }, 700);
+        }
+        // MCP setup probe — delayed 2s so it never competes with the crash
+        // dialog or the onboarding for attention.
+        setTimeout(() => {
+          electronAPI.invoke('mcp:getSetupStatus').then((status) => {
+            const s = status as { needsSetup: boolean; supported: boolean };
+            if (s?.needsSetup && s?.supported && !pendingCrash && seenAtBoot && !showOnboarding) {
+              showMcpWizard = true;
+            }
+          }).catch(() => { /* ignore */ });
+        }, 2000);
+      }).catch(() => { /* ignore */ });
     }
 
     ipc.send({ type: 'ready' });
@@ -518,6 +554,13 @@
     }
     const nodeType = state.selection.$from.parent.type.name;
 
+    // Screen position of the selection end — anchors the handoff popover there.
+    let popoverPos = { x: window.innerWidth / 2 - 150, y: 120 };
+    try {
+      const coords = editor.view.coordsAtPos(to);
+      popoverPos = { x: coords.left, y: coords.bottom + 8 };
+    } catch { /* fall back to a sensible default */ }
+
     const api = (window as unknown as {
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
     }).electronAPI;
@@ -545,10 +588,8 @@
       return;
     }
 
-    // Open the Design tab; the hub card reads the pin and shows the handoff.
-    panelState.showSidebar = true;
-    panelState.sidebarTab = 'design';
-    window.dispatchEvent(new CustomEvent('penwright:selection-changed'));
+    // Show the handoff popover at the selection (reads the pin we just wrote).
+    designAiPopover = popoverPos;
   }
 
   // Backlinks trigger: OutlinePanel hover-button or citation right-click
@@ -802,6 +843,12 @@
   }
 
   function handleFileOpen(filePath: string) {
+    // style.typ is the document's "Look" — open it in the visual Look designer
+    // instead of loading the generated Typst into the editor.
+    if ((filePath.split('/').pop() || '') === 'style.typ') {
+      openTab(filePath, 'design');
+      return;
+    }
     const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
     api.invoke('filetree:open', filePath).then((result) => {
       if (result === 'editor') {
@@ -816,6 +863,27 @@
 
   function handleFileOpenInNewTab(filePath: string) {
     handleFileOpen(filePath);
+  }
+
+  // Nav tab (top bar): switch the sidebar to a panel; click the active one to
+  // collapse the sidebar. Navigation/project panels are top-level (always
+  // reachable) — distinct from "Look", which you set occasionally.
+  function selectNavTab(tab: typeof panelState.sidebarTab) {
+    if (panelState.showSidebar && panelState.sidebarTab === tab) {
+      panelState.showSidebar = false;
+    } else {
+      panelState.sidebarTab = tab;
+      panelState.showSidebar = true;
+    }
+  }
+
+  // Opens the document's global Look (the visual designer on style.typ).
+  async function openGlobalLook() {
+    const api = (window as unknown as { electronAPI?: { invoke(c: string, ...a: unknown[]): Promise<unknown> } }).electronAPI;
+    try {
+      const p = await api?.invoke('project:lookFile') as string | null;
+      if (p) openTab(p, 'design');
+    } catch { /* ignore */ }
   }
 
   function showContextMenu(e: MouseEvent, filePath: string) {
@@ -861,55 +929,67 @@
   {/if}
 
   <div class="penwright-container" class:focus-mode={uiState.focusMode} class:typewriter-mode={uiState.typewriterMode} class:reading-mode={uiState.readingMode}>
-    {#if editorRef.current}
-      {@const _ = editorVersion.value}
-      {#if !uiState.focusMode}
-        <div class="toolbar">
-          <Toolbar editor={editorRef.current} />
-          <div class="toolbar-right">
-            <button
-              class="toolbar-icon-btn"
-              onclick={() => (uiState.showQuickSettings = !uiState.showQuickSettings)}
-              title="Quick Settings"
-            >
-              &#9881;
-            </button>
-            <button
-              class="toolbar-icon-btn"
-              class:active={uiState.typewriterMode}
-              onclick={toggleTypewriterMode}
-              title="Typewriter Mode"
-            >
-              &#8230;
-            </button>
-            <button
-              class="toolbar-icon-btn"
-              class:active={uiState.readingMode}
-              onclick={toggleReadingMode}
-              title="Reading Mode (Cmd+Alt+R)"
-              aria-pressed={uiState.readingMode}
-            >
-              &#x1D4E1;
-            </button>
-            <button
-              class="toolbar-icon-btn"
-              onclick={toggleFocusMode}
-              title="Focus Mode"
-            >
-              &#9678;
-            </button>
-          </div>
-          {#if uiState.showQuickSettings}
-            <QuickSettings
-              vscode={vscodeBridge}
-              onClose={() => (uiState.showQuickSettings = false)}
-            />
-          {/if}
+    <!-- Top bar: project-level navigation tabs (left) + formatting toolbar
+         (over the editor). "Look" is occasional, so it lives at style.typ /
+         the status bar — not up here. -->
+    {#if hasFileOpen && !uiState.focusMode}
+      <div class="top-bar">
+        <div class="top-nav" role="tablist" aria-label="Sidebar panels">
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'files'} onclick={() => selectNavTab('files')} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label="Files panel">Files</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'outline'} onclick={() => selectNavTab('outline')} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label="Outline panel">Outline</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'includes'} onclick={() => selectNavTab('includes')} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label="Chapters panel">Chapters</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'git'} onclick={() => selectNavTab('git')} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Project panel">Project</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'comments'} onclick={() => selectNavTab('comments')} role="tab" aria-selected={panelState.sidebarTab === 'comments'} aria-label="Comments panel">Comments</button>
         </div>
-      {/if}
-      {#if uiState.showSearch}
-        <SearchReplace editor={editorRef.current} onClose={() => (uiState.showSearch = false)} />
-      {/if}
+        {#if editorRef.current && !designViewerFile && !pdfViewerFile && !textViewerFile}
+          {@const _ = editorVersion.value}
+          <div class="toolbar top-toolbar">
+            <Toolbar editor={editorRef.current} />
+            <div class="toolbar-right">
+              <button
+                class="toolbar-icon-btn"
+                onclick={() => (uiState.showQuickSettings = !uiState.showQuickSettings)}
+                title="Quick Settings"
+              >
+                &#9881;
+              </button>
+              <button
+                class="toolbar-icon-btn"
+                class:active={uiState.typewriterMode}
+                onclick={toggleTypewriterMode}
+                title="Typewriter Mode"
+              >
+                &#8230;
+              </button>
+              <button
+                class="toolbar-icon-btn"
+                class:active={uiState.readingMode}
+                onclick={toggleReadingMode}
+                title="Reading Mode (Cmd+Alt+R)"
+                aria-pressed={uiState.readingMode}
+              >
+                &#x1D4E1;
+              </button>
+              <button
+                class="toolbar-icon-btn"
+                onclick={toggleFocusMode}
+                title="Focus Mode"
+              >
+                &#9678;
+              </button>
+            </div>
+            {#if uiState.showQuickSettings}
+              <QuickSettings
+                vscode={vscodeBridge}
+                onClose={() => (uiState.showQuickSettings = false)}
+              />
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {/if}
+    {#if editorRef.current && uiState.showSearch}
+      <SearchReplace editor={editorRef.current} onClose={() => (uiState.showSearch = false)} />
     {/if}
 
     {#if uiState.showProjectSearch}
@@ -931,14 +1011,6 @@
       <!-- Sidebar -->
       {#if panelState.showSidebar}
         <div class="panel-sidebar" style="width: {panelState.sidebarWidth}px">
-          <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'files'} onclick={() => panelState.sidebarTab = 'files'} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label="Files panel">Files</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'outline'} onclick={() => panelState.sidebarTab = 'outline'} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label="Outline panel">Outline</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'includes'} onclick={() => panelState.sidebarTab = 'includes'} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label="Chapters panel">Chapters</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'git'} onclick={() => panelState.sidebarTab = 'git'} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Project panel">Project</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'comments'} onclick={() => panelState.sidebarTab = 'comments'} role="tab" aria-selected={panelState.sidebarTab === 'comments'} aria-label="Comments panel">Comments</button>
-            <button class="sidebar-tab" class:active={panelState.sidebarTab === 'design'} onclick={() => panelState.sidebarTab = 'design'} role="tab" aria-selected={panelState.sidebarTab === 'design'} aria-label="Design panel">Design</button>
-          </div>
           <div class="sidebar-body">
             {#if panelState.sidebarTab === 'files'}
               <Sidebar onFileOpen={handleFileOpen} onContextMenu={showContextMenu} currentFile={tabState.currentFile} />
@@ -950,8 +1022,6 @@
               <ProjectPanel />
             {:else if panelState.sidebarTab === 'comments'}
               <CommentsPanel />
-            {:else if panelState.sidebarTab === 'design'}
-              <DesignPanel />
             {/if}
           </div>
         </div>
@@ -1013,8 +1083,13 @@
               if (tabState.activeTabIndex >= 0) closeTab(tabState.activeTabIndex);
             }}
           />
+        {:else if designViewerFile}
+          <!-- style.typ → the visual Look designer (whole-document Look). -->
+          <div class="design-main-view">
+            <DesignPanel mainView />
+          </div>
         {/if}
-        <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile} style="--editor-zoom: {zoomState.editor}">
+        <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile || !!designViewerFile} style="--editor-zoom: {zoomState.editor}">
           <div class="editor" bind:this={editorElement}></div>
         </div>
       </div>
@@ -1127,6 +1202,15 @@
     {#if showMcpWizard}
       <McpSetupWizard onClose={() => (showMcpWizard = false)} />
     {/if}
+    {#if showOnboarding}
+      <OnboardingWizard onClose={() => (showOnboarding = false)} />
+    {/if}
+    {#if designAiPopover}
+      <DesignAiPopover x={designAiPopover.x} y={designAiPopover.y} onClose={() => (designAiPopover = null)} />
+    {/if}
+    {#if editChapterLook}
+      <SectionLookEditor chapterPath={editChapterLook.chapterPath} styleId={editChapterLook.styleId} onClose={() => (editChapterLook = null)} />
+    {/if}
     {#if exportDialogState.show && exportDialogState.sections}
       <ExportDialog
         initialFormat={exportDialogState.format}
@@ -1184,6 +1268,15 @@
         Preview
       </button>
     </div>
+    {#if hasFileOpen}
+      <div class="status-center">
+        <LookStatus
+          file={activeTab?.type === 'typ' ? activeTab.path : ''}
+          isDesignView={!!designViewerFile}
+          onOpenGlobalLook={openGlobalLook}
+        />
+      </div>
+    {/if}
     <div class="status-right">
       {#if hasFileOpen && wordStats.words > 0}
         <span class="status-info" title="Word count · estimated reading time at 200 wpm">
@@ -1282,6 +1375,41 @@
     overflow: hidden;
   }
 
+  /* Top bar: nav tabs (left) + formatting toolbar (over the editor). */
+  .top-bar {
+    display: flex;
+    align-items: stretch;
+    background: #ffffff;
+    border-bottom: 1px solid #f0f0f0;
+    -webkit-app-region: no-drag;
+    flex-shrink: 0;
+    min-height: 38px;
+  }
+
+  .top-nav {
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    flex-shrink: 0;
+    border-right: 1px solid #f0f0f0;
+  }
+
+  .nav-tab {
+    padding: 7px 11px;
+    border: none;
+    background: transparent;
+    color: #999;
+    cursor: pointer;
+    font-size: 11.5px;
+    font-family: inherit;
+    font-weight: 500;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-tab:hover { color: #555; background: rgba(0, 0, 0, 0.02); }
+  .nav-tab.active { color: #1a1a1a; border-bottom-color: #4f7df9; }
+
   /* Toolbar */
   .penwright-container :global(.toolbar) {
     -webkit-app-region: no-drag;
@@ -1289,6 +1417,14 @@
     flex-wrap: wrap;
     background: #ffffff;
     border-bottom: 1px solid #f0f0f0;
+  }
+
+  /* Inside the top bar the formatting toolbar takes the editor width and the
+     border lives on .top-bar, not the toolbar itself. */
+  .penwright-container :global(.top-toolbar) {
+    flex: 1;
+    min-width: 0;
+    border-bottom: none;
   }
 
   .toolbar-right {
@@ -1345,42 +1481,6 @@
     border-right: 1px solid #f0f0f0;
   }
 
-  .sidebar-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    padding: 4px 4px 0;
-    gap: 0;
-    flex-shrink: 0;
-    min-height: 34px;
-  }
-
-  .sidebar-tab {
-    padding: 6px 10px;
-    border: none;
-    background: transparent;
-    color: #999;
-    cursor: pointer;
-    font-size: 11px;
-    font-family: inherit;
-    font-weight: 500;
-    white-space: nowrap;
-    flex-shrink: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: 6px 6px 0 0;
-    transition: all 0.15s;
-  }
-
-  .sidebar-tab:hover {
-    color: #555;
-    background: rgba(0, 0, 0, 0.02);
-  }
-
-  .sidebar-tab.active {
-    color: #1a1a1a;
-    border-bottom-color: #4f7df9;
-    background: #ffffff;
-  }
-
   .sidebar-body {
     flex: 1;
     overflow: hidden;
@@ -1406,6 +1506,14 @@
 
   .panel-editor :global(.editor-container.hidden) {
     display: none;
+  }
+
+  /* style.typ → the Look designer fills the editor pane. */
+  .design-main-view {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: #fff;
   }
 
   .panel-editor :global(.editor-container::-webkit-scrollbar) {
@@ -1598,6 +1706,15 @@
     display: flex;
     align-items: center;
     gap: 2px;
+  }
+
+  .status-center {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
   }
 
   .status-right {

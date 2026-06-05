@@ -394,6 +394,7 @@ function setupCompiler(): void {
   compiler = new TypstCompiler(rootFile);
 
   compiler.on('compiledPdf', (pdfBuffer: Buffer) => {
+    appState.lastCompileOk = true;
     appState.mainWindow?.webContents.send('penwright', {
       type: 'previewPdfUpdate',
       pdfData: pdfBuffer.toString('base64'),
@@ -401,6 +402,7 @@ function setupCompiler(): void {
   });
 
   compiler.on('error', (diagnostics: { message: string }[]) => {
+    appState.lastCompileOk = false;
     const errorText = diagnostics.map(d => d.message).join('\n') || 'Compilation failed';
     appState.mainWindow?.webContents.send('penwright', {
       type: 'compileError',
@@ -433,16 +435,16 @@ export function autoSave(): void {
     const intervalMs = Math.max(5, getBackupConfig().intervalSec) * 1000;
     backupTimer = setTimeout(() => {
       backupTimer = null;
-      runProjectBackup();
+      void runProjectBackup();   // async, fire-and-forget — never blocks the loop
     }, intervalMs);
   }
 }
 
-export function runProjectBackup(): void {
+export async function runProjectBackup(): Promise<void> {
   if (!appState.projectDir || !appState.currentFilePath) return;
   try {
     const cfg = getBackupConfig();
-    const snap = saveProjectBackup(appState.projectDir, {
+    const snap = await saveProjectBackup(appState.projectDir, {
       absPath: appState.currentFilePath,
       content: appState.currentContent,
     });

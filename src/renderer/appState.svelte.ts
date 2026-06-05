@@ -90,7 +90,7 @@ export let previewState = $state({
 // ─── Tab / File State ───────────────────────────
 export interface EditorTab {
   path: string;
-  type: 'typ' | 'text' | 'rawtyp' | 'pdf';
+  type: 'typ' | 'text' | 'rawtyp' | 'pdf' | 'design';
 }
 
 export let tabState = $state({
@@ -138,7 +138,7 @@ export let exportDialogState = $state({
 
 // ─── Tab Operations ──────────────────────────────
 
-export function openTab(filePath: string, type: 'typ' | 'text' | 'rawtyp' | 'pdf' = 'typ') {
+export function openTab(filePath: string, type: 'typ' | 'text' | 'rawtyp' | 'pdf' | 'design' = 'typ') {
   const existingIndex = tabState.openTabs.findIndex(t => t.path === filePath && t.type === type);
   if (existingIndex >= 0) {
     tabState.activeTabIndex = existingIndex;
@@ -157,6 +157,7 @@ export function closeTab(index: number) {
 
 export function tabName(tab: EditorTab): string {
   const name = tab.path.split('/').pop() || '';
+  if (tab.type === 'design') return 'Look';
   return tab.type === 'rawtyp' ? `${name} [Text]` : name;
 }
 

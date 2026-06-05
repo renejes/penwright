@@ -519,7 +519,7 @@ function sanitizeSectionHeadingOverlay(raw: unknown): SectionHeadingOverlay {
   return o;
 }
 
-function sanitizeSection(raw: unknown): SectionStyle | null {
+export function sanitizeSection(raw: unknown): SectionStyle | null {
   const r = (raw ?? {}) as Partial<SectionStyle>;
   const id = typeof r.id === 'string' ? r.id.trim().toLowerCase() : '';
   if (!SECTION_ID.test(id)) return null;

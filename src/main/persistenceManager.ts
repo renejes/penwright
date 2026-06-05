@@ -331,12 +331,12 @@ function parseTimestamp(stamp: string): number {
   return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
 }
 
-function collectProjectFiles(projectDir: string, depth = 0): string[] {
+async function collectProjectFiles(projectDir: string, depth = 0): Promise<string[]> {
   if (depth > 5) return [];
   const result: string[] = [];
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(projectDir, { withFileTypes: true });
+    entries = await fs.promises.readdir(projectDir, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -347,7 +347,7 @@ function collectProjectFiles(projectDir: string, depth = 0): string[] {
 
     const full = path.join(projectDir, entry.name);
     if (entry.isDirectory()) {
-      result.push(...collectProjectFiles(full, depth + 1));
+      result.push(...await collectProjectFiles(full, depth + 1));
     } else if (BACKED_UP_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
       result.push(full);
     }
@@ -359,14 +359,18 @@ function collectProjectFiles(projectDir: string, depth = 0): string[] {
  * Saves a multi-file backup snapshot of a project.
  * Walks the project for .typ/.bib files; if `liveFile` is given, its content
  * is used in place of the disk content (captures unsaved edits).
+ *
+ * PERF: fully async (`fs.promises`) so the 30s backup timer never blocks the
+ * main-process event loop — important on large projects and on cloud-synced
+ * folders (iCloud / Dropbox) where each read/write can be slow.
  */
-export function saveProjectBackup(
+export async function saveProjectBackup(
   projectDir: string,
   liveFile?: { absPath: string; content: string },
-): BackupSnapshot | null {
+): Promise<BackupSnapshot | null> {
   if (!fs.existsSync(projectDir)) return null;
 
-  const files = collectProjectFiles(projectDir);
+  const files = await collectProjectFiles(projectDir);
   if (liveFile && !files.includes(liveFile.absPath) && fs.existsSync(path.dirname(liveFile.absPath))) {
     files.push(liveFile.absPath);
   }
@@ -374,7 +378,7 @@ export function saveProjectBackup(
 
   const timestamp = formatTimestamp(new Date());
   const snapshotDir = path.join(backupsDir(projectDir), timestamp);
-  ensureDir(snapshotDir);
+  await fs.promises.mkdir(snapshotDir, { recursive: true });
 
   const fileList: string[] = [];
   let totalBytes = 0;
@@ -382,21 +386,21 @@ export function saveProjectBackup(
   for (const absPath of files) {
     const relPath = path.relative(projectDir, absPath);
     const targetPath = path.join(snapshotDir, relPath);
-    ensureDir(path.dirname(targetPath));
+    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
 
     let content: string;
     if (liveFile && absPath === liveFile.absPath) {
       content = liveFile.content;
     } else {
       try {
-        content = fs.readFileSync(absPath, 'utf-8');
+        content = await fs.promises.readFile(absPath, 'utf-8');
       } catch {
         continue;
       }
     }
 
     try {
-      fs.writeFileSync(targetPath, content, 'utf-8');
+      await fs.promises.writeFile(targetPath, content, 'utf-8');
       fileList.push(relPath);
       totalBytes += Buffer.byteLength(content, 'utf-8');
     } catch {
@@ -410,7 +414,7 @@ export function saveProjectBackup(
     files: fileList,
     totalBytes,
   };
-  fs.writeFileSync(path.join(snapshotDir, '.meta.json'), JSON.stringify(meta), 'utf-8');
+  await fs.promises.writeFile(path.join(snapshotDir, '.meta.json'), JSON.stringify(meta), 'utf-8');
 
   return {
     timestamp,
@@ -593,6 +597,12 @@ export function clearProjectPenwrightData(projectDir: string): void {
 
 function stylePath(projectDir: string): string {
   return path.join(penwrightDir(projectDir), 'style.json');
+}
+
+/** Public accessor for the style.json path (used by the safe-apply engine
+ *  so a design change + its style.json land in one verified/undoable batch). */
+export function getStyleJsonPath(projectDir: string): string {
+  return stylePath(projectDir);
 }
 
 /** True if a project-local style.json already exists. */

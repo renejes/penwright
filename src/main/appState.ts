@@ -15,6 +15,10 @@ export interface AppState {
   projectDir: string | null;
   terminal: TerminalManager | null;
   lastSaveTimestamp: number;
+  /** Whether the most recent preview compile succeeded. Lets the safe-apply
+   *  engine tell "this design change broke a working doc" (→ roll back) from
+   *  "the doc was already broken" (→ don't blame the design change). */
+  lastCompileOk: boolean;
 
   // Callbacks set by index.ts after module wiring
   openFile: (filePath?: string) => void;
@@ -36,6 +40,7 @@ export const appState: AppState = {
   projectDir: null,
   terminal: null,
   lastSaveTimestamp: 0,
+  lastCompileOk: true,
 
   // These get wired up in index.ts after all modules are imported
   openFile: () => {},

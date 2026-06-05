@@ -10,6 +10,8 @@ import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile } from '../shared/rootFinder';
+import { generateStyleTypst, ensureStyleInclude } from '../shared/styleParser';
+import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleTypes';
 import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
 import { addBreadcrumb } from './crashReporter';
@@ -54,6 +56,11 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
   const aiDir = path.join(penwrightDir, 'ai-snapshots');
   if (!fs.existsSync(aiDir)) fs.mkdirSync(aiDir, { recursive: true });
 
+  // Every project gets a style.typ — it's the home of the document's "Look"
+  // (opened via the visual Look designer). Files only here: we never touch the
+  // root file on open, so an existing document's appearance can't change.
+  ensureStyleFile(dir, false);
+
   // Git repo + initial commit (idempotent)
   try {
     const git = simpleGit(dir);
@@ -69,6 +76,53 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
     }
   } catch (err) {
     console.warn('[penwright] Failed to initialise git repo for project:', err);
+  }
+}
+
+/**
+ * Ensures the project has a `style.typ` (the document's Look) + a `.penwright/
+ * style.json` (the design tokens). With `injectImport` it also wires the root
+ * file to apply the style — only done for freshly-created projects; on open we
+ * pass `false` so an existing document's look is never silently changed (the
+ * default fonts already match the templates, so a new project is seamless).
+ */
+export function ensureStyleFile(dir: string, injectImport: boolean): void {
+  if (!fs.existsSync(dir)) return;
+
+  let rootFile: string | null = null;
+  for (const name of ['main.typ', 'document.typ', 'index.typ']) {
+    const p = path.join(dir, name);
+    if (fs.existsSync(p)) { rootFile = p; break; }
+  }
+  const rootDir = rootFile ? path.dirname(rootFile) : dir;
+  const styleTypPath = path.join(rootDir, 'style.typ');
+  const styleJsonPath = path.join(dir, '.penwright', 'style.json');
+
+  // style.json (design tokens) — default if absent.
+  let style;
+  if (fs.existsSync(styleJsonPath)) {
+    try { style = sanitizeProjectStyle(JSON.parse(fs.readFileSync(styleJsonPath, 'utf-8'))); }
+    catch { style = sanitizeProjectStyle(DEFAULT_PROJECT_STYLE); }
+  } else {
+    style = sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
+    try {
+      fs.mkdirSync(path.dirname(styleJsonPath), { recursive: true });
+      fs.writeFileSync(styleJsonPath, JSON.stringify(style, null, 2), 'utf-8');
+    } catch {}
+  }
+
+  // style.typ — generate if absent.
+  if (!fs.existsSync(styleTypPath)) {
+    try { fs.writeFileSync(styleTypPath, generateStyleTypst(style), 'utf-8'); } catch {}
+  }
+
+  // Wire the root to apply it (new projects only).
+  if (injectImport && rootFile && fs.existsSync(rootFile) && fs.existsSync(styleTypPath)) {
+    try {
+      const before = fs.readFileSync(rootFile, 'utf-8');
+      const after = ensureStyleInclude(before);
+      if (after !== before) fs.writeFileSync(rootFile, after, 'utf-8');
+    } catch {}
   }
 }
 
@@ -162,6 +216,10 @@ export async function handleCreateProject(templateId: string, projectName: strin
   // Initialise Git repo, .gitignore, and the .penwright/ folder so the
   // "Versionen" UI works from the very first save.
   await ensureProjectInfrastructure(dir, `Initial version (${template.label})`);
+  // New project: wire the root to apply style.typ from the start (default
+  // fonts match the templates, so this is seamless) — the Look is designable
+  // immediately.
+  ensureStyleFile(dir, true);
 
   appState.projectDir = dir;
   const { openFile } = await import('./fileManager');
@@ -507,11 +565,17 @@ export function handleDropImage(name: string, dataBase64: string): void {
   const assetsDir = path.join(docDir, 'assets');
   if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
 
-  const destPath = path.join(assetsDir, name);
+  // SECURITY: `name` comes from the renderer (a dropped File's name). Strip any
+  // directory component so a crafted `../…` can't escape `assets/` and overwrite
+  // arbitrary files (path-traversal write). basename pins the file to assetsDir.
+  const safeName = path.basename(name);
+  if (!safeName || safeName === '.' || safeName === '..') return;
+
+  const destPath = path.join(assetsDir, safeName);
   const buffer = Buffer.from(dataBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
   fs.writeFileSync(destPath, buffer);
 
-  const relPath = 'assets/' + name;
+  const relPath = 'assets/' + safeName;
   appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
   appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
 }
