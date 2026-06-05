@@ -23,6 +23,11 @@ Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist
 
 Reihenfolge der verbleibenden Arbeit: **Lokalisierung → `penwright.online` registrieren → QA → Windows-Fast-Follow.**
 
+### Post-Launch / Marketing & Roadmap (nach v1.0)
+
+- **Showcase-Projekte für die Homepage.** Ein paar verschiedene fertige Beispielprojekte generieren — z. B. **Thesis, Magazin-Spread, Brochure/Flyer, CV/Lebenslauf, Report, Newsletter** — und als **Auszüge/Screenshots auf penwright.online** zeigen, *was* mit Penwright möglich ist und *in welchem Umfang* (Material für die Landingpage). Jeweils: echtes Mini-Projekt + gerendertes PDF + 1–2 Editor-/Look-Screenshots. Demonstriert die breite Positionierung (akademisch **und** Design).
+- **MCP Apps evaluieren** (v1.x). Erste offizielle MCP-Erweiterung (Spec 2026-01-26, Release-Candidate 2026-07-28): MCP-Server können **interaktive UI in einem sandboxed iframe direkt im Chat-Host** (Claude Desktop / ChatGPT / VS Code) rendern. **Hebel für Penwright:** eine **Live-PDF-Vorschau in Claude Desktop** (offizielles `pdf-server`-Beispiel + Svelte-Starter; Penwright erzeugt das Preview-PDF eh) → Design-with-AI wird „beschreiben → *hier* sehen → iterieren" **ohne App-Wechsel**; dazu optional ein „Look anwenden"-/Vorher-Nachher-Widget im Chat. Nutzt `penwright_get_selection` + Safe-Apply (stehen schon). **Nicht** Penwright in Claude nachbauen — nur die „Loop-Closer". Erst nach Launch + wenn die Spec ihren RC durch hat; die MCP-Binary müsste UI-Resources ausliefern. Refs: `modelcontextprotocol.io/extensions/apps/overview`, `github.com/modelcontextprotocol/ext-apps`.
+
 ---
 
 ## 1. Security-Audit — verbleibende Befunde (niedrige Prio)
