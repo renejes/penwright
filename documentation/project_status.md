@@ -5,8 +5,13 @@
 > abgeschlossen). Für den **aktuellen** Stand siehe `documentation/handover.md` +
 > `CLAUDE.md`. Historische Einträge bleiben bewusst unverändert.
 >
-> **Stand:** 2026-06-04 (nach Session 26: **Phase E — Per-Chapter Section Styles** — Magazin-"Rubriken" pro Kapitel via scoped `#show`: Schema + Generator + 4 MCP-Tools + 5 Presets + Design-Panel-Editor + Chapters-Tab-Zuweisung. Davor Session 25: **DOCX-Overhaul** — journal-submission-tauglich)
-> **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron.
+> **Stand:** 2026-06-05 (nach Session 27: **Design after writing + einheitliches „Look"-Modell + macOS-Launch-Reife**). Kurz:
+> - **Look-Modell** (du gestaltest, wo es wirkt): `style.typ` öffnet den visuellen Look-Designer · Kapitel-Look + „✎ anpassen"-Editor in der Statusleiste (per-Chapter ODER geteilt) · Design-with-AI als Popover an der Auswahl (MCP `penwright_get_selection`). „Design"-Tab raus, Nav-Tabs in eine Top-Bar.
+> - **Safe-Apply-Engine:** jede Design-Mutation wird vor dem Commit kompiliert (verify) → Rollback bei Fehler, „↩ Rückgängig". Design kann das Dokument nicht mehr zerschießen.
+> - **macOS „just works" bewiesen:** notarisiertes + gestapeltes DMG gebaut (`spctl: Notarized Developer ID`). `TYPST_BIN`/Package/Font-Path für MCP, Notarize-Dedup, Identity-Präfix-Fix, Electron-Fuses, Typst+MCP signiert.
+> - **Härtung:** Security (dropImage-Traversal, tote URL, Fuses) + Performance (wordStats/Kommentar-Dekorationen/Compile-Cancel/async-Backup). **Onboarding-Wizard.** **Windows-Scaffolding** (ungetestet).
+> - Davor Session 26: **Phase E — Per-Chapter Section Styles**; Session 25: **DOCX-Overhaul**.
+> **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron. **Nächste Aufgabe:** Lokalisierung (Englisch / i18n).
 
 ---
 
@@ -24,8 +29,9 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - DOCX-Export produziert journal-submission-taugliche Word-Dateien: Live-Multilevel-Numbering + Abbildungen (Bild + „Abbildung N"-Caption) + Display-Math/SVG als Bilder + echte Word-Tabellen + aufgeloeste Cross-Refs + echte Fussnoten + Callouts-als-Box + Seitenzahlen. Reiner Design-/Layout-Code wird uebersprungen statt geleakt (Session 25)
 - About-Dialog zeigt Version + Lizenz + System-Info
 - **Lokales Crash-Reporting:** Plaintext-Reports nach `<userData>/crash-reports/`, Boot-Dialog beim naechsten Start, User entscheidet selbst ueber Weitergabe — keine externe Telemetrie
-- **MCP-Server mit 56 Tools**: Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets, **Design-Surface (15 Tools, inkl. per-Chapter Section Styles)** — externe Agents koennen die kompletten Editor- und Design-Workflows fahren
-- **Offen fuer Launch:** Auto-Updater End-to-End-Test, „Open Sample Project"-Onboarding, finale QA auf echter 100-Seiten-Thesis, Distribution-Pipeline (Firebase + DMG + Notarization)
+- **MCP-Server mit 57 Tools**: Versionen-API, Writer-Features (Comments / Cross-Refs / Footnotes), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets, **Design-Surface (16 Tools, inkl. per-Chapter Section Styles + `penwright_get_selection`)** — externe Agents koennen die kompletten Editor- und Design-Workflows fahren
+- **Distribution macOS:** notarisiertes + gestapeltes DMG-Build erfolgreich (`npm run package:mac`, Apple Silicon). Auto-Updater **gestrichen** (Updates per Newsletter).
+- **Offen fuer Launch:** `penwright.online` registrieren, **Lokalisierung (Englisch / i18n)**, manueller E2E-Test Design-with-AI mit Claude Desktop, finale QA auf echter 100-Seiten-Thesis, Windows als Fast-Follow.
 
 **Codebase:** ~24.500 Zeilen in 87 Dateien (Session 16)
 - Main Process: ~4.200 Zeilen (20 Module inkl. `pathSecurity`, `projectSearch`, `commentManager`, `citationSources`, `crashReporter`)

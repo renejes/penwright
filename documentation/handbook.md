@@ -46,10 +46,10 @@ To stop working on a project without quitting the app, use **File -> Close Proje
 ```
 +--------------------------------------------------------------+
 |                         (Title bar)                           |
-+--------------------------------------------------------------+
-|  B I U S  | H1 H2 H3 | bul num | Link  ⚙ ‥ ◎               |  Toolbar
++------------------------------+-------------------------------+
+|[Files Outline Chapters       | B I U S  H1 H2 H3  bul  Link  |  Top bar:
+| Project Comments]            |          ⚙ ‥ 𝓡 ◎             |  nav tabs + toolbar
 +------+-------------------------------+-----------------------+
-|[Files|Outline|Chapters|Project]      |                       |
 |      |  [main.typ] [refs.bib]        |                       |
 | Side-|                               |   Preview Panel       |
 | bar  |  WYSIWYG Editor               |   (live PDF)          |
@@ -57,9 +57,10 @@ To stop working on a project without quitting the app, use **File -> Close Proje
 +------+-------------------------------+-----------------------+
 |  Terminal / AI  (real shell terminal)                         |
 +--------------------------------------------------------------+
-| [Project] [Terminal/AI] [Preview]   1,247 words · 5 min read  |
+| [Project][Term/AI][Preview]  Chapter Look ▾  1,247 words · …  |
 +--------------------------------------------------------------+
 ```
+The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in the top bar; clicking one shows that panel, clicking the active one collapses the sidebar. The **status bar centre** is the contextual **Look** control (Chapter Look / Global-Look / Look — see [the Look model](#design--the-look-model)). There is no separate "Design" tab — design lives in `style.typ` and the status bar.
 
 ### Toggling panels
 
@@ -102,7 +103,7 @@ All project-level and document-level actions live in the **native menu bar** (to
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus standard window/zoom roles
-- **Document** — Document Settings (language + bibliography style; full design lives in the Design sidebar tab), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
+- **Document** — Document Settings (language + bibliography style; the document's Look lives in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
 
 In-text content insertions (image, table, math, citation, divider, page break, etc.) are reachable via [slash commands](#slash-commands) — type `/` at an empty line in the editor.
@@ -220,7 +221,7 @@ The sidebar has six tabs:
 
 ### Chapters (Include manager)
 - `#include` statements, arrows to reorder (instant UI update), x to remove, + Add Chapter
-- **Section-style dropdown** per chapter — assign a magazine "rubric" (Feature / Interview / Essay / …) that restyles just that chapter. Picking one injects a scoped `#show` at the top of the chapter file; "Default" clears it. Define / tune the variants in the **Design** tab's *Section Styles* section (see [Design panel](#design-panel--visual-style-editor))
+- The chapter's **Look** is no longer set here — it lives in the **status bar** while you edit the chapter (Chapter Look ▾ + the **✎** editor). See [the Look model](#design--the-look-model).
 
 ### Project
 This tab replaces the old Git panel and uses writer-friendly vocabulary instead of raw Git commands. See the **[Versions & Auto-Backup](#versions--auto-backup)** section below for the full workflow. In short:
@@ -236,13 +237,7 @@ This tab replaces the old Git panel and uses writer-friendly vocabulary instead 
 - Resolved comments are hidden by default; the "Show resolved" checkbox brings them back
 - Full workflow: see the **[Comments & Notes](#comments--notes)** section below
 
-### Design
-- The visual style editor — colors, fonts, scale, layout, headings, special elements
-- One-click **theme presets** (six full looks) and **palette presets** (eight curated colour sets)
-- **Layout presets** for paper / orientation / column count
-- **Font browser** with live previews of the seven bundled OFL fonts
-- **Custom Typst-Code** section as an escape hatch
-- See the [Design panel](#design-panel--visual-style-editor) section below
+> **Note:** there is no longer a "Design" sidebar tab. Design now lives **where it applies** — open `style.typ` for the whole-document Look, use the status-bar control for a chapter's Look, and right-click → "Design with AI" for a single spot. See [the Look model](#design--the-look-model).
 
 ---
 
@@ -487,11 +482,19 @@ The DOCX is produced with real Word styles and now covers the rich academic cons
 
 ---
 
-## Design panel — visual style editor
+## Design — the "Look" model
 
-Every design decision lives in the **Design** sidebar tab. Click a theme to apply a complete look; click a palette preset to swap only the colours; tune individual fields (font, padding, heading size, table border colour) for fine control. Every change writes `<project>/.penwright/style.json` and regenerates `<project>/style.typ` — `main.typ` pulls those rules in via `#import "style.typ": *` plus `#show: apply-style`.
+Penwright decouples writing from design. You design **where it applies** — three surfaces, one word ("Look"):
 
-### Sections in the Design tab
+- **Whole document → open `style.typ`.** Double-clicking `style.typ` in the Files tree (or the **✦ Look** control in the centre of the status bar) opens the **visual Look designer** — not the raw generated code. Themes, palette, fonts, scale, layout, headings, elements, custom code. Every project has a `style.typ`.
+- **One chapter → the status bar.** While editing a chapter, the centre of the status bar shows **Chapter Look ▾** — pick a magazine rubric (Feature / Interview / Essay / …). The **✎** button opens a full editor for that look (accent + primary colour, body/heading font, base size, leading, columns, H1–H3), with **"Apply to all chapters with this look"** vs **"Only this chapter"** (forks a chapter-unique variant). Page format, margins and running heads always stay document-wide.
+- **One spot → Design with AI.** Select a passage, right-click **✨ Design with AI** — a small popover appears at the selection (copy a starter prompt / open Claude). Claude reads it via `penwright_get_selection` and designs that exact spot.
+
+**Safe by design:** every in-app design change is compiled *before* it's committed. If a change wouldn't compile, it's rolled back and your last working look stays on screen — the document is never left broken. The Look designer has an **↩ Undo** for the last design change.
+
+Every change writes `<project>/.penwright/style.json` and regenerates `<project>/style.typ` — the root file pulls those rules in via `#import "style.typ": *` plus `#show: apply-style`.
+
+### Sections in the Look designer (open `style.typ`)
 
 | Section | What it controls |
 |---------|------------------|

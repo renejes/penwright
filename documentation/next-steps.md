@@ -1,6 +1,6 @@
 # Penwright Desktop — Next Steps bis zum Release
 
-> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-05-20 | App-Version: **0.7.0** (package.json + Doku synchron)
+> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-06-05 | App-Version: **0.7.0** (package.json + Doku synchron)
 >
 > **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (56 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / Penwright / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (22 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets, 5 Section-Style-Rubriken), Per-Chapter Section Styles (Phase E), DOCX-Overhaul (journal-submission-tauglich), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
 
@@ -14,13 +14,14 @@ Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist
 
 1. ~~**Typst-Package-Bundling-Setup**~~ — **erledigt** (Session 20): 24 Packages gebundelt, Audit-Script + Acknowledgments-Dialog.
 2. ~~**Design-Editor + MCP-Tools**~~ — **erledigt** (Sessions 21–26): Themes / Palettes / Layouts / Fonts / 22 Design-Elemente / Per-Chapter Section Styles (Phase E).
-3. **Distribution einrichten** — **DMG-Build + Notarization** (der reale Launch-Blocker). Optional Download-Hosting fuer das DMG (z. B. Firebase/Netlify).
-   ⚠️ **Auto-Updater (electron-updater) ist GESTRICHEN** — Updates laufen ueber **Newsletter + manuellen Download** von penwright.online. §3.4 unten ist nur noch Referenz, falls man es je doch will.
-4. ~~**Handbuch-Online-Hosting**~~ — **nicht mehr noetig:** das Handbuch wird **in-app** ausgeliefert (`HandbookViewer.svelte`, rendert das gebundelte `handbook.md`/`handbuch.md` mit `marked`; „Help → User Guide" + About-Button). Online-Hosting nur noch optional.
-5. **Finales QA** auf einer realen 100-Seiten-Thesis (nicht nur die acht Test-Chapters) **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread)
-6. ~~**DOCX-Iteration**~~ — **erledigt in Session 25** (DOCX-Overhaul: Figures / Display-Math / Tabellen / Cross-Refs / Fussnoten / Callouts gerendert, `#raw("…")` inline, Code-Leak eliminiert; Prosa-mit-Inline ueberlebt im Editor). Bewusst offen (geringer Nutzen): live Word-SEQ/REF-Felder, Inline-Math-als-Bild
+3. ~~**Distribution / DMG-Build + Notarization**~~ — **erledigt (Session 27, macOS/Apple Silicon):** ein notarisiertes + gestapeltes DMG wurde gebaut und verifiziert (`spctl: accepted, source=Notarized Developer ID`). `npm run package:mac` läuft durch (Credentials aus `build/notarize.env.local`, git-ignoriert). Details: TYPST_BIN-Wiring für MCP, Notarize-Dedup, Identity-Präfix-Fix, `disable-library-validation` + afterPack-Signierung für Typst/MCP, Electron-Fuses, DMG-Stapling. **Offen:** optionales Download-Hosting; **`penwright.online` registrieren** (Launch-Blocker für Links).
+   ⚠️ **Auto-Updater (electron-updater) ist GESTRICHEN** — Updates über **Newsletter + manuellen Download**. §3.4 unten ist nur noch Referenz.
+4. **Lokalisierung (Englisch / i18n)** — **die nächste Aufgabe.** Die UI ist gemischt DE/EN. Entweder konsequent Englisch, oder volles i18n (EN + DE umschaltbar). Es gibt noch keine i18n-Infrastruktur. Siehe `handover.md` §1.
+5. ~~**Handbuch-Online-Hosting**~~ — **nicht mehr noetig:** Handbuch wird **in-app** ausgeliefert (`HandbookViewer.svelte`, `handbook.md`/`handbuch.md` via `?raw`).
+6. **Finales QA** auf einer realen 100-Seiten-Thesis **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread). **Manueller E2E-Test Design-with-AI** mit Claude Desktop.
+7. **Windows** als Fast-Follow (Scaffolding steht; Typst-`.exe` + Test fehlen; Code-Signing bewusst weggelassen).
 
-Reihenfolge der verbleibenden Arbeit: **DMG-Build + Notarization → QA**. (Kanonische Domain: **penwright.online**, muss noch registriert werden.)
+Reihenfolge der verbleibenden Arbeit: **Lokalisierung → `penwright.online` registrieren → QA → Windows-Fast-Follow.**
 
 ---
 
