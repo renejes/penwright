@@ -76,6 +76,8 @@ interface StoreSchema {
   mcpSetupVersion: string | null;
   /** UI language ('de' | 'en'); null until the user picks one (then OS-resolved). */
   locale: 'de' | 'en' | null;
+  /** Preview recompile behaviour: 'auto' (debounced while typing) or 'manual' (Refresh button only). */
+  previewMode: 'auto' | 'manual';
 }
 
 const DEFAULT_BACKUP_CONFIG: BackupConfig = {
@@ -110,6 +112,7 @@ const store = new Store<StoreSchema>({
     backupConfig: DEFAULT_BACKUP_CONFIG,
     mcpSetupVersion: null,
     locale: null,
+    previewMode: 'auto',
   },
 });
 
@@ -202,6 +205,18 @@ export function getLocale(): 'de' | 'en' {
 
 export function setLocale(locale: string): void {
   store.set('locale', locale === 'de' ? 'de' : 'en');
+}
+
+// ─── Preview mode ────────────────────────────────
+// Whether the live PDF preview recompiles automatically while typing ('auto',
+// debounced) or only when the user clicks Refresh ('manual'). Global default.
+
+export function getPreviewMode(): 'auto' | 'manual' {
+  return store.get('previewMode') === 'manual' ? 'manual' : 'auto';
+}
+
+export function setPreviewMode(mode: string): void {
+  store.set('previewMode', mode === 'manual' ? 'manual' : 'auto');
 }
 
 // ─── Local Trial ─────────────────────────────────

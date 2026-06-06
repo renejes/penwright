@@ -23,6 +23,7 @@ import {
   getSelectionPin,
   clearSelectionPin,
   getLocale,
+  getPreviewMode,
 } from './persistenceManager';
 import { addBreadcrumb } from './crashReporter';
 import { resolveDict } from '../shared/i18n';
@@ -297,7 +298,10 @@ export async function saveFile(): Promise<boolean> {
     await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
     appState.isDirty = false;
     updateTitle();
-    compiler?.compilePdf();
+    // Recompile the live preview only in 'auto' mode. In 'manual' mode the file
+    // is still saved, but the preview waits for an explicit Refresh
+    // (preview:compile) — cheaper on long documents while you're just writing.
+    if (getPreviewMode() === 'auto') compiler?.compilePdf();
     appState.mainWindow?.webContents.send('penwright', {
       type: 'saveStatus',
       saved: true,

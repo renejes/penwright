@@ -35,6 +35,11 @@ export function handleMessage(message: ExtensionMessage): void {
   if (message.type === 'update' && editor) {
     isUpdatingFromExtension.value = true;
     tabState.currentContent = message.content;
+    // The active file changed (open / switch / external edit) — remember its
+    // first heading so the preview can scroll to that chapter's page. Fires
+    // here (not on keystrokes: typing goes renderer→main as 'edit', never
+    // echoes back as 'update').
+    previewState.scrollTarget = firstHeadingTitle(message.content);
     try {
       const doc = deserializeTypst(message.content);
       reconcileContent(editor, doc);
@@ -109,12 +114,14 @@ export function handleMessage(message: ExtensionMessage): void {
     previewState.pdfData = bytes;
     previewState.error = '';
     previewState.compiling = false;
+    previewState.dirty = false;
     if (!panelState.showPreview) {
       panelState.showPreview = true;
     }
   } else if (message.type === 'compileError') {
     previewState.error = message.error;
     previewState.compiling = false;
+    previewState.dirty = false;
   } else if (message.type === 'exportStatus') {
     uiState.exporting = message.exporting;
     uiState.exportFormat = message.format;
@@ -247,6 +254,55 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'showMcpSetupWizard') {
     window.dispatchEvent(new CustomEvent('penwright:show-mcp-wizard'));
   }
+
+  // Native-menu actions whose logic lives in the MAIN process. The menu sends
+  // them to the renderer (webContents.send); the renderer doesn't handle them
+  // itself, so relay them to the main 'penwright' switch. Without this, menu
+  // items like "Document Settings…", "Merge Document", etc. silently do nothing.
+  if (MENU_MAIN_ACTIONS.has(msg.type)) {
+    ipc.send(message as unknown as import('../editor/lib/messages').WebviewMessage);
+  }
+}
+
+const MENU_MAIN_ACTIONS = new Set<string>([
+  'requestSettings',
+  'openSource',
+  'newProject',
+  'mergeDocument',
+  'splitDocument',
+  'ensureBibliography',
+  'importSources',
+  'addCitationManually',
+  'undoLastAiEdit',
+]);
+
+/**
+ * The active chapter's title — used to scroll the PDF preview to that chapter.
+ * Tries, in order:
+ *   1. a native level-1 heading `= Title` (normal documents / WYSIWYG output),
+ *   2. a `title: "…"` / `title: [...]` macro argument (magazine & design
+ *      templates render their chapter title through macros like
+ *      `#opener(title: "Editorial")`, which still emit a real `heading` — so a
+ *      PDF bookmark exists; we just need the same title text to match it).
+ * Returns '' when neither is found (e.g. a cover page, or a root of `#include`s).
+ */
+function firstHeadingTitle(typst: string): string {
+  // 1) Native level-1 markup: `= Title` (not `== `, which is level 2+).
+  let raw = typst.match(/^=[ \t]+(.+?)\s*$/m)?.[1];
+
+  // 2) Fallback: the first `title:` argument of a macro call. `\btitle` avoids
+  //    matching `subtitle:`; `title: none` (e.g. `#outline(title: none)`) is
+  //    ignored because it requires a quoted string or bracketed content.
+  if (!raw) {
+    raw = typst.match(/\btitle:\s*"([^"]+)"/)?.[1]
+      ?? typst.match(/\btitle:\s*\[([^\]]+)\]/)?.[1];
+  }
+  if (!raw) return '';
+
+  return raw
+    .replace(/\s*<[^>]*>\s*$/, '') // drop a trailing `<label>`
+    .replace(/[*_`]/g, '')          // drop light inline markup
+    .trim();
 }
 
 function syncSpellcheckLanguage(lang: string): void {

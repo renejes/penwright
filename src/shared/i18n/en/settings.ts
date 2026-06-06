@@ -10,6 +10,11 @@ export const settings = {
   documentLanguage: 'Document language',
   bibliographySection: 'Bibliography',
   citationStyle: 'Citation style',
+  previewSection: 'Preview',
+  previewModeLabel: 'Update the PDF preview',
+  previewModeAuto: 'Automatically while typing',
+  previewModeManual: 'Only when I click Refresh',
+  previewModeHint: 'Manual is lighter on long documents — saving still happens automatically; only the preview waits for the ↻ button.',
 };
 
 export type SettingsMessages = typeof settings;

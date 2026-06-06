@@ -16,12 +16,12 @@ Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist
 2. ~~**Design-Editor + MCP-Tools**~~ — **erledigt** (Sessions 21–26): Themes / Palettes / Layouts / Fonts / 22 Design-Elemente / Per-Chapter Section Styles (Phase E).
 3. ~~**Distribution / DMG-Build + Notarization**~~ — **erledigt (Session 27, macOS/Apple Silicon):** ein notarisiertes + gestapeltes DMG wurde gebaut und verifiziert (`spctl: accepted, source=Notarized Developer ID`). `npm run package:mac` läuft durch (Credentials aus `build/notarize.env.local`, git-ignoriert). Details: TYPST_BIN-Wiring für MCP, Notarize-Dedup, Identity-Präfix-Fix, `disable-library-validation` + afterPack-Signierung für Typst/MCP, Electron-Fuses, DMG-Stapling. **Offen:** optionales Download-Hosting; **`penwright.online` registrieren** (Launch-Blocker für Links).
    ⚠️ **Auto-Updater (electron-updater) ist GESTRICHEN** — Updates über **Newsletter + manuellen Download**. §3.4 unten ist nur noch Referenz.
-4. **Lokalisierung (Englisch / i18n)** — **die nächste Aufgabe.** Die UI ist gemischt DE/EN. Entweder konsequent Englisch, oder volles i18n (EN + DE umschaltbar). Es gibt noch keine i18n-Infrastruktur. Siehe `handover.md` §1.
+4. ~~**Lokalisierung (Englisch / i18n)**~~ — **erledigt (Session 28):** volles i18n, UI komplett EN + DE umschaltbar (leichter Svelte-5-Rune-Store `src/shared/i18n/`, globale `locale`-Persistenz + OS-Erkennung, Sprach-Dropdown in den Settings + Statusleisten-Toggle + StartScreen). Details: `handover.md` §1 + `CLAUDE.md` → „Internationalization (i18n)".
 5. ~~**Handbuch-Online-Hosting**~~ — **nicht mehr noetig:** Handbuch wird **in-app** ausgeliefert (`HandbookViewer.svelte`, `handbook.md`/`handbuch.md` via `?raw`).
 6. **Finales QA** auf einer realen 100-Seiten-Thesis **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread). **Manueller E2E-Test Design-with-AI** mit Claude Desktop.
 7. **Windows** als Fast-Follow (Scaffolding steht; Typst-`.exe` + Test fehlen; Code-Signing bewusst weggelassen).
 
-Reihenfolge der verbleibenden Arbeit: **Lokalisierung → `penwright.online` registrieren → QA → Windows-Fast-Follow.**
+Reihenfolge der verbleibenden Arbeit: **`penwright.online` registrieren → QA → Windows-Fast-Follow.**
 
 ### Post-Launch / Marketing & Roadmap (nach v1.0)
 
@@ -49,7 +49,7 @@ Optional vor 1.0; nicht launch-blocking.
 | Feature | Status | Was fehlt |
 |---------|--------|-----------|
 | Find/Replace (Single-File) | Funktional | DOM-basiert statt TipTap-aware, kann bei Edge Cases Treffer uebersehen |
-| i18n / Lokalisierung | Handbuch 2-sprachig | UI-Strings nicht extrahiert, App komplett auf Englisch |
+| i18n / Lokalisierung | ✅ vollständig (EN + DE, zur Laufzeit umschaltbar) | — |
 
 ---
 
@@ -531,7 +531,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 
 - [ ] Linux AppImage + Windows Installer deployen (je nach Nachfrage)
 - [ ] Dark Mode
-- [ ] Deutsche UI-Uebersetzung (UI-Strings extrahieren, i18n-Framework)
+- [x] Deutsche UI-Uebersetzung (volles i18n EN + DE, Session 28)
 - [ ] „Publish to GitHub"-Button (aktuell nur via Terminal + `gh` CLI)
 - [ ] Bundeled Offline-Handbuch (v1.1)
 - [ ] Vollstaendiges WCAG 2.1 AA Accessibility-Audit

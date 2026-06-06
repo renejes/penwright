@@ -19,11 +19,20 @@
     settings,
     onSave,
     onClose,
+    previewMode = 'auto',
+    onPreviewModeChange,
   }: {
     settings: DocumentSettings;
     onSave: (s: DocumentSettings) => void;
     onClose: () => void;
+    previewMode?: 'auto' | 'manual';
+    onPreviewModeChange?: (mode: 'auto' | 'manual') => void;
   } = $props();
+
+  function onPreviewModeSelect(e: Event) {
+    const v = (e.target as HTMLSelectElement).value === 'manual' ? 'manual' : 'auto';
+    onPreviewModeChange?.(v);
+  }
 
   let local: DocumentSettings = $state({
     lang: '',
@@ -140,6 +149,19 @@
             {/each}
           </select>
         </label>
+      </div>
+
+      <div class="settings-section">
+        <h3>{t().settings.previewSection}</h3>
+
+        <label class="settings-field">
+          <span>{t().settings.previewModeLabel}</span>
+          <select value={previewMode} onchange={onPreviewModeSelect}>
+            <option value="auto">{t().settings.previewModeAuto}</option>
+            <option value="manual">{t().settings.previewModeManual}</option>
+          </select>
+        </label>
+        <p class="settings-hint">{t().settings.previewModeHint}</p>
       </div>
     </div>
 

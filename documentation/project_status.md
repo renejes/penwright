@@ -8,12 +8,13 @@
 > **Stand:** 2026-06-06 (nach Session 28: **Volles i18n EN + DE**). Kurz:
 > - **i18n (Session 28):** gesamte UI zweisprachig (EN + DE), zur Laufzeit umschaltbar. Leichter Svelte-5-Rune-Store unter `src/shared/i18n/` (23 Namespaces, `en` = Typ-Wahrheit, `de` typgeprüft); `t().<ns>.<key>` reaktiv. Globale Persistenz (electron-store `locale`, OS-Erkennung beim Erststart, `app:setLocale` baut native Menüleiste neu). Sprach-Dropdown in Dokument-Einstellungen + EN/DE-Toggle in der Statusleiste + StartScreen-Switcher. Das QuickSettings-Zahnrad (Schriftgröße/Zeilenabstand/Dokumentsprache) wurde dabei entfernt (redundant). Details: `CLAUDE.md` → „Internationalization (i18n)".
 > - **Editor-UX (Session 28):** neuer **„＋ Einfügen"-Button** in der Toolbar — Dropdown mit allen `/`-Befehlen (+ `@`), aus derselben Quelle `getCommands()` wie das Slash-Menü; Typst-Blöcke jetzt auch per `Esc`/`Cmd+Enter` verlassbar; Onboarding-Schritt „Alles einfügen" ergänzt; in-App-Handbuch (`handbook.md`/`handbuch.md`) nachgezogen.
+> - **Vorschau (Session 28):** **Auto/Manuell-Modus** (globale Einstellung im Settings-Dialog; manuell gatet nur den Tipp-getriggerten Recompile in `fileManager.saveFile`, Refresh-Button + „Veraltet"-Hinweis in der Vorschau) + **Vorschau folgt aktivem Kapitel** (scrollt beim Dateiwechsel zur Kapitelseite via PDF-Lesezeichen / pdf.js `getOutline()`; kompiliert weiterhin das ganze Wurzel-Dokument).
 > - **Look-Modell** (du gestaltest, wo es wirkt): `style.typ` öffnet den visuellen Look-Designer · Kapitel-Look + „✎ anpassen"-Editor in der Statusleiste (per-Chapter ODER geteilt) · Design-with-AI als Popover an der Auswahl (MCP `penwright_get_selection`). „Design"-Tab raus, Nav-Tabs in eine Top-Bar.
 > - **Safe-Apply-Engine:** jede Design-Mutation wird vor dem Commit kompiliert (verify) → Rollback bei Fehler, „↩ Rückgängig". Design kann das Dokument nicht mehr zerschießen.
 > - **macOS „just works" bewiesen:** notarisiertes + gestapeltes DMG gebaut (`spctl: Notarized Developer ID`). `TYPST_BIN`/Package/Font-Path für MCP, Notarize-Dedup, Identity-Präfix-Fix, Electron-Fuses, Typst+MCP signiert.
 > - **Härtung:** Security (dropImage-Traversal, tote URL, Fuses) + Performance (wordStats/Kommentar-Dekorationen/Compile-Cancel/async-Backup). **Onboarding-Wizard.** **Windows-Scaffolding** (ungetestet).
 > - Davor Session 26: **Phase E — Per-Chapter Section Styles**; Session 25: **DOCX-Overhaul**.
-> **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron. **Nächste Aufgabe:** offen (Kandidaten: On-Demand-Vorschau-Button + Vorschau folgt aktivem Kapitel; siehe `handover.md`).
+> **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron. **Nächste Aufgabe:** offen (siehe `handover.md`).
 
 ---
 

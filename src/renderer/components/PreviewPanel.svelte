@@ -7,10 +7,18 @@
     pdfData = null,
     error = '',
     compiling = false,
+    mode = 'auto',
+    dirty = false,
+    scrollTarget = '',
+    onRefresh,
   }: {
     pdfData: Uint8Array | null;
     error: string;
     compiling: boolean;
+    mode?: 'auto' | 'manual';
+    dirty?: boolean;
+    scrollTarget?: string;
+    onRefresh?: () => void;
   } = $props();
 </script>
 
@@ -22,7 +30,16 @@
         <span class="badge compiling">{t().pickers.previewCompiling}</span>
       {:else if error}
         <span class="badge error">{t().pickers.previewError}</span>
+      {:else if mode === 'manual' && dirty}
+        <span class="badge outdated">{t().pickers.previewOutdated}</span>
       {/if}
+      <button
+        class="refresh-btn"
+        class:attention={mode === 'manual' && dirty && !compiling}
+        onclick={() => onRefresh?.()}
+        title={t().pickers.previewRefresh}
+        aria-label={t().pickers.previewRefresh}
+      >↻</button>
       <div class="zoom-controls" role="group" aria-label={t().pickers.previewLabel}>
         <button class="zoom-btn" onclick={zoomPdfOut} title={t().pickers.previewZoomOut} aria-label={t().pickers.previewZoomOut}>−</button>
         <button class="zoom-percent" onclick={resetPdfZoom} title={t().pickers.previewResetZoom} aria-label={t().pickers.previewResetZoom}>{Math.round(zoomState.pdf * 100)}%</button>
@@ -31,7 +48,7 @@
     </div>
   </div>
 
-  <PdfPreviewPanel {pdfData} {error} {compiling} />
+  <PdfPreviewPanel {pdfData} {error} {compiling} {scrollTarget} />
 </div>
 
 <style>
@@ -70,6 +87,22 @@
 
   .badge.compiling { color: #4f7df9; }
   .badge.error { color: #e55; }
+  .badge.outdated { color: #c98a3a; }
+
+  .refresh-btn {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 4px;
+    padding: 0;
+  }
+  .refresh-btn:hover { background: #f0f0f0; color: #444; }
+  .refresh-btn.attention { color: #a8503a; }
 
   .zoom-controls {
     display: flex;

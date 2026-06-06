@@ -31,6 +31,8 @@ import {
   setOnboardingSeen,
   getLocale,
   setLocale,
+  getPreviewMode,
+  setPreviewMode,
   getZoteroBibPath,
   listProjectBackups,
   loadProjectBackup,
@@ -745,6 +747,17 @@ export function setupIPC(): void {
     setLocale(locale);
     // Rebuild the native menu so its labels switch language immediately.
     buildMenu(appState);
+    return { ok: true };
+  });
+
+  // ─── Preview mode (auto / manual) + manual recompile ───
+  ipcMain.handle('persist:getPreviewMode', () => getPreviewMode());
+  ipcMain.handle('persist:setPreviewMode', (_event, mode: string) => {
+    setPreviewMode(mode);
+    return { ok: true };
+  });
+  ipcMain.handle('preview:compile', () => {
+    getCompiler()?.compilePdf();
     return { ok: true };
   });
 

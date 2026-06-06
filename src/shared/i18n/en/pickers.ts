@@ -89,6 +89,8 @@ export const pickers = {
   previewLabel: 'Preview',
   previewCompiling: 'Compiling…',
   previewError: 'Error',
+  previewOutdated: 'Outdated',
+  previewRefresh: 'Refresh preview',
   previewZoomOut: 'Zoom Out',
   previewZoomIn: 'Zoom In',
   previewResetZoom: 'Reset zoom',

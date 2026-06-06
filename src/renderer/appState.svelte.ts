@@ -84,6 +84,12 @@ export let previewState = $state({
   pdfData: null as Uint8Array | null,
   error: '',
   compiling: false,
+  // Recompile behaviour: 'auto' (debounced) or 'manual' (Refresh button only).
+  mode: 'auto' as 'auto' | 'manual',
+  // True when the document changed since the last preview render (manual mode hint).
+  dirty: false,
+  // First heading of the active chapter — the preview scrolls to it on switch.
+  scrollTarget: '',
 });
 
 // ─── Tab / File State ───────────────────────────

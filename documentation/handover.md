@@ -75,6 +75,16 @@ Prinzip: **du gestaltest dort, wo es wirkt.** Drei Reichweiten, drei Orte, eine 
 
 ---
 
+## 1c. Vorschau: Auto/Manuell + folgt dem Kapitel (nach i18n)
+
+- **Vorschau-Modus (auto/manuell), globale Einstellung** im Settings-Dialog → „Vorschau". Default `auto` (wie bisher, 400 ms Debounce). `manual` gatet **nur** den tipp-/speicher-getriggerten Recompile in `fileManager.saveFile()` (`if (getPreviewMode()==='auto') compiler.compilePdf()`) — Öffnen, externe/KI-Watcher-Änderungen und Undo-AI kompilieren weiter. Speichern bleibt immer automatisch. Manueller Trigger: **Refresh-Button (↻)** in der Vorschau-Leiste (IPC `preview:compile`). Renderer spiegelt `previewState.mode` + `previewState.dirty` (gesetzt bei Editor-`onUpdate`, gelöscht bei `previewPdfUpdate`) → „Veraltet"-Badge + Akzent auf ↻. Persistenz: electron-store `previewMode` (`getPreviewMode`/`setPreviewMode`, IPC `persist:get/setPreviewMode`).
+- **Vorschau folgt aktivem Kapitel:** beim Dateiwechsel setzt `messageHandler` (`'update'`-Handler, `firstHeadingTitle()`) `previewState.scrollTarget` = Kapiteltitel; `PdfPreviewPanel` scrollt via pdf.js `getOutline()` (PDF-Lesezeichen) zur passenden Seite — **nur bei Ziel-Wechsel** (`lastScrolledTarget`-Guard, race-frei: `pendingScrollTarget` wird **nach** dem Render angewendet), nie bei reinen Recompiles. `firstHeadingTitle` liest erst `= Überschrift`, sonst `title: "…"`/`title: [...]`-Makro-Argument → funktioniert auch in Magazin-/Makro-Projekten (`#opener(title: …)`); am echten LANGSAM-Magazin verifiziert. Fallback = kein Sprung (kein Titel/kein Match). Kompiliert weiterhin das **ganze** Wurzel-Dokument.
+
+> Hinweis: zwei latente Bugs in dieser Runde gefixt — (1) **native Menü-Main-Aktionen** (Document Settings, Merge/Split, Open as Typst Source, Ensure Bibliography, Open Sources Folder, Add Citation Manually, Undo AI Edit, New Project) wurden vom Renderer nie an Main weitergeleitet → `messageHandler` leitet sie jetzt via `MENU_MAIN_ACTIONS` weiter; (2) Kapitel-Sprung landete auf Seite 1 (Label-Suffix + Recompile-Race) — behoben.
+- **Offen/Test:** manuell prüfen — Modus-Umschaltung greift live; bei langen Multi-Kapitel-Docs Kapitel-Sprung verifizieren (setzt voraus, dass Typst PDF-Lesezeichen aus Headings erzeugt — sollte default sein); Heading-Matching ist fuzzy (Nummerierung/Markup werden normalisiert).
+
+---
+
 ## 2. Andere offene Themen
 - **`penwright.online` registrieren** — Website/Pricing/Support lösen sonst nicht auf (Launch-Blocker). Marken-Recherche (DPMA/EUIPO, Klasse 9) steht aus.
 - **🆕 Showcase-Projekte für die Homepage** — ein paar verschiedene fertige Projekte generieren (z. B. Thesis, Magazin-Spread, Brochure/Flyer, CV/Lebenslauf, Report, Newsletter), die als **Auszüge/Screenshots auf penwright.online** zeigen, *was* mit Penwright möglich ist und *in welchem Umfang*. Material für die Landingpage. Ideal: jeweils ein echtes Mini-Projekt + gerendertes PDF + ein, zwei Screenshots des Editors/Design-Looks.

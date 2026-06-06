@@ -85,6 +85,8 @@ export const pickers: PickersMessages = {
   previewLabel: 'Vorschau',
   previewCompiling: 'Kompiliere…',
   previewError: 'Fehler',
+  previewOutdated: 'Veraltet',
+  previewRefresh: 'Vorschau aktualisieren',
   previewZoomOut: 'Verkleinern',
   previewZoomIn: 'Vergrößern',
   previewResetZoom: 'Zoom zurücksetzen',

@@ -11,4 +11,9 @@ export const settings: SettingsMessages = {
   documentLanguage: 'Dokumentsprache',
   bibliographySection: 'Literaturverzeichnis',
   citationStyle: 'Zitierstil',
+  previewSection: 'Vorschau',
+  previewModeLabel: 'PDF-Vorschau aktualisieren',
+  previewModeAuto: 'Automatisch beim Tippen',
+  previewModeManual: 'Nur auf Klick „Aktualisieren"',
+  previewModeHint: 'Manuell ist bei langen Dokumenten schonender — gespeichert wird weiterhin automatisch; nur die Vorschau wartet auf den ↻-Button.',
 };

@@ -65,6 +65,8 @@ When editing such a project from the MCP server, decide on intent: if the user w
 
 Chapter files contain only body content — no preamble. \`apply-style\`'s set/show rules propagate into included chapters automatically. If a chapter needs to reference \`style-colors\` directly (e.g. for a custom Pull-Quote block), add a per-chapter import header: \`#import "../style.typ": style-colors\`.
 
+**Start each chapter with its title** — either a native heading \`= Title\` or a \`title:\` argument of an opener macro (e.g. \`#opener(title: "…")\`, which still emits a real \`heading\` and therefore a PDF bookmark). Penwright's live preview reads that title to jump to the chapter's page when the user switches files, so a chapter without any title (a bare cover/image page) simply won't be a jump target.
+
 ## Markup
 
 | Construct | Syntax |
@@ -493,7 +495,7 @@ Six full \`ProjectStyle\` snapshots ship in \`src/shared/themePresets.ts\`:
 | \`marketing-brochure\` | Bold IBM Plex Sans, navy + orange, two-column layout |
 | \`thesis\` | Crimson Pro everywhere, full hierarchical numbering, binding-friendly |
 
-Apply via MCP: \`penwright_apply_style({ styleId: "modern-tech" })\` or in-app from the Design sidebar tab's *Themes* section. Applying a theme overwrites every branch of \`style.json\` **except \`custom.preamble\`** — the user's escape-hatch code survives.
+Apply via MCP: \`penwright_apply_style({ styleId: "modern-tech" })\` or in-app from the visual Look designer (the user opens \`style.typ\`) → *Themes*. Applying a theme overwrites every branch of \`style.json\` **except \`custom.preamble\`** — the user's escape-hatch code survives.
 
 ### Six layout presets (geometry only)
 

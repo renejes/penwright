@@ -268,6 +268,9 @@
       },
       onUpdate() {
         if (isUpdatingFromExtension.value) return;
+        // Mark the preview stale (used as a hint on the Refresh button, esp. in
+        // manual mode where the preview won't recompile on its own).
+        previewState.dirty = true;
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(sendUpdate, 300);
         if (uiState.typewriterMode) {
@@ -325,6 +328,11 @@
       electronAPI.invoke('app:getLocale').then((loc) => {
         applyLocale(loc as string);
       }).catch(() => { /* keep navigator-based default */ });
+
+      // Restore the preview-update mode (auto / manual).
+      electronAPI.invoke('persist:getPreviewMode').then((m) => {
+        if (m === 'manual' || m === 'auto') previewState.mode = m;
+      }).catch(() => { /* keep default 'auto' */ });
 
       electronAPI.invoke('persist:getPanelState').then((stored) => {
         if (stored && typeof stored === 'object') {
@@ -432,6 +440,22 @@
 
   function toggleReadingMode() {
     uiState.readingMode = !uiState.readingMode;
+  }
+
+  // Persist the preview-update mode (global). Switching back to 'auto' while the
+  // preview is stale triggers one catch-up compile so it syncs immediately.
+  function handlePreviewModeChange(mode: 'auto' | 'manual') {
+    previewState.mode = mode;
+    (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } })
+      .electronAPI?.invoke('persist:setPreviewMode', mode);
+    if (mode === 'auto' && previewState.dirty) refreshPreview();
+  }
+
+  // Manually recompile the preview (Refresh button + only path in manual mode).
+  function refreshPreview() {
+    previewState.compiling = true;
+    (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } })
+      .electronAPI?.invoke('preview:compile');
   }
 
   // Opens the Polar checkout (used by the trial banner). Top-level so the
@@ -1118,6 +1142,10 @@
             pdfData={previewState.pdfData}
             error={previewState.error}
             compiling={previewState.compiling}
+            mode={previewState.mode}
+            dirty={previewState.dirty}
+            scrollTarget={previewState.scrollTarget}
+            onRefresh={refreshPreview}
           />
         </div>
       {/if}
@@ -1150,6 +1178,8 @@
       <SettingsPanel
         settings={uiState.currentSettings}
         onSave={saveSettings}
+        previewMode={previewState.mode}
+        onPreviewModeChange={handlePreviewModeChange}
         onClose={() => {
           uiState.showSettings = false;
           uiState.currentSettings = null;

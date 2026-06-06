@@ -15,10 +15,12 @@
     pdfData = null,
     error = '',
     compiling = false,
+    scrollTarget = '',
   }: {
     pdfData: Uint8Array | null;
     error: string;
     compiling: boolean;
+    scrollTarget?: string;
   } = $props();
 
   let scrollContainer: HTMLDivElement;
@@ -29,6 +31,13 @@
   let renderedPages = new Set<number>();
   let observer: IntersectionObserver | null = null;
   let pageElements: HTMLDivElement[] = [];
+  // Chapter-follow: `lastScrolledTarget` de-dupes repeated targets; on a switch
+  // the target is also stashed in `pendingScrollTarget` so the scroll is
+  // (re)applied AFTER the switch-triggered recompile renders — otherwise that
+  // render would restore the old scroll position over our jump (the race that
+  // made it land on page 1).
+  let lastScrolledTarget = '';
+  let pendingScrollTarget = '';
 
   // Base scale chosen for crispness at 100% zoom. The pdfZoom multiplier is
   // applied to pdfjs' viewport scale (rather than via CSS transform) so the
@@ -88,13 +97,83 @@
       setupPlaceholders();
       setupIntersectionObserver();
 
-      // Restore scroll position
+      // Restore scroll position — unless a chapter switch is pending, in which
+      // case jump to that chapter instead (and consume the pending target so
+      // later recompiles, e.g. while typing, just keep the position).
       await tick();
-      if (scrollContainer && lastScrollTop > 0) {
+      if (pendingScrollTarget) {
+        const tgt = pendingScrollTarget;
+        pendingScrollTarget = '';
+        void scrollToChapter(tgt);
+      } else if (scrollContainer && lastScrollTop > 0) {
         scrollContainer.scrollTop = lastScrollTop;
       }
     } catch (err) {
       console.error('[penwright] PDF render error:', err);
+    }
+  }
+
+  // Chapter switch → scroll the preview to that chapter's first page. Fires only
+  // when the target CHANGES (never on plain recompiles). Tries immediately on
+  // the current PDF, and stashes the target so the switch-triggered recompile's
+  // render re-applies it (see renderPdf) — avoiding the restore-over-jump race.
+  $effect(() => {
+    const target = scrollTarget;
+    if (!target || target === lastScrolledTarget) return;
+    lastScrolledTarget = target;
+    pendingScrollTarget = target;
+    if (currentPdf && pageElements.length > 0) void scrollToChapter(target);
+  });
+
+  function normalizeTitle(s: string): string {
+    return (s || '')
+      .toLowerCase()
+      .replace(/^[\d.\s]+/, '')        // drop a leading numbering like "1.2 "
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  interface OutlineNode { title: string; dest: string | unknown[] | null; items?: OutlineNode[]; }
+
+  async function scrollToChapter(title: string): Promise<void> {
+    const pdf = currentPdf;
+    if (!pdf || !scrollContainer) return;
+    try {
+      const outline = (await pdf.getOutline()) as OutlineNode[] | null;
+      if (!outline || outline.length === 0) return; // no PDF bookmarks → no jump
+
+      const flat: OutlineNode[] = [];
+      const walk = (items: OutlineNode[]) => {
+        for (const it of items) { flat.push(it); if (it.items?.length) walk(it.items); }
+      };
+      walk(outline);
+
+      const want = normalizeTitle(title);
+      if (!want) return;
+      let match = flat.find((it) => normalizeTitle(it.title) === want);
+      if (!match) {
+        match = flat.find((it) => {
+          const n = normalizeTitle(it.title);
+          return n.length > 0 && (n.includes(want) || want.includes(n));
+        });
+      }
+      if (!match || !match.dest) return;
+
+      let dest = match.dest;
+      if (typeof dest === 'string') {
+        dest = ((await pdf.getDestination(dest)) as unknown[] | null) ?? [];
+      }
+      if (!Array.isArray(dest) || dest.length === 0) return;
+      const pageIndex = await pdf.getPageIndex(dest[0] as Parameters<typeof pdf.getPageIndex>[0]);
+
+      const el = pageElements[pageIndex];
+      if (!el) return;
+      const top = el.getBoundingClientRect().top
+        - scrollContainer.getBoundingClientRect().top
+        + scrollContainer.scrollTop;
+      scrollContainer.scrollTop = Math.max(0, top - 8);
+    } catch {
+      // outline missing / destination unresolvable → leave the scroll as-is
     }
   }
 

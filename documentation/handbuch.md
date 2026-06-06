@@ -421,11 +421,12 @@ In beiden Faellen ist die Suche eine ganz normale [Find-in-Project](#suche-im-pr
 
 ## Live-Preview
 
-- **Root-Datei Kompilierung:** Bei Chapters wird automatisch main.typ kompiliert
+- **Root-Datei Kompilierung:** Bei Chapters wird automatisch main.typ kompiliert (die Vorschau zeigt immer das *ganze* Dokument, nicht ein einzelnes Kapitel)
 - **PDF-Rendering** ueber pdf.js — viewport-virtualisiert, also bleibt die Vorschau auch bei 100+ Seiten fluessig
 - **Text markieren & kopieren** in der Vorschau dank pdf.js' TextLayer
 - **Fehleranzeige:** Typst-Fehler werden im Preview Panel ausgegeben
-- **Live-Update** waehrend du tippst, mit 400 ms Compile-Debounce
+- **Aktualisierungs-Modus (auto / manuell):** standardmäßig aktualisiert sich die Vorschau live beim Tippen (400 ms Debounce). Für lange Dokumente kannst du unter **Document → Document Settings → Vorschau** auf **manuell** umstellen — dann wird weiterhin automatisch gespeichert, die Vorschau kompiliert aber nur, wenn du den **↻ Aktualisieren**-Button in der Vorschau-Leiste klickst. Ein „Veraltet"-Hinweis + ein hervorgehobenes ↻ zeigen, wenn die Vorschau hinterherhinkt.
+- **Folgt dem aktiven Kapitel:** wechselst du zu einer Kapiteldatei, scrollt die Vorschau zur ersten Seite dieses Kapitels (über die PDF-Lesezeichen gematcht). Der Sprung passiert nur beim *Wechsel*, nie beim Tippen.
 
 ---
 
@@ -630,7 +631,7 @@ Echtes PTY-Terminal (xterm.js + node-pty):
 
 - **Automatisch aktiv:** nutzt den eingebauten Electron-Spellchecker (Hunspell)
 - **Sprachsynchronisation:** Sprache wird aus `#set text(lang: "de")` im Typst-Dokument gelesen
-- **Dynamischer Wechsel:** aendert sich bei Quick Settings oder Settings Panel
+- **Dynamischer Wechsel:** aendert sich mit der Dokumentsprache in den Document Settings
 - **Rechtsklick auf Fehler:** Kontextmenue mit bis zu 5 Korrekturvorschlaegen + "Add to Dictionary"
 - **Unterstuetzte Sprachen:** en, de, fr, es, it, pt, nl, sv, da, nb, fi, pl, ru
 

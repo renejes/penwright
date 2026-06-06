@@ -421,11 +421,12 @@ Both triggers feed into the standard [Find in Project](#find-in-project), so the
 
 ## Live Preview
 
-- **Root-file compilation:** with chapters, `main.typ` is compiled automatically
+- **Root-file compilation:** with chapters, `main.typ` is compiled automatically (the preview always shows the *whole* document, not a single chapter)
 - **PDF rendering** via pdf.js — viewport-virtualised, so 100+ page documents stay smooth
 - **Text selection & copy** in the preview thanks to pdf.js' TextLayer
 - **Error display:** Typst errors show up in the preview panel
-- **Live update** as you type, with a 400 ms compile debounce
+- **Update mode (auto / manual):** by default the preview updates live as you type (400 ms debounce). For long documents you can switch to **manual** under **Document → Document Settings → Preview** — then saving still happens automatically, but the preview only recompiles when you click the **↻ Refresh** button in the preview header. An "Outdated" hint + a highlighted ↻ tell you when the preview is behind.
+- **Follows the chapter you're editing:** when you switch to a chapter file, the preview scrolls to that chapter's first page (matched via the PDF's bookmarks). It only jumps on a *switch*, never while you type.
 
 ---
 
@@ -630,7 +631,7 @@ Real PTY terminal (xterm.js + node-pty):
 
 - **Active by default:** uses Electron's built-in spellchecker (Hunspell)
 - **Language sync:** language is read from `#set text(lang: "de")` in the Typst document
-- **Dynamic switching:** updates when you change Quick Settings or the Settings Panel
+- **Dynamic switching:** updates when you change the document language in Document Settings
 - **Right-click misspelled word:** context menu with up to 5 suggestions + "Add to Dictionary"
 - **Supported languages:** en, de, fr, es, it, pt, nl, sv, da, nb, fi, pl, ru
 
