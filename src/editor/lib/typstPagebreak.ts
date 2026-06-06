@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { t } from '../../shared/i18n/store.svelte';
 
 export const TypstPagebreak = Node.create({
   name: 'pagebreak',
@@ -26,7 +27,7 @@ export const TypstPagebreak = Node.create({
 
       const label = document.createElement('span');
       label.className = 'typst-pagebreak-label';
-      label.textContent = 'Page Break';
+      label.textContent = t().editorLib.pageBreakLabel;
 
       line.appendChild(label);
       dom.appendChild(line);

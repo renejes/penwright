@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { tabState, editorRef } from '../appState.svelte';
   import { setCommentMarks, type CommentMark } from '../../editor/lib/commentDecorations';
+  import { t } from '@shared/i18n/store.svelte';
 
   interface CommentEntry {
     id: string;
@@ -162,7 +163,7 @@
   }
 
   async function deleteComment(c: CommentEntry) {
-    if (!confirm('Diesen Kommentar wirklich löschen?')) return;
+    if (!confirm(t().comments.confirmDelete)) return;
     try {
       await api.invoke('comments:delete', c.id);
       delete bodyDrafts[c.id];
@@ -221,31 +222,31 @@
   }
 </script>
 
-<div class="comments-panel" role="region" aria-label="Comments and annotations">
+<div class="comments-panel" role="region" aria-label={t().comments.regionAria}>
   <div class="cp-header">
     <div class="cp-tabs">
       <button class="cp-tab" class:active={scope === 'file'} onclick={() => (scope = 'file')}>
-        Aktuelle Datei
+        {t().comments.scopeFile}
       </button>
       <button class="cp-tab" class:active={scope === 'project'} onclick={() => (scope = 'project')}>
-        Ganzes Projekt
+        {t().comments.scopeProject}
       </button>
     </div>
     <label class="cp-resolved-toggle">
       <input type="checkbox" bind:checked={showResolved} />
-      Erledigte zeigen
+      {t().comments.showResolved}
     </label>
   </div>
 
   <div class="cp-info">
-    Kommentare werden als Markdown in <code>comments/</code> gespeichert. Sie kompilieren nicht ins PDF/DOCX.
+    {@html t().comments.info.replace('{folder}', '<code>comments/</code>')}
   </div>
 
   <div class="cp-list">
     {#if comments.length === 0}
       <div class="cp-empty">
-        <p>Keine Kommentare {scope === 'file' ? 'in dieser Datei' : 'im Projekt'}.</p>
-        <p class="cp-hint">Markiere Text im Editor und klicke „Comment hinzufügen" in der Toolbar.</p>
+        <p>{scope === 'file' ? t().comments.emptyFile : t().comments.emptyProject}</p>
+        <p class="cp-hint">{t().comments.emptyHint}</p>
       </div>
     {:else}
       {#each comments as c (c.id)}
@@ -257,16 +258,16 @@
           data-comment-card-id={c.id}
         >
           <div class="cp-card-header">
-            <button class="cp-anchor" onclick={() => jumpToAnchor(c)} title="Zur Stelle im Editor springen">
+            <button class="cp-anchor" onclick={() => jumpToAnchor(c)} title={t().comments.jumpToAnchor}>
               {#if c.orphaned}
-                <span class="cp-orphan-badge" title="Ankertext nicht mehr gefunden">⚠</span>
+                <span class="cp-orphan-badge" title={t().comments.orphanedTitle}>⚠</span>
               {/if}
               <span class="cp-anchor-text">„{shortenAnchor(c.anchor)}"</span>
             </button>
-            <button class="cp-icon-btn" onclick={() => toggleResolved(c)} title={c.resolved ? 'Wieder öffnen' : 'Als erledigt markieren'}>
+            <button class="cp-icon-btn" onclick={() => toggleResolved(c)} title={c.resolved ? t().comments.reopen : t().comments.markResolved}>
               {c.resolved ? '↺' : '✓'}
             </button>
-            <button class="cp-icon-btn cp-delete" onclick={() => deleteComment(c)} title="Löschen">×</button>
+            <button class="cp-icon-btn cp-delete" onclick={() => deleteComment(c)} title={t().common.delete}>×</button>
           </div>
           {#if scope === 'project'}
             <div class="cp-card-file" title={c.file}>{c.file}</div>
@@ -275,7 +276,7 @@
             class="cp-body"
             bind:value={bodyDrafts[c.id]}
             oninput={() => scheduleBodySave(c.id)}
-            placeholder="Notiz schreiben…"
+            placeholder={t().comments.notePlaceholder}
             rows="3"
           ></textarea>
           <div class="cp-card-meta">

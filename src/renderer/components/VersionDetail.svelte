@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   interface Props {
     sha: string;
@@ -34,13 +35,13 @@
   });
 
   async function restore() {
-    if (!confirm('Aktueller Stand wird durch diese Version ersetzt. Fortfahren?\n\nTipp: Ungespeicherte Änderungen vorher als eigene Version speichern.')) return;
+    if (!confirm(t().version.restoreConfirm)) return;
     restoring = true;
     try {
       await api.invoke('git:restoreVersion', { sha });
       onRestored();
     } catch (err) {
-      alert('Wiederherstellen fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err)));
+      alert(t().version.restoreFailed(err instanceof Error ? err.message : String(err)));
     } finally {
       restoring = false;
     }
@@ -48,10 +49,10 @@
 
   function statusLabel(s: DiffFile['status']): string {
     switch (s) {
-      case 'added': return 'neu';
-      case 'modified': return 'geändert';
-      case 'deleted': return 'gelöscht';
-      case 'renamed': return 'umbenannt';
+      case 'added': return t().version.statusAdded;
+      case 'modified': return t().version.statusModified;
+      case 'deleted': return t().version.statusDeleted;
+      case 'renamed': return t().version.statusRenamed;
     }
   }
 
@@ -84,19 +85,19 @@
   onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
   role="dialog"
   tabindex="-1"
-  aria-label="Version details"
+  aria-label={t().version.title}
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <div class="modal-header">
-      <div class="modal-title">Version-Details</div>
-      <button class="close-btn" onclick={onClose} aria-label="Schließen">×</button>
+      <div class="modal-title">{t().version.title}</div>
+      <button class="close-btn" onclick={onClose} aria-label={t().common.close}>×</button>
     </div>
 
     {#if loading}
-      <div class="modal-body loading">Lade Diff...</div>
+      <div class="modal-body loading">{t().version.loadingDiff}</div>
     {:else if files.length === 0}
-      <div class="modal-body muted">Keine Änderungen für diese Version gefunden.</div>
+      <div class="modal-body muted">{t().version.noChanges}</div>
     {:else}
       <div class="modal-body">
         {#each files as file}
@@ -109,7 +110,7 @@
               <pre class="diff">{#each file.patch.split('\n') as line}<span class={lineClass(line)}>{line}
 </span>{/each}</pre>
             {:else}
-              <div class="no-diff">Keine Textänderung sichtbar.</div>
+              <div class="no-diff">{t().version.noTextChange}</div>
             {/if}
           </div>
         {/each}
@@ -117,9 +118,9 @@
     {/if}
 
     <div class="modal-footer">
-      <button class="secondary" onclick={onClose}>Schließen</button>
+      <button class="secondary" onclick={onClose}>{t().common.close}</button>
       <button class="primary" onclick={restore} disabled={restoring || loading}>
-        {restoring ? 'Wird wiederhergestellt…' : 'Diese Version wiederherstellen'}
+        {restoring ? t().version.restoring : t().version.restore}
       </button>
     </div>
   </div>

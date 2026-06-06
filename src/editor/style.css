@@ -1170,6 +1170,55 @@ body {
   color: rgba(128, 128, 128, 0.7);
 }
 
+/* Toolbar "Insert" dropdown — reuses the slash-menu item visuals */
+.toolbar-insert-btn {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--accent-color, #a8503a);
+}
+.insert-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+.insert-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 264px;
+  max-height: 72vh;
+  overflow-y: auto;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+}
+.insert-menu-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(128, 128, 128, 0.7);
+  padding: 8px 10px 4px;
+}
+.insert-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.insert-menu-item:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
 /* Placeholder for empty editor */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: 'Type / for commands...';

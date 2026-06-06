@@ -1,6 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t, i18nState, setLocale } from "@shared/i18n/store.svelte";
   import logoSvg from "../assets/penwright-logo.svg";
+
+  // The Settings dialog (where the main language picker lives) needs an open
+  // project, so the Start Screen carries its own compact switcher.
+  const UI_LANGS = [
+    { value: "en", label: "EN" },
+    { value: "de", label: "DE" },
+  ] as const;
 
   let {
     onNewProject,
@@ -46,11 +54,26 @@
 </script>
 
 <div class="start-screen">
+  <!-- Compact UI-language switcher (the full picker lives in Settings, which
+       requires an open project). -->
+  <div class="lang-switch" role="group" aria-label={t().common.language}>
+    {#each UI_LANGS as l}
+      <button
+        class="lang-btn"
+        class:active={i18nState.locale === l.value}
+        onclick={() => setLocale(l.value)}
+        aria-pressed={i18nState.locale === l.value}
+      >
+        {l.label}
+      </button>
+    {/each}
+  </div>
+
   <div class="start-content">
     <!-- Logo & Title -->
     <div class="start-header">
       <img class="start-logo" src={logoSvg} alt="Penwright logo" />
-      <p class="subtitle">WYSIWYG Editor for Typst</p>
+      <p class="subtitle">{t().startScreen.subtitle}</p>
     </div>
 
     <!-- Typst Status -->
@@ -58,15 +81,15 @@
       <div class="typst-warning">
         <span class="warning-icon">!</span>
         <div>
-          <strong>Typst not found</strong>
+          <strong>{t().startScreen.typstNotFound}</strong>
           <p>
-            Live preview and PDF export require the Typst CLI.
+            {t().startScreen.typstNeeded}
             {#if platform === "darwin"}
-              Install with: <code>brew install typst</code>
+              {t().startScreen.typstInstallMac} <code>brew install typst</code>
             {:else if platform === "win32"}
-              Install with: <code>winget install typst</code>
+              {t().startScreen.typstInstallWin} <code>winget install typst</code>
             {:else}
-              Install from <code>https://typst.app</code>
+              {t().startScreen.typstInstallOther} <code>https://typst.app</code>
             {/if}
           </p>
         </div>
@@ -74,7 +97,7 @@
     {:else if typstInstalled === true}
       <div class="typst-ok">
         <span class="ok-icon">&#10003;</span>
-        Typst CLI installed
+        {t().startScreen.typstInstalled}
       </div>
     {/if}
 
@@ -83,28 +106,24 @@
       <button class="action-card action-primary" onclick={onNewProject}>
         <span class="action-icon">&#43;</span>
         <div>
-          <strong>New Project</strong>
-          <span class="action-desc"
-            >Document, Thesis, Paper, Letter, or Book</span
-          >
+          <strong>{t().startScreen.newProject}</strong>
+          <span class="action-desc">{t().startScreen.newProjectDesc}</span>
         </div>
       </button>
 
       <button class="action-card" onclick={onOpenSample}>
         <span class="action-icon">&#9733;</span>
         <div>
-          <strong>Open Sample Project</strong>
-          <span class="action-desc"
-            >A guided thesis on AI-assisted writing — every feature in one place</span
-          >
+          <strong>{t().startScreen.openSample}</strong>
+          <span class="action-desc">{t().startScreen.openSampleDesc}</span>
         </div>
       </button>
 
       <button class="action-card" onclick={onOpenProject}>
         <span class="action-icon">&#9776;</span>
         <div>
-          <strong>Open Project</strong>
-          <span class="action-desc">Open an existing project folder</span>
+          <strong>{t().startScreen.openProject}</strong>
+          <span class="action-desc">{t().startScreen.openProjectDesc}</span>
         </div>
       </button>
     </div>
@@ -112,7 +131,7 @@
     <!-- Recent Projects -->
     {#if recentProjects.length > 0}
       <div class="recent-section">
-        <h3 class="recent-title">Recent Projects</h3>
+        <h3 class="recent-title">{t().startScreen.recent}</h3>
         {#each recentProjects.slice(0, 5) as project}
           <button
             class="recent-item"
@@ -133,15 +152,13 @@
 
     <!-- Terminal / AI Info -->
     <div class="info-section">
-      <h3>Built-in Terminal with AI Integration</h3>
+      <h3>{t().startScreen.terminalTitle}</h3>
       <p>
-        Penwright includes a full terminal (<code>Cmd+`</code>) where you can run
-        <strong>Claude Code</strong>, <strong>OpenAI Codex</strong>, or
-        <strong>Gemini CLI</strong>
-        directly in your project.
+        {t().startScreen.terminalIntroBefore}<code>Cmd+`</code>{t().startScreen
+          .terminalIntroAfter}
       </p>
       <p>
-        Every new project automatically gets 3 Claude Code Skills deployed to
+        {t().startScreen.skillsIntro}
         <code>.claude/skills/</code>:
       </p>
       <div class="skills-grid">
@@ -149,41 +166,42 @@
           <span class="skill-icon">T</span>
           <div>
             <strong>typst</strong>
-            <span>Typst language reference</span>
+            <span>{t().startScreen.skillTypst}</span>
           </div>
         </div>
         <div class="skill-badge">
           <span class="skill-icon">P</span>
           <div>
             <strong>penwright</strong>
-            <span>Project conventions</span>
+            <span>{t().startScreen.skillPenwright}</span>
           </div>
         </div>
         <div class="skill-badge">
           <span class="skill-icon">R</span>
           <div>
             <strong>research</strong>
-            <span>Deep web research</span>
+            <span>{t().startScreen.skillResearch}</span>
           </div>
         </div>
       </div>
       <p class="info-hint">
-        AI agents can edit your .typ files directly — the editor updates live.
+        {t().startScreen.aiHint}
       </p>
     </div>
 
     <!-- Keyboard shortcuts hint -->
     <div class="shortcuts-hint">
-      <span><kbd>Cmd+N</kbd> New</span>
-      <span><kbd>Cmd+O</kbd> Open</span>
-      <span><kbd>Cmd+B</kbd> Sidebar</span>
-      <span><kbd>Cmd+`</kbd> Terminal</span>
+      <span><kbd>Cmd+N</kbd> {t().startScreen.shortcutNew}</span>
+      <span><kbd>Cmd+O</kbd> {t().startScreen.shortcutOpen}</span>
+      <span><kbd>Cmd+B</kbd> {t().startScreen.shortcutSidebar}</span>
+      <span><kbd>Cmd+`</kbd> {t().startScreen.shortcutTerminal}</span>
     </div>
   </div>
 </div>
 
 <style>
   .start-screen {
+    position: relative;
     flex: 1;
     display: flex;
     align-items: center;
@@ -191,6 +209,39 @@
     background: #fafafa;
     overflow-y: auto;
     padding: 20px 20px;
+  }
+
+  .lang-switch {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    background: #f1f0ec;
+    border: 1px solid #e2e0da;
+    border-radius: 7px;
+    z-index: 2;
+  }
+  .lang-btn {
+    border: none;
+    background: transparent;
+    color: #8a8174;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .lang-btn:hover {
+    color: #211e1a;
+  }
+  .lang-btn.active {
+    background: #ffffff;
+    color: #a8503a;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .start-content {

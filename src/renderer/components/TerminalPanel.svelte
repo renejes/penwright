@@ -3,6 +3,7 @@
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
   import '@xterm/xterm/css/xterm.css';
+  import { t } from '@shared/i18n/store.svelte';
 
   let terminalEl: HTMLDivElement;
   let term: Terminal | null = null;
@@ -92,7 +93,7 @@
 
 <div class="terminal-panel">
   <div class="terminal-header">
-    <span class="terminal-label">Terminal / AI</span>
+    <span class="terminal-label">{t().pickers.terminalLabel}</span>
   </div>
   <div class="terminal-content" bind:this={terminalEl}></div>
 </div>

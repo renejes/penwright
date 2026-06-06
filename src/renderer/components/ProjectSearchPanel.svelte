@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { projectSearchPreset } from '../appState.svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -113,7 +114,7 @@
   });
 
   function fileLabel(relPath: string): string {
-    return relPath || '(root)';
+    return relPath || t().pickers.projSearchRootLabel;
   }
 
   function toggleCollapsed(filePath: string) {
@@ -142,8 +143,7 @@
     if (!query.trim()) return;
     if (!results || results.totalMatches === 0) return;
     const ok = window.confirm(
-      `Wirklich ${results.totalMatches} Treffer in ${results.files.length} Datei(en) ersetzen?\n\n` +
-      `Eine automatische Version wird vorher nicht angelegt — speichere ggf. zuerst manuell eine Version.`,
+      t().pickers.projSearchConfirmReplace(results.totalMatches, results.files.length),
     );
     if (!ok) return;
 
@@ -160,14 +160,14 @@
       })) as ReplaceResults;
 
       if (res.error) {
-        replaceMessage = `Fehler: ${res.error}`;
+        replaceMessage = t().pickers.projSearchError(res.error);
       } else {
-        replaceMessage = `${res.totalReplacements} Treffer in ${res.filesChanged} Datei(en) ersetzt.`;
+        replaceMessage = t().pickers.projSearchReplacedSummary(res.totalReplacements, res.filesChanged);
       }
       // Re-run search to refresh result list (now empty for replaced matches).
       await runSearch();
     } catch (err) {
-      replaceMessage = `Fehler: ${String(err)}`;
+      replaceMessage = t().pickers.projSearchError(String(err));
     }
     replacing = false;
   }
@@ -190,14 +190,14 @@
   }
 </script>
 
-<div class="project-search" role="region" aria-label="Search across project">
+<div class="project-search" role="region" aria-label={t().pickers.projSearchRegionAria}>
   <div class="ps-header">
     <div class="ps-row">
       <button
         class="ps-toggle"
         onclick={() => (showReplace = !showReplace)}
-        title={showReplace ? 'Ersetzen ausblenden' : 'Ersetzen anzeigen'}
-        aria-label={showReplace ? 'Hide replace' : 'Show replace'}
+        title={showReplace ? t().pickers.projSearchHideReplace : t().pickers.projSearchShowReplace}
+        aria-label={showReplace ? t().pickers.projSearchHideReplace : t().pickers.projSearchShowReplace}
       >
         {showReplace ? '▾' : '▸'}
       </button>
@@ -206,41 +206,41 @@
         bind:value={query}
         class="ps-input"
         type="text"
-        placeholder="Im Projekt suchen…"
+        placeholder={t().pickers.projSearchPlaceholder}
         onkeydown={handleKeydown}
-        aria-label="Search query"
+        aria-label={t().common.search}
       />
       <div class="ps-options">
         <button
           class="ps-opt"
           class:active={caseSensitive}
           onclick={() => (caseSensitive = !caseSensitive)}
-          title="Case-sensitive (Aa)"
+          title={t().pickers.projSearchCaseTitle}
           aria-pressed={caseSensitive}
         >Aa</button>
         <button
           class="ps-opt"
           class:active={wholeWord}
           onclick={() => (wholeWord = !wholeWord)}
-          title="Whole word (W)"
+          title={t().pickers.projSearchWholeWordTitle}
           aria-pressed={wholeWord}
         >W</button>
         <button
           class="ps-opt"
           class:active={regex}
           onclick={() => (regex = !regex)}
-          title="Regular expression (.*)"
+          title={t().pickers.projSearchRegexTitle}
           aria-pressed={regex}
         >.*</button>
         <button
           class="ps-opt"
           class:active={includeBib}
           onclick={() => (includeBib = !includeBib)}
-          title="Include .bib files"
+          title={t().pickers.projSearchBibTitle}
           aria-pressed={includeBib}
         >.bib</button>
       </div>
-      <button class="ps-close" onclick={onClose} title="Schließen (Esc)" aria-label="Close project search">&times;</button>
+      <button class="ps-close" onclick={onClose} title={t().common.close} aria-label={t().common.close}>&times;</button>
     </div>
 
     {#if showReplace}
@@ -250,32 +250,32 @@
           bind:value={replacement}
           class="ps-input"
           type="text"
-          placeholder="Ersetzen durch…"
+          placeholder={t().pickers.projSearchReplacePlaceholder}
           onkeydown={handleKeydown}
-          aria-label="Replacement text"
+          aria-label={t().pickers.projSearchReplacePlaceholder}
         />
         <button
           class="ps-replace"
           onclick={replaceAll}
           disabled={replacing || !results || results.totalMatches === 0}
-          title="Alle Treffer ersetzen"
-          aria-label="Replace all"
+          title={t().pickers.projSearchReplaceAllTitle}
+          aria-label={t().pickers.projSearchReplaceAll}
         >
-          {replacing ? 'Ersetze…' : 'Alle ersetzen'}
+          {replacing ? t().pickers.projSearchReplacing : t().pickers.projSearchReplaceAll}
         </button>
       </div>
     {/if}
 
     <div class="ps-status" aria-live="polite">
       {#if searching}
-        Suche…
+        {t().pickers.projSearchSearching}
       {:else if searchError}
-        <span class="ps-error">Fehler: {searchError}</span>
+        <span class="ps-error">{t().pickers.projSearchError(searchError)}</span>
       {:else if results && query.trim()}
-        {results.totalMatches} {results.totalMatches === 1 ? 'Treffer' : 'Treffer'} in {results.files.length} {results.files.length === 1 ? 'Datei' : 'Dateien'}
-        {#if results.truncated}<span class="ps-warn"> · Liste gekürzt (max 1000)</span>{/if}
+        {t().pickers.projSearchSummary(results.totalMatches, results.files.length)}
+        {#if results.truncated}<span class="ps-warn">{t().pickers.projSearchTruncated}</span>{/if}
       {:else if query.trim()}
-        Keine Treffer.
+        {t().pickers.projSearchNoMatches}
       {:else}
         &nbsp;
       {/if}
@@ -304,7 +304,7 @@
               {#each file.matches as match}
                 {@const parts = highlight(match.lineText, match.matchStart, match.matchEnd)}
                 <li>
-                  <button class="ps-match" onclick={() => jumpTo(file, match)} title="Zur Stelle springen">
+                  <button class="ps-match" onclick={() => jumpTo(file, match)} title={t().pickers.projSearchJumpTitle}>
                     <span class="ps-line-num">{match.line}:{match.col}</span>
                     <span class="ps-line-text">{parts.before}<mark>{parts.match}</mark>{parts.after}</span>
                   </button>

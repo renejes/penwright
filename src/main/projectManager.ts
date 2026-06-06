@@ -15,6 +15,8 @@ import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleType
 import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
 import { addBreadcrumb } from './crashReporter';
+import { getLocale } from './persistenceManager';
+import { resolveDict } from '../shared/i18n';
 
 const GITIGNORE_TEMPLATE = `# Penwright
 .penwright/
@@ -176,10 +178,11 @@ export function readDirTree(dir: string, depth = 0): FileEntry[] {
 // ─── Project Creation ─────────────────────────────────
 
 export async function handleCreateProject(templateId: string, projectName: string): Promise<void> {
+  const md = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showOpenDialog(appState.mainWindow!, {
     properties: ['openDirectory', 'createDirectory'],
-    title: 'Choose location for project',
-    buttonLabel: 'Create Here',
+    title: md.chooseProjectLocationTitle,
+    buttonLabel: md.createHere,
   });
   if (result.canceled || !result.filePaths[0]) return;
 
@@ -268,11 +271,12 @@ function migrateLegacyProjectDir(dir: string): void {
  * folder-picker dialog. Returns the project dir if loaded, otherwise null.
  */
 export async function openProject(projectDir?: string): Promise<string | null> {
+  const md = resolveDict(getLocale()).mainDialogs;
   if (!projectDir) {
     const result = await dialog.showOpenDialog(appState.mainWindow!, {
       properties: ['openDirectory'],
-      title: 'Open Project',
-      buttonLabel: 'Open Project',
+      title: md.openProjectTitle,
+      buttonLabel: md.openProjectTitle,
     });
     if (result.canceled || !result.filePaths[0]) return null;
     projectDir = result.filePaths[0];
@@ -281,8 +285,8 @@ export async function openProject(projectDir?: string): Promise<string | null> {
   if (!fs.existsSync(projectDir) || !fs.statSync(projectDir).isDirectory()) {
     await dialog.showMessageBox(appState.mainWindow!, {
       type: 'error',
-      message: 'Folder not found.',
-      detail: `The path "${projectDir}" does not exist or is not a folder.`,
+      message: md.folderNotFound,
+      detail: md.folderNotFoundDetail(projectDir),
     });
     return null;
   }
@@ -373,10 +377,11 @@ async function pickSampleTargetDir(): Promise<string | null> {
     counter++;
   }
 
+  const md = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showSaveDialog(appState.mainWindow, {
-    title: 'Where should the sample project be saved?',
+    title: md.sampleProjectTargetTitle,
     defaultPath: candidate,
-    buttonLabel: 'Create here',
+    buttonLabel: md.sampleProjectCreateHere,
     properties: ['createDirectory'],
   });
   if (result.canceled || !result.filePath) return null;
@@ -393,13 +398,14 @@ async function pickSampleTargetDir(): Promise<string | null> {
  * copy in their own Documents folder.
  */
 export async function openSampleProject(): Promise<string | null> {
+  const md = resolveDict(getLocale()).mainDialogs;
   const bundled = findBundledSampleDir();
   if (!bundled) {
     if (appState.mainWindow) {
       await dialog.showMessageBox(appState.mainWindow, {
         type: 'error',
-        message: 'Sample project not found.',
-        detail: 'The bundled sample-project resource is missing from this build.',
+        message: md.sampleProjectNotFound,
+        detail: md.sampleProjectNotFoundDetail,
       });
     }
     return null;
@@ -421,7 +427,7 @@ export async function openSampleProject(): Promise<string | null> {
     if (appState.mainWindow) {
       await dialog.showMessageBox(appState.mainWindow, {
         type: 'error',
-        message: 'Could not create the sample project.',
+        message: md.sampleProjectCreateFailed,
         detail: err instanceof Error ? err.message : String(err),
       });
     }
@@ -456,11 +462,12 @@ export async function openSampleProject(): Promise<string | null> {
  * the project root.
  */
 export async function handleNewFolder(parentRelPath: string, name: string): Promise<{ ok: boolean; error?: string }> {
-  if (!appState.projectDir) return { ok: false, error: 'No project open.' };
+  const md = resolveDict(getLocale()).mainDialogs;
+  if (!appState.projectDir) return { ok: false, error: md.noProjectOpen };
   const cleanName = name.trim();
-  if (!cleanName) return { ok: false, error: 'Folder name is empty.' };
+  if (!cleanName) return { ok: false, error: md.folderNameEmpty };
   if (/[/\\:*?"<>|]/.test(cleanName) || cleanName.startsWith('.')) {
-    return { ok: false, error: 'Folder name contains invalid characters.' };
+    return { ok: false, error: md.folderNameInvalid };
   }
 
   const target = path.join(appState.projectDir, parentRelPath || '', cleanName);
@@ -470,10 +477,10 @@ export async function handleNewFolder(parentRelPath: string, name: string): Prom
   const projectAbs = path.resolve(appState.projectDir);
   const targetAbs = path.resolve(target);
   if (!targetAbs.startsWith(projectAbs + path.sep) && targetAbs !== projectAbs) {
-    return { ok: false, error: 'Folder is outside the project.' };
+    return { ok: false, error: md.folderOutside };
   }
   if (fs.existsSync(targetAbs)) {
-    return { ok: false, error: 'A folder with that name already exists.' };
+    return { ok: false, error: md.folderExists };
   }
 
   try {
@@ -492,14 +499,15 @@ export async function handleNewFolder(parentRelPath: string, name: string): Prom
  * `assets/` folder. Returns the list of relative paths created.
  */
 export async function handleAddAssets(): Promise<{ added: string[]; error?: string }> {
-  if (!appState.projectDir) return { added: [], error: 'No project open.' };
+  const md = resolveDict(getLocale()).mainDialogs;
+  if (!appState.projectDir) return { added: [], error: md.noProjectOpen };
 
   const result = await dialog.showOpenDialog(appState.mainWindow!, {
-    title: 'Add assets to project',
+    title: md.addAssetsTitle,
     properties: ['openFile', 'multiSelections'],
     filters: [
-      { name: 'Common assets', extensions: ['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp', 'pdf', 'csv', 'json', 'bib'] },
-      { name: 'All files', extensions: ['*'] },
+      { name: md.filterCommonAssets, extensions: ['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp', 'pdf', 'csv', 'json', 'bib'] },
+      { name: md.filterAllFiles, extensions: ['*'] },
     ],
   });
   if (result.canceled || result.filePaths.length === 0) return { added: [] };
@@ -538,8 +546,9 @@ export async function handleAddAssets(): Promise<{ added: string[]; error?: stri
 // ─── Image Handlers ──────────────────────────────────
 
 export async function handlePickImage(): Promise<void> {
+  const md = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showOpenDialog(appState.mainWindow!, {
-    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'svg', 'gif'] }],
+    filters: [{ name: md.filterImages, extensions: ['png', 'jpg', 'jpeg', 'svg', 'gif'] }],
     properties: ['openFile'],
   });
   if (result.canceled || !result.filePaths[0]) return;

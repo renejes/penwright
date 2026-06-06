@@ -15,7 +15,8 @@ import { setupGitIPC } from './gitManager';
 import { openFile, saveFile, saveFileAs, closeProjectInteractive, stopFileWatcher, disposeCompiler } from './fileManager';
 import { openProject } from './projectManager';
 import { releaseLock } from './lockManager';
-import { getWindowBounds, saveWindowBounds } from './persistenceManager';
+import { getWindowBounds, saveWindowBounds, getLocale } from './persistenceManager';
+import { resolveDict } from '../shared/i18n';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
 import { getTypstFontPath } from './typstPath';
@@ -76,12 +77,13 @@ function createWindow(): void {
     }
     if (appState.isDirty) {
       e.preventDefault();
+      const md = resolveDict(getLocale()).mainDialogs;
       const result = await dialog.showMessageBox(appState.mainWindow!, {
         type: 'warning',
-        buttons: ['Save', "Don't Save", 'Cancel'],
+        buttons: [md.save, md.dontSave, md.cancel],
         defaultId: 0,
-        message: 'You have unsaved changes.',
-        detail: 'Do you want to save before closing?',
+        message: md.unsavedChangesMessage,
+        detail: md.unsavedChangesQuitDetail,
       });
       if (result.response === 0) {
         await saveFile();

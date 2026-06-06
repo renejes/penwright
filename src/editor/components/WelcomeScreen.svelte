@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@shared/i18n/store.svelte';
+
   let {
     typstInstalled,
     platform,
@@ -25,9 +27,9 @@
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
   <div class="welcome-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
     <div class="welcome-header">
-      <h1>Welcome to Penwright</h1>
+      <h1>{t().editor.welcomeTitle}</h1>
       <p class="welcome-tagline">
-        A visual editor for Typst documents — write like in a word processor, compile to beautiful PDFs.
+        {t().editor.welcomeTagline}
       </p>
     </div>
 
@@ -36,37 +38,37 @@
         <div class="welcome-feature">
           <span class="welcome-feature-icon">/</span>
           <div>
-            <strong>Slash Commands</strong>
-            <p>Type / to insert headings, lists, images, tables, and more.</p>
+            <strong>{t().editor.welcomeSlashTitle}</strong>
+            <p>{t().editor.welcomeSlashBody}</p>
           </div>
         </div>
         <div class="welcome-feature">
           <span class="welcome-feature-icon">&#9654;</span>
           <div>
-            <strong>Live Preview</strong>
-            <p>See your document rendered in real-time as you type.</p>
+            <strong>{t().editor.welcomePreviewTitle}</strong>
+            <p>{t().editor.welcomePreviewBody}</p>
           </div>
         </div>
         <div class="welcome-feature">
           <span class="welcome-feature-icon">&#9776;</span>
           <div>
-            <strong>Command Hub</strong>
-            <p>All actions in one place — click the menu icon in the toolbar.</p>
+            <strong>{t().editor.welcomeCommandHubTitle}</strong>
+            <p>{t().editor.welcomeCommandHubBody}</p>
           </div>
         </div>
         <div class="welcome-feature">
           <span class="welcome-feature-icon">AI</span>
           <div>
-            <strong>AI Agent Support</strong>
-            <p>AI tools can edit your .typ files directly — changes appear instantly.</p>
+            <strong>{t().editor.welcomeAiTitle}</strong>
+            <p>{t().editor.welcomeAiBody}</p>
           </div>
         </div>
       </div>
 
       {#if !typstInstalled}
         <div class="welcome-warning">
-          <strong>Typst CLI not found</strong>
-          <p>Install Typst for live preview and PDF export:</p>
+          <strong>{t().editor.welcomeTypstMissingTitle}</strong>
+          <p>{t().editor.welcomeTypstMissingBody}</p>
           <code class="welcome-install-cmd">
             {#if platform === 'darwin'}
               brew install typst
@@ -76,18 +78,18 @@
               cargo install typst-cli
             {/if}
           </code>
-          <p class="welcome-hint">Run this command in your terminal, then restart VS Code.</p>
+          <p class="welcome-hint">{t().editor.welcomeTypstHint}</p>
         </div>
       {:else}
         <div class="welcome-success">
-          Typst CLI detected — live preview and PDF export are ready.
+          {t().editor.welcomeTypstReady}
         </div>
       {/if}
 
       <!-- svelte-ignore a11y_label_has_associated_control -->
       <label class="welcome-checkbox">
         <input type="checkbox" bind:checked={dontShowAgain} />
-        Don't show this again
+        {t().editor.welcomeDontShowAgain}
       </label>
     </div>
 
@@ -96,7 +98,7 @@
         class="welcome-btn"
         onclick={() => onDismiss(dontShowAgain)}
       >
-        Get Started
+        {t().editor.welcomeGetStarted}
       </button>
     </div>
   </div>

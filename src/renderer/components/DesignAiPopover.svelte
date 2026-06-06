@@ -11,6 +11,7 @@
   import type { SelectionPin } from '../../shared/selectionTypes';
   import { THEME_PRESETS } from '../../shared/themePresets';
   import { getSectionPreset } from '../../shared/sectionPresets';
+  import { t } from '@shared/i18n/store.svelte';
 
   let { x, y, onClose }: { x: number; y: number; onClose: () => void } = $props();
 
@@ -21,12 +22,6 @@
   let pin = $state<SelectionPin | null>(null);
   let copied = $state(false);
   let applied = $state(false);
-
-  const STARTER_PROMPT = [
-    'Gestalte die in Penwright gepinnte Auswahl — ruf zuerst `penwright_get_selection` auf,',
-    'um den Text und den aktuellen Look zu sehen. Mach daraus: <hier beschreiben>.',
-    'Halte es konsistent mit dem bestehenden Theme, der Palette und dem Layout.',
-  ].join(' ');
 
   // Clamp into the viewport (the rect is captured at pin time and fixed).
   const left = $derived(Math.max(12, Math.min(x, window.innerWidth - 320)));
@@ -53,8 +48,8 @@
     return s.length > n ? s.slice(0, n).trimEnd() + '…' : s;
   }
   function themeName(p: SelectionPin): string {
-    if (!p.context.theme) return 'Eigenes Design';
-    return THEME_PRESETS.find(t => t.id === p.context.theme)?.name ?? p.context.theme;
+    if (!p.context.theme) return t().designAi.ownDesign;
+    return THEME_PRESETS.find(tp => tp.id === p.context.theme)?.name ?? p.context.theme;
   }
   function sectionName(id: string): string {
     return getSectionPreset(id)?.name ?? id;
@@ -62,7 +57,7 @@
 
   async function copyPrompt(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(STARTER_PROMPT);
+      await navigator.clipboard.writeText(t().designAi.starterPrompt);
       copied = true;
       setTimeout(() => { copied = false; }, 1800);
     } catch { /* ignore */ }
@@ -76,23 +71,23 @@
 
 <div class="dap" style="left: {left}px; top: {top}px">
   {#if applied}
-    <div class="dap-toast">✓ Dokument aktualisiert</div>
+    <div class="dap-toast">{t().designAi.toastUpdated}</div>
   {:else if pin}
     <div class="dap-head">
-      <span class="dap-title">✨ Design with AI</span>
-      <button class="dap-x" onclick={unpin} title="Lösen" aria-label="Lösen">×</button>
+      <span class="dap-title">{t().designAi.title}</span>
+      <button class="dap-x" onclick={unpin} title={t().designAi.unpinTitle} aria-label={t().designAi.unpinAria}>×</button>
     </div>
     <blockquote class="dap-preview">{truncate(pin.selectionText, 160)}</blockquote>
     <ul class="dap-ctx">
-      <li><span>Theme</span><strong>{themeName(pin)}</strong></li>
-      <li><span>Akzent</span><strong><i class="dap-swatch" style="background:{pin.context.palette.accent}"></i>{pin.context.palette.accent}</strong></li>
-      {#if pin.context.sectionStyle}<li><span>Rubrik</span><strong>{sectionName(pin.context.sectionStyle)}</strong></li>{/if}
+      <li><span>{t().designAi.ctxTheme}</span><strong>{themeName(pin)}</strong></li>
+      <li><span>{t().designAi.ctxAccent}</span><strong><i class="dap-swatch" style="background:{pin.context.palette.accent}"></i>{pin.context.palette.accent}</strong></li>
+      {#if pin.context.sectionStyle}<li><span>{t().designAi.ctxRubric}</span><strong>{sectionName(pin.context.sectionStyle)}</strong></li>{/if}
     </ul>
     <div class="dap-actions">
-      <button class="dap-btn primary" onclick={copyPrompt}>{copied ? '✓ Kopiert' : 'Prompt kopieren'}</button>
-      <button class="dap-btn" onclick={openClaude}>Claude öffnen</button>
+      <button class="dap-btn primary" onclick={copyPrompt}>{copied ? t().designAi.copied : t().designAi.copyPrompt}</button>
+      <button class="dap-btn" onclick={openClaude}>{t().designAi.openClaude}</button>
     </div>
-    <p class="dap-hint">In Claude einfügen, „&lt;hier beschreiben&gt;“ ersetzen, absenden. Erscheint danach automatisch hier.</p>
+    <p class="dap-hint">{t().designAi.hint}</p>
   {/if}
 </div>
 

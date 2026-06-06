@@ -1,0 +1,42 @@
+/** Look controls — the status-bar Look picker (LookStatus) + chapter-look editor (SectionLookEditor). */
+export const look = {
+  // ─── LookStatus (status bar)
+  globalBadge: '✦ Global look',
+  chapterLabel: 'Chapter look',
+  chapterSelectTitle: 'Styles only this chapter (color, font, columns). Page format stays global. Safe — on error everything stays as it was.',
+  optionDefault: 'Standard',
+  editTitle: 'Adjust this look (colors, fonts, columns …)',
+  editAria: 'Adjust look',
+  notApplied: 'not applied',
+  openGlobalTitle: 'Edit the look of the whole document',
+  lookBadge: '✦ Look',
+
+  // ─── SectionLookEditor (modal)
+  editorTitle: 'Adjust chapter look',
+  editorSubtitle: (name: string) => `Rubric “${name}”`,
+  editorDialogAria: 'Adjust chapter look',
+  closeAria: 'Close',
+  fieldAccent: 'Accent',
+  fieldPrimary: 'Primary',
+  fieldBodyFont: 'Body font',
+  fieldHeadingFont: 'Heading font',
+  asDocument: 'as document',
+  fieldBaseSize: 'Base size',
+  baseSizePlaceholder: 'e.g. 11pt',
+  fieldLeading: 'Leading',
+  leadingPlaceholder: 'e.g. 0.7em',
+  fieldColumns: 'Columns',
+  columnsAsDocument: 'as document',
+  headingsToggle: 'Headings (H1–H3)',
+  headingSizePlaceholder: 'Size',
+  headingWeightPlaceholder: 'Weight',
+  headingColorPlaceholder: 'Color',
+  editorNote: 'Page format, margins & headers stay document-wide. Applied safely — if it breaks the document, everything stays as it was.',
+  errorWouldBreak: 'Not applied — would break the document.',
+  errorSaveFailed: 'Saving failed.',
+  saveThisChapter: 'Only this chapter',
+  saveThisChapterTitle: 'Creates a copy for this chapter only',
+  saveAll: 'For all with this look',
+  saveAllTitle: 'Changes the rubric for all chapters that use it',
+};
+export type LookMessages = typeof look;

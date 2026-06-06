@@ -1,5 +1,6 @@
 <script lang="ts">
   import { uiState } from '../appState.svelte';
+  import { t } from '@shared/i18n/store.svelte';
   import logoUrl from '../assets/penwright-icon.svg';
 
   const api = (window as unknown as {
@@ -41,32 +42,31 @@
         if (typeof ent.trialDaysLeft === 'number') uiState.trialDaysLeft = ent.trialDaysLeft;
       }
       if (uiState.licenseAccess === 'expired') {
-        recheckNote = 'No active license found yet.';
+        recheckNote = t().license.gateNoLicenseYet;
       }
     } catch {
-      recheckNote = 'Check failed — are you online?';
+      recheckNote = t().license.gateCheckFailed;
     } finally {
       checking = false;
     }
   }
 </script>
 
-<div class="gate-overlay" role="dialog" aria-modal="true" aria-label="Trial expired">
+<div class="gate-overlay" role="dialog" aria-modal="true" aria-label={t().license.gateTitle}>
   <div class="gate-card">
     <img src={logoUrl} alt="Penwright" class="gate-logo" />
-    <h1>Trial expired</h1>
+    <h1>{t().license.gateTitle}</h1>
     <p class="gate-text">
-      Your 14-day trial has ended. A Penwright license unlocks everything
-      permanently — including the AI / MCP integration.
+      {t().license.gateText}
     </p>
 
     <div class="gate-actions">
-      <button class="btn btn-primary" onclick={buy}>Buy license – €59</button>
-      <button class="btn btn-secondary" onclick={enterKey}>Enter key</button>
+      <button class="btn btn-primary" onclick={buy}>{t().license.gateBuy}</button>
+      <button class="btn btn-secondary" onclick={enterKey}>{t().license.gateEnterKey}</button>
     </div>
 
     <button class="btn-text" onclick={recheck} disabled={checking}>
-      {checking ? 'Checking…' : 'Check again'}
+      {checking ? t().license.gateChecking : t().license.gateCheckAgain}
     </button>
     {#if recheckNote}
       <p class="gate-note">{recheckNote}</p>

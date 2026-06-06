@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@shared/i18n/store.svelte';
+
   let {
     templates = [],
     onClose,
@@ -43,23 +45,23 @@
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
   <div class="dialog" onclick={(e) => e.stopPropagation()} onkeydown={handleKeydown}>
     <div class="dialog-header">
-      <h2>New Project</h2>
-      <button class="close-btn" onclick={onClose}>
+      <h2>{t().pickers.newProjectTitle}</h2>
+      <button class="close-btn" onclick={onClose} aria-label={t().common.close}>
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
     </div>
 
     <div class="dialog-body">
-      <label class="field-label">Project Name</label>
+      <label class="field-label">{t().pickers.newProjectNameLabel}</label>
       <input
         class="field-input"
         type="text"
         bind:value={projectName}
-        placeholder="my-project"
+        placeholder={t().pickers.newProjectNamePlaceholder}
         autofocus
       />
 
-      <label class="field-label">Template</label>
+      <label class="field-label">{t().pickers.newProjectTemplateLabel}</label>
       <div class="template-grid">
         {#each templates as tmpl}
           <button
@@ -76,9 +78,9 @@
     </div>
 
     <div class="dialog-footer">
-      <button class="btn-secondary" onclick={onClose}>Cancel</button>
+      <button class="btn-secondary" onclick={onClose}>{t().common.cancel}</button>
       <button class="btn-primary" onclick={create} disabled={!projectName.trim()}>
-        Create Project
+        {t().pickers.newProjectCreate}
       </button>
     </div>
   </div>

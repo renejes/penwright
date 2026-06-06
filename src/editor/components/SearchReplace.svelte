@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { Editor } from '@tiptap/core';
+  import { t } from '@shared/i18n/store.svelte';
 
   let {
     editor,
@@ -184,7 +185,7 @@
       bind:this={searchInput}
       bind:value={searchTerm}
       type="text"
-      placeholder="Search..."
+      placeholder={t().editor.searchPlaceholder}
       class="search-input"
     />
     <span class="search-count">
@@ -192,23 +193,23 @@
         {currentMatch}/{matchCount}
       {/if}
     </span>
-    <button class="search-nav-btn" onclick={prevMatch} title="Previous (Shift+Enter)">&#x25B2;</button>
-    <button class="search-nav-btn" onclick={nextMatch} title="Next (Enter)">&#x25BC;</button>
-    <button class="search-nav-btn" onclick={() => (showReplace = !showReplace)} title="Toggle Replace" class:active={showReplace}>
+    <button class="search-nav-btn" onclick={prevMatch} title={t().editor.searchPrevious}>&#x25B2;</button>
+    <button class="search-nav-btn" onclick={nextMatch} title={t().editor.searchNext}>&#x25BC;</button>
+    <button class="search-nav-btn" onclick={() => (showReplace = !showReplace)} title={t().editor.searchToggleReplace} class:active={showReplace}>
       &#x21C4;
     </button>
-    <button class="search-close-btn" onclick={close} title="Close (Esc)">&times;</button>
+    <button class="search-close-btn" onclick={close} title={t().editor.searchClose}>&times;</button>
   </div>
   {#if showReplace}
     <div class="search-row">
       <input
         bind:value={replaceTerm}
         type="text"
-        placeholder="Replace..."
+        placeholder={t().editor.searchReplacePlaceholder}
         class="search-input"
       />
-      <button class="search-action-btn" onclick={replaceOne}>Replace</button>
-      <button class="search-action-btn" onclick={replaceAll}>All</button>
+      <button class="search-action-btn" onclick={replaceOne}>{t().editor.searchReplaceOne}</button>
+      <button class="search-action-btn" onclick={replaceAll}>{t().editor.searchReplaceAll}</button>
     </div>
   {/if}
 </div>

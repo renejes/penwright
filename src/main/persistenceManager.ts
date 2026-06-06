@@ -11,7 +11,7 @@
 import Store from 'electron-store';
 import * as path from 'path';
 import * as fs from 'fs';
-import { safeStorage } from 'electron';
+import { app, safeStorage } from 'electron';
 import {
   type ProjectStyle,
   DEFAULT_PROJECT_STYLE,
@@ -74,6 +74,8 @@ interface StoreSchema {
   backupConfig: BackupConfig;
   /** Last MCP_SETUP_VERSION the user ran the Claude-Desktop setup for. */
   mcpSetupVersion: string | null;
+  /** UI language ('de' | 'en'); null until the user picks one (then OS-resolved). */
+  locale: 'de' | 'en' | null;
 }
 
 const DEFAULT_BACKUP_CONFIG: BackupConfig = {
@@ -107,6 +109,7 @@ const store = new Store<StoreSchema>({
     licenseBlob: null,
     backupConfig: DEFAULT_BACKUP_CONFIG,
     mcpSetupVersion: null,
+    locale: null,
   },
 });
 
@@ -181,6 +184,24 @@ export function isOnboardingSeen(): boolean {
 
 export function setOnboardingSeen(seen: boolean): void {
   store.set('onboardingSeen', seen);
+}
+
+// ─── UI Locale ───────────────────────────────────
+// Global (per-device) interface language. Stored as 'de' | 'en'; `null` until
+// the user picks one, at which point we resolve from the OS locale on the fly.
+
+export function getLocale(): 'de' | 'en' {
+  const stored = store.get('locale');
+  if (stored === 'de' || stored === 'en') return stored;
+  try {
+    return app.getLocale().toLowerCase().startsWith('de') ? 'de' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+export function setLocale(locale: string): void {
+  store.set('locale', locale === 'de' ? 'de' : 'en');
 }
 
 // ─── Local Trial ─────────────────────────────────

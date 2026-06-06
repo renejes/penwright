@@ -1,6 +1,7 @@
 <script lang="ts">
   import PdfPreviewPanel from './PdfPreviewPanel.svelte';
   import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom } from '../appState.svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   let {
     pdfData = null,
@@ -15,17 +16,17 @@
 
 <div class="preview">
   <div class="preview-header">
-    <span class="preview-label">Preview</span>
+    <span class="preview-label">{t().pickers.previewLabel}</span>
     <div class="preview-header-right">
       {#if compiling}
-        <span class="badge compiling">Compiling…</span>
+        <span class="badge compiling">{t().pickers.previewCompiling}</span>
       {:else if error}
-        <span class="badge error">Error</span>
+        <span class="badge error">{t().pickers.previewError}</span>
       {/if}
-      <div class="zoom-controls" role="group" aria-label="Preview zoom">
-        <button class="zoom-btn" onclick={zoomPdfOut} title="Zoom Out" aria-label="Zoom out">−</button>
-        <button class="zoom-percent" onclick={resetPdfZoom} title="Reset zoom" aria-label="Reset zoom">{Math.round(zoomState.pdf * 100)}%</button>
-        <button class="zoom-btn" onclick={zoomPdfIn} title="Zoom In" aria-label="Zoom in">+</button>
+      <div class="zoom-controls" role="group" aria-label={t().pickers.previewLabel}>
+        <button class="zoom-btn" onclick={zoomPdfOut} title={t().pickers.previewZoomOut} aria-label={t().pickers.previewZoomOut}>−</button>
+        <button class="zoom-percent" onclick={resetPdfZoom} title={t().pickers.previewResetZoom} aria-label={t().pickers.previewResetZoom}>{Math.round(zoomState.pdf * 100)}%</button>
+        <button class="zoom-btn" onclick={zoomPdfIn} title={t().pickers.previewZoomIn} aria-label={t().pickers.previewZoomIn}>+</button>
       </div>
     </div>
   </div>

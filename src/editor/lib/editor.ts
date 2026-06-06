@@ -15,6 +15,7 @@ import { TextColor, Highlight, Underline, Superscript, Subscript, Smallcaps } fr
 import { TextAlign } from './typstTextAlign';
 import { SlashCommands } from './slashCommands';
 import { CommentDecorations } from './commentDecorations';
+import { t } from '../../shared/i18n/store.svelte';
 
 /**
  * Sets the spellcheck language on the ProseMirror editor element.
@@ -39,7 +40,7 @@ const LinkShortcut = Extension.create({
       'Mod-k': () => {
         const { editor } = this;
         const previousUrl = editor.getAttributes('link').href;
-        const url = window.prompt('URL:', previousUrl || 'https://');
+        const url = window.prompt(t().editorLib.linkPrompt, previousUrl || 'https://');
         if (url === null) return false;
         if (url === '') {
           editor.chain().focus().extendMarkRange('link').unsetLink().run();

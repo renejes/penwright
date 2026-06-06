@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { t } from '@shared/i18n/store.svelte';
   import VersionDetail from './VersionDetail.svelte';
   import BackupListDialog from './BackupListDialog.svelte';
 
@@ -158,7 +159,7 @@
       }
     } catch (err) {
       console.error('[ProjectPanel] saveVersion failed:', err);
-      alert('Speichern fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err)));
+      alert(t().project.saveFailed(err instanceof Error ? err.message : String(err)));
     } finally {
       saving = false;
     }
@@ -178,11 +179,11 @@
 
   function statusLabel(s: string): string {
     switch (s) {
-      case 'M': return 'geändert';
-      case 'A': return 'hinzugefügt';
-      case 'D': return 'gelöscht';
-      case '?': return 'neu';
-      case 'R': return 'umbenannt';
+      case 'M': return t().project.statusModified;
+      case 'A': return t().project.statusAdded;
+      case 'D': return t().project.statusDeleted;
+      case '?': return t().project.statusNew;
+      case 'R': return t().project.statusRenamed;
       default: return s;
     }
   }
@@ -200,10 +201,10 @@
   function relativeTime(date: string | number): string {
     const ms = typeof date === 'string' ? new Date(date).getTime() : date;
     const diff = backupTickNow - ms;
-    if (diff < 0) return 'gerade eben';
-    if (diff < 60000) return `vor ${Math.floor(diff / 1000)} s`;
-    if (diff < 3600000) return `vor ${Math.floor(diff / 60000)} min`;
-    if (diff < 86400000) return `vor ${Math.floor(diff / 3600000)} h`;
+    if (diff < 0) return t().project.justNow;
+    if (diff < 60000) return t().project.secondsAgo(Math.floor(diff / 1000));
+    if (diff < 3600000) return t().project.minutesAgo(Math.floor(diff / 60000));
+    if (diff < 86400000) return t().project.hoursAgo(Math.floor(diff / 3600000));
     return new Date(ms).toLocaleDateString();
   }
 
@@ -226,7 +227,7 @@
     try {
       await api.invoke('git:setRemote', cloudRemote.trim());
     } catch (err) {
-      alert('Cloud-URL konnte nicht gesetzt werden: ' + (err instanceof Error ? err.message : String(err)));
+      alert(t().project.cloudUrlFailed(err instanceof Error ? err.message : String(err)));
     } finally {
       cloudBusy = false;
     }
@@ -234,19 +235,15 @@
 
   async function cloudPush() {
     cloudBusy = true;
-    try { await api.invoke('git:push'); } catch (err) { alert('Mit Cloud synchronisieren fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err))); }
+    try { await api.invoke('git:push'); } catch (err) { alert(t().project.cloudPushFailed(err instanceof Error ? err.message : String(err))); }
     cloudBusy = false;
   }
 
   async function cloudPull() {
-    const confirmed = confirm(
-      'Cloud-Backup wird mit dem aktuellen Stand zusammengeführt. Lokale Änderungen können dabei überschrieben werden.\n\n' +
-      'Tipp: Speichere vorher den aktuellen Stand als eigene Version, falls du nichts verlieren willst.\n\n' +
-      'Fortfahren?',
-    );
+    const confirmed = confirm(t().project.cloudPullConfirm);
     if (!confirmed) return;
     cloudBusy = true;
-    try { await api.invoke('git:pull'); await refreshAll(); } catch (err) { alert('Cloud-Backup konnte nicht geladen werden: ' + (err instanceof Error ? err.message : String(err))); }
+    try { await api.invoke('git:pull'); await refreshAll(); } catch (err) { alert(t().project.cloudPullFailed(err instanceof Error ? err.message : String(err))); }
     cloudBusy = false;
   }
 
@@ -259,10 +256,10 @@
   <div class="header">
     <div class="header-row">
       <div class="project-name" title={projectInfo.projectDir ?? ''}>
-        {projectInfo.projectName ?? 'Kein Projekt geöffnet'}
+        {projectInfo.projectName ?? t().project.noProjectName}
       </div>
       {#if projectInfo.projectDir}
-        <button class="icon-btn" onclick={showInFinder} title="Im Finder zeigen" aria-label="Im Finder zeigen">
+        <button class="icon-btn" onclick={showInFinder} title={t().project.showInFinder} aria-label={t().project.showInFinder}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path d="M2 4h4l1 1.5h7v7H2V4z" stroke="currentColor" stroke-width="1.2" fill="none"/>
           </svg>
@@ -276,8 +273,8 @@
 
   {#if !projectInfo.projectDir}
     <div class="empty-state">
-      <p>Kein Projekt geöffnet.</p>
-      <p class="muted">Öffne oder erstelle ein Projekt, um Versionen anzulegen.</p>
+      <p>{t().project.emptyStateTitle}</p>
+      <p class="muted">{t().project.emptyStateHint}</p>
     </div>
   {:else}
     <!-- 2. "Version speichern" -->
@@ -286,16 +283,16 @@
         class="save-input"
         type="text"
         bind:value={versionMessage}
-        placeholder="Was hast du gerade fertig?"
+        placeholder={t().project.saveInputPlaceholder}
         onkeydown={(e) => { if (e.key === 'Enter' && canSave) saveVersion(); }}
       />
       <button
         class="save-btn"
         onclick={saveVersion}
         disabled={!canSave}
-        title={selectedCount === 0 ? 'Keine Änderungen ausgewählt' : 'Version speichern'}
+        title={selectedCount === 0 ? t().project.saveDisabledNoSelection : t().project.saveDisabledTitle}
       >
-        {saving ? '...' : 'Version speichern'}
+        {saving ? t().project.saving : t().project.saveVersion}
       </button>
     </div>
 
@@ -303,10 +300,10 @@
     {#if changedFiles.length > 0}
       <div class="section">
         <div class="section-header">
-          <span class="section-title">Änderungen seit letzter Version</span>
+          <span class="section-title">{t().project.changesTitle}</span>
           <div class="section-actions">
-            <button class="link-btn" onclick={() => toggleAll(true)} title="Alle anhaken">alle</button>
-            <button class="link-btn" onclick={() => toggleAll(false)} title="Alle abhaken">keine</button>
+            <button class="link-btn" onclick={() => toggleAll(true)} title={t().project.selectAllTitle}>{t().project.selectAll}</button>
+            <button class="link-btn" onclick={() => toggleAll(false)} title={t().project.selectNoneTitle}>{t().project.selectNone}</button>
           </div>
         </div>
         <ul class="file-list">
@@ -322,21 +319,21 @@
         </ul>
       </div>
     {:else if isRepo}
-      <div class="muted-block">Keine Änderungen seit der letzten Version.</div>
+      <div class="muted-block">{t().project.noChanges}</div>
     {:else}
       <div class="muted-block">
-        Bei der ersten Version wird automatisch ein Verlauf für dieses Projekt angelegt.
+        {t().project.firstVersionHint}
       </div>
     {/if}
 
     <!-- 4. History -->
     <div class="section history-section">
       <div class="section-header">
-        <span class="section-title">Verlauf</span>
-        <button class="icon-btn small" onclick={refreshVersions} title="Aktualisieren" aria-label="Verlauf aktualisieren">↻</button>
+        <span class="section-title">{t().project.historyTitle}</span>
+        <button class="icon-btn small" onclick={refreshVersions} title={t().project.refresh} aria-label={t().project.refreshHistoryAria}>↻</button>
       </div>
       {#if versions.length === 0}
-        <div class="muted-block tight">Noch keine Versionen.</div>
+        <div class="muted-block tight">{t().project.noVersions}</div>
       {:else}
         <ul class="version-list">
           {#each versions as v (v.sha)}
@@ -345,7 +342,7 @@
                 <div class="version-message">{v.message.replace(/^\[auto\]\s*/, '')}</div>
                 <div class="version-meta">
                   <span class="version-date">{relativeTime(v.date)}</span>
-                  {#if v.isAuto}<span class="version-tag">auto</span>{/if}
+                  {#if v.isAuto}<span class="version-tag">{t().project.autoTag}</span>{/if}
                 </div>
               </button>
             </li>
@@ -355,13 +352,13 @@
     </div>
 
     <!-- 5. Auto-Backup status -->
-    <button class="backup-status" onclick={() => showBackupDialog = true} title="Auto-Backups anzeigen">
+    <button class="backup-status" onclick={() => showBackupDialog = true} title={t().project.showBackups}>
       <span class="backup-dot"></span>
       <span>
         {#if lastBackup}
-          Letztes Auto-Backup {relativeTime(lastBackup.timestampMs)}
+          {t().project.lastBackup(relativeTime(lastBackup.timestampMs))}
         {:else}
-          Noch kein Auto-Backup
+          {t().project.noBackup}
         {/if}
       </span>
     </button>
@@ -370,28 +367,28 @@
     <div class="advanced">
       <button class="advanced-toggle" onclick={openAdvanced} aria-expanded={advancedOpen}>
         <span class="chevron">{advancedOpen ? '▾' : '▸'}</span>
-        Erweitert
+        {t().project.advanced}
       </button>
       {#if advancedOpen}
         <div class="advanced-body">
           <label class="field">
-            <span class="field-label">Cloud-Backup-URL (optional)</span>
+            <span class="field-label">{t().project.cloudUrlLabel}</span>
             <input
               class="field-input"
               type="text"
               bind:value={cloudRemote}
-              placeholder="https://github.com/user/projekt.git"
+              placeholder={t().project.cloudUrlPlaceholder}
               onblur={setCloudRemote}
             />
           </label>
           <div class="advanced-actions">
             <button onclick={cloudPush} disabled={cloudBusy || !cloudRemote.trim()}>
-              ↑ Mit Cloud synchronisieren
+              {t().project.cloudPush}
             </button>
             <button onclick={cloudPull} disabled={cloudBusy || !cloudRemote.trim()}>
-              ↓ Cloud-Backup laden
+              {t().project.cloudPull}
             </button>
-            <button onclick={openBackupFolder}>Backup-Ordner öffnen</button>
+            <button onclick={openBackupFolder}>{t().project.openBackupFolder}</button>
           </div>
         </div>
       {/if}

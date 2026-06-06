@@ -16,6 +16,8 @@ const INVOKE_CHANNELS = [
   'app:getAbout',
   'app:getBundleLicenses',
   'app:openExternal',
+  'app:getLocale',
+  'app:setLocale',
   'filetree:list',
   'filetree:open',
   'filetree:navigateUp',

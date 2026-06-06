@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { uiState } from '../appState.svelte';
+  import { t } from '@shared/i18n/store.svelte';
   import logoUrl from '../assets/penwright-icon.svg';
   import AcknowledgmentsDialog from './AcknowledgmentsDialog.svelte';
 
@@ -37,7 +38,9 @@
   });
 
   function tierLabel(): string {
-    return uiState.licenseStatus === 'active' ? 'Licensed' : 'Unlicensed';
+    return uiState.licenseStatus === 'active'
+      ? t().about.aboutLicensed
+      : t().about.aboutUnlicensed;
   }
 
   function platformLabel(p: string): string {
@@ -63,10 +66,10 @@
     ].join('\n');
     try {
       await navigator.clipboard.writeText(text);
-      copyHint = 'Copied';
+      copyHint = t().about.aboutCopied;
       setTimeout(() => { copyHint = ''; }, 1500);
     } catch {
-      copyHint = 'Copy failed';
+      copyHint = t().about.aboutCopyFailed;
       setTimeout(() => { copyHint = ''; }, 1500);
     }
   }
@@ -78,41 +81,41 @@
   onkeydown={(e) => e.key === 'Escape' && onClose()}
   role="dialog"
   tabindex="-1"
-  aria-label="About Penwright"
+  aria-label="Penwright"
 >
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
   <div class="about-dialog" onclick={(e) => e.stopPropagation()} role="document">
-    <button class="close-btn" onclick={onClose} aria-label="Close">×</button>
+    <button class="close-btn" onclick={onClose} aria-label={t().common.close}>×</button>
 
     <div class="hero">
       <img src={logoUrl} alt="Penwright logo" class="logo" />
       <div class="app-meta">
         <h1>Penwright</h1>
-        <div class="version">{info ? `Version ${info.version}` : 'Version …'}</div>
+        <div class="version">{info ? t().about.aboutVersion(info.version) : t().about.aboutVersionLoading}</div>
         <div class="tier-badge" class:active={uiState.licenseStatus === 'active'}>
           {tierLabel()}
         </div>
       </div>
     </div>
 
-    <p class="tagline">A WYSIWYG editor for Typst documents.</p>
+    <p class="tagline">{t().about.aboutTagline}</p>
 
     {#if info}
       <dl class="specs">
         <div>
-          <dt>Platform</dt>
+          <dt>{t().about.aboutSpecPlatform}</dt>
           <dd>{platformLabel(info.platform)} · {info.arch}</dd>
         </div>
         <div>
-          <dt>Electron</dt>
+          <dt>{t().about.aboutSpecElectron}</dt>
           <dd>{info.electron}</dd>
         </div>
         <div>
-          <dt>Chromium</dt>
+          <dt>{t().about.aboutSpecChromium}</dt>
           <dd>{info.chrome}</dd>
         </div>
         <div>
-          <dt>Node</dt>
+          <dt>{t().about.aboutSpecNode}</dt>
           <dd>{info.node}</dd>
         </div>
       </dl>
@@ -120,16 +123,16 @@
 
     <div class="links">
       <button class="link-btn" onclick={() => { uiState.showHandbook = true; onClose(); }}>
-        User Guide
+        {t().about.aboutUserGuide}
       </button>
       <button class="link-btn" onclick={() => openExternal('https://penwright.online')}>
-        Website
+        {t().about.aboutWebsite}
       </button>
       <button class="link-btn" onclick={() => openExternal('https://github.com/renejes/vswrite-desktop/issues')}>
-        Report Issue
+        {t().about.aboutReportIssue}
       </button>
       <button class="link-btn" onclick={() => (showAcknowledgments = true)}>
-        Open Source Lizenzen
+        {t().about.aboutOpenSourceLicenses}
       </button>
     </div>
 
@@ -139,9 +142,9 @@
 
     <div class="footer">
       <button class="btn-text" onclick={copyDiagnostics}>
-        {copyHint || 'Copy diagnostics'}
+        {copyHint || t().about.aboutCopyDiagnostics}
       </button>
-      <span class="copyright">© {new Date().getFullYear()} René Jesser · MIT</span>
+      <span class="copyright">© {new Date().getFullYear()} {t().about.aboutCopyrightSuffix}</span>
     </div>
   </div>
 </div>

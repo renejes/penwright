@@ -47,8 +47,8 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 +--------------------------------------------------------------+
 |                        (Titelleiste)                          |
 +------------------------------+-------------------------------+
-|[Files Outline Chapters       | B I U S  H1 H2 H3  bul  Link  |  Top-Bar:
-| Project Comments]            |          ⚙ ‥ 𝓡 ◎             |  Nav-Tabs + Toolbar
+|[Files Outline Chapters       | ＋ B I U S  H1 H2 H3  bul Link|  Top-Bar:
+| Project Comments]            |             ‥ 𝓡 ◎            |  Nav-Tabs + Toolbar
 +------+-------------------------------+-----------------------+
 |      |  [main.typ] [refs.bib]        |                       |
 | Side-|                               |   Preview Panel       |
@@ -57,10 +57,12 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 +------+-------------------------------+-----------------------+
 |  Terminal / AI  (echtes Shell-Terminal)                       |
 +--------------------------------------------------------------+
-| [Project][Term/AI][Preview]  Kapitel-Look ▾  1.247 Wörter · … |
+| [Project][Term/AI][Preview]  Kapitel-Look ▾  1.247 Wörter · …  DE  Trial |
 +--------------------------------------------------------------+
 ```
-Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitzen in der Top-Bar; Klick zeigt das Panel, Klick auf den aktiven Tab klappt die Seitenleiste ein. Die **Mitte der Statusleiste** ist die kontextuelle **Look**-Steuerung (Kapitel-Look / Global-Look / Look — siehe [das Look-Modell](#design--das-look-modell)). Es gibt keinen separaten „Design"-Tab — Gestalten lebt in `style.typ` und der Statusleiste.
+Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitzen in der Top-Bar; Klick zeigt das Panel, Klick auf den aktiven Tab klappt die Seitenleiste ein. Der **＋-Button** links in der Toolbar öffnet das Einfügen-Menü (siehe [Inhalte einfügen](#inhalte-einfügen--button--und-)). Die **Mitte der Statusleiste** ist die kontextuelle **Look**-Steuerung (Kapitel-Look / Global-Look / Look — siehe [das Look-Modell](#design--das-look-modell)). Es gibt keinen separaten „Design"-Tab — Gestalten lebt in `style.typ` und der Statusleiste.
+
+**Oberflächensprache (Englisch / Deutsch):** Penwright übernimmt beim ersten Start die OS-Sprache. Wechseln kannst du jederzeit über den kleinen **DE/EN-Schalter** rechts in der Statusleiste, auf dem Startbildschirm (oben rechts) oder unter **Document → Document Settings → Oberfläche**. (Das ist die *App*-Sprache — getrennt von der Textsprache eines Dokuments, die `#set text(lang: …)` setzt.)
 
 ### Panels ein-/ausblenden
 
@@ -80,6 +82,7 @@ Alle Panels sind per Drag resizeable.
 
 | Button | Funktion | Shortcut |
 |--------|----------|----------|
+| **＋ Einfügen** | Öffnet ein Menü mit allem Einfügbaren — Überschriften, Listen, Bilder, Tabellen, Formeln, Fußnoten, Zitate, Querverweise, Seitenumbrüche, Typst-Blöcke. **Dieselbe Liste wie `/`** im Text; `@` springt direkt zu Zitaten & Verweisen. | — |
 | **B** | Fett | `Cmd+B` |
 | *I* | Kursiv | `Cmd+I` |
 | S | Durchgestrichen | `Cmd+Shift+X` |
@@ -91,7 +94,6 @@ Alle Panels sind per Drag resizeable.
 | { } | Code-Block | `Cmd+Alt+C` |
 | Fn | Fußnote einfuegen (oeffnet Popup-Editor) | — |
 | Cm | Kommentar zur Auswahl (oder Wort am Cursor) | `Cmd+Alt+M` |
-| ⚙ Quick | Quick-Settings-Dropdown | — |
 | ‥ Typewriter | Typewriter-Mode-Toggle | — |
 | 𝓡 Reading | Reading-Mode-Toggle (Buchsatz-Typografie) | `Cmd+Alt+R` |
 | ◎ Focus | Focus-Mode-Toggle | — |
@@ -103,14 +105,14 @@ Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleist
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus Standard-Window-/Zoom-Rollen
-- **Document** — Document Settings (Sprache + Zitierstil; der Look des Dokuments lebt in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
+- **Document** — Document Settings (**Oberflächensprache** + Dokumentsprache + Zitierstil; der Look des Dokuments lebt in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (oeffnet `<userData>/crash-reports/` im Finder); About auf Windows / Linux
 
-In-Text-Inserts (Bild, Tabelle, Mathe, Zitat, Trenner, Seitenumbruch etc.) gehen ueber [Slash-Commands](#slash-commands) — tippe `/` an einer leeren Stelle im Editor.
+In-Text-Inserts (Bild, Tabelle, Mathe, Zitat, Trenner, Seitenumbruch etc.) gehen drei Wege: der **＋ Einfügen**-Button links in der Toolbar, **Slash-Commands** (tippe `/` im Editor — siehe unten) oder `@` für Zitate & Verweise.
 
-### Slash Commands
+### Inhalte einfügen — ＋-Button, `/` und `@`
 
-Tippe `/` an einer leeren Stelle im Editor:
+Der Toolbar-**＋**-Button und das Slash-Menü speisen sich aus **derselben Liste** — nimm, was dir lieber ist: der Button ist der sichtbare Einstieg, `/` der schnelle Weg, wenn du die Namen kennst. Tippe `@` direkt für Zitate und Querverweise.
 
 | Befehl | Beschreibung |
 |--------|--------------|
@@ -118,9 +120,12 @@ Tippe `/` an einer leeren Stelle im Editor:
 | `/Bullet List` | Aufzaehlung |
 | `/Numbered List` | Nummerierte Liste |
 | `/Quote` | Blockquote |
-| `/Code Block` | Code-Block |
+| `/Code Block` | Generischer Code-Block (für Code-Beispiele im Text) |
+| `/Divider` | Trennlinie |
+| `/Page Break` | Neue Seite beginnen |
+| `/Table of Contents` | Fügt `#outline()` ein |
 | `/Math` | Typst Mathe-Block |
-| `/Typst Code` | Roher Typst-Code |
+| `/Typst Code` | Roher Typst-Block — für `#set` / `#show` / Farben etc. Verlassen mit **✓ Fertig**, `Esc` oder `Cmd+Enter` |
 | `/Image` | Bild einfuegen |
 | `/Footnote` | Fussnote — Popup oeffnet sich automatisch zur Eingabe |
 | `/Citation` | `@` als Trigger fuer den Citation-Picker |

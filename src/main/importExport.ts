@@ -20,7 +20,8 @@ import { parseBibFile } from '../shared/bibParser';
 import { appState } from './appState';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
-import { saveZoteroBibPath, getProjectStyle } from './persistenceManager';
+import { saveZoteroBibPath, getProjectStyle, getLocale } from './persistenceManager';
+import { resolveDict } from '../shared/i18n';
 
 let zoteroWatcher: FSWatcher | null = null;
 
@@ -177,8 +178,9 @@ export interface ExportConfig {
  * Save dialog.
  */
 export async function runFilteredExport(config: ExportConfig): Promise<string | null> {
+  const md = resolveDict(getLocale()).mainDialogs;
   if (!appState.currentFilePath) {
-    dialog.showErrorBox('Export failed', 'Please open a project first.');
+    dialog.showErrorBox(md.exportFailedTitle, md.openProjectFirst);
     return null;
   }
 
@@ -188,7 +190,7 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
   const rootFile = findRootFile(appState.currentFilePath);
   const rootDir = path.dirname(rootFile);
   const ext = config.format === 'pdf' ? 'pdf' : 'docx';
-  const filterName = config.format === 'pdf' ? 'PDF' : 'Word Document';
+  const filterName = config.format === 'pdf' ? md.filterPdf : md.filterWordDocument;
   const defaultPath = rootFile.replace(/\.typ$/, `.${ext}`);
   const result = await dialog.showSaveDialog(appState.mainWindow!, {
     defaultPath,
@@ -221,15 +223,15 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
 
     const choice = await dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
-      buttons: [config.format === 'pdf' ? 'Open PDF' : 'Open DOCX', 'OK'],
-      message: `${config.format.toUpperCase()} exported to ${path.basename(result.filePath)}`,
+      buttons: [config.format === 'pdf' ? md.openPdf : md.openDocx, md.ok],
+      message: md.exportedTo(config.format.toUpperCase(), path.basename(result.filePath)),
     });
     if (choice.response === 0) shell.openPath(result.filePath);
     return result.filePath;
   } catch (err) {
     appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: config.format });
     dialog.showErrorBox(
-      `${config.format.toUpperCase()} export failed`,
+      md.exportFailedFmt(config.format.toUpperCase()),
       `${err instanceof Error ? err.message : String(err)}`,
     );
     return null;
@@ -245,7 +247,8 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
  */
 async function startExport(format: 'pdf' | 'docx'): Promise<void> {
   if (!appState.currentFilePath) {
-    dialog.showErrorBox('Export failed', 'Please open a project first.');
+    const md = resolveDict(getLocale()).mainDialogs;
+    dialog.showErrorBox(md.exportFailedTitle, md.openProjectFirst);
     return;
   }
 
@@ -272,10 +275,11 @@ export function handleExportDocx(): Promise<void> {
 }
 
 export async function handleImportMarkdown(): Promise<void> {
+  const md = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showOpenDialog(appState.mainWindow!, {
-    filters: [{ name: 'Markdown Files', extensions: ['md', 'markdown', 'txt'] }],
+    filters: [{ name: md.filterMarkdownFiles, extensions: ['md', 'markdown', 'txt'] }],
     properties: ['openFile'],
-    title: 'Import Markdown File',
+    title: md.importMarkdownTitle,
   });
   if (result.canceled || !result.filePaths[0]) return;
 
@@ -297,7 +301,7 @@ export async function handleImportMarkdown(): Promise<void> {
       defaultPath: appState.currentFilePath
         ? path.join(path.dirname(appState.currentFilePath), defaultName)
         : defaultName,
-      filters: [{ name: 'Typst Files', extensions: ['typ'] }],
+      filters: [{ name: md.filterTypstFiles, extensions: ['typ'] }],
     });
     if (saveResult.canceled || !saveResult.filePath) return;
 
@@ -308,19 +312,20 @@ export async function handleImportMarkdown(): Promise<void> {
 
     dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
-      message: `Imported "${path.basename(mdPath)}" as Typst.`,
-      detail: 'Review the converted file — some complex Markdown constructs may need manual adjustment.',
+      message: md.importedAsTypst(path.basename(mdPath)),
+      detail: md.importedMarkdownDetail,
     });
   } catch (err) {
-    dialog.showErrorBox('Import failed', String(err));
+    dialog.showErrorBox(md.importFailedTitle, String(err));
   }
 }
 
 export async function handleImportStyleTemplate(): Promise<void> {
+  const md = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showOpenDialog(appState.mainWindow!, {
-    filters: [{ name: 'Typst Files', extensions: ['typ'] }],
+    filters: [{ name: md.filterTypstFiles, extensions: ['typ'] }],
     properties: ['openFile'],
-    title: 'Import Style Template',
+    title: md.importStyleTemplateTitle,
   });
   if (result.canceled || !result.filePaths[0]) return;
 
@@ -333,7 +338,7 @@ export async function handleImportStyleTemplate(): Promise<void> {
       : fileContent;
 
     if (!preamblePart) {
-      dialog.showErrorBox('Import failed', 'No style rules (#set, #show) found in the file.');
+      dialog.showErrorBox(md.importFailedTitle, md.noStyleRules);
       return;
     }
 
@@ -361,27 +366,28 @@ export async function handleImportStyleTemplate(): Promise<void> {
 
     dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
-      message: `Style "${label}" imported and applied.`,
-      detail: 'The template was saved in .claude/style-templates/ for future use.',
+      message: md.styleImportedApplied(label),
+      detail: md.styleImportedDetail,
     });
   } catch (err) {
-    dialog.showErrorBox('Import failed', String(err));
+    dialog.showErrorBox(md.importFailedTitle, String(err));
   }
 }
 
 export async function handleLinkZotero(): Promise<void> {
+  const md = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showOpenDialog(appState.mainWindow!, {
-    filters: [{ name: 'BibTeX Files', extensions: ['bib'] }],
+    filters: [{ name: md.filterBibtexFiles, extensions: ['bib'] }],
     properties: ['openFile'],
-    title: 'Select Zotero Better BibTeX auto-export file',
-    message: 'Select the .bib file that Zotero Better BibTeX keeps updated',
+    title: md.selectZoteroExportTitle,
+    message: md.selectZoteroExportMessage,
   });
   if (result.canceled || !result.filePaths[0]) return;
 
   const zoteroBibPath = result.filePaths[0];
 
   if (!appState.currentFilePath) {
-    dialog.showErrorBox('No project open', 'Please open a project first.');
+    dialog.showErrorBox(md.noProjectOpenTitle, md.openProjectFirst);
     return;
   }
 
@@ -421,11 +427,11 @@ export async function handleLinkZotero(): Promise<void> {
 
     dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
-      message: 'Zotero library linked!',
-      detail: `"${path.basename(zoteroBibPath)}" copied to project as zotero.bib.\nChanges in Zotero will be synced automatically while the app is running.`,
+      message: md.zoteroLinkedTitle,
+      detail: md.zoteroLinkedDetail(path.basename(zoteroBibPath)),
     });
   } catch (err) {
-    dialog.showErrorBox('Zotero link failed', String(err));
+    dialog.showErrorBox(md.zoteroLinkFailedTitle, String(err));
   }
 }
 
@@ -480,13 +486,14 @@ export function applyStyleTemplate(styleId: string): void {
   // tell the user to switch to the root file.
   const rootFile = findRootFile(appState.currentFilePath);
   if (rootFile !== appState.currentFilePath) {
+    const md = resolveDict(getLocale()).mainDialogs;
     dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
-      buttons: ['OK'],
+      buttons: [md.ok],
       defaultId: 0,
-      title: 'Stil kann hier nicht geändert werden',
-      message: `Stile gehören in die Hauptdatei (${path.basename(rootFile)}).`,
-      detail: 'Wechsle erst zur Hauptdatei und wende den Stil dort an. Sonst würde der Stil-Vorspann an den Anfang dieses Kapitels gehängt und die Datei kaputtmachen.',
+      title: md.styleCannotChangeHereTitle,
+      message: md.styleBelongsInRoot(path.basename(rootFile)),
+      detail: md.styleBelongsInRootDetail,
     });
     return;
   }

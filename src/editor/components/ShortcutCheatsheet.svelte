@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@shared/i18n/store.svelte';
+
   let { onClose }: { onClose: () => void } = $props();
 
   interface ShortcutEntry {
@@ -15,79 +17,79 @@
   const mod = isMac ? 'Cmd' : 'Ctrl';
   const alt = isMac ? 'Alt' : 'Alt';
 
-  const groups: ShortcutGroup[] = [
+  const groups: ShortcutGroup[] = $derived([
     {
-      title: 'Project & Files',
+      title: t().editor.shortcutsGroupProject,
       entries: [
-        { action: 'New Project', shortcut: `${mod}+N` },
-        { action: 'Open Project', shortcut: `${mod}+O` },
-        { action: 'Close Project', shortcut: `${mod}+Shift+W` },
-        { action: 'Save', shortcut: `${mod}+S` },
-        { action: 'Save As', shortcut: `${mod}+Shift+S` },
+        { action: t().editor.shortcutNewProject, shortcut: `${mod}+N` },
+        { action: t().editor.shortcutOpenProject, shortcut: `${mod}+O` },
+        { action: t().editor.shortcutCloseProject, shortcut: `${mod}+Shift+W` },
+        { action: t().editor.shortcutSave, shortcut: `${mod}+S` },
+        { action: t().editor.shortcutSaveAs, shortcut: `${mod}+Shift+S` },
       ],
     },
     {
-      title: 'Search',
+      title: t().editor.shortcutsGroupSearch,
       entries: [
-        { action: 'Find in Current File', shortcut: `${mod}+F` },
-        { action: 'Find & Replace (Current File)', shortcut: `${mod}+H` },
-        { action: 'Find in Project', shortcut: `${mod}+Shift+F` },
+        { action: t().editor.shortcutFindInFile, shortcut: `${mod}+F` },
+        { action: t().editor.shortcutFindReplaceFile, shortcut: `${mod}+H` },
+        { action: t().editor.shortcutFindInProject, shortcut: `${mod}+Shift+F` },
       ],
     },
     {
-      title: 'Writer Features',
+      title: t().editor.shortcutsGroupWriter,
       entries: [
-        { action: 'Add Comment', shortcut: `${mod}+${alt}+M` },
-        { action: 'Insert Cross-Reference', shortcut: `${mod}+${alt}+L` },
-        { action: 'Reading Mode', shortcut: `${mod}+${alt}+R` },
+        { action: t().editor.shortcutAddComment, shortcut: `${mod}+${alt}+M` },
+        { action: t().editor.shortcutInsertCrossRef, shortcut: `${mod}+${alt}+L` },
+        { action: t().editor.shortcutReadingMode, shortcut: `${mod}+${alt}+R` },
       ],
     },
     {
-      title: 'Formatting',
+      title: t().editor.shortcutsGroupFormatting,
       entries: [
-        { action: 'Bold', shortcut: `${mod}+B` },
-        { action: 'Italic', shortcut: `${mod}+I` },
-        { action: 'Strikethrough', shortcut: `${mod}+Shift+X` },
-        { action: 'Inline Code', shortcut: `${mod}+E` },
-        { action: 'Link', shortcut: `${mod}+K` },
+        { action: t().editor.shortcutBold, shortcut: `${mod}+B` },
+        { action: t().editor.shortcutItalic, shortcut: `${mod}+I` },
+        { action: t().editor.shortcutStrikethrough, shortcut: `${mod}+Shift+X` },
+        { action: t().editor.shortcutInlineCode, shortcut: `${mod}+E` },
+        { action: t().editor.shortcutLink, shortcut: `${mod}+K` },
       ],
     },
     {
-      title: 'Blocks',
+      title: t().editor.shortcutsGroupBlocks,
       entries: [
-        { action: 'Heading 1 / 2 / 3', shortcut: `${mod}+${alt}+1 / 2 / 3` },
-        { action: 'Bullet List', shortcut: `${mod}+Shift+8` },
-        { action: 'Numbered List', shortcut: `${mod}+Shift+7` },
-        { action: 'Code Block', shortcut: `${mod}+${alt}+C` },
+        { action: t().editor.shortcutHeadings, shortcut: `${mod}+${alt}+1 / 2 / 3` },
+        { action: t().editor.shortcutBulletList, shortcut: `${mod}+Shift+8` },
+        { action: t().editor.shortcutNumberedList, shortcut: `${mod}+Shift+7` },
+        { action: t().editor.shortcutCodeBlock, shortcut: `${mod}+${alt}+C` },
       ],
     },
     {
-      title: 'View',
+      title: t().editor.shortcutsGroupView,
       entries: [
-        { action: 'Toggle Sidebar', shortcut: `${mod}+B` },
-        { action: 'Toggle Preview', shortcut: `${mod}+Shift+P` },
-        { action: 'Toggle Terminal', shortcut: `${mod}+\`` },
-        { action: 'Exit Focus Mode', shortcut: 'Esc' },
+        { action: t().editor.shortcutToggleSidebar, shortcut: `${mod}+B` },
+        { action: t().editor.shortcutTogglePreview, shortcut: `${mod}+Shift+P` },
+        { action: t().editor.shortcutToggleTerminal, shortcut: `${mod}+\`` },
+        { action: t().editor.shortcutExitFocusMode, shortcut: 'Esc' },
       ],
     },
     {
-      title: 'Zoom',
+      title: t().editor.shortcutsGroupZoom,
       entries: [
-        { action: 'Editor Zoom In / Out / Reset', shortcut: `${mod}+${alt}+= / − / 0` },
-        { action: 'Preview Zoom In / Out / Reset', shortcut: `${mod}+Shift+= / − / 0` },
+        { action: t().editor.shortcutEditorZoom, shortcut: `${mod}+${alt}+= / − / 0` },
+        { action: t().editor.shortcutPreviewZoom, shortcut: `${mod}+Shift+= / − / 0` },
       ],
     },
     {
-      title: 'General',
+      title: t().editor.shortcutsGroupGeneral,
       entries: [
-        { action: 'Undo', shortcut: `${mod}+Z` },
-        { action: 'Redo', shortcut: `${mod}+Shift+Z` },
-        { action: 'Slash Commands', shortcut: '/' },
-        { action: 'Citation Autocomplete', shortcut: '@' },
-        { action: 'This Cheat Sheet', shortcut: `${mod}+/` },
+        { action: t().editor.shortcutUndo, shortcut: `${mod}+Z` },
+        { action: t().editor.shortcutRedo, shortcut: `${mod}+Shift+Z` },
+        { action: t().editor.shortcutSlashCommands, shortcut: '/' },
+        { action: t().editor.shortcutCitationAutocomplete, shortcut: '@' },
+        { action: t().editor.shortcutCheatSheet, shortcut: `${mod}+/` },
       ],
     },
-  ];
+  ]);
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -103,7 +105,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
   <div class="shortcut-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
     <div class="shortcut-header">
-      <h2>Keyboard Shortcuts</h2>
+      <h2>{t().editor.shortcutsTitle}</h2>
       <button class="shortcut-close" onclick={onClose}>&times;</button>
     </div>
     <div class="shortcut-body">

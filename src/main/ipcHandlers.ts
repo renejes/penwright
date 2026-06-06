@@ -11,6 +11,8 @@ import { resolveIncludes } from '../shared/mergeDocument';
 import { splitIntoChapters, slugify } from '../shared/splitDocument';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { appState } from './appState';
+import { resolveDict } from '../shared/i18n';
+import { buildMenu } from './menuBuilder';
 import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, closeProjectInteractive } from './fileManager';
 import { isPathWithin } from './pathSecurity';
 
@@ -27,6 +29,8 @@ import {
   getRecentProjects,
   isOnboardingSeen,
   setOnboardingSeen,
+  getLocale,
+  setLocale,
   getZoteroBibPath,
   listProjectBackups,
   loadProjectBackup,
@@ -348,7 +352,7 @@ export function setupIPC(): void {
             updateTitle();
             appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
           } catch (err) {
-            dialog.showErrorBox('Merge failed', String(err));
+            dialog.showErrorBox(resolveDict(getLocale()).mainDialogs.mergeFailedTitle, String(err));
           }
         }
         break;
@@ -392,7 +396,7 @@ export function setupIPC(): void {
             appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
             appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
           } catch (err) {
-            dialog.showErrorBox('Split failed', String(err));
+            dialog.showErrorBox(resolveDict(getLocale()).mainDialogs.splitFailedTitle, String(err));
           }
         }
         break;
@@ -402,50 +406,6 @@ export function setupIPC(): void {
         const goal = msg.goal as number;
         const wordCount = appState.currentContent.split(/\s+/).filter(Boolean).length;
         appState.mainWindow?.webContents.send('penwright', { type: 'wordGoal', goal, current: wordCount });
-        break;
-      }
-
-      case 'quickSettings': {
-        // QuickSettings (toolbar popover) now writes scale.base / scale.leading
-        // into style.json — the same target as the Design panel — so the two
-        // surfaces don't fight each other. `lang` still goes through the
-        // Document-Settings inline path because it stays in main.typ.
-        const qs = msg as unknown as { fontSize: string; leading: string; lang: string };
-        if (appState.projectDir) {
-          const current = getProjectStyle(appState.projectDir);
-          if (qs.fontSize) current.scale.base = qs.fontSize;
-          if (qs.leading) current.scale.leading = qs.leading;
-          const saved = saveProjectStyle(appState.projectDir, current);
-          // Regenerate style.typ + recompile, mirroring the style:save path.
-          const rootFile = appState.currentFilePath
-            ? findRootFile(appState.currentFilePath)
-            : path.join(appState.projectDir, 'main.typ');
-          const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
-          try {
-            appState.lastSaveTimestamp = Date.now();
-            fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(saved), 'utf-8');
-            if (fs.existsSync(rootFile)) {
-              const before = fs.readFileSync(rootFile, 'utf-8');
-              const after = ensureStyleInclude(before);
-              if (after !== before) {
-                appState.lastSaveTimestamp = Date.now();
-                fs.writeFileSync(rootFile, after, 'utf-8');
-                if (appState.currentFilePath && path.resolve(rootFile) === path.resolve(appState.currentFilePath)) {
-                  appState.currentContent = after;
-                  appState.isDirty = false;
-                  updateTitle();
-                  appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
-                }
-              }
-            }
-            getCompiler()?.compilePdf();
-          } catch (err) {
-            console.warn('[penwright] quickSettings style write failed:', err);
-          }
-        }
-        if (qs.lang) {
-          handleUpdateSettings({ lang: qs.lang });
-        }
         break;
       }
 
@@ -513,7 +473,7 @@ export function setupIPC(): void {
         if (!undone) {
           appState.mainWindow?.webContents.send('penwright', {
             type: 'notification',
-            message: 'No AI edits to undo.',
+            message: resolveDict(getLocale()).mainDialogs.noAiEditsToUndo,
           });
         }
         break;
@@ -546,7 +506,7 @@ export function setupIPC(): void {
   // Dialog handlers
   ipcMain.handle('dialog:openFile', async () => {
     const result = await dialog.showOpenDialog(appState.mainWindow!, {
-      filters: [{ name: 'Typst Files', extensions: ['typ'] }],
+      filters: [{ name: resolveDict(getLocale()).mainDialogs.filterTypstFiles, extensions: ['typ'] }],
       properties: ['openFile'],
     });
     return result.canceled ? null : result.filePaths[0];
@@ -555,7 +515,7 @@ export function setupIPC(): void {
   ipcMain.handle('dialog:saveFile', async (_event, defaultName: string) => {
     const result = await dialog.showSaveDialog(appState.mainWindow!, {
       defaultPath: defaultName,
-      filters: [{ name: 'Typst Files', extensions: ['typ'] }],
+      filters: [{ name: resolveDict(getLocale()).mainDialogs.filterTypstFiles, extensions: ['typ'] }],
     });
     return result.canceled ? null : result.filePath;
   });
@@ -751,7 +711,7 @@ export function setupIPC(): void {
 
     const result = await dialog.showSaveDialog(appState.mainWindow!, {
       defaultPath: path.join(chaptersDir, 'new-chapter.typ'),
-      filters: [{ name: 'Typst Files', extensions: ['typ'] }],
+      filters: [{ name: resolveDict(getLocale()).mainDialogs.filterTypstFiles, extensions: ['typ'] }],
     });
 
     if (result.canceled || !result.filePath) return;
@@ -778,6 +738,15 @@ export function setupIPC(): void {
   ipcMain.handle('persist:isOnboardingSeen', () => isOnboardingSeen());
   ipcMain.handle('persist:setOnboardingSeen', (_event, seen: boolean) => { setOnboardingSeen(!!seen); return { ok: true }; });
   ipcMain.handle('persist:getZoteroBibPath', () => getZoteroBibPath());
+
+  // ─── UI Locale ───
+  ipcMain.handle('app:getLocale', () => getLocale());
+  ipcMain.handle('app:setLocale', (_event, locale: string) => {
+    setLocale(locale);
+    // Rebuild the native menu so its labels switch language immediately.
+    buildMenu(appState);
+    return { ok: true };
+  });
 
   // ─── MCP Setup (Claude Desktop integration) ───
   ipcMain.handle('mcp:checkClaudeDesktop', () => checkClaudeDesktopInstalled());
@@ -1019,7 +988,7 @@ export function setupIPC(): void {
       }
     }
 
-    const res = await safeApplyDesign(writes, 'Design geändert');
+    const res = await safeApplyDesign(writes, resolveDict(getLocale()).mainDialogs.undoLabelDesignChanged);
     if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
     return { ok: true as const, style: clean, conflicts };
   });
@@ -1146,7 +1115,7 @@ export function setupIPC(): void {
       }
     }
 
-    const res = await safeApplyDesign(writes, 'Kapitel-Look angepasst');
+    const res = await safeApplyDesign(writes, resolveDict(getLocale()).mainDialogs.undoLabelChapterLook);
     if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
     return { ok: true as const, styleId: finalId };
   });
@@ -1173,7 +1142,7 @@ export function setupIPC(): void {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
     // Verify the chapter still compiles with the look applied; roll back if not.
-    const res = await safeApplyDesign([{ abs, content: injected }], `Kapitel-Look: ${styleId}`);
+    const res = await safeApplyDesign([{ abs, content: injected }], resolveDict(getLocale()).mainDialogs.undoLabelChapterLookSet(styleId));
     if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
     return { ok: true as const };
   });
@@ -1188,7 +1157,7 @@ export function setupIPC(): void {
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
-    const res = await safeApplyDesign([{ abs, content: cleared }], 'Kapitel-Look entfernt');
+    const res = await safeApplyDesign([{ abs, content: cleared }], resolveDict(getLocale()).mainDialogs.undoLabelChapterLookRemoved);
     if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
     return { ok: true as const };
   });

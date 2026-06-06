@@ -163,13 +163,6 @@ export interface SetWordGoalMessage {
   goal: number;
 }
 
-export interface QuickSettingsMessage {
-  type: 'quickSettings';
-  fontSize: string;
-  leading: string;
-  lang: string;
-}
-
 export interface ApplyStyleMessage {
   type: 'applyStyle';
   styleId: string;
@@ -229,7 +222,6 @@ export type WebviewMessage =
   | UpdateSettingsMessage
   | SplitDocumentMessage
   | SetWordGoalMessage
-  | QuickSettingsMessage
   | ApplyStyleMessage
   | RequestCitationsMessage
   | EnsureBibliographyMessage

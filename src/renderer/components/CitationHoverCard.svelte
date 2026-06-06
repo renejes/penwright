@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { getCitationEntries, type CitationEntry } from '../../editor/lib/citationSuggestion';
+  import { t } from '@shared/i18n/store.svelte';
 
   let {
     citekey,
@@ -117,33 +118,33 @@
 >
   {#if entry}
     <div class="citation-card-author">
-      {truncate(entry.author || '(no author)', 60)}
+      {truncate(entry.author || t().pickers.citationNoAuthor, 60)}
       {#if entry.year}
         <span class="citation-card-year">({entry.year})</span>
       {/if}
     </div>
-    <div class="citation-card-title">{truncate(entry.title || '(no title)', 140)}</div>
+    <div class="citation-card-title">{truncate(entry.title || t().pickers.citationNoTitle, 140)}</div>
     <div class="citation-card-key">@{entry.citekey}</div>
   {:else}
     <div class="citation-card-author">@{citekey}</div>
     <div class="citation-card-title citation-card-missing">
-      Not in references.bib
+      {t().pickers.citationMissing}
     </div>
   {/if}
 
   <div class="citation-card-actions">
     {#if !pdfChecked}
-      <span class="citation-card-pdf-checking">Suche Quelle&hellip;</span>
+      <span class="citation-card-pdf-checking">{t().pickers.citationChecking}</span>
     {:else if pdfPath}
       <button class="citation-card-btn primary" onclick={handleOpenPdf}>
-        PDF öffnen
+        {t().pickers.citationOpenPdf}
       </button>
       <span class="citation-card-pdf-name" title={pdfPath}>
         {pdfPath.split('/').pop()}
       </span>
     {:else}
       <span class="citation-card-pdf-missing">
-        Keine PDF in <code>sources/</code>
+        {@html t().pickers.citationNoPdf.replace('{folder}', '<code>sources/</code>')}
       </span>
     {/if}
   </div>

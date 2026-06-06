@@ -10,9 +10,12 @@
 import { app, Menu, shell } from 'electron';
 import type { AppState } from './appState';
 import { getReportsDir } from './crashReporter';
+import { getLocale } from './persistenceManager';
+import { resolveDict } from '../shared/i18n';
 
 export function buildMenu(state: AppState): void {
   const isMac = process.platform === 'darwin';
+  const m = resolveDict(getLocale()).menu;
 
   const send = (type: string, extra: Record<string, unknown> = {}) =>
     state.mainWindow?.webContents.send('penwright', { type, ...extra });
@@ -25,7 +28,7 @@ export function buildMenu(state: AppState): void {
           {
             label: app.name,
             submenu: [
-              { label: `About ${app.name}`, click: showAbout },
+              { label: m.about(app.name), click: showAbout },
               { type: 'separator' as const },
               { role: 'hide' as const },
               { role: 'hideOthers' as const },
@@ -39,58 +42,58 @@ export function buildMenu(state: AppState): void {
 
     // ─── File ─────────────────────────────────────────────
     {
-      label: 'File',
+      label: m.file,
       submenu: [
         {
-          label: 'New Project…',
+          label: m.newProject,
           accelerator: 'CmdOrCtrl+N',
           click: () => send('newProject'),
         },
         {
-          label: 'Open Project…',
+          label: m.openProject,
           accelerator: 'CmdOrCtrl+O',
           click: () => state.openProject(),
         },
         {
-          label: 'Close Project',
+          label: m.closeProject,
           accelerator: 'CmdOrCtrl+Shift+W',
           click: () => state.closeProject(),
         },
         { type: 'separator' },
         {
-          label: 'Save',
+          label: m.save,
           accelerator: 'CmdOrCtrl+S',
           click: () => state.saveFile(),
         },
         {
-          label: 'Save As…',
+          label: m.saveAs,
           accelerator: 'CmdOrCtrl+Shift+S',
           click: () => state.saveFileAs(),
         },
         { type: 'separator' },
         {
-          label: 'Export as PDF…',
+          label: m.exportPdf,
           click: () => state.handleExportPdf(),
         },
         {
-          label: 'Export as DOCX…',
+          label: m.exportDocx,
           click: () => state.handleExportDocx(),
         },
         { type: 'separator' },
         {
-          label: 'Import Markdown…',
+          label: m.importMarkdown,
           click: () => state.handleImportMarkdown(),
         },
         {
-          label: 'Link Zotero Library…',
+          label: m.linkZotero,
           click: () => state.handleLinkZotero(),
         },
         {
-          label: 'Open Sources Folder',
+          label: m.openSources,
           click: () => send('importSources'),
         },
         {
-          label: 'Add Citation Manually…',
+          label: m.addCitation,
           click: () => send('addCitationManually'),
         },
         { type: 'separator' },
@@ -100,7 +103,7 @@ export function buildMenu(state: AppState): void {
 
     // ─── Edit ─────────────────────────────────────────────
     {
-      label: 'Edit',
+      label: m.edit,
       submenu: [
         { role: 'undo' },
         { role: 'redo' },
@@ -111,29 +114,29 @@ export function buildMenu(state: AppState): void {
         { role: 'selectAll' },
         { type: 'separator' },
         {
-          label: 'Find & Replace',
+          label: m.findReplace,
           accelerator: 'CmdOrCtrl+F',
           click: () => send('showSearch'),
         },
         {
-          label: 'Find in Project…',
+          label: m.findInProject,
           accelerator: 'CmdOrCtrl+Shift+F',
           click: () => send('showProjectSearch'),
         },
         { type: 'separator' },
         {
-          label: 'Add Comment',
+          label: m.addComment,
           accelerator: 'CmdOrCtrl+Alt+M',
           click: () => send('addComment'),
         },
         {
-          label: 'Insert Reference…',
+          label: m.insertReference,
           accelerator: 'CmdOrCtrl+Alt+L',
           click: () => send('showReferencePicker'),
         },
         { type: 'separator' },
         {
-          label: 'Undo AI Edit',
+          label: m.undoAiEdit,
           click: () => send('undoLastAiEdit'),
         },
       ],
@@ -141,73 +144,73 @@ export function buildMenu(state: AppState): void {
 
     // ─── View ─────────────────────────────────────────────
     {
-      label: 'View',
+      label: m.view,
       submenu: [
         {
-          label: 'Toggle Sidebar',
+          label: m.toggleSidebar,
           accelerator: 'CmdOrCtrl+B',
           click: () => send('togglePanel', { panel: 'sidebar' }),
         },
         {
-          label: 'Toggle Preview',
+          label: m.togglePreview,
           accelerator: 'CmdOrCtrl+Shift+P',
           click: () => send('togglePanel', { panel: 'preview' }),
         },
         {
-          label: 'Toggle Terminal',
+          label: m.toggleTerminal,
           accelerator: 'CmdOrCtrl+`',
           click: () => send('togglePanel', { panel: 'terminal' }),
         },
         { type: 'separator' },
         {
-          label: 'Focus Mode',
+          label: m.focusMode,
           click: () => send('toggleFocusMode'),
         },
         {
-          label: 'Typewriter Mode',
+          label: m.typewriterMode,
           click: () => send('toggleTypewriterMode'),
         },
         {
-          label: 'Reading Mode',
+          label: m.readingMode,
           accelerator: 'CmdOrCtrl+Alt+R',
           click: () => send('toggleReadingMode'),
         },
         { type: 'separator' },
         {
-          label: 'Editor Zoom',
+          label: m.editorZoom,
           submenu: [
             {
-              label: 'Zoom In',
+              label: m.zoomIn,
               accelerator: 'CmdOrCtrl+Alt+=',
               click: () => send('zoomEditorIn'),
             },
             {
-              label: 'Zoom Out',
+              label: m.zoomOut,
               accelerator: 'CmdOrCtrl+Alt+-',
               click: () => send('zoomEditorOut'),
             },
             {
-              label: 'Reset',
+              label: m.reset,
               accelerator: 'CmdOrCtrl+Alt+0',
               click: () => send('zoomEditorReset'),
             },
           ],
         },
         {
-          label: 'Preview Zoom',
+          label: m.previewZoom,
           submenu: [
             {
-              label: 'Zoom In',
+              label: m.zoomIn,
               accelerator: 'CmdOrCtrl+Shift+=',
               click: () => send('zoomPdfIn'),
             },
             {
-              label: 'Zoom Out',
+              label: m.zoomOut,
               accelerator: 'CmdOrCtrl+Shift+-',
               click: () => send('zoomPdfOut'),
             },
             {
-              label: 'Reset',
+              label: m.reset,
               accelerator: 'CmdOrCtrl+Shift+0',
               click: () => send('zoomPdfReset'),
             },
@@ -217,9 +220,9 @@ export function buildMenu(state: AppState): void {
         { role: 'reload' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
-        { role: 'resetZoom', label: 'Reset Window Zoom' },
-        { role: 'zoomIn', label: 'Zoom Window In' },
-        { role: 'zoomOut', label: 'Zoom Window Out' },
+        { role: 'resetZoom', label: m.resetWindowZoom },
+        { role: 'zoomIn', label: m.zoomWindowIn },
+        { role: 'zoomOut', label: m.zoomWindowOut },
         { type: 'separator' },
         { role: 'togglefullscreen' },
       ],
@@ -227,10 +230,10 @@ export function buildMenu(state: AppState): void {
 
     // ─── Document ─────────────────────────────────────────
     {
-      label: 'Document',
+      label: m.document,
       submenu: [
         {
-          label: 'Document Settings…',
+          label: m.documentSettings,
           click: () => send('requestSettings'),
         },
         { type: 'separator' },
@@ -243,20 +246,20 @@ export function buildMenu(state: AppState): void {
         // the MCP tools `penwright_list_styles` / `penwright_apply_style` until
         // those are migrated to the new theme-preset format.
         {
-          label: 'Merge Document',
+          label: m.mergeDocument,
           click: () => send('mergeDocument'),
         },
         {
-          label: 'Split into Chapters',
+          label: m.splitDocument,
           click: () => send('splitDocument'),
         },
         { type: 'separator' },
         {
-          label: 'Open as Typst Source',
+          label: m.openAsTypst,
           click: () => send('openSource'),
         },
         {
-          label: 'Ensure Bibliography',
+          label: m.ensureBibliography,
           click: () => send('ensureBibliography'),
         },
       ],
@@ -264,42 +267,42 @@ export function buildMenu(state: AppState): void {
 
     // ─── Help ─────────────────────────────────────────────
     {
-      label: 'Help',
+      label: m.help,
       submenu: [
         {
-          label: 'Show Introduction',
+          label: m.showIntroduction,
           click: () => send('showOnboarding'),
         },
         {
-          label: 'User Guide',
+          label: m.userGuide,
           click: () => send('showHandbook'),
         },
         {
-          label: 'Keyboard Shortcuts',
+          label: m.keyboardShortcuts,
           accelerator: 'CmdOrCtrl+/',
           click: () => send('showShortcuts'),
         },
         {
-          label: 'Report Issue',
+          label: m.reportIssue,
           click: () => {
             shell.openExternal('https://github.com/renejes/vswrite-desktop/issues');
           },
         },
         { type: 'separator' as const },
         {
-          label: 'Mit Claude Desktop verbinden…',
+          label: m.connectClaude,
           click: () => send('showMcpSetupWizard'),
         },
         { type: 'separator' as const },
         {
-          label: 'Open Crash Reports',
+          label: m.openCrashReports,
           click: () => { shell.openPath(getReportsDir()); },
         },
         ...(isMac
           ? []
           : [
               { type: 'separator' as const },
-              { label: `About ${app.name}`, click: showAbout },
+              { label: m.about(app.name), click: showAbout },
             ]),
       ],
     },

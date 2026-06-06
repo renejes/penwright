@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   type LabelType = 'figure' | 'table' | 'equation' | 'heading' | 'other';
 
@@ -53,7 +54,7 @@
     for (const l of filtered) groups[l.type].push(l);
     const order: LabelType[] = ['figure', 'table', 'equation', 'heading', 'other'];
     return order
-      .map((t) => ({ type: t, items: groups[t] }))
+      .map((ty) => ({ type: ty, items: groups[ty] }))
       .filter((g) => g.items.length > 0);
   });
 
@@ -128,20 +129,20 @@
     el?.scrollIntoView({ block: 'nearest' });
   }
 
-  function typeIcon(t: LabelType): string {
-    if (t === 'figure') return '🖼';
-    if (t === 'table') return '⊞';
-    if (t === 'equation') return '∑';
-    if (t === 'heading') return '§';
+  function typeIcon(ty: LabelType): string {
+    if (ty === 'figure') return '🖼';
+    if (ty === 'table') return '⊞';
+    if (ty === 'equation') return '∑';
+    if (ty === 'heading') return '§';
     return '↳';
   }
 
-  function typeLabel(t: LabelType): string {
-    if (t === 'figure') return 'Abbildungen';
-    if (t === 'table') return 'Tabellen';
-    if (t === 'equation') return 'Gleichungen';
-    if (t === 'heading') return 'Überschriften';
-    return 'Andere Labels';
+  function typeLabel(ty: LabelType): string {
+    if (ty === 'figure') return t().pickers.refPickerGroupFigure;
+    if (ty === 'table') return t().pickers.refPickerGroupTable;
+    if (ty === 'equation') return t().pickers.refPickerGroupEquation;
+    if (ty === 'heading') return t().pickers.refPickerGroupHeading;
+    return t().pickers.refPickerGroupOther;
   }
 
   // Index-of-flat helper
@@ -162,8 +163,8 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="ref-picker" onclick={(e) => e.stopPropagation()}>
     <div class="ref-picker-header">
-      <div class="ref-picker-title" id="ref-picker-title">Cross-Reference einfügen</div>
-      <button class="ref-picker-close" onclick={onClose} aria-label="Schließen">×</button>
+      <div class="ref-picker-title" id="ref-picker-title">{t().pickers.refPickerTitle}</div>
+      <button class="ref-picker-close" onclick={onClose} aria-label={t().common.close}>×</button>
     </div>
 
     <div class="ref-picker-search">
@@ -171,31 +172,31 @@
         bind:this={inputEl}
         bind:value={query}
         type="text"
-        placeholder="Label, Caption oder Datei filtern…"
+        placeholder={t().pickers.refPickerSearchPlaceholder}
         autocomplete="off"
         spellcheck="false"
         onkeydown={onKeyDown}
       />
       <div class="ref-picker-types">
-        <button class:active={typeFilter === 'all'} onclick={() => (typeFilter = 'all')}>Alle</button>
-        <button class:active={typeFilter === 'figure'} onclick={() => (typeFilter = 'figure')}>Abb.</button>
-        <button class:active={typeFilter === 'table'} onclick={() => (typeFilter = 'table')}>Tab.</button>
-        <button class:active={typeFilter === 'equation'} onclick={() => (typeFilter = 'equation')}>Gl.</button>
-        <button class:active={typeFilter === 'heading'} onclick={() => (typeFilter = 'heading')}>§</button>
-        <button class:active={typeFilter === 'other'} onclick={() => (typeFilter = 'other')}>Andere</button>
+        <button class:active={typeFilter === 'all'} onclick={() => (typeFilter = 'all')}>{t().pickers.refPickerFilterAll}</button>
+        <button class:active={typeFilter === 'figure'} onclick={() => (typeFilter = 'figure')}>{t().pickers.refPickerFilterFigure}</button>
+        <button class:active={typeFilter === 'table'} onclick={() => (typeFilter = 'table')}>{t().pickers.refPickerFilterTable}</button>
+        <button class:active={typeFilter === 'equation'} onclick={() => (typeFilter = 'equation')}>{t().pickers.refPickerFilterEquation}</button>
+        <button class:active={typeFilter === 'heading'} onclick={() => (typeFilter = 'heading')}>{t().pickers.refPickerFilterHeading}</button>
+        <button class:active={typeFilter === 'other'} onclick={() => (typeFilter = 'other')}>{t().pickers.refPickerFilterOther}</button>
       </div>
     </div>
 
     <div class="ref-picker-body">
       {#if loading}
-        <div class="ref-picker-empty">Labels werden gesammelt&hellip;</div>
+        <div class="ref-picker-empty">{t().pickers.refPickerLoading}</div>
       {:else if filtered.length === 0}
         <div class="ref-picker-empty">
           {#if labels.length === 0}
-            Keine <code>&lt;label&gt;</code>s im Projekt gefunden.
-            <br />Setze in deinem Source z.&nbsp;B. <code>&lt;fig:results&gt;</code> nach einer Figur, dann erscheinen sie hier.
+            {t().pickers.refPickerNoneFound}
+            <br />{t().pickers.refPickerNoneHint}
           {:else}
-            Kein Treffer für „{query}".
+            {t().pickers.refPickerNoMatch(query)}
           {/if}
         </div>
       {:else}
@@ -229,16 +230,16 @@
         {/each}
         {#if truncated}
           <div class="ref-picker-truncated">
-            Mehr als 2.000 Labels — Liste gekürzt. Filtere mit dem Suchfeld.
+            {t().pickers.refPickerTruncated}
           </div>
         {/if}
       {/if}
     </div>
 
     <div class="ref-picker-footer">
-      <span><kbd>↑↓</kbd> wählen</span>
-      <span><kbd>Enter</kbd> einfügen</span>
-      <span><kbd>Esc</kbd> abbrechen</span>
+      <span><kbd>↑↓</kbd> {t().pickers.refPickerFooterSelect}</span>
+      <span><kbd>Enter</kbd> {t().pickers.refPickerFooterInsert}</span>
+      <span><kbd>Esc</kbd> {t().pickers.refPickerFooterCancel}</span>
     </div>
   </div>
 </div>

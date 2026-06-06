@@ -12,6 +12,7 @@
    */
 
   import { onMount } from 'svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -88,32 +89,32 @@
       <div class="icon-circle indigo">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
       </div>
-      <h2 id="mcp-wizard-title">Mit Claude Desktop verbinden</h2>
-      <p>Penwright kann den eingebauten MCP-Server bei Claude Desktop registrieren, damit du deine Typst-Projekte direkt aus Claude heraus bearbeiten kannst.</p>
+      <h2 id="mcp-wizard-title">{t().mcp.intro.title}</h2>
+      <p>{t().mcp.intro.body}</p>
       <div class="centered-loader">
         <div class="spinner"></div>
-        <p class="hint">Pruefe ob Claude Desktop installiert ist…</p>
+        <p class="hint">{t().mcp.intro.probing}</p>
       </div>
 
     {:else if step === 'unsupported'}
       <div class="icon-circle amber">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
-      <h2 id="mcp-wizard-title">Derzeit nur unter macOS</h2>
-      <p>Die automatische Einrichtung ist aktuell nur fuer macOS verfuegbar. Auf anderen Plattformen kannst du den MCP-Server manuell registrieren — siehe Dokumentation.</p>
+      <h2 id="mcp-wizard-title">{t().mcp.unsupported.title}</h2>
+      <p>{t().mcp.unsupported.body}</p>
       <div class="actions">
-        <button class="btn btn-primary" onclick={skip}>OK</button>
+        <button class="btn btn-primary" onclick={skip}>{t().common.ok}</button>
       </div>
 
     {:else if step === 'no_claude'}
       <div class="icon-circle amber">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </div>
-      <h2 id="mcp-wizard-title">Claude Desktop nicht gefunden</h2>
-      <p>Wir konnten Claude Desktop auf deinem Mac nicht finden. Installiere es zuerst — die Verbindung mit Penwright kannst du danach jederzeit ueber das Hilfe-Menue starten.</p>
+      <h2 id="mcp-wizard-title">{t().mcp.noClaude.title}</h2>
+      <p>{t().mcp.noClaude.body}</p>
       {#if claudeCheck}
         <details class="paths">
-          <summary>Geprueft an diesen Pfaden</summary>
+          <summary>{t().mcp.noClaude.pathsChecked}</summary>
           <ul>
             {#each claudeCheck.pathsChecked as p}
               <li>{p}</li>
@@ -122,82 +123,80 @@
         </details>
       {/if}
       <div class="actions">
-        <a class="btn btn-primary" href="https://claude.ai/download" target="_blank" rel="noreferrer">Claude Desktop laden</a>
-        <button class="btn btn-secondary" onclick={skip}>Spaeter</button>
+        <a class="btn btn-primary" href="https://claude.ai/download" target="_blank" rel="noreferrer">{t().mcp.noClaude.download}</a>
+        <button class="btn btn-secondary" onclick={skip}>{t().mcp.noClaude.later}</button>
       </div>
 
     {:else if step === 'ready'}
       <div class="icon-circle indigo">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       </div>
-      <h2 id="mcp-wizard-title">Bereit zum Verbinden</h2>
-      <p>Penwright installiert einen eigenstaendigen MCP-Server in deinem Benutzer-Verzeichnis und traegt ihn in Claude Desktops Konfiguration ein.</p>
+      <h2 id="mcp-wizard-title">{t().mcp.ready.title}</h2>
+      <p>{t().mcp.ready.body}</p>
       <ul class="bullets">
-        <li>Server laeuft unabhaengig von Penwright — Reihenfolge beim Starten egal</li>
-        <li>Andere MCP-Server in deiner Config bleiben unveraendert</li>
-        <li>Vor jedem Schreibvorgang wird ein Backup deiner Config angelegt</li>
-        <li>Wiederholtes Ausfuehren ist idempotent (kein Duplikat)</li>
-        <li>Du kannst es jederzeit ueber das Hilfe-Menue erneut ausfuehren</li>
+        {#each t().mcp.ready.bullets as bullet}
+          <li>{bullet}</li>
+        {/each}
       </ul>
       <div class="actions">
-        <button class="btn btn-secondary" onclick={skip}>Spaeter</button>
-        <button class="btn btn-primary" onclick={runSetup}>Jetzt verbinden</button>
+        <button class="btn btn-secondary" onclick={skip}>{t().mcp.ready.later}</button>
+        <button class="btn btn-primary" onclick={runSetup}>{t().mcp.ready.connect}</button>
       </div>
 
     {:else if step === 'running'}
       <div class="centered-loader big">
         <div class="spinner big"></div>
-        <p class="hint">Verbinde Penwright mit Claude Desktop…</p>
+        <p class="hint">{t().mcp.running.body}</p>
       </div>
 
     {:else if step === 'done' && result}
       <div class="icon-circle green">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
-      <h2 id="mcp-wizard-title">Verbunden!</h2>
+      <h2 id="mcp-wizard-title">{t().mcp.done.title}</h2>
       <p>
         {#if result.alreadyConfigured}
-          Penwright war bereits in Claude Desktop registriert — alles unveraendert.
+          {t().mcp.done.alreadyConfigured}
         {:else}
-          Claude Desktop kennt jetzt den Penwright MCP-Server.
+          {t().mcp.done.success}
         {/if}
       </p>
       <div class="note amber">
-        <strong>Wichtig:</strong> Starte Claude Desktop neu, damit die neue MCP-Verbindung aktiv wird.
+        <strong>{t().mcp.done.importantLabel}</strong> {t().mcp.done.restartHint}
       </div>
 
       {#if result.preservedServers.length > 0}
         <div class="note green">
-          <strong>{result.preservedServers.length} weitere MCP-Server</strong> wurden in deiner Config unveraendert beibehalten: <code>{result.preservedServers.join(', ')}</code>
+          <strong>{t().mcp.done.preservedServers(result.preservedServers.length)}</strong> {t().mcp.done.preservedServersBody} <code>{result.preservedServers.join(', ')}</code>
         </div>
       {/if}
 
       <details class="paths">
-        <summary>Details</summary>
+        <summary>{t().mcp.done.detailsSummary}</summary>
         <ul>
-          <li>Binary: <code>{result.binaryPath}</code></li>
-          <li>Config: <code>{result.configPath}</code></li>
+          <li>{t().mcp.done.binaryLabel} <code>{result.binaryPath}</code></li>
+          <li>{t().mcp.done.configLabel} <code>{result.configPath}</code></li>
           {#if result.backupPath}
-            <li>Backup: <code>{result.backupPath}</code></li>
+            <li>{t().mcp.done.backupLabel} <code>{result.backupPath}</code></li>
           {/if}
         </ul>
       </details>
 
       <div class="actions">
-        <button class="btn btn-secondary" onclick={onClose}>Schliessen</button>
-        <button class="btn btn-primary" onclick={openClaude}>Claude Desktop oeffnen</button>
+        <button class="btn btn-secondary" onclick={onClose}>{t().common.close}</button>
+        <button class="btn btn-primary" onclick={openClaude}>{t().mcp.done.openClaude}</button>
       </div>
 
     {:else if step === 'error'}
       <div class="icon-circle red">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       </div>
-      <h2 id="mcp-wizard-title">Verbindung fehlgeschlagen</h2>
-      <p>Das automatische Einrichten ist nicht durchgegangen. Details:</p>
+      <h2 id="mcp-wizard-title">{t().mcp.error.title}</h2>
+      <p>{t().mcp.error.body}</p>
       <pre class="error">{errorMsg}</pre>
       <div class="actions">
-        <button class="btn btn-secondary" onclick={skip}>Schliessen</button>
-        <button class="btn btn-primary" onclick={runSetup}>Erneut versuchen</button>
+        <button class="btn btn-secondary" onclick={skip}>{t().common.close}</button>
+        <button class="btn btn-primary" onclick={runSetup}>{t().common.retry}</button>
       </div>
     {/if}
   </div>

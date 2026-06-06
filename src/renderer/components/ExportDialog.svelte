@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@shared/i18n/store.svelte';
+
   interface Chapter {
     includePath: string;
     title: string;
@@ -59,7 +61,7 @@
 
       if (result.ok) onClose();
     } catch (err) {
-      alert('Export fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err)));
+      alert(t().exportDialog.failed(err instanceof Error ? err.message : String(err)));
     } finally {
       exporting = false;
     }
@@ -82,32 +84,32 @@
   onkeydown={(e) => { if (e.key === 'Escape' && !exporting) onClose(); }}
   role="dialog"
   tabindex="-1"
-  aria-label="Export"
+  aria-label={t().exportDialog.title}
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <div class="modal-header">
-      <div class="modal-title">Export</div>
-      <button class="close-btn" onclick={onClose} aria-label="Schließen" disabled={exporting}>×</button>
+      <div class="modal-title">{t().exportDialog.title}</div>
+      <button class="close-btn" onclick={onClose} aria-label={t().common.close} disabled={exporting}>×</button>
     </div>
 
     <div class="modal-body">
       <!-- Format -->
       <div class="block">
-        <div class="block-label">Format</div>
+        <div class="block-label">{t().exportDialog.formatLabel}</div>
         <div class="format-row">
           <label class="format-option" class:selected={format === 'pdf'}>
             <input type="radio" name="format" value="pdf" bind:group={format} />
             <div>
-              <div class="format-name">PDF</div>
-              <div class="format-desc">Druckfertig, mit Layout & Schriften</div>
+              <div class="format-name">{t().exportDialog.pdfName}</div>
+              <div class="format-desc">{t().exportDialog.pdfDesc}</div>
             </div>
           </label>
           <label class="format-option" class:selected={format === 'docx'}>
             <input type="radio" name="format" value="docx" bind:group={format} />
             <div>
-              <div class="format-name">Word (DOCX)</div>
-              <div class="format-desc">Mit Word-Stilen & Live-Nummerierung</div>
+              <div class="format-name">{t().exportDialog.docxName}</div>
+              <div class="format-desc">{t().exportDialog.docxDesc}</div>
             </div>
           </label>
         </div>
@@ -116,10 +118,10 @@
       <!-- Sections -->
       <div class="block">
         <div class="block-header">
-          <span class="block-label">Was soll exportiert werden?</span>
+          <span class="block-label">{t().exportDialog.sectionsLabel}</span>
           <div class="block-actions">
-            <button class="link-btn" onclick={selectAll}>alle</button>
-            <button class="link-btn" onclick={selectNone}>keine</button>
+            <button class="link-btn" onclick={selectAll}>{t().exportDialog.selectAll}</button>
+            <button class="link-btn" onclick={selectNone}>{t().exportDialog.selectNone}</button>
           </div>
         </div>
 
@@ -144,7 +146,7 @@
               <label class="section-item">
                 <input type="checkbox" bind:checked={includeBibliography} />
                 <div class="section-info">
-                  <div class="section-title">Literaturverzeichnis</div>
+                  <div class="section-title">{t().exportDialog.bibliography}</div>
                   <div class="section-path">#bibliography</div>
                 </div>
               </label>
@@ -153,21 +155,21 @@
         </ul>
 
         <div class="hint">
-          Die Titelseite, das Inhaltsverzeichnis und alles vor dem ersten Kapitel werden immer mit-exportiert.
+          {t().exportDialog.hint}
         </div>
       </div>
     </div>
 
     <div class="modal-footer">
-      <button class="secondary" onclick={onClose} disabled={exporting}>Abbrechen</button>
+      <button class="secondary" onclick={onClose} disabled={exporting}>{t().common.cancel}</button>
       <span class="spacer"></span>
-      <span class="counter">{selectedCount} / {totalCount} ausgewählt</span>
+      <span class="counter">{t().exportDialog.counter(selectedCount, totalCount)}</span>
       <button
         class="primary"
         onclick={runExport}
         disabled={!canExport || exporting}
       >
-        {exporting ? 'Exportiere…' : `Als ${format.toUpperCase()} exportieren`}
+        {exporting ? t().exportDialog.exporting : t().exportDialog.exportAs(format.toUpperCase())}
       </button>
     </div>
   </div>

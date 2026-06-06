@@ -1,6 +1,7 @@
 import { Node } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { getCitationEntries, onCitationEntriesUpdate, type CitationEntry } from './citationSuggestion';
+import { t } from '../../shared/i18n/store.svelte';
 
 /**
  * Block-level node for Typst #bibliography(...).
@@ -51,7 +52,7 @@ export const TypstBibliography = Node.create({
 
       const header = document.createElement('div');
       header.className = 'typst-bibliography-header';
-      header.textContent = 'Bibliography';
+      header.textContent = t().editorLib.bibliographyHeader;
       dom.appendChild(header);
 
       const source = document.createElement('div');
@@ -68,8 +69,8 @@ export const TypstBibliography = Node.create({
       // "Done" button to exit the block and create a new line below
       const doneBtn = document.createElement('button');
       doneBtn.classList.add('typst-raw-done');
-      doneBtn.textContent = '\u2713 Done';
-      doneBtn.title = 'Exit block and add new line below';
+      doneBtn.textContent = t().editorLib.blockDone;
+      doneBtn.title = t().editorLib.blockDoneTooltip;
       doneBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (typeof getPos === 'function') {
@@ -94,13 +95,13 @@ export const TypstBibliography = Node.create({
 
       function renderEntries(entries: CitationEntry[]) {
         if (entries.length === 0) {
-          list.innerHTML = '<div class="typst-bibliography-empty">No references found</div>';
+          list.innerHTML = `<div class="typst-bibliography-empty">${t().editorLib.bibliographyEmpty}</div>`;
           return;
         }
 
         list.innerHTML = entries
           .map((entry) => {
-            const author = esc(entry.author || 'Unknown');
+            const author = esc(entry.author || t().editorLib.bibliographyUnknownAuthor);
             const year = esc(entry.year);
             const title = esc(entry.title);
             const yearPart = year ? ` (${year})` : '';

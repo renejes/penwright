@@ -1,5 +1,6 @@
 <script lang="ts">
   import { uiState } from '../appState.svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   let {
     onClose,
@@ -108,13 +109,13 @@
 <div class="license-overlay" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()} role="dialog" tabindex="-1">
   <div class="license-dialog" onclick={(e) => e.stopPropagation()} role="document">
     <div class="dialog-header">
-      <h2>License</h2>
+      <h2>{t().license.dialogTitle}</h2>
       <button class="close-btn" onclick={onClose}>×</button>
     </div>
 
     {#if status === 'active' && activeKey}
       <div class="license-active">
-        <div class="status-badge">Licensed</div>
+        <div class="status-badge">{t().license.dialogLicensed}</div>
         <div class="license-info">
           <span class="key-display">{maskKey(activeKey)}</span>
           {#if message}
@@ -122,13 +123,13 @@
           {/if}
         </div>
         <button class="btn btn-secondary" onclick={handleDeactivate} disabled={loading}>
-          {loading ? 'Deactivating...' : 'Deactivate on this device'}
+          {loading ? t().license.dialogDeactivating : t().license.dialogDeactivate}
         </button>
       </div>
     {:else}
       <div class="license-input">
         <p class="dialog-description">
-          Enter your license key to activate Penwright on this device.
+          {t().license.dialogEnterPrompt}
         </p>
 
         <input
@@ -149,15 +150,15 @@
 
         <div class="dialog-actions">
           <button class="btn btn-primary" onclick={handleActivate} disabled={loading || !licenseKey.trim()}>
-            {loading ? 'Activating...' : 'Activate'}
+            {loading ? t().license.dialogActivating : t().license.dialogActivate}
           </button>
           <button class="btn btn-secondary" onclick={handleBuy}>
-            Buy License
+            {t().license.dialogBuy}
           </button>
         </div>
 
         <button class="btn-text" onclick={onClose}>
-          Continue without license
+          {t().license.dialogContinueWithout}
         </button>
       </div>
     {/if}

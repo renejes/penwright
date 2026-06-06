@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
+  import { t } from '@shared/i18n/store.svelte';
 
   let {
     editor,
@@ -19,12 +20,13 @@
   let headings: HeadingEntry[] = $derived.by(() => {
     void editorVersion;
     if (!editor) return [];
+    const untitled = t().pickers.outlineUntitled;
     const result: HeadingEntry[] = [];
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === 'heading') {
         result.push({
           level: node.attrs.level as number,
-          title: node.textContent.trim() || '(untitled)',
+          title: node.textContent.trim() || untitled,
           pos,
           nodeSize: node.nodeSize,
         });
@@ -54,7 +56,7 @@
 
   function findBacklinks(heading: HeadingEntry, e: MouseEvent) {
     e.stopPropagation();
-    if (!heading.title || heading.title === '(untitled)') return;
+    if (!heading.title || heading.title === t().pickers.outlineUntitled) return;
     window.dispatchEvent(new CustomEvent('penwright:find-backlinks', {
       detail: { query: heading.title, wholeWord: false, caseSensitive: false },
     }));
@@ -168,9 +170,9 @@
 
 <div class="outline">
   {#if headings.length === 0}
-    <div class="outline-empty">No headings</div>
+    <div class="outline-empty">{t().pickers.outlineEmpty}</div>
   {:else}
-    <div class="outline-label">Outline</div>
+    <div class="outline-label">{t().pickers.outlineLabel}</div>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <ul
       class="outline-list"
@@ -204,8 +206,8 @@
           <button
             class="outline-backlinks"
             onclick={(e) => findBacklinks(heading, e)}
-            title="Find references to this heading"
-            aria-label="Find references to {heading.title}"
+            title={t().pickers.outlineFindRefs}
+            aria-label={t().pickers.outlineFindRefsAria(heading.title)}
           >
             &#x21AA;
           </button>

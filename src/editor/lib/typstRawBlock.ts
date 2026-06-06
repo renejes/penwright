@@ -1,5 +1,6 @@
 import { Node } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
+import { t } from '../../shared/i18n/store.svelte';
 
 /**
  * Custom TipTap node for Typst code that can't be rendered as WYSIWYG.
@@ -82,30 +83,39 @@ export const TypstRawBlock = Node.create({
         }
       });
 
+      // Leave the block: insert a paragraph right after it and move the cursor
+      // there. Shared by the "Done" button and the keyboard shortcuts below
+      // (plain Enter stays inside the textarea as a newline).
+      const exitBlock = () => {
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (pos === undefined) return;
+        const endPos = pos + node.nodeSize;
+        const tr = editor.view.state.tr.insert(
+          endPos,
+          editor.view.state.schema.nodes.paragraph.create()
+        );
+        tr.setSelection(TextSelection.near(tr.doc.resolve(endPos)));
+        editor.view.dispatch(tr);
+        editor.view.focus();
+      };
+
+      // Esc or Cmd/Ctrl+Enter exits the block without reaching for the mouse.
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || ((e.metaKey || e.ctrlKey) && e.key === 'Enter')) {
+          e.preventDefault();
+          exitBlock();
+        }
+      });
+
       // "Done" button to exit the block and create a new line below
       const doneBtn = document.createElement('button');
       doneBtn.classList.add('typst-raw-done');
-      doneBtn.textContent = '✓ Done';
-      doneBtn.title = 'Exit block and add new line below';
+      doneBtn.textContent = t().editorLib.blockDone;
+      doneBtn.title = t().editorLib.rawBlockDoneTooltip;
       doneBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        if (typeof getPos === 'function') {
-          const pos = getPos();
-          if (pos !== undefined) {
-            const endPos = pos + node.nodeSize;
-            const tr = editor.view.state.tr.insert(
-              endPos,
-              editor.view.state.schema.nodes.paragraph.create()
-            );
-            tr.setSelection(
-              TextSelection.near(
-                tr.doc.resolve(endPos)
-              )
-            );
-            editor.view.dispatch(tr);
-            editor.view.focus();
-          }
-        }
+        exitBlock();
       });
 
       dom.appendChild(textarea);
@@ -135,16 +145,17 @@ export const TypstRawBlock = Node.create({
 });
 
 function getBlockLabel(blockType: string): string {
+  const m = t().editorLib;
   switch (blockType) {
     case 'math':
-      return 'typst \u00b7 math';
+      return m.rawBlockMath;
     case 'config':
-      return 'typst \u00b7 configuration';
+      return m.rawBlockConfig;
     case 'code':
-      return 'typst \u00b7 code';
+      return m.rawBlockCode;
     case 'comment':
-      return 'typst \u00b7 comment';
+      return m.rawBlockComment;
     default:
-      return 'typst';
+      return m.rawBlockDefault;
   }
 }

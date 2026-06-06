@@ -8,6 +8,7 @@
    */
 
   import { onMount } from 'svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   let { chapterPath, styleId, onClose }:
     { chapterPath: string; styleId: string; onClose: () => void } = $props();
@@ -101,10 +102,10 @@
         window.dispatchEvent(new CustomEvent('penwright:design-changed'));
         onClose();
       } else {
-        err = res?.error ? 'Nicht angewendet — würde das Dokument brechen.' : 'Speichern fehlgeschlagen.';
+        err = res?.error ? t().look.errorWouldBreak : t().look.errorSaveFailed;
       }
     } catch {
-      err = 'Speichern fehlgeschlagen.';
+      err = t().look.errorSaveFailed;
     } finally {
       busy = false;
     }
@@ -113,40 +114,40 @@
 
 <div class="sle-overlay" role="presentation" onclick={onClose}>
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="sle" role="dialog" aria-modal="true" aria-label="Kapitel-Look anpassen" onclick={(e) => e.stopPropagation()}>
+  <div class="sle" role="dialog" aria-modal="true" aria-label={t().look.editorDialogAria} onclick={(e) => e.stopPropagation()}>
     <header class="sle-head">
       <div>
-        <div class="sle-title">Kapitel-Look anpassen</div>
-        <div class="sle-sub">Rubrik „{name}“</div>
+        <div class="sle-title">{t().look.editorTitle}</div>
+        <div class="sle-sub">{t().look.editorSubtitle(name)}</div>
       </div>
-      <button class="sle-x" onclick={onClose} aria-label="Schließen">×</button>
+      <button class="sle-x" onclick={onClose} aria-label={t().look.closeAria}>×</button>
     </header>
 
     {#if loaded}
       <div class="sle-body">
         <div class="sle-row">
           <label class="sle-field">
-            <span>Akzent</span>
+            <span>{t().look.fieldAccent}</span>
             <input type="color" bind:value={accent} />
           </label>
           <label class="sle-field">
-            <span>Primär</span>
+            <span>{t().look.fieldPrimary}</span>
             <input type="color" bind:value={primary} />
           </label>
         </div>
 
         <div class="sle-row">
           <label class="sle-field grow">
-            <span>Body-Schrift</span>
+            <span>{t().look.fieldBodyFont}</span>
             <select bind:value={bodyFont}>
-              <option value="">wie Dokument</option>
+              <option value="">{t().look.asDocument}</option>
               {#each FONTS as f}<option value={f}>{f}</option>{/each}
             </select>
           </label>
           <label class="sle-field grow">
-            <span>Überschrift-Schrift</span>
+            <span>{t().look.fieldHeadingFont}</span>
             <select bind:value={headingFont}>
-              <option value="">wie Dokument</option>
+              <option value="">{t().look.asDocument}</option>
               {#each FONTS as f}<option value={f}>{f}</option>{/each}
             </select>
           </label>
@@ -154,17 +155,17 @@
 
         <div class="sle-row">
           <label class="sle-field">
-            <span>Basisgröße</span>
-            <input type="text" bind:value={scaleBase} placeholder="z. B. 11pt" spellcheck="false" />
+            <span>{t().look.fieldBaseSize}</span>
+            <input type="text" bind:value={scaleBase} placeholder={t().look.baseSizePlaceholder} spellcheck="false" />
           </label>
           <label class="sle-field">
-            <span>Zeilenabstand</span>
-            <input type="text" bind:value={scaleLeading} placeholder="z. B. 0.7em" spellcheck="false" />
+            <span>{t().look.fieldLeading}</span>
+            <input type="text" bind:value={scaleLeading} placeholder={t().look.leadingPlaceholder} spellcheck="false" />
           </label>
           <label class="sle-field">
-            <span>Spalten</span>
+            <span>{t().look.fieldColumns}</span>
             <select bind:value={columns}>
-              <option value={0}>wie Dokument</option>
+              <option value={0}>{t().look.columnsAsDocument}</option>
               <option value={1}>1</option>
               <option value={2}>2</option>
               <option value={3}>3</option>
@@ -173,20 +174,20 @@
         </div>
 
         <button class="sle-toggle" onclick={() => (showHeadings = !showHeadings)} aria-expanded={showHeadings}>
-          {showHeadings ? '▾' : '▸'} Überschriften (H1–H3)
+          {showHeadings ? '▾' : '▸'} {t().look.headingsToggle}
         </button>
         {#if showHeadings}
           <div class="sle-headings">
             {#each LEVELS as lvl}
               <div class="sle-hrow">
                 <span class="sle-hlabel">{lvl.toUpperCase()}</span>
-                <input class="sle-hsize" type="text" bind:value={headings[lvl].size} placeholder="Größe" spellcheck="false" />
+                <input class="sle-hsize" type="text" bind:value={headings[lvl].size} placeholder={t().look.headingSizePlaceholder} spellcheck="false" />
                 <select bind:value={headings[lvl].weight}>
-                  <option value="">Gewicht</option>
+                  <option value="">{t().look.headingWeightPlaceholder}</option>
                   {#each WEIGHTS as w}<option value={w}>{w}</option>{/each}
                 </select>
                 <select bind:value={headings[lvl].color}>
-                  <option value="">Farbe</option>
+                  <option value="">{t().look.headingColorPlaceholder}</option>
                   {#each COLOR_SLOTS as c}<option value={c}>{c}</option>{/each}
                 </select>
               </div>
@@ -195,17 +196,16 @@
         {/if}
 
         <p class="sle-note">
-          Seitenformat, Ränder &amp; Kopfzeilen bleiben dokumentweit. Wird sicher
-          angewendet — bricht es das Dokument, bleibt alles wie es war.
+          {t().look.editorNote}
         </p>
         {#if err}<p class="sle-err">{err}</p>{/if}
       </div>
 
       <footer class="sle-foot">
-        <button class="sle-btn ghost" onclick={onClose}>Abbrechen</button>
+        <button class="sle-btn ghost" onclick={onClose}>{t().common.cancel}</button>
         <div class="sle-foot-right">
-          <button class="sle-btn" disabled={busy} onclick={() => save('this')} title="Erstellt eine Kopie nur für dieses Kapitel">Nur dieses Kapitel</button>
-          <button class="sle-btn primary" disabled={busy} onclick={() => save('all')} title="Ändert die Rubrik für alle Kapitel, die sie nutzen">Für alle mit diesem Look</button>
+          <button class="sle-btn" disabled={busy} onclick={() => save('this')} title={t().look.saveThisChapterTitle}>{t().look.saveThisChapter}</button>
+          <button class="sle-btn primary" disabled={busy} onclick={() => save('all')} title={t().look.saveAllTitle}>{t().look.saveAll}</button>
         </div>
       </footer>
     {/if}

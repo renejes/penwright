@@ -13,6 +13,7 @@
    */
 
   import type { DocumentSettings } from '../lib/messages';
+  import { t, i18nState, setLocale } from '@shared/i18n/store.svelte';
 
   let {
     settings,
@@ -32,8 +33,18 @@
     local = { ...settings };
   });
 
-  const languages = [
-    { value: '', label: 'Default' },
+  // App / interface language. Global (not part of the per-document settings) —
+  // applied + persisted immediately via the i18n store.
+  const uiLanguages = [
+    { value: 'en', label: 'English' },
+    { value: 'de', label: 'Deutsch' },
+  ];
+  function onUiLanguageChange(e: Event) {
+    setLocale((e.target as HTMLSelectElement).value);
+  }
+
+  const languages = $derived([
+    { value: '', label: t().common.default },
     { value: 'de', label: 'Deutsch' },
     { value: 'en', label: 'English' },
     { value: 'fr', label: 'Français' },
@@ -46,10 +57,10 @@
     { value: 'zh', label: 'Chinese' },
     { value: 'ja', label: 'Japanese' },
     { value: 'ko', label: 'Korean' },
-  ];
+  ]);
 
-  const citationStyles = [
-    { value: '', label: 'Default (Typst)' },
+  const citationStyles = $derived([
+    { value: '', label: `${t().common.default} (Typst)` },
     { value: 'apa', label: 'APA' },
     { value: 'ieee', label: 'IEEE' },
     { value: 'mla', label: 'MLA' },
@@ -63,7 +74,7 @@
     { value: 'cell', label: 'Cell' },
     { value: 'nature', label: 'Nature' },
     { value: 'iso-690-author-date', label: 'ISO 690' },
-  ];
+  ]);
 
   function handleSave() {
     // Spread to detach from the Svelte 5 $state proxy — postMessage's
@@ -83,21 +94,33 @@
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
   <div class="settings-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
     <div class="settings-header">
-      <h2>Document Settings</h2>
+      <h2>{t().settings.title}</h2>
       <button class="settings-close" onclick={onClose}>&times;</button>
     </div>
 
     <div class="settings-body">
-      <p class="settings-intro">
-        Typografie, Layout und Design leben jetzt im <strong>Design</strong>-Tab in der Seitenleiste.
-        Hier bleibt nur, was dokumentspezifisch und nicht Teil der Design-Tokens ist.
-      </p>
-
       <div class="settings-section">
-        <h3>Language</h3>
+        <h3>{t().settings.interfaceSection}</h3>
 
         <label class="settings-field">
-          <span>Document language</span>
+          <span>{t().settings.interfaceLanguage}</span>
+          <select value={i18nState.locale} onchange={onUiLanguageChange}>
+            {#each uiLanguages as l}
+              <option value={l.value}>{l.label}</option>
+            {/each}
+          </select>
+        </label>
+        <p class="settings-hint">{t().settings.interfaceLanguageHint}</p>
+      </div>
+
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+      <p class="settings-intro">{@html t().settings.intro}</p>
+
+      <div class="settings-section">
+        <h3>{t().settings.languageSection}</h3>
+
+        <label class="settings-field">
+          <span>{t().settings.documentLanguage}</span>
           <select bind:value={local.lang}>
             {#each languages as l}
               <option value={l.value}>{l.label}</option>
@@ -107,10 +130,10 @@
       </div>
 
       <div class="settings-section">
-        <h3>Bibliography</h3>
+        <h3>{t().settings.bibliographySection}</h3>
 
         <label class="settings-field">
-          <span>Citation style</span>
+          <span>{t().settings.citationStyle}</span>
           <select bind:value={local.bibliographyStyle}>
             {#each citationStyles as cs}
               <option value={cs.value}>{cs.label}</option>
@@ -122,10 +145,10 @@
 
     <div class="settings-footer">
       <button class="settings-btn settings-btn-secondary" onclick={onClose}>
-        Cancel
+        {t().common.cancel}
       </button>
       <button class="settings-btn settings-btn-primary" onclick={handleSave}>
-        Apply
+        {t().common.apply}
       </button>
     </div>
   </div>
@@ -143,4 +166,10 @@
     color: #4b5563;
   }
   .settings-intro strong { color: #1d4ed8; font-weight: 600; }
+  .settings-hint {
+    margin: 6px 0 0 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #6b7280;
+  }
 </style>

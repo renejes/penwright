@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@shared/i18n/store.svelte';
+
   let {
     content = '',
     currentFile = '',
@@ -91,10 +93,10 @@
 <div class="includes">
   {#if includes.length === 0}
     <div class="includes-empty">
-      <p>No #include statements</p>
+      <p>{t().pickers.includesEmpty}</p>
     </div>
   {:else}
-    <div class="includes-label">Chapters</div>
+    <div class="includes-label">{t().pickers.includesLabel}</div>
     <ul class="includes-list">
       {#each includes as entry, i}
         <li class="include-row" class:missing={!entry.exists}>
@@ -104,16 +106,16 @@
           </button>
           <div class="include-actions">
             {#if i > 0}
-              <button class="move-btn" onclick={() => moveInclude(i, 'up')} title="Move up">
+              <button class="move-btn" onclick={() => moveInclude(i, 'up')} title={t().pickers.includesMoveUp}>
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 12V4M4 8l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             {/if}
             {#if i < includes.length - 1}
-              <button class="move-btn" onclick={() => moveInclude(i, 'down')} title="Move down">
+              <button class="move-btn" onclick={() => moveInclude(i, 'down')} title={t().pickers.includesMoveDown}>
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 4v8M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             {/if}
-            <button class="move-btn remove" onclick={() => removeInclude(i)} title="Remove">
+            <button class="move-btn remove" onclick={() => removeInclude(i)} title={t().pickers.includesRemove}>
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             </button>
           </div>
@@ -122,7 +124,7 @@
     </ul>
   {/if}
   <div class="includes-footer">
-    <button class="add-btn" onclick={addInclude}>+ Add Chapter</button>
+    <button class="add-btn" onclick={addInclude}>{t().pickers.includesAddChapter}</button>
   </div>
 </div>
 

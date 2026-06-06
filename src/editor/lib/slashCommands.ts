@@ -2,160 +2,190 @@ import { Extension, type Editor } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import { insertFootnoteWithEditor } from './typstFootnote';
+import { t } from '../../shared/i18n/store.svelte';
 
-interface SlashItem {
+/** Logical grouping for the toolbar "Insert" dropdown (the slash menu ignores it). */
+export type InsertGroup = 'text' | 'blocks' | 'refs';
+
+export interface SlashItem {
   title: string;
   description: string;
   icon: string;
+  group: InsertGroup;
   command: (editor: Editor) => void;
 }
 
-const COMMANDS: SlashItem[] = [
-  {
-    title: 'Heading 1',
-    description: 'Large heading',
-    icon: 'H1',
-    command: (e) => e.chain().focus().toggleHeading({ level: 1 }).run(),
-  },
-  {
-    title: 'Heading 2',
-    description: 'Medium heading',
-    icon: 'H2',
-    command: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(),
-  },
-  {
-    title: 'Heading 3',
-    description: 'Small heading',
-    icon: 'H3',
-    command: (e) => e.chain().focus().toggleHeading({ level: 3 }).run(),
-  },
-  {
-    title: 'Bullet List',
-    description: 'Unordered list',
-    icon: '•',
-    command: (e) => e.chain().focus().toggleBulletList().run(),
-  },
-  {
-    title: 'Numbered List',
-    description: 'Ordered list',
-    icon: '1.',
-    command: (e) => e.chain().focus().toggleOrderedList().run(),
-  },
-  {
-    title: 'Quote',
-    description: 'Blockquote',
-    icon: '\u201C',
-    command: (e) => e.chain().focus().toggleBlockquote().run(),
-  },
-  {
-    title: 'Code Block',
-    description: 'Fenced code',
-    icon: '{}',
-    command: (e) => e.chain().focus().toggleCodeBlock().run(),
-  },
-  {
-    title: 'Divider',
-    description: 'Horizontal line',
-    icon: '\u2014',
-    command: (e) => e.chain().focus().setHorizontalRule().run(),
-  },
-  {
-    title: 'Page Break',
-    description: 'Start a new page',
-    icon: '\u23CE',
-    command: (e) =>
-      e.chain().focus().insertContent({ type: 'pagebreak' }).run(),
-  },
-  {
-    title: 'Table of Contents',
-    description: 'Insert table of contents',
-    icon: '\uD83D\uDCCB',
-    command: (e) =>
-      e
-        .chain()
-        .focus()
-        .insertContent({
-          type: 'typstRawBlock',
-          attrs: { content: '#outline()', blockType: 'config' },
-        })
-        .run(),
-  },
-  {
-    title: 'Math',
-    description: 'Typst math block',
-    icon: '\u03A3',
-    command: (e) =>
-      e
-        .chain()
-        .focus()
-        .insertContent({
-          type: 'typstRawBlock',
-          attrs: { content: '$ $', blockType: 'math' },
-        })
-        .run(),
-  },
-  {
-    title: 'Typst Code',
-    description: 'Raw Typst code',
-    icon: '#',
-    command: (e) =>
-      e
-        .chain()
-        .focus()
-        .insertContent({
-          type: 'typstRawBlock',
-          attrs: { content: '#', blockType: 'code' },
-        })
-        .run(),
-  },
-  {
-    title: 'Table',
-    description: 'Insert table',
-    icon: '\u25A6',
-    command: (e) =>
-      e
-        .chain()
-        .focus()
-        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-        .run(),
-  },
-  {
-    title: 'Footnote',
-    description: 'Insert footnote (opens editor)',
-    icon: '\u2020',
-    command: (e) => insertFootnoteWithEditor(e),
-  },
-  {
-    title: 'Citation',
-    description: 'Insert citation (@citekey)',
-    icon: '@',
-    command: (e) => {
-      // Insert @ character to trigger the citation suggestion
-      e.chain().focus().insertContent('@').run();
+/**
+ * Builds the insert-command list using the active locale. Shared by the slash
+ * menu (`/`) AND the toolbar "Insert" dropdown, so both stay in sync. Called
+ * fresh each time a menu opens so titles/descriptions reflect the language.
+ */
+export function getCommands(): SlashItem[] {
+  const m = t().editorLib;
+  return [
+    {
+      title: m.slashHeading1Title,
+      description: m.slashHeading1Desc,
+      icon: 'H1',
+      group: 'text',
+      command: (e) => e.chain().focus().toggleHeading({ level: 1 }).run(),
     },
-  },
-  {
-    title: 'Reference',
-    description: 'Insert cross-reference (@label)',
-    icon: '↳',
-    command: () => {
-      // Picker is owned by App.svelte; we just open it via a window event.
-      window.dispatchEvent(new CustomEvent('penwright:open-reference-picker'));
+    {
+      title: m.slashHeading2Title,
+      description: m.slashHeading2Desc,
+      icon: 'H2',
+      group: 'text',
+      command: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(),
     },
-  },
-  {
-    title: 'Image',
-    description: 'Insert image from file',
-    icon: '\uD83D\uDDBC',
-    command: () => {
-      // Trigger file picker via extension message
-      const vscodeApi = (window as unknown as { penwrightApi: { postMessage(msg: unknown): void } }).penwrightApi;
-      if (vscodeApi) {
-        vscodeApi.postMessage({ type: 'pickImage' });
-      }
+    {
+      title: m.slashHeading3Title,
+      description: m.slashHeading3Desc,
+      icon: 'H3',
+      group: 'text',
+      command: (e) => e.chain().focus().toggleHeading({ level: 3 }).run(),
     },
-  },
-];
+    {
+      title: m.slashBulletListTitle,
+      description: m.slashBulletListDesc,
+      icon: '•',
+      group: 'text',
+      command: (e) => e.chain().focus().toggleBulletList().run(),
+    },
+    {
+      title: m.slashNumberedListTitle,
+      description: m.slashNumberedListDesc,
+      icon: '1.',
+      group: 'text',
+      command: (e) => e.chain().focus().toggleOrderedList().run(),
+    },
+    {
+      title: m.slashQuoteTitle,
+      description: m.slashQuoteDesc,
+      icon: '“',
+      group: 'text',
+      command: (e) => e.chain().focus().toggleBlockquote().run(),
+    },
+    {
+      title: m.slashCodeBlockTitle,
+      description: m.slashCodeBlockDesc,
+      icon: '{}',
+      group: 'blocks',
+      command: (e) => e.chain().focus().toggleCodeBlock().run(),
+    },
+    {
+      title: m.slashDividerTitle,
+      description: m.slashDividerDesc,
+      icon: '—',
+      group: 'blocks',
+      command: (e) => e.chain().focus().setHorizontalRule().run(),
+    },
+    {
+      title: m.slashPageBreakTitle,
+      description: m.slashPageBreakDesc,
+      icon: '⏎',
+      group: 'blocks',
+      command: (e) =>
+        e.chain().focus().insertContent({ type: 'pagebreak' }).run(),
+    },
+    {
+      title: m.slashTocTitle,
+      description: m.slashTocDesc,
+      icon: '📋',
+      group: 'blocks',
+      command: (e) =>
+        e
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'typstRawBlock',
+            attrs: { content: '#outline()', blockType: 'config' },
+          })
+          .run(),
+    },
+    {
+      title: m.slashMathTitle,
+      description: m.slashMathDesc,
+      icon: 'Σ',
+      group: 'blocks',
+      command: (e) =>
+        e
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'typstRawBlock',
+            attrs: { content: '$ $', blockType: 'math' },
+          })
+          .run(),
+    },
+    {
+      title: m.slashTypstCodeTitle,
+      description: m.slashTypstCodeDesc,
+      icon: '#',
+      group: 'blocks',
+      command: (e) =>
+        e
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'typstRawBlock',
+            attrs: { content: '#', blockType: 'code' },
+          })
+          .run(),
+    },
+    {
+      title: m.slashTableTitle,
+      description: m.slashTableDesc,
+      icon: '▦',
+      group: 'blocks',
+      command: (e) =>
+        e
+          .chain()
+          .focus()
+          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+          .run(),
+    },
+    {
+      title: m.slashFootnoteTitle,
+      description: m.slashFootnoteDesc,
+      icon: '†',
+      group: 'refs',
+      command: (e) => insertFootnoteWithEditor(e),
+    },
+    {
+      title: m.slashCitationTitle,
+      description: m.slashCitationDesc,
+      icon: '@',
+      group: 'refs',
+      command: (e) => {
+        // Insert @ character to trigger the citation suggestion
+        e.chain().focus().insertContent('@').run();
+      },
+    },
+    {
+      title: m.slashReferenceTitle,
+      description: m.slashReferenceDesc,
+      icon: '↳',
+      group: 'refs',
+      command: () => {
+        // Picker is owned by App.svelte; we just open it via a window event.
+        window.dispatchEvent(new CustomEvent('penwright:open-reference-picker'));
+      },
+    },
+    {
+      title: m.slashImageTitle,
+      description: m.slashImageDesc,
+      icon: '🖼',
+      group: 'refs',
+      command: () => {
+        // Trigger file picker via extension message
+        const vscodeApi = (window as unknown as { penwrightApi: { postMessage(msg: unknown): void } }).penwrightApi;
+        if (vscodeApi) {
+          vscodeApi.postMessage({ type: 'pickImage' });
+        }
+      },
+    },
+  ];
+}
 
 export const SlashCommands = Extension.create({
   name: 'slashCommands',
@@ -167,9 +197,11 @@ export const SlashCommands = Extension.create({
         editor: this.editor,
         char: '/',
         items: ({ query }: { query: string }) =>
-          COMMANDS.filter((item) =>
-            item.title.toLowerCase().includes(query.toLowerCase()),
-          ).slice(0, 10),
+          getCommands()
+            .filter((item) =>
+              item.title.toLowerCase().includes(query.toLowerCase()),
+            )
+            .slice(0, 10),
         command: ({
           editor,
           range,

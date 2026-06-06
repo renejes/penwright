@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { marked } from 'marked';
+  import { t } from '@shared/i18n/store.svelte';
   // Bundled at build time (?raw) so the handbook ships inside the app — no
   // network, no external docs site. @docs → repo `documentation/`.
   import handbookEn from '@docs/handbook.md?raw';
@@ -58,15 +59,15 @@
 
 <div class="hb-overlay" onclick={onClose} role="presentation">
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="hb-card" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1" aria-modal="true" aria-label="User Guide">
+  <div class="hb-card" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1" aria-modal="true" aria-label={t().about.handbookTitle}>
     <header class="hb-header">
-      <h2>User Guide</h2>
+      <h2>{t().about.handbookTitle}</h2>
       <div class="hb-header-right">
-        <div class="hb-lang" role="group" aria-label="Language">
+        <div class="hb-lang" role="group" aria-label={t().common.language}>
           <button class:active={lang === 'en'} onclick={() => (lang = 'en')}>EN</button>
           <button class:active={lang === 'de'} onclick={() => (lang = 'de')}>DE</button>
         </div>
-        <button class="hb-close" onclick={onClose} aria-label="Close">×</button>
+        <button class="hb-close" onclick={onClose} aria-label={t().common.close}>×</button>
       </div>
     </header>
     <div class="hb-body markdown" bind:this={bodyEl}>

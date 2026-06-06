@@ -1,8 +1,41 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { insertFootnoteWithEditor } from '../lib/typstFootnote';
+  import { getCommands, type SlashItem } from '../lib/slashCommands';
+  import { t } from '@shared/i18n/store.svelte';
 
   let { editor }: { editor: Editor } = $props();
+
+  // "Insert" dropdown — same command list as the slash ("/") menu, grouped.
+  let showInsertMenu = $state(false);
+  let insertBtnEl: HTMLButtonElement;
+  let insertMenuStyle = $state('');
+
+  const insertGroups = $derived.by(() => {
+    const cmds = getCommands();
+    return [
+      { label: t().editor.insertGroupText, items: cmds.filter((c) => c.group === 'text') },
+      { label: t().editor.insertGroupBlocks, items: cmds.filter((c) => c.group === 'blocks') },
+      { label: t().editor.insertGroupRefs, items: cmds.filter((c) => c.group === 'refs') },
+    ];
+  });
+
+  function toggleInsertMenu() {
+    showInsertMenu = !showInsertMenu;
+    if (showInsertMenu && insertBtnEl) {
+      const rect = insertBtnEl.getBoundingClientRect();
+      insertMenuStyle = `position:fixed; left:${rect.left}px; top:${rect.bottom + 4}px;`;
+    }
+  }
+
+  function runInsert(item: SlashItem) {
+    showInsertMenu = false;
+    item.command(editor);
+  }
+
+  function onWindowKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && showInsertMenu) showInsertMenu = false;
+  }
 
   let showTablePicker = $state(false);
   let pickerRows = $state(0);
@@ -32,24 +65,24 @@
     }
   }
 
-  const colorOptions = [
-    { label: 'Red', value: 'red', css: '#e74c3c' },
-    { label: 'Blue', value: 'blue', css: '#3498db' },
-    { label: 'Green', value: 'green', css: '#27ae60' },
-    { label: 'Orange', value: 'orange', css: '#e67e22' },
-    { label: 'Purple', value: 'purple', css: '#9b59b6' },
-    { label: 'Navy', value: 'navy', css: '#2c3e50' },
-    { label: 'Gray', value: 'gray', css: '#7f8c8d' },
-  ];
+  const colorOptions = $derived([
+    { label: t().editor.colorRed, value: 'red', css: '#e74c3c' },
+    { label: t().editor.colorBlue, value: 'blue', css: '#3498db' },
+    { label: t().editor.colorGreen, value: 'green', css: '#27ae60' },
+    { label: t().editor.colorOrange, value: 'orange', css: '#e67e22' },
+    { label: t().editor.colorPurple, value: 'purple', css: '#9b59b6' },
+    { label: t().editor.colorNavy, value: 'navy', css: '#2c3e50' },
+    { label: t().editor.colorGray, value: 'gray', css: '#7f8c8d' },
+  ]);
 
-  const highlightOptions = [
-    { label: 'Yellow', value: 'yellow', css: '#f1c40f' },
-    { label: 'Green', value: 'green', css: '#2ecc71' },
-    { label: 'Blue', value: 'blue', css: '#3498db' },
-    { label: 'Pink', value: 'rgb("#FFD1DC")', css: '#FFD1DC' },
-    { label: 'Orange', value: 'orange', css: '#e67e22' },
-    { label: 'Purple', value: 'purple', css: '#9b59b6' },
-  ];
+  const highlightOptions = $derived([
+    { label: t().editor.colorYellow, value: 'yellow', css: '#f1c40f' },
+    { label: t().editor.colorGreen, value: 'green', css: '#2ecc71' },
+    { label: t().editor.colorBlue, value: 'blue', css: '#3498db' },
+    { label: t().editor.colorPink, value: 'rgb("#FFD1DC")', css: '#FFD1DC' },
+    { label: t().editor.colorOrange, value: 'orange', css: '#e67e22' },
+    { label: t().editor.colorPurple, value: 'purple', css: '#9b59b6' },
+  ]);
 
   function applyTextColor(color: string) {
     editor.chain().focus().setMark('textColor', { color }).run();
@@ -73,7 +106,7 @@
 
   function setLink() {
     const previousUrl = editor.getAttributes('link').href;
-    const url = window.prompt('URL:', previousUrl || 'https://');
+    const url = window.prompt(t().editor.toolbarLinkPrompt, previousUrl || 'https://');
     if (url === null) return;
     if (url === '') {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -98,12 +131,30 @@
   }
 </script>
 
-<div class="toolbar-buttons" role="toolbar" aria-label="Formatting toolbar">
+<svelte:window onkeydown={onWindowKeydown} />
+
+<div class="toolbar-buttons" role="toolbar" aria-label={t().editor.toolbarLabel}>
+  <!-- Insert dropdown — discoverable entry point for everything the "/" menu offers -->
+  <button
+    bind:this={insertBtnEl}
+    class="toolbar-insert-btn"
+    class:active={showInsertMenu}
+    onclick={toggleInsertMenu}
+    title={t().editor.toolbarInsert}
+    aria-label={t().editor.toolbarInsert}
+    aria-haspopup="true"
+    aria-expanded={showInsertMenu}
+  >
+    +
+  </button>
+
+  <div class="separator" role="separator"></div>
+
   <button
     class:active={editor.isActive('bold')}
     onclick={() => editor.chain().focus().toggleBold().run()}
-    title="Bold (Cmd+B)"
-    aria-label="Bold"
+    title={t().editor.toolbarBold}
+    aria-label={t().editor.toolbarBoldAria}
     aria-pressed={editor.isActive('bold')}
   >
     <strong>B</strong>
@@ -112,8 +163,8 @@
   <button
     class:active={editor.isActive('italic')}
     onclick={() => editor.chain().focus().toggleItalic().run()}
-    title="Italic (Cmd+I)"
-    aria-label="Italic"
+    title={t().editor.toolbarItalic}
+    aria-label={t().editor.toolbarItalicAria}
     aria-pressed={editor.isActive('italic')}
   >
     <em>I</em>
@@ -122,8 +173,8 @@
   <button
     class:active={editor.isActive('strike')}
     onclick={() => editor.chain().focus().toggleStrike().run()}
-    title="Strikethrough (Cmd+Shift+X)"
-    aria-label="Strikethrough"
+    title={t().editor.toolbarStrike}
+    aria-label={t().editor.toolbarStrikeAria}
     aria-pressed={editor.isActive('strike')}
   >
     <s>S</s>
@@ -132,8 +183,8 @@
   <button
     class:active={editor.isActive('code')}
     onclick={() => editor.chain().focus().toggleCode().run()}
-    title="Inline Code (Cmd+E)"
-    aria-label="Inline code"
+    title={t().editor.toolbarInlineCode}
+    aria-label={t().editor.toolbarInlineCodeAria}
     aria-pressed={editor.isActive('code')}
   >
     &lt;/&gt;
@@ -142,8 +193,8 @@
   <button
     class:active={editor.isActive('link')}
     onclick={setLink}
-    title="Link (Cmd+K)"
-    aria-label="Insert link"
+    title={t().editor.toolbarLink}
+    aria-label={t().editor.toolbarLinkAria}
     aria-pressed={editor.isActive('link')}
   >
     &#128279;
@@ -152,8 +203,8 @@
   <button
     class:active={editor.isActive('underline')}
     onclick={() => editor.chain().focus().toggleMark('underline').run()}
-    title="Underline (Cmd+U)"
-    aria-label="Underline"
+    title={t().editor.toolbarUnderline}
+    aria-label={t().editor.toolbarUnderlineAria}
     aria-pressed={editor.isActive('underline')}
   >
     <u>U</u>
@@ -164,8 +215,8 @@
     bind:this={textColorBtnEl}
     class:active={editor.isActive('textColor')}
     onclick={openTextColorPicker}
-    title="Text Color"
-    aria-label="Text color"
+    title={t().editor.toolbarTextColor}
+    aria-label={t().editor.toolbarTextColorAria}
     aria-expanded={showTextColorPicker}
     aria-haspopup="true"
   >
@@ -178,8 +229,8 @@
     bind:this={highlightBtnEl}
     class:active={editor.isActive('highlight')}
     onclick={openHighlightPicker}
-    title="Highlight"
-    aria-label="Highlight text"
+    title={t().editor.toolbarHighlight}
+    aria-label={t().editor.toolbarHighlightAria}
     aria-expanded={showHighlightPicker}
     aria-haspopup="true"
   >
@@ -192,8 +243,8 @@
   <button
     class:active={editor.isActive('heading', { level: 1 })}
     onclick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-    title="Heading 1 (Cmd+Alt+1)"
-    aria-label="Heading 1"
+    title={t().editor.toolbarHeading1}
+    aria-label={t().editor.toolbarHeading1Aria}
     aria-pressed={editor.isActive('heading', { level: 1 })}
   >
     H1
@@ -202,8 +253,8 @@
   <button
     class:active={editor.isActive('heading', { level: 2 })}
     onclick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-    title="Heading 2 (Cmd+Alt+2)"
-    aria-label="Heading 2"
+    title={t().editor.toolbarHeading2}
+    aria-label={t().editor.toolbarHeading2Aria}
     aria-pressed={editor.isActive('heading', { level: 2 })}
   >
     H2
@@ -212,8 +263,8 @@
   <button
     class:active={editor.isActive('heading', { level: 3 })}
     onclick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-    title="Heading 3 (Cmd+Alt+3)"
-    aria-label="Heading 3"
+    title={t().editor.toolbarHeading3}
+    aria-label={t().editor.toolbarHeading3Aria}
     aria-pressed={editor.isActive('heading', { level: 3 })}
   >
     H3
@@ -224,8 +275,8 @@
   <button
     class:active={editor.isActive('bulletList')}
     onclick={() => editor.chain().focus().toggleBulletList().run()}
-    title="Bullet List (Cmd+Shift+8)"
-    aria-label="Bullet list"
+    title={t().editor.toolbarBulletList}
+    aria-label={t().editor.toolbarBulletListAria}
     aria-pressed={editor.isActive('bulletList')}
   >
     &bull;
@@ -234,8 +285,8 @@
   <button
     class:active={editor.isActive('orderedList')}
     onclick={() => editor.chain().focus().toggleOrderedList().run()}
-    title="Ordered List (Cmd+Shift+7)"
-    aria-label="Ordered list"
+    title={t().editor.toolbarOrderedList}
+    aria-label={t().editor.toolbarOrderedListAria}
     aria-pressed={editor.isActive('orderedList')}
   >
     1.
@@ -244,8 +295,8 @@
   <button
     class:active={editor.isActive('blockquote')}
     onclick={() => editor.chain().focus().toggleBlockquote().run()}
-    title="Quote (Cmd+Shift+B)"
-    aria-label="Block quote"
+    title={t().editor.toolbarQuote}
+    aria-label={t().editor.toolbarQuoteAria}
     aria-pressed={editor.isActive('blockquote')}
   >
     &ldquo;
@@ -254,8 +305,8 @@
   <button
     class:active={editor.isActive('codeBlock')}
     onclick={() => editor.chain().focus().toggleCodeBlock().run()}
-    title="Code Block (Cmd+Alt+C)"
-    aria-label="Code block"
+    title={t().editor.toolbarCodeBlock}
+    aria-label={t().editor.toolbarCodeBlockAria}
     aria-pressed={editor.isActive('codeBlock')}
   >
     &#123; &#125;
@@ -264,8 +315,8 @@
   <button
     class:active={editor.isActive('superscript')}
     onclick={() => editor.chain().focus().toggleMark('superscript').run()}
-    title="Superscript"
-    aria-label="Superscript"
+    title={t().editor.toolbarSuperscript}
+    aria-label={t().editor.toolbarSuperscriptAria}
     aria-pressed={editor.isActive('superscript')}
   >
     x<sup>2</sup>
@@ -274,8 +325,8 @@
   <button
     class:active={editor.isActive('subscript')}
     onclick={() => editor.chain().focus().toggleMark('subscript').run()}
-    title="Subscript"
-    aria-label="Subscript"
+    title={t().editor.toolbarSubscript}
+    aria-label={t().editor.toolbarSubscriptAria}
     aria-pressed={editor.isActive('subscript')}
   >
     x<sub>2</sub>
@@ -284,8 +335,8 @@
   <button
     class:active={editor.isActive('smallcaps')}
     onclick={() => editor.chain().focus().toggleMark('smallcaps').run()}
-    title="Small Caps"
-    aria-label="Small caps"
+    title={t().editor.toolbarSmallCaps}
+    aria-label={t().editor.toolbarSmallCapsAria}
     aria-pressed={editor.isActive('smallcaps')}
   >
     <span style="font-variant: small-caps; font-size: 0.85em">Sc</span>
@@ -293,16 +344,16 @@
 
   <button
     onclick={() => insertFootnoteWithEditor(editor)}
-    title="Footnote"
-    aria-label="Insert footnote"
+    title={t().editor.toolbarFootnote}
+    aria-label={t().editor.toolbarFootnoteAria}
   >
     <span style="font-size: 0.9em">Fn</span>
   </button>
 
   <button
     onclick={() => window.dispatchEvent(new CustomEvent('penwright:add-comment'))}
-    title="Comment hinzufügen"
-    aria-label="Add comment to selection"
+    title={t().editor.toolbarComment}
+    aria-label={t().editor.toolbarCommentAria}
   >
     <span style="font-size: 0.9em">Cm</span>
   </button>
@@ -312,8 +363,8 @@
   <button
     class:active={editor.isActive({ textAlign: 'left' })}
     onclick={() => editor.chain().focus().setTextAlign('left').run()}
-    title="Align Left (Cmd+Shift+L)"
-    aria-label="Align left"
+    title={t().editor.toolbarAlignLeft}
+    aria-label={t().editor.toolbarAlignLeftAria}
     aria-pressed={editor.isActive({ textAlign: 'left' })}
   >
     <span class="align-icon align-left"></span>
@@ -322,8 +373,8 @@
   <button
     class:active={editor.isActive({ textAlign: 'center' })}
     onclick={() => editor.chain().focus().setTextAlign('center').run()}
-    title="Align Center (Cmd+Shift+E)"
-    aria-label="Align center"
+    title={t().editor.toolbarAlignCenter}
+    aria-label={t().editor.toolbarAlignCenterAria}
     aria-pressed={editor.isActive({ textAlign: 'center' })}
   >
     <span class="align-icon align-center"></span>
@@ -332,8 +383,8 @@
   <button
     class:active={editor.isActive({ textAlign: 'right' })}
     onclick={() => editor.chain().focus().setTextAlign('right').run()}
-    title="Align Right (Cmd+Shift+R)"
-    aria-label="Align right"
+    title={t().editor.toolbarAlignRight}
+    aria-label={t().editor.toolbarAlignRightAria}
     aria-pressed={editor.isActive({ textAlign: 'right' })}
   >
     <span class="align-icon align-right"></span>
@@ -342,8 +393,8 @@
   <button
     class:active={editor.isActive({ textAlign: 'justify' })}
     onclick={() => editor.chain().focus().setTextAlign('justify').run()}
-    title="Justify (Cmd+Shift+J)"
-    aria-label="Justify"
+    title={t().editor.toolbarJustify}
+    aria-label={t().editor.toolbarJustifyAria}
     aria-pressed={editor.isActive({ textAlign: 'justify' })}
   >
     <span class="align-icon align-justify"></span>
@@ -362,8 +413,8 @@
           showTablePicker = !showTablePicker;
         }
       }}
-      title="Insert Table"
-      aria-label="Insert table"
+      title={t().editor.toolbarInsertTable}
+      aria-label={t().editor.toolbarInsertTableAria}
       aria-expanded={showTablePicker}
       aria-haspopup="true"
     >
@@ -375,7 +426,7 @@
       <div class="table-picker-backdrop" onclick={() => (showTablePicker = false)} role="presentation"></div>
       <div class="table-picker">
         <div class="table-picker-label">
-          {pickerRows > 0 ? `${pickerRows} x ${pickerCols}` : 'Select size'}
+          {pickerRows > 0 ? `${pickerRows} x ${pickerCols}` : t().editor.toolbarTablePickerSize}
         </div>
         <div class="table-picker-grid">
           {#each Array(6) as _, r}
@@ -398,8 +449,8 @@
 
   <button
     onclick={() => editor.chain().focus().setHorizontalRule().run()}
-    title="Horizontal Rule"
-    aria-label="Insert horizontal rule"
+    title={t().editor.toolbarHorizontalRule}
+    aria-label={t().editor.toolbarHorizontalRuleAria}
   >
     &mdash;
   </button>
@@ -409,8 +460,8 @@
   <button
     onclick={() => editor.chain().focus().undo().run()}
     disabled={!editor.can().undo()}
-    title="Undo (Cmd+Z)"
-    aria-label="Undo"
+    title={t().editor.toolbarUndo}
+    aria-label={t().editor.toolbarUndoAria}
   >
     &#8617;
   </button>
@@ -418,12 +469,33 @@
   <button
     onclick={() => editor.chain().focus().redo().run()}
     disabled={!editor.can().redo()}
-    title="Redo (Cmd+Shift+Z)"
-    aria-label="Redo"
+    title={t().editor.toolbarRedo}
+    aria-label={t().editor.toolbarRedoAria}
   >
     &#8618;
   </button>
 </div>
+
+{#if showInsertMenu}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="insert-menu-backdrop" onclick={() => (showInsertMenu = false)} role="presentation"></div>
+  <div class="insert-menu" style={insertMenuStyle} role="menu">
+    {#each insertGroups as group}
+      {#if group.items.length}
+        <div class="insert-menu-group-label">{group.label}</div>
+        {#each group.items as item}
+          <button class="insert-menu-item" role="menuitem" onclick={() => runInsert(item)}>
+            <span class="slash-menu-icon">{item.icon}</span>
+            <span class="slash-menu-text">
+              <span class="slash-menu-title">{item.title}</span>
+              <span class="slash-menu-desc">{item.description}</span>
+            </span>
+          </button>
+        {/each}
+      {/if}
+    {/each}
+  </div>
+{/if}
 
 {#if showTextColorPicker}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -438,7 +510,7 @@
       ></button>
     {/each}
     <button class="color-remove" onmousedown={(e) => { e.preventDefault(); removeTextColor(); }}>
-      Remove
+      {t().common.remove}
     </button>
   </div>
 {/if}
@@ -456,7 +528,7 @@
       ></button>
     {/each}
     <button class="color-remove" onmousedown={(e) => { e.preventDefault(); removeHighlight(); }}>
-      Remove
+      {t().common.remove}
     </button>
   </div>
 {/if}

@@ -13,6 +13,7 @@
    */
 
   import { onMount } from 'svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -93,25 +94,25 @@
   <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="ack-title">
     <header>
       <div>
-        <h2 id="ack-title">Open Source Lizenzen</h2>
+        <h2 id="ack-title">{t().about.ackTitle}</h2>
         <p class="subtitle">
-          Penwright enthält die folgenden Typst-Pakete, jeweils unter ihrer eigenen Lizenz. Die vollständigen Lizenz-Texte siehst du beim Aufklappen.
+          {t().about.ackSubtitle}
         </p>
       </div>
-      <button class="close-btn" onclick={onClose} aria-label="Schliessen">×</button>
+      <button class="close-btn" onclick={onClose} aria-label={t().common.close}>×</button>
     </header>
 
     {#if loadError}
       <div class="error">
-        Konnte die Lizenz-Liste nicht laden: <code>{loadError}</code>
+        {t().about.ackLoadError} <code>{loadError}</code>
       </div>
     {:else if !manifest}
-      <div class="loading">Lädt Lizenz-Informationen …</div>
+      <div class="loading">{t().about.ackLoading}</div>
     {:else}
       <div class="summary">
-        <span class="total">{manifest.totalPackages} Pakete</span>
+        <span class="total">{t().about.ackPackagesUnit(manifest.totalPackages)}</span>
         {#if manifest.fonts && manifest.fonts.length > 0}
-          <span class="total">{manifest.fonts.length} Fonts</span>
+          <span class="total">{t().about.ackFontsUnit(manifest.fonts.length)}</span>
         {/if}
         {#each licenseSummary as item}
           <span class="chip">{item.license} · {item.count}</span>
@@ -119,7 +120,7 @@
       </div>
 
       {#if manifest.fonts && manifest.fonts.length > 0}
-        <h3 class="section-title">Typst-Pakete</h3>
+        <h3 class="section-title">{t().about.ackSectionPackages}</h3>
       {/if}
       <ul class="pkg-list">
         {#each manifest.packages as pkg (pkgKey(pkg))}
@@ -135,7 +136,7 @@
                 onclick={() => (expanded[pkgKey(pkg)] = !expanded[pkgKey(pkg)])}
                 aria-expanded={!!expanded[pkgKey(pkg)]}
               >
-                {expanded[pkgKey(pkg)] ? 'Lizenz schliessen' : 'Lizenz anzeigen'}
+                {expanded[pkgKey(pkg)] ? t().about.ackHideLicense : t().about.ackShowLicense}
               </button>
             </div>
             {#if pkg.description}
@@ -145,7 +146,7 @@
               {#if pkg.author}<span>{pkg.author}</span>{/if}
               {#if pkg.repository}
                 <button class="repo-link" onclick={() => openExternal(pkg.repository)}>
-                  Quellcode →
+                  {t().about.ackSourceCode}
                 </button>
               {/if}
             </div>
@@ -160,7 +161,7 @@
       </ul>
 
       {#if manifest.fonts && manifest.fonts.length > 0}
-        <h3 class="section-title">Gebündelte Fonts</h3>
+        <h3 class="section-title">{t().about.ackSectionFonts}</h3>
         <ul class="pkg-list">
           {#each manifest.fonts as font (font.slug)}
             <li class="pkg-card">
@@ -175,16 +176,16 @@
                   onclick={() => (expanded['font:' + font.slug] = !expanded['font:' + font.slug])}
                   aria-expanded={!!expanded['font:' + font.slug]}
                 >
-                  {expanded['font:' + font.slug] ? 'Lizenz schliessen' : 'Lizenz anzeigen'}
+                  {expanded['font:' + font.slug] ? t().about.ackHideLicense : t().about.ackShowLicense}
                 </button>
               </div>
               {#if font.description}
                 <p class="pkg-desc">{font.description}</p>
               {/if}
               <div class="pkg-meta">
-                <span>{font.fileCount} Schnitte</span>
+                <span>{t().about.ackFontCuts(font.fileCount)}</span>
                 {#if font.source}
-                  <button class="repo-link" onclick={() => openExternal(font.source)}>Quelle →</button>
+                  <button class="repo-link" onclick={() => openExternal(font.source)}>{t().about.ackFontSource}</button>
                 {/if}
               </div>
               {#if expanded['font:' + font.slug]}
@@ -197,7 +198,7 @@
     {/if}
 
     <footer>
-      <button class="btn-primary" onclick={onClose}>Schliessen</button>
+      <button class="btn-primary" onclick={onClose}>{t().common.close}</button>
     </footer>
   </div>
 </div>

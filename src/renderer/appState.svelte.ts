@@ -17,7 +17,6 @@ export let uiState = $state({
   showSettings: false,
   showSearch: false,
   showProjectSearch: false,
-  showQuickSettings: false,
   focusMode: false,
   typewriterMode: false,
   readingMode: false,

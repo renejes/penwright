@@ -31,6 +31,7 @@
   import { LAYOUT_PRESETS } from '../../shared/layoutPresets';
   import { SECTION_PRESETS, getSectionPreset } from '../../shared/sectionPresets';
   import CodeEditor from './CodeEditor.svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
   type FontSlot = keyof ProjectStyle['fonts'];
@@ -68,21 +69,21 @@
   let suppressSave = true;
 
   // ─── Slot labels — short user-facing names for each semantic slot.
-  const SLOT_LABEL: Record<keyof StyleColors, string> = {
-    primary: 'Primary',
-    accent: 'Accent',
-    text: 'Text',
-    background: 'Background',
-    muted: 'Muted',
-  };
+  const SLOT_LABEL: Record<keyof StyleColors, string> = $derived({
+    primary: t().design.slotPrimary,
+    accent: t().design.slotAccent,
+    text: t().design.slotText,
+    background: t().design.slotBackground,
+    muted: t().design.slotMuted,
+  });
 
-  const SLOT_HINT: Record<keyof StyleColors, string> = {
-    primary: 'Headings, dominant brand color',
-    accent: 'Links, emphasis, callouts',
-    text: 'Body copy',
-    background: 'Page fill',
-    muted: 'Captions, secondary info',
-  };
+  const SLOT_HINT: Record<keyof StyleColors, string> = $derived({
+    primary: t().design.slotHintPrimary,
+    accent: t().design.slotHintAccent,
+    text: t().design.slotHintText,
+    background: t().design.slotHintBackground,
+    muted: t().design.slotHintMuted,
+  });
 
   onMount(async () => {
     if (!api) return;
@@ -194,7 +195,7 @@
           // Revert the panel to what's actually applied so controls match.
           await reloadStyleFromDisk();
           status = 'error';
-          designMsg = 'Nicht angewendet — dein Dokument ist unverändert.';
+          designMsg = t().design.rollbackNote;
           setTimeout(() => { if (designMsg) designMsg = ''; }, 5000);
         } else {
           lastSavedSerialized = serialized;
@@ -245,7 +246,7 @@
       const res = await api.invoke('design:undo') as { ok: boolean } | undefined;
       if (res?.ok) {
         await reloadStyleFromDisk();
-        designMsg = 'Rückgängig gemacht.';
+        designMsg = t().design.undoneNote;
         setTimeout(() => { if (designMsg) designMsg = ''; }, 2500);
       }
     } catch { /* ignore */ }
@@ -272,14 +273,14 @@
    * any theme.
    */
   function applyTheme(themeId: string): void {
-    const t = THEME_PRESETS.find(p => p.id === themeId);
-    if (!t) return;
+    const theme = THEME_PRESETS.find(p => p.id === themeId);
+    if (!theme) return;
     const preservedCustom = style.custom?.preamble ?? '';
     // Preserve project-specific data the theme doesn't carry: the custom-code
     // escape hatch and the per-chapter section styles (Phase E).
     const preservedSections = style.sections ?? [];
     style = cloneProjectStyle({
-      ...t.style,
+      ...theme.style,
       sections: preservedSections,
       custom: { preamble: preservedCustom },
     });
@@ -301,12 +302,12 @@
   // ─── Section styles (Phase E — per-chapter magazine rubrics) ───
   let sectionsExpanded = $state(false);
 
-  const COLUMN_OPTIONS = [
-    { value: 0, label: 'inherit' },
-    { value: 1, label: '1 col' },
-    { value: 2, label: '2 cols' },
-    { value: 3, label: '3 cols' },
-  ];
+  const COLUMN_OPTIONS = $derived([
+    { value: 0, label: t().design.colInherit },
+    { value: 1, label: t().design.col1 },
+    { value: 2, label: t().design.col2 },
+    { value: 3, label: t().design.col3 },
+  ]);
 
   function addSectionFromPreset(presetId: string): void {
     const preset = getSectionPreset(presetId);
@@ -328,11 +329,11 @@
 
   // Group fonts for display by category so the user sees sans / serif / mono
   // in a stable order; cards inside each group keep manifest order.
-  const FONT_CATEGORIES: ReadonlyArray<{ id: 'sans' | 'serif' | 'mono'; label: string }> = [
-    { id: 'sans',  label: 'Sans-Serif' },
-    { id: 'serif', label: 'Serif' },
-    { id: 'mono',  label: 'Monospace' },
-  ];
+  const FONT_CATEGORIES: ReadonlyArray<{ id: 'sans' | 'serif' | 'mono'; label: string }> = $derived([
+    { id: 'sans',  label: t().design.fontCatSans },
+    { id: 'serif', label: t().design.fontCatSerif },
+    { id: 'mono',  label: t().design.fontCatMono },
+  ]);
 
   function fontsIn(category: 'sans' | 'serif' | 'mono'): BundledFont[] {
     return fonts.filter(f => f.category === category);
@@ -340,11 +341,11 @@
 
   // Compact label for the slot-pill that shows which font is currently
   // assigned to each role.
-  const SLOT_PILL_LABEL: Record<FontSlot, string> = {
-    body: 'Body',
-    heading: 'Heading',
-    code: 'Code',
-  };
+  const SLOT_PILL_LABEL: Record<FontSlot, string> = $derived({
+    body: t().design.pillBody,
+    heading: t().design.pillHeading,
+    code: t().design.pillCode,
+  });
 
   function activeSlotsFor(family: string): FontSlot[] {
     const result: FontSlot[] = [];
@@ -376,12 +377,12 @@
   // ─── Elements (Blockquote / Code-Block / Figure / Table) ─────
   type ElementKey = 'blockquote' | 'codeBlock' | 'figure' | 'table';
 
-  const ELEMENT_LABELS: Record<ElementKey, string> = {
-    blockquote: 'Blockquote',
-    codeBlock:  'Code-Block',
-    figure:     'Figure',
-    table:      'Table',
-  };
+  const ELEMENT_LABELS: Record<ElementKey, string> = $derived({
+    blockquote: t().design.elementBlockquote,
+    codeBlock:  t().design.elementCodeBlock,
+    figure:     t().design.elementFigure,
+    table:      t().design.elementTable,
+  });
 
   let elementsExpanded = $state<Record<ElementKey, boolean>>({
     blockquote: false, codeBlock: false, figure: false, table: false,
@@ -399,11 +400,11 @@
     switch (key) {
       case 'blockquote': {
         const el = style.elements.blockquote;
-        return `${el.borderWidth} ${el.borderColor}${el.italic ? ' · italic' : ''}`;
+        return `${el.borderWidth} ${el.borderColor}${el.italic ? ` · ${t().design.summaryItalic}` : ''}`;
       }
       case 'codeBlock': {
         const el = style.elements.codeBlock;
-        return el.background ? `bg ${el.background}` : 'no background';
+        return el.background ? t().design.summaryBg(el.background) : t().design.summaryNoBackground;
       }
       case 'figure': {
         const el = style.elements.figure;
@@ -411,7 +412,7 @@
       }
       case 'table': {
         const el = style.elements.table;
-        return `header ${el.headerBackground}${el.alternateRowFill ? ' · zebra' : ''}`;
+        return `${t().design.summaryHeader(el.headerBackground)}${el.alternateRowFill ? ` · ${t().design.summaryZebra}` : ''}`;
       }
     }
   }
@@ -439,16 +440,16 @@
 
 <div class="design-panel" class:main-view={mainView}>
   <div class="design-header">
-    <div class="design-title">{mainView ? 'Look — ganzes Dokument' : 'Design'}</div>
+    <div class="design-title">{mainView ? t().design.titleMainView : t().design.titleSidebar}</div>
     {#if status === 'saving'}
-      <span class="design-status saving">Speichere…</span>
+      <span class="design-status saving">{t().design.statusSaving}</span>
     {:else if status === 'saved'}
-      <span class="design-status saved">Gespeichert</span>
+      <span class="design-status saved">{t().design.statusSaved}</span>
     {:else if status === 'error'}
-      <span class="design-status error">Fehler</span>
+      <span class="design-status error">{t().design.statusError}</span>
     {/if}
     {#if canUndo}
-      <button class="design-undo-btn" onclick={undoDesign} title={undoLabel ? `Rückgängig: ${undoLabel}` : 'Letzte Design-Änderung rückgängig'}>↩ Rückgängig</button>
+      <button class="design-undo-btn" onclick={undoDesign} title={undoLabel ? t().design.undoTitle(undoLabel) : t().design.undoTitleGeneric}>{t().design.undoButton}</button>
     {/if}
   </div>
 
@@ -459,32 +460,29 @@
   <!-- Zone: global styles — everything here targets the whole document. -->
   <div class="zone-divider">
     <div class="zone-head">
-      <span class="zone-title">Globale Styles</span>
+      <span class="zone-title">{t().design.globalZoneTitle}</span>
       <button
         type="button"
         class="zone-help-btn"
         onclick={() => (showGlobalHelp = !showGlobalHelp)}
         aria-expanded={showGlobalHelp}
-        aria-label="Hilfe: Globale Styles"
-        title="Was bewirken die globalen Styles?"
+        aria-label={t().design.globalHelpAria}
+        title={t().design.globalHelpTitle}
       >?</button>
     </div>
-    <div class="zone-scope">Wirkt auf das <strong>ganze Dokument</strong> → <code>{rootFileName}</code></div>
+    <div class="zone-scope">{t().design.globalScopePrefix}<strong>{t().design.globalScopeStrong}</strong> → <code>{rootFileName}</code></div>
     {#if showGlobalHelp}
       <p class="zone-help">
-        Diese Regler schreiben ins projektweite <code>style.typ</code> und wirken auf das
-        gesamte Dokument (alle Kapitel). <strong>Egal welche Datei gerade offen ist</strong> —
-        die Änderung landet immer an der Root (<code>{rootFileName}</code>), nie im einzelnen
-        Kapitel. Du kannst von überall aus gefahrlos gestalten.
+        {t().design.globalHelp1}<code>style.typ</code>{t().design.globalHelp2}<strong>{t().design.globalHelpStrong}</strong>{t().design.globalHelp3}<code>{rootFileName}</code>{t().design.globalHelp4}
       </p>
     {/if}
   </div>
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Farbpalette</h3>
+      <h3>{t().design.paletteTitle}</h3>
       {#if !initialized}
-        <span class="design-section-hint">Defaults aktiv — beim ersten Speichern wird <code>style.json</code> angelegt.</span>
+        <span class="design-section-hint">{t().design.paletteUninitializedHint1}<code>style.json</code>{t().design.paletteUninitializedHint2}</span>
       {/if}
     </header>
 
@@ -504,7 +502,7 @@
               value={style.colors[slot]}
               spellcheck="false"
               autocomplete="off"
-              aria-label={`${SLOT_LABEL[slot]} color`}
+              aria-label={t().design.slotColorAria(SLOT_LABEL[slot])}
               oninput={(e) => onHexInput(slot, e.currentTarget.value)}
             />
           </div>
@@ -515,8 +513,8 @@
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Paletten-Presets</h3>
-      <span class="design-section-hint">Klick = nur die fünf Farb-Slots übernehmen. Fonts und Layout bleiben unverändert.</span>
+      <h3>{t().design.palettePresetsTitle}</h3>
+      <span class="design-section-hint">{t().design.palettePresetsHint}</span>
     </header>
 
     <div class="preset-grid">
@@ -542,8 +540,8 @@
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Themes</h3>
-      <span class="design-section-hint">Klick = komplettes Design übernehmen (Farben + Fonts + Scale + Layout + Headings + Elements). Dein Custom-Code-Block bleibt erhalten.</span>
+      <h3>{t().design.themesTitle}</h3>
+      <span class="design-section-hint">{t().design.themesHint}</span>
     </header>
 
     <div class="theme-grid">
@@ -575,8 +573,8 @@
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Layout-Presets</h3>
-      <span class="design-section-hint">Tauscht nur Paper / Orientation / Margin / Columns (und ggf. Base-Size). Theme und Farben bleiben.</span>
+      <h3>{t().design.layoutPresetsTitle}</h3>
+      <span class="design-section-hint">{t().design.layoutPresetsHint}</span>
     </header>
 
     <div class="theme-grid">
@@ -609,7 +607,7 @@
           </div>
           <div class="layout-name">{preset.name}</div>
           <div class="layout-meta">
-            {preset.layout.paper.toUpperCase()} · {preset.layout.orientation === 'landscape' ? 'Landscape' : 'Portrait'} · {preset.layout.columns} col{preset.layout.columns > 1 ? 's' : ''}{preset.baseSize ? ` · ${preset.baseSize}` : ''}
+            {preset.layout.paper.toUpperCase()} · {preset.layout.orientation === 'landscape' ? t().design.layoutLandscape : t().design.layoutPortrait} · {preset.layout.columns} {preset.layout.columns > 1 ? t().design.layoutColPlural : t().design.layoutColSingular}{preset.baseSize ? ` · ${preset.baseSize}` : ''}
           </div>
           <div class="layout-best">{preset.bestFor}</div>
         </button>
@@ -619,23 +617,23 @@
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Fonts</h3>
+      <h3>{t().design.fontsTitle}</h3>
       <span class="design-section-hint">
-        Sieben OFL-Schriften sind gebündelt — kein System-Install nötig. Jede Karte hat drei Buttons, um sie auf Body, Heading oder Code zu mappen.
+        {t().design.fontsHint}
       </span>
     </header>
 
     <div class="font-active">
       <div class="font-active-row">
-        <span class="font-active-label">Body</span>
+        <span class="font-active-label">{t().design.fontActiveBody}</span>
         <span class="font-active-value" style="font-family: {style.fonts.body}">{style.fonts.body}</span>
       </div>
       <div class="font-active-row">
-        <span class="font-active-label">Heading</span>
+        <span class="font-active-label">{t().design.fontActiveHeading}</span>
         <span class="font-active-value" style="font-family: {style.fonts.heading}">{style.fonts.heading}</span>
       </div>
       <div class="font-active-row">
-        <span class="font-active-label">Code</span>
+        <span class="font-active-label">{t().design.fontActiveCode}</span>
         <span class="font-active-value font-active-code" style="font-family: {style.fonts.code}">{style.fonts.code}</span>
       </div>
     </div>
@@ -660,13 +658,13 @@
                 {/if}
               </div>
               <div class="font-card-sample" style="font-family: {JSON.stringify(font.family)}">
-                The quick brown fox jumps over the lazy dog.
+                {t().design.fontSample}
               </div>
               <div class="font-card-actions">
-                <button type="button" class="font-action" onclick={() => setFont('body', font.family)}>Body</button>
-                <button type="button" class="font-action" onclick={() => setFont('heading', font.family)}>Heading</button>
+                <button type="button" class="font-action" onclick={() => setFont('body', font.family)}>{t().design.fontActionBody}</button>
+                <button type="button" class="font-action" onclick={() => setFont('heading', font.family)}>{t().design.fontActionHeading}</button>
                 {#if category.id === 'mono'}
-                  <button type="button" class="font-action" onclick={() => setFont('code', font.family)}>Code</button>
+                  <button type="button" class="font-action" onclick={() => setFont('code', font.family)}>{t().design.fontActionCode}</button>
                 {/if}
               </div>
             </div>
@@ -677,19 +675,19 @@
 
     {#if fonts.length === 0}
       <div class="design-section-hint">
-        Konnte die gebündelten Fonts nicht laden. Stelle sicher, dass <code>npm run fetch:fonts</code> einmal lief.
+        {t().design.fontsLoadError1}<code>npm run fetch:fonts</code>{t().design.fontsLoadError2}
       </div>
     {/if}
   </section>
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Scale</h3>
+      <h3>{t().design.scaleTitle}</h3>
     </header>
 
     <div class="design-fields">
       <label class="design-field">
-        <span>Base size</span>
+        <span>{t().design.scaleBase}</span>
         <input
           type="text"
           bind:value={style.scale.base}
@@ -699,7 +697,7 @@
       </label>
 
       <label class="design-field">
-        <span>Leading</span>
+        <span>{t().design.scaleLeading}</span>
         <input
           type="text"
           bind:value={style.scale.leading}
@@ -709,21 +707,21 @@
       </label>
 
       <label class="design-field">
-        <span>Paragraph spacing</span>
+        <span>{t().design.scaleParagraphSpacing}</span>
         <input
           type="text"
           bind:value={style.scale.paragraphSpacing}
-          placeholder="z.B. 1.2em (leer = default)"
+          placeholder={t().design.scaleParagraphSpacingPlaceholder}
           spellcheck="false"
         />
       </label>
 
       <label class="design-field">
-        <span>First-line indent</span>
+        <span>{t().design.scaleFirstLineIndent}</span>
         <input
           type="text"
           bind:value={style.scale.firstLineIndent}
-          placeholder="z.B. 1em (leer = kein Einzug)"
+          placeholder={t().design.scaleFirstLineIndentPlaceholder}
           spellcheck="false"
         />
       </label>
@@ -732,13 +730,13 @@
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Layout</h3>
-      <span class="design-section-hint">Seite, Margins, Header/Footer, Seitenzahlen. Header/Footer akzeptieren Typst-Markup wie <code>*Bold*</code> oder <code>#counter(page).display()</code>.</span>
+      <h3>{t().design.layoutTitle}</h3>
+      <span class="design-section-hint">{t().design.layoutHint1}<code>*Bold*</code>{t().design.layoutHint2}<code>#counter(page).display()</code>{t().design.layoutHint3}</span>
     </header>
 
     <div class="design-fields">
       <label class="design-field">
-        <span>Paper</span>
+        <span>{t().design.fieldPaper}</span>
         <select bind:value={style.layout.paper}>
           <option value="a3">a3</option>
           <option value="a4">a4</option>
@@ -750,15 +748,15 @@
       </label>
 
       <label class="design-field">
-        <span>Orientation</span>
+        <span>{t().design.fieldOrientation}</span>
         <select bind:value={style.layout.orientation}>
-          <option value="portrait">Portrait</option>
-          <option value="landscape">Landscape</option>
+          <option value="portrait">{t().design.layoutPortrait}</option>
+          <option value="landscape">{t().design.layoutLandscape}</option>
         </select>
       </label>
 
       <label class="design-field">
-        <span>Margin</span>
+        <span>{t().design.fieldMargin}</span>
         <input
           type="text"
           bind:value={style.layout.margin}
@@ -768,7 +766,7 @@
       </label>
 
       <label class="design-field">
-        <span>Columns</span>
+        <span>{t().design.fieldColumns}</span>
         <select bind:value={style.layout.columns}>
           <option value={1}>1</option>
           <option value={2}>2</option>
@@ -777,48 +775,48 @@
       </label>
 
       <label class="design-field">
-        <span>Page numbering</span>
+        <span>{t().design.fieldPageNumbering}</span>
         <select bind:value={style.layout.pageNumbering}>
-          <option value="">None</option>
+          <option value="">{t().design.pageNumberingNone}</option>
           <option value="1">1, 2, 3</option>
-          <option value="1 / 1">1 / 1 (with total)</option>
+          <option value="1 / 1">{t().design.pageNumberingWithTotal}</option>
           <option value="— 1 —">— 1 —</option>
-          <option value="i">i, ii, iii (roman)</option>
-          <option value="I">I, II, III (Roman)</option>
+          <option value="i">{t().design.pageNumberingRomanLower}</option>
+          <option value="I">{t().design.pageNumberingRomanUpper}</option>
         </select>
       </label>
 
       <label class="design-field">
-        <span>Header</span>
+        <span>{t().design.fieldHeader}</span>
         <input
           type="text"
           bind:value={style.layout.pageHeader}
-          placeholder={'z.B. {chapter} · ISSUE 1'}
+          placeholder={t().design.headerPlaceholder}
           spellcheck="false"
         />
       </label>
-      <p class="design-hint">Use <code>{'{chapter}'}</code> for the current H1 title, <code>{'{section}'}</code> for the H2. Raw Typst (<code>#h(1fr)</code>, <code>#counter(page).display()</code>) also works.</p>
+      <p class="design-hint">{t().design.headerHint1}<code>{'{chapter}'}</code>{t().design.headerHint2}<code>{'{section}'}</code>{t().design.headerHint3}<code>#h(1fr)</code>{t().design.headerHint4}<code>#counter(page).display()</code>{t().design.headerHint5}</p>
 
       <label class="design-field">
-        <span>Footer</span>
+        <span>{t().design.fieldFooter}</span>
         <input
           type="text"
           bind:value={style.layout.pageFooter}
-          placeholder="z.B. #counter(page).display()"
+          placeholder={t().design.footerPlaceholder}
           spellcheck="false"
         />
       </label>
-      <p class="design-hint"><code>{'{chapter}'}</code> / <code>{'{section}'}</code> placeholders work here too.</p>
+      <p class="design-hint">{t().design.footerHint1}<code>{'{chapter}'}</code>{t().design.footerHint2}<code>{'{section}'}</code>{t().design.footerHint3}</p>
 
       <label class="design-field">
-        <span>Page background</span>
+        <span>{t().design.fieldPageBackground}</span>
         <select bind:value={style.layout.pageFill}>
-          <option value="">— Background color slot —</option>
-          <option value="luma(252)">Light gray</option>
-          <option value="luma(245)">Medium gray</option>
-          <option value="rgb(&quot;#FFFFF0&quot;)">Ivory</option>
-          <option value="rgb(&quot;#FFF8F0&quot;)">Warm cream</option>
-          <option value="rgb(&quot;#F0F4FF&quot;)">Cool blue</option>
+          <option value="">{t().design.pageFillNone}</option>
+          <option value="luma(252)">{t().design.pageFillLightGray}</option>
+          <option value="luma(245)">{t().design.pageFillMediumGray}</option>
+          <option value="rgb(&quot;#FFFFF0&quot;)">{t().design.pageFillIvory}</option>
+          <option value="rgb(&quot;#FFF8F0&quot;)">{t().design.pageFillWarmCream}</option>
+          <option value="rgb(&quot;#F0F4FF&quot;)">{t().design.pageFillCoolBlue}</option>
         </select>
       </label>
     </div>
@@ -826,14 +824,14 @@
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Headings</h3>
+      <h3>{t().design.headingsTitle}</h3>
     </header>
 
     <div class="design-fields">
       <label class="design-field">
-        <span>Numbering</span>
+        <span>{t().design.fieldNumbering}</span>
         <select bind:value={style.headings.numbering}>
-          <option value="">None</option>
+          <option value="">{t().design.numberingNone}</option>
           <option value="1.">1. 2. 3.</option>
           <option value="1.1">1.1 1.2 2.1</option>
           <option value="1.a">1.a 1.b 2.a</option>
@@ -856,7 +854,7 @@
             <span
               class="heading-card-preview"
               style="font-family: {JSON.stringify(style.fonts.heading)}; font-weight: {h.weight === 'bold' ? 700 : h.weight === 'semibold' ? 600 : h.weight === 'extrabold' ? 800 : h.weight === 'medium' ? 500 : 400}; color: {style.colors[h.color]}"
-            >Heading sample</span>
+            >{t().design.headingPreview}</span>
             {#if !isOpen}
               <span class="heading-card-summary">{headingSummary(level)}</span>
             {/if}
@@ -865,27 +863,27 @@
           {#if isOpen}
             <div class="heading-card-body">
               <label class="design-field">
-                <span>Size</span>
+                <span>{t().design.headingSize}</span>
                 <input type="text" bind:value={h.size} placeholder="24pt" spellcheck="false" />
               </label>
               <label class="design-field">
-                <span>Weight</span>
+                <span>{t().design.headingWeight}</span>
                 <select bind:value={h.weight}>
-                  <option value="regular">Regular</option>
-                  <option value="medium">Medium</option>
-                  <option value="semibold">Semi-Bold</option>
-                  <option value="bold">Bold</option>
-                  <option value="extrabold">Extra Bold</option>
+                  <option value="regular">{t().design.weightRegular}</option>
+                  <option value="medium">{t().design.weightMedium}</option>
+                  <option value="semibold">{t().design.weightSemibold}</option>
+                  <option value="bold">{t().design.weightBold}</option>
+                  <option value="extrabold">{t().design.weightExtrabold}</option>
                 </select>
               </label>
               <label class="design-field">
-                <span>Color</span>
+                <span>{t().design.headingColor}</span>
                 <select bind:value={h.color}>
                   {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
                 </select>
               </label>
               <label class="design-field">
-                <span>Margin top</span>
+                <span>{t().design.headingMarginTop}</span>
                 <input type="text" bind:value={h.marginTop} placeholder="2em" spellcheck="false" />
               </label>
             </div>
@@ -897,8 +895,8 @@
 
   <section class="design-section">
     <header class="design-section-header">
-      <h3>Elements</h3>
-      <span class="design-section-hint">Blockquote, Code-Block, Figure, Table. Komplexere Effekte (Callouts, Pull-Quotes, etc.) gehen in den Custom-Code-Block unten — das Paket <code>gentle-clues</code> deckt z.B. Info/Warning/Tip-Boxen ab.</span>
+      <h3>{t().design.elementsTitle}</h3>
+      <span class="design-section-hint">{t().design.elementsHint1}<code>gentle-clues</code>{t().design.elementsHint2}</span>
     </header>
 
     <div class="design-fields">
@@ -920,27 +918,27 @@
         {#if elementsExpanded.blockquote}
           <div class="heading-card-body">
             <label class="design-field">
-              <span>Border color</span>
+              <span>{t().design.bqBorderColor}</span>
               <select bind:value={style.elements.blockquote.borderColor}>
                 {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
               </select>
             </label>
             <label class="design-field">
-              <span>Border width</span>
+              <span>{t().design.bqBorderWidth}</span>
               <input type="text" bind:value={style.elements.blockquote.borderWidth} placeholder="3pt" spellcheck="false" />
             </label>
             <label class="design-field">
-              <span>Padding left</span>
+              <span>{t().design.bqPaddingLeft}</span>
               <input type="text" bind:value={style.elements.blockquote.paddingLeft} placeholder="1em" spellcheck="false" />
             </label>
             <label class="design-field">
-              <span>Text color</span>
+              <span>{t().design.bqTextColor}</span>
               <select bind:value={style.elements.blockquote.textColor}>
                 {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
               </select>
             </label>
             <label class="design-field design-field-checkbox">
-              <span>Italic</span>
+              <span>{t().design.bqItalic}</span>
               <input type="checkbox" bind:checked={style.elements.blockquote.italic} />
             </label>
           </div>
@@ -965,28 +963,28 @@
         {#if elementsExpanded.codeBlock}
           <div class="heading-card-body">
             <label class="design-field">
-              <span>Background</span>
+              <span>{t().design.cbBackground}</span>
               <select bind:value={style.elements.codeBlock.background}>
-                <option value="">— none —</option>
-                <option value="luma(245)">Light gray</option>
-                <option value="luma(240)">Medium gray</option>
-                <option value="luma(232)">Darker gray</option>
-                <option value="rgb(&quot;#f5f5f5&quot;)">Neutral 50</option>
-                <option value="rgb(&quot;#fef9c3&quot;)">Highlight yellow</option>
-                <option value="rgb(&quot;#dbeafe&quot;)">Cool blue</option>
-                <option value="style-colors.muted.lighten(80%)">Muted (tinted)</option>
+                <option value="">{t().design.cbBackgroundNone}</option>
+                <option value="luma(245)">{t().design.cbBackgroundLightGray}</option>
+                <option value="luma(240)">{t().design.cbBackgroundMediumGray}</option>
+                <option value="luma(232)">{t().design.cbBackgroundDarkerGray}</option>
+                <option value="rgb(&quot;#f5f5f5&quot;)">{t().design.cbBackgroundNeutral}</option>
+                <option value="rgb(&quot;#fef9c3&quot;)">{t().design.cbBackgroundHighlight}</option>
+                <option value="rgb(&quot;#dbeafe&quot;)">{t().design.cbBackgroundCoolBlue}</option>
+                <option value="style-colors.muted.lighten(80%)">{t().design.cbBackgroundMutedTinted}</option>
               </select>
             </label>
             <label class="design-field">
-              <span>Padding X</span>
+              <span>{t().design.cbPaddingX}</span>
               <input type="text" bind:value={style.elements.codeBlock.paddingX} placeholder="1em" spellcheck="false" />
             </label>
             <label class="design-field">
-              <span>Padding Y</span>
+              <span>{t().design.cbPaddingY}</span>
               <input type="text" bind:value={style.elements.codeBlock.paddingY} placeholder="0.6em" spellcheck="false" />
             </label>
             <label class="design-field">
-              <span>Corner radius</span>
+              <span>{t().design.cbCornerRadius}</span>
               <input type="text" bind:value={style.elements.codeBlock.borderRadius} placeholder="4pt" spellcheck="false" />
             </label>
           </div>
@@ -1011,41 +1009,41 @@
         {#if elementsExpanded.figure}
           <div class="heading-card-body">
             <label class="design-field">
-              <span>Caption position</span>
+              <span>{t().design.figCaptionPosition}</span>
               <select bind:value={style.elements.figure.captionPosition}>
-                <option value="bottom">Below figure</option>
-                <option value="top">Above figure</option>
+                <option value="bottom">{t().design.figCaptionBelow}</option>
+                <option value="top">{t().design.figCaptionAbove}</option>
               </select>
             </label>
             <label class="design-field">
-              <span>Caption size</span>
+              <span>{t().design.figCaptionSize}</span>
               <input type="text" bind:value={style.elements.figure.captionSize} placeholder="9pt" spellcheck="false" />
             </label>
             <label class="design-field">
-              <span>Caption color</span>
+              <span>{t().design.figCaptionColor}</span>
               <select bind:value={style.elements.figure.captionColor}>
                 {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
               </select>
             </label>
             <label class="design-field">
-              <span>Caption align</span>
+              <span>{t().design.figCaptionAlign}</span>
               <select bind:value={style.elements.figure.captionAlign}>
-                <option value="left">Left</option>
-                <option value="center">Center</option>
-                <option value="right">Right</option>
+                <option value="left">{t().design.alignLeft}</option>
+                <option value="center">{t().design.alignCenter}</option>
+                <option value="right">{t().design.alignRight}</option>
               </select>
             </label>
             <label class="design-field">
-              <span>Separator</span>
+              <span>{t().design.figSeparator}</span>
               <input type="text" bind:value={style.elements.figure.captionSeparator} placeholder=": " spellcheck="false" />
             </label>
             <label class="design-field">
-              <span>Credit separator</span>
+              <span>{t().design.figCreditSeparator}</span>
               <input type="text" bind:value={style.elements.figure.creditSeparator} placeholder=" — " spellcheck="false" maxlength="16" />
             </label>
             <label class="design-field">
-              <span>Credit label</span>
-              <input type="text" bind:value={style.elements.figure.creditLabel} placeholder="Photo: " spellcheck="false" maxlength="16" />
+              <span>{t().design.figCreditLabel}</span>
+              <input type="text" bind:value={style.elements.figure.creditLabel} placeholder={t().design.figCreditLabelPlaceholder} spellcheck="false" maxlength="16" />
             </label>
           </div>
         {/if}
@@ -1069,29 +1067,29 @@
         {#if elementsExpanded.table}
           <div class="heading-card-body">
             <label class="design-field">
-              <span>Header bg</span>
+              <span>{t().design.tblHeaderBg}</span>
               <select bind:value={style.elements.table.headerBackground}>
                 {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
               </select>
             </label>
             <label class="design-field">
-              <span>Header text</span>
+              <span>{t().design.tblHeaderText}</span>
               <select bind:value={style.elements.table.headerTextColor}>
                 {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
               </select>
             </label>
             <label class="design-field design-field-checkbox">
-              <span>Zebra rows</span>
+              <span>{t().design.tblZebraRows}</span>
               <input type="checkbox" bind:checked={style.elements.table.alternateRowFill} />
             </label>
             <label class="design-field">
-              <span>Border color</span>
+              <span>{t().design.tblBorderColor}</span>
               <select bind:value={style.elements.table.borderColor}>
                 {#each COLOR_SLOTS as slot}<option value={slot}>{slot}</option>{/each}
               </select>
             </label>
             <label class="design-field">
-              <span>Cell padding</span>
+              <span>{t().design.tblCellPadding}</span>
               <input type="text" bind:value={style.elements.table.cellPadding} placeholder="6pt" spellcheck="false" />
             </label>
           </div>
@@ -1109,14 +1107,14 @@
         aria-expanded={customExpanded}
       >
         <span class="custom-toggle-chev">{customExpanded ? '▾' : '▸'}</span>
-        <h3>Custom Typst-Code</h3>
+        <h3>{t().design.customTitle}</h3>
         {#if style.custom?.preamble && style.custom.preamble.trim().length > 0}
-          <span class="custom-toggle-badge">{style.custom.preamble.split(/\r?\n/).length} Zeilen</span>
+          <span class="custom-toggle-badge">{t().design.customLinesBadge(style.custom.preamble.split(/\r?\n/).length)}</span>
         {/if}
       </button>
       {#if customExpanded}
         <span class="design-section-hint">
-          Wird ans Ende von <code>style.typ</code> angehängt — überschreibt alles oben. Hier kommen <code>#show heading.where(level: 1): it =&gt; …</code> mit Linien, <code>#import</code>-Statements und alles, was der Designer noch nicht kann.
+          {t().design.customHint1}<code>style.typ</code>{t().design.customHint2}<code>#show heading.where(level: 1): it =&gt; …</code>{t().design.customHint3}<code>#import</code>{t().design.customHint4}
         </span>
       {/if}
     </header>
@@ -1135,24 +1133,20 @@
   <!-- Zone: section styles — per-chapter overlays, assigned in the Chapters tab. -->
   <div class="zone-divider">
     <div class="zone-head">
-      <span class="zone-title">Section Styles</span>
+      <span class="zone-title">{t().design.sectionZoneTitle}</span>
       <button
         type="button"
         class="zone-help-btn"
         onclick={() => (showSectionHelp = !showSectionHelp)}
         aria-expanded={showSectionHelp}
-        aria-label="Hilfe: Section Styles"
-        title="Was bewirken Section Styles?"
+        aria-label={t().design.sectionHelpAria}
+        title={t().design.sectionHelpTitle}
       >?</button>
     </div>
-    <div class="zone-scope">Überschreibt den Look <strong>einzelner Kapitel</strong></div>
+    <div class="zone-scope">{t().design.sectionScopePrefix}<strong>{t().design.sectionScopeStrong}</strong></div>
     {#if showSectionHelp}
       <p class="zone-help">
-        Ein Section Style ist ein benanntes Overlay (Akzent, Fonts, Spalten,
-        Heading-Größen) für <strong>magazinartige Rubriken</strong>. Du definierst die
-        Varianten hier und weist sie dann im <strong>Kapitel-Tab</strong> einem einzelnen
-        Kapitel zu — es restyled <strong>nur dieses Kapitel</strong>. Seitenformat, Ränder
-        und Kopfzeilen bleiben dokumentweit (global).
+        {t().design.sectionHelp1}<strong>{t().design.sectionHelpStrong1}</strong>{t().design.sectionHelp2}<strong>{t().design.sectionHelpStrong2}</strong>{t().design.sectionHelp3}<strong>{t().design.sectionHelpStrong3}</strong>{t().design.sectionHelp4}
       </p>
     {/if}
   </div>
@@ -1166,7 +1160,7 @@
         aria-expanded={sectionsExpanded}
       >
         <span class="custom-toggle-chev">{sectionsExpanded ? '▾' : '▸'}</span>
-        <h3>Section Styles</h3>
+        <h3>{t().design.sectionStylesTitle}</h3>
         {#if style.sections.length > 0}
           <span class="custom-toggle-badge">{style.sections.length}</span>
         {/if}
@@ -1175,9 +1169,7 @@
 
     {#if sectionsExpanded}
       <p class="design-hint">
-        Variante hier definieren, dann im <strong>Kapitel-Tab</strong> einem Kapitel
-        zuweisen. Feinschliff (Fonts / Headings) via MCP-Tools oder direkt in
-        <code>style.typ</code>. <button type="button" class="zone-help-inline" onclick={() => (showSectionHelp = !showSectionHelp)}>Was ist das?</button>
+        {t().design.sectionInlineHint1}<strong>{t().design.sectionInlineHintStrong}</strong>{t().design.sectionInlineHint2}<code>style.typ</code>{t().design.sectionInlineHint3}<button type="button" class="zone-help-inline" onclick={() => (showSectionHelp = !showSectionHelp)}>{t().design.sectionWhatIsThis}</button>
       </p>
 
       {#if style.sections.length > 0}
@@ -1189,28 +1181,28 @@
                 type="color"
                 value={s.colors.accent ?? style.colors.accent}
                 onchange={(e) => (s.colors = { ...s.colors, accent: (e.currentTarget as HTMLInputElement).value.toLowerCase() })}
-                title="Accent colour"
+                title={t().design.sectionAccentColorTitle}
               />
               <input class="section-name" type="text" bind:value={s.name} spellcheck="false" />
               <select
                 class="section-cols"
                 value={String(s.columns)}
                 onchange={(e) => (s.columns = parseInt((e.currentTarget as HTMLSelectElement).value, 10))}
-                title="Column count for this rubric"
+                title={t().design.sectionColCountTitle}
               >
                 {#each COLUMN_OPTIONS as c}
                   <option value={String(c.value)}>{c.label}</option>
                 {/each}
               </select>
               <code class="section-id">{s.id}</code>
-              <button class="section-del" onclick={() => removeSection(s.id)} title="Delete variant" aria-label="Delete variant">×</button>
+              <button class="section-del" onclick={() => removeSection(s.id)} title={t().design.sectionDeleteTitle} aria-label={t().design.sectionDeleteAria}>×</button>
             </div>
           {/each}
         </div>
       {/if}
 
       <div class="section-add">
-        <span class="section-add-label">Add rubric:</span>
+        <span class="section-add-label">{t().design.sectionAddLabel}</span>
         {#each SECTION_PRESETS as p}
           <button type="button" class="section-add-btn" onclick={() => addSectionFromPreset(p.id)} title={p.description}>+ {p.name}</button>
         {/each}

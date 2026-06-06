@@ -22,8 +22,10 @@ import {
   aiSnapshotsDir,
   getSelectionPin,
   clearSelectionPin,
+  getLocale,
 } from './persistenceManager';
 import { addBreadcrumb } from './crashReporter';
+import { resolveDict } from '../shared/i18n';
 
 let compiler: TypstCompiler | null = null;
 let fileWatcher: FSWatcher | null = null;
@@ -153,9 +155,10 @@ export function getAiSnapshotCount(filePath?: string): number {
 // ─── File Operations ──────────────────────────────────
 
 export async function openFile(filePath?: string): Promise<void> {
+  const md = resolveDict(getLocale()).mainDialogs;
   if (!filePath) {
     const result = await dialog.showOpenDialog(appState.mainWindow!, {
-      filters: [{ name: 'Typst Files', extensions: ['typ'] }],
+      filters: [{ name: md.filterTypstFiles, extensions: ['typ'] }],
       properties: ['openFile'],
     });
     if (result.canceled || result.filePaths.length === 0) return;
@@ -168,11 +171,11 @@ export async function openFile(filePath?: string): Promise<void> {
     if (existingLock) {
       const result = await dialog.showMessageBox(appState.mainWindow!, {
         type: 'warning',
-        buttons: ['Open Read-Only', 'Open Anyway', 'Cancel'],
+        buttons: [md.openReadOnly, md.openAnyway, md.cancel],
         defaultId: 0,
-        title: 'File is locked',
-        message: `This file is being edited by ${existingLock.user} on ${existingLock.machine}.`,
-        detail: 'Opening it simultaneously may cause conflicts if your project is in a shared folder (Dropbox, iCloud, etc.).',
+        title: md.fileLockedTitle,
+        message: md.fileLockedMessage(existingLock.user, existingLock.machine),
+        detail: md.fileLockedDetail,
       });
       if (result.response === 2) return; // Cancel
       if (result.response === 0) {
@@ -202,11 +205,11 @@ export async function openFile(filePath?: string): Promise<void> {
       if (recovery) {
         const result = await dialog.showMessageBox(appState.mainWindow!, {
           type: 'question',
-          buttons: ['Recover', 'Discard Backup'],
+          buttons: [md.recover, md.discardBackup],
           defaultId: 0,
-          title: 'Unsaved changes found',
-          message: 'A backup with unsaved changes was found for this file.',
-          detail: `Last backup: ${new Date(recovery.snapshot.timestampMs).toLocaleString()}\n\nWould you like to recover the backup?`,
+          title: md.unsavedChangesFoundTitle,
+          message: md.unsavedChangesFoundMessage,
+          detail: md.unsavedChangesFoundDetail(new Date(recovery.snapshot.timestampMs).toLocaleString()),
         });
         if (result.response === 0) {
           appState.currentContent = recovery.backupContent;
@@ -278,7 +281,7 @@ export async function openFile(filePath?: string): Promise<void> {
   } catch (err) {
     addBreadcrumb('file', `open failed: ${err instanceof Error ? err.message : String(err)}`);
     dialog.showErrorBox(
-      'Could not open file',
+      md.couldNotOpenFile,
       `${err instanceof Error ? err.message : String(err)}`,
     );
   }
@@ -304,8 +307,9 @@ export async function saveFile(): Promise<boolean> {
     return true;
   } catch (err) {
     addBreadcrumb('file', `save failed: ${err instanceof Error ? err.message : String(err)}`);
+    const md = resolveDict(getLocale()).mainDialogs;
     dialog.showErrorBox(
-      'Could not save file',
+      md.couldNotSaveFile,
       `${err instanceof Error ? err.message : String(err)}`,
     );
     return false;
@@ -313,8 +317,9 @@ export async function saveFile(): Promise<boolean> {
 }
 
 export async function saveFileAs(): Promise<boolean> {
+  const md = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showSaveDialog(appState.mainWindow!, {
-    filters: [{ name: 'Typst Files', extensions: ['typ'] }],
+    filters: [{ name: md.filterTypstFiles, extensions: ['typ'] }],
     defaultPath: appState.currentFilePath || 'document.typ',
   });
 
@@ -362,12 +367,13 @@ export function closeProject(): void {
  */
 export async function closeProjectInteractive(): Promise<boolean> {
   if (appState.isDirty && appState.currentFilePath) {
+    const md = resolveDict(getLocale()).mainDialogs;
     const result = await dialog.showMessageBox(appState.mainWindow!, {
       type: 'warning',
-      buttons: ['Save', "Don't Save", 'Cancel'],
+      buttons: [md.save, md.dontSave, md.cancel],
       defaultId: 0,
-      message: 'You have unsaved changes.',
-      detail: 'Do you want to save before closing the project?',
+      message: md.unsavedChangesMessage,
+      detail: md.unsavedChangesDetail,
     });
     if (result.response === 2) return false;
     if (result.response === 0) await saveFile();

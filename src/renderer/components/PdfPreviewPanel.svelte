@@ -3,6 +3,7 @@
   import * as pdfjsLib from 'pdfjs-dist';
   import { TextLayer } from 'pdfjs-dist';
   import { zoomState } from '../appState.svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   // Set up worker from pdfjs-dist
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -214,8 +215,8 @@
       </div>
     {:else if !pdfData}
       <div class="pdf-empty">
-        <p>No preview</p>
-        <p class="hint">Save a .typ file to see the PDF preview</p>
+        <p>{t().pickers.previewNoPreview}</p>
+        <p class="hint">{t().pickers.previewNoPreviewHint}</p>
       </div>
     {:else}
       <div class="pdf-pages" bind:this={canvasContainer}></div>

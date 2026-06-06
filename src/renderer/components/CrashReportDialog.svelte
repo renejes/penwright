@@ -10,6 +10,8 @@
    * reappear on next boot. Reports stay on disk in <userData>/crash-reports/
    * until the user explicitly discards them.
    */
+  import { t } from '@shared/i18n/store.svelte';
+
   let { content, filename, onClose }: {
     content: string;
     filename: string;
@@ -53,10 +55,7 @@
   }
 
   async function discard() {
-    const confirmed = confirm(
-      'Diesen Bericht wirklich loeschen?\n\n' +
-        'Falls du ihn vorher behalten willst, kannst du ihn ueber „In Zwischenablage kopieren" oder „E-Mail vorbereiten" sichern.',
-    );
+    const confirmed = confirm(t().crash.discardConfirm);
     if (!confirmed) return;
     try {
       await api.invoke('crash:deleteAll');
@@ -78,23 +77,22 @@
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
   <div class="crash-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
     <div class="crash-header">
-      <h2>{view === 'intro' ? 'Beim letzten Start ist ein Fehler aufgetreten' : 'Fehlerbericht'}</h2>
-      <button class="crash-close" onclick={onClose} title="Schliessen">&times;</button>
+      <h2>{view === 'intro' ? t().crash.introTitle : t().crash.detailTitle}</h2>
+      <button class="crash-close" onclick={onClose} title={t().common.close}>&times;</button>
     </div>
 
     {#if view === 'intro'}
       <div class="crash-body">
         <p>
-          Penwright hat einen Bericht erstellt mit dem Fehler-Typ und deinen letzten Aktionen.
-          <strong>Pfade und Dateiinhalte sind nicht enthalten</strong> — du entscheidest, ob und an wen du den Bericht weitergibst.
+          {t().crash.introBodyBefore}<strong>{t().crash.introBodyStrong}</strong>{t().crash.introBodyAfter}
         </p>
         <p class="crash-hint">
-          Der Bericht bleibt lokal auf deinem Rechner gespeichert, bis du ihn loeschst.
+          {t().crash.introHint}
         </p>
       </div>
       <div class="crash-actions">
-        <button class="secondary" onclick={onClose}>Schliessen</button>
-        <button class="primary" onclick={() => (view = 'detail')}>Bericht ansehen</button>
+        <button class="secondary" onclick={onClose}>{t().common.close}</button>
+        <button class="primary" onclick={() => (view = 'detail')}>{t().crash.viewReport}</button>
       </div>
     {:else}
       <div class="crash-body">
@@ -102,19 +100,19 @@
         <pre class="crash-report">{content}</pre>
       </div>
       <div class="crash-actions">
-        <button class="secondary" onclick={discard} title="Diesen Bericht loeschen">
-          Verwerfen
+        <button class="secondary" onclick={discard} title={t().crash.discardTitle}>
+          {t().crash.discard}
         </button>
-        <button class="secondary" onclick={openFolder} title="Crash-Reports-Ordner im Finder oeffnen">
-          Ordner oeffnen
+        <button class="secondary" onclick={openFolder} title={t().crash.openFolderTitle}>
+          {t().crash.openFolder}
         </button>
         <button class="secondary" onclick={copyReport}>
-          {copied ? '✓ Kopiert' : 'In Zwischenablage'}
+          {copied ? t().crash.copied : t().crash.copyToClipboard}
         </button>
         <button class="secondary" onclick={openMail}>
-          {mailed ? '✓ Mail geoeffnet' : 'E-Mail vorbereiten'}
+          {mailed ? t().crash.mailed : t().crash.prepareMail}
         </button>
-        <button class="primary" onclick={onClose}>Schliessen</button>
+        <button class="primary" onclick={onClose}>{t().common.close}</button>
       </div>
     {/if}
   </div>

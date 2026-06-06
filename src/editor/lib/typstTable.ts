@@ -13,6 +13,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import type { Editor } from '@tiptap/core';
+import { t } from '../../shared/i18n/store.svelte';
 
 const tableControlsKey = new PluginKey('tableControls');
 
@@ -37,7 +38,7 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
           const gear = document.createElement('button');
           gear.className = 'table-gear-btn';
           gear.innerHTML = '&#9881;';
-          gear.title = 'Table Settings';
+          gear.title = t().editorLib.tableSettingsTitle;
 
           let dropdownEl: HTMLElement | null = null;
           let backdropEl: HTMLElement | null = null;
@@ -75,9 +76,14 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             dropdownEl.style.left = `${gearRect.left}px`;
             dropdownEl.style.bottom = `${window.innerHeight - gearRect.top + 4}px`;
 
+            const dimsText = (c: number, r: number) =>
+              t().editorLib.tableDims
+                .replace('{cols}', String(c))
+                .replace('{rows}', String(r));
+
             dropdownEl.innerHTML = `
-              <div class="table-settings-header">Table</div>
-              <div class="table-settings-dims">${cols} columns \u00d7 ${rows} rows</div>
+              <div class="table-settings-header">${t().editorLib.tableHeader}</div>
+              <div class="table-settings-dims">${dimsText(cols, rows)}</div>
             `;
 
             // Action buttons
@@ -85,10 +91,10 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             actions.className = 'table-settings-actions';
 
             const btnData = [
-              { label: '+ Column', action: () => tiptapEditor.chain().focus().addColumnAfter().run() },
-              { label: '+ Row', action: () => tiptapEditor.chain().focus().addRowAfter().run() },
-              { label: '\u2212 Column', danger: true, action: () => tiptapEditor.chain().focus().deleteColumn().run() },
-              { label: '\u2212 Row', danger: true, action: () => tiptapEditor.chain().focus().deleteRow().run() },
+              { label: t().editorLib.tableAddColumn, action: () => tiptapEditor.chain().focus().addColumnAfter().run() },
+              { label: t().editorLib.tableAddRow, action: () => tiptapEditor.chain().focus().addRowAfter().run() },
+              { label: t().editorLib.tableRemoveColumn, danger: true, action: () => tiptapEditor.chain().focus().deleteColumn().run() },
+              { label: t().editorLib.tableRemoveRow, danger: true, action: () => tiptapEditor.chain().focus().deleteRow().run() },
             ];
 
             for (const bd of btnData) {
@@ -106,7 +112,7 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
                     if (dimsEl) {
                       const nr = updatedTable.childCount;
                       const nc = updatedTable.child(0)?.childCount ?? 0;
-                      dimsEl.textContent = `${nc} columns \u00d7 ${nr} rows`;
+                      dimsEl.textContent = dimsText(nc, nr);
                     }
                   }
                 }, 50);
@@ -123,7 +129,7 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             // Delete table
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'danger table-settings-delete';
-            deleteBtn.textContent = 'Delete Table';
+            deleteBtn.textContent = t().editorLib.tableDelete;
             deleteBtn.addEventListener('mousedown', (e) => {
               e.preventDefault();
               closeDropdown();
@@ -148,8 +154,8 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
           // ── Done button (right) ──
           const done = document.createElement('button');
           done.className = 'table-done-btn';
-          done.textContent = '\u2713 Done';
-          done.title = 'Exit table and add new line below';
+          done.textContent = t().editorLib.blockDone;
+          done.title = t().editorLib.tableDoneTooltip;
 
           done.addEventListener('mousedown', (e) => {
             e.preventDefault();

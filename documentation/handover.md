@@ -1,9 +1,9 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-06-05, Ende der großen „Design/Look-Modell + Launch-Reife"-Session.
-> **Branch:** `design-on-selection` (ab `main`) — wird in dieser Session **committet + nach `main` gepusht**.
-> **Nächste Aufgabe:** **Lokalisierung** — die UI konsequent auf **Englisch** vereinheitlichen,
-> oder einmal **vollständiges i18n** (EN + DE umschaltbar) nachziehen. Erst Entscheidung, dann Umsetzung. Siehe §1.
+> **Stand:** 2026-06-06, Ende der i18n-Session.
+> **Branch:** `design-on-selection` (ab `main`).
+> **Letzte Aufgabe (erledigt):** **Volles i18n** — die gesamte UI ist jetzt EN + DE umschaltbar
+> (Dropdown im Dokument-Einstellungen-Dialog, OS-Erkennung beim Erststart). Siehe §1 + `CLAUDE.md` → „Internationalization (i18n)".
 > Lies diesen Handover, dann `CLAUDE.md` → danach loslegen.
 
 ---
@@ -45,17 +45,33 @@ Prinzip: **du gestaltest dort, wo es wirkt.** Drei Reichweiten, drei Orte, eine 
 
 ---
 
-## 1. Nächste Aufgabe: Lokalisierung (Englisch / i18n)
+## 1. Erledigt: Volles i18n (EN + DE umschaltbar)
 
-**Problem:** Die UI ist **gemischt DE/EN** — native Menüleiste + Lizenz-UI englisch, aber viele (gerade neuere) Komponenten deutsch. Für eine Bezahl-App unrund.
+**Entscheidung:** Variante **(B) Volles i18n** — EN + DE, zur Laufzeit umschaltbar. Default beim Erststart = **OS-Sprache** (Deutsch wenn OS deutsch, sonst Englisch), danach merkt sich die App die Wahl.
 
-**Erst die Entscheidung mit dem User klären:**
-- **(A) Englisch-only** — alle UI-Strings auf Englisch vereinheitlichen. Schnell, ein Sprachstand.
-- **(B) Volles i18n** — EN + DE umschaltbar (leichter `t()`-Store + Locale-Maps). Mehr Aufwand, DE-Markt bleibt.
+**Architektur** (Details in `CLAUDE.md` → „Internationalization (i18n)"): leichter Svelte-5-Rune-Store unter `src/shared/i18n/`. `en/<ns>.ts` + `de/<ns>.ts` je Namespace (23 Namespaces), `en` ist die Typ-Wahrheit, `de` wird dagegen typgeprüft. Reaktiver Zugriff via `t().<ns>.<key>` (`store.svelte.ts`). **Import-Regeln:** `.svelte` → `@shared/i18n/store.svelte`; tsc-geprüfte `.ts` (Editor-Node-Views) → **relativer** Pfad; **Main-Prozess** → `resolveDict(getLocale()).<ns>` (kein Rune-Store). Globale Persistenz: electron-store `locale` + IPC `app:getLocale`/`app:setLocale` (setLocale baut die native Menüleiste neu). **Sprach-Dropdown:** „Oberfläche"-Sektion im Dokument-Einstellungen-Dialog (`SettingsPanel`).
 
-**Es gibt noch KEINE i18n-Infrastruktur** — Strings sind hart in den `.svelte`/`.ts`. Bei (B): ein `i18n.ts` mit `locale`-Store + `t(key)` + `en`/`de`-Maps, Strings nach Keys ziehen. Das Handbuch ist bereits zweisprachig (`handbuch.md`/`handbook.md`).
+**Migriert:** native Menüleiste, alle Main-Prozess-Dialoge (`fileManager`/`projectManager`/`importExport`/`ipcHandlers`), Editor-Toolbar/Search/Shortcuts/Welcome, Slash-Commands + Editor-Node-View-Popups (Image/Footnote/Table/Bibliography/RawBlock/Pagebreak), DesignPanel/LookStatus/SectionLookEditor/DesignAiPopover, Onboarding/MCP-Wizard, Backup/Crash/Version/Project-Panel, Comments/Export/Sidebar, alle Picker/Panels, StartScreen/License/About, App.svelte (Alerts/Nav/Statusleiste/Trial-Banner). `tsc --noEmit` + `electron-vite build` grün.
 
-**Deutschsprachige Surfaces (nicht erschöpfend):** `DesignPanel`, `LookStatus`, `SectionLookEditor`, `DesignAiPopover`, `OnboardingWizard`, `McpSetupWizard`, `CrashReportDialog`, diverse `alert()`/Toast-Texte, der „Kapitel-Look"/„Global-Look"-Wortschatz.
+**Erledigt (Vollständigkeits-Runde):**
+- **QuickSettings/Zahnrad entfernt:** das ⚙-Popover (Schriftgröße + Zeilenabstand + doppelte Dokumentsprache) ist komplett raus (Button, Panel, `QuickSettings.svelte`, `showQuickSettings`, der `quickSettings`-IPC-Case + Message-Typ). Schriftgröße/Zeilenabstand leben im Design-Panel, Dokumentsprache in den Dokument-Einstellungen.
+- **UI-Sprache schnell erreichbar:** EN/DE-Kürzel in der unteren Statusleiste (ein Klick toggelt), zusätzlich zur „App-Sprache" in den Dokument-Einstellungen + dem StartScreen-Switcher. **Wichtig:** UI-Sprache (i18n-Store) und Dokument-Textsprache (`#set text(lang)`) sind getrennt — nicht verwechseln.
+- **StartScreen-Switcher:** kompakter EN/DE-Umschalter oben rechts auf dem StartScreen (der Haupt-Picker im Settings-Dialog braucht ein offenes Projekt).
+- **Main→Renderer-Fehlertexte:** in `mainDialogs` gezogen — Sidebar-Fehler (`handleNewFolder`/`handleAddAssets`), Quit-Dialog (`index.ts`), Lizenz-Status-Messages (`licenseManager`), die Design-Undo-Tooltips (`safeApplyDesign`-Labels) und die „Keine KI-Änderungen"-Notification. Die Design/Section-Guard-Errors in `ipcHandlers` (z. B. „Chapter not found") bleiben englisch — sie werden nie angezeigt (Renderer mappt auf eigene `look.*`-Texte). Auch container-`aria-label`s (Sidebar/Comments/ProjectSearch/Export) sind jetzt lokalisiert.
+
+**Offen:**
+- **Manueller Smoke-Test:** Sprache im Settings-Dialog + auf dem StartScreen umschalten → Live-Update von UI + nativer Menüleiste prüfen; App neu starten → Wahl bleibt erhalten; Erststart auf DE-/EN-OS prüfen (electron-store `locale` ggf. löschen zum Re-Test).
+- **Compile-Fehler** (Typst-CLI-Ausgabe in der Vorschau) bleiben englisch — kommen vom Typst-Binary selbst, bewusst nicht übersetzt.
+- **Handbuch** ist separat zweisprachig (`handbuch.md`/`handbook.md`, `HandbookViewer` mit eigenem EN/DE-Toggle) — unabhängig von der UI-Sprache, bewusst so gelassen.
+
+---
+
+## 1b. Editor-UX: „＋ Einfügen"-Menü + Block-Exit (nach i18n)
+
+- **„＋ Einfügen"-Button** links in der Toolbar öffnet ein Dropdown mit **allen** `/`-Befehlen (+ `@` Citation/Reference), gruppiert (Text & Struktur / Blöcke / Verweise & Medien). **Single Source:** `getCommands()` in `src/editor/lib/slashCommands.ts` (jedes Item hat `group: 'text'|'blocks'|'refs'`); Slash-Menü **und** Toolbar-Dropdown speisen sich daraus → können nie auseinanderlaufen. Neuer Einfügbarer = **ein** Eintrag in `getCommands()`. Der `{}`-Toolbar-Button bleibt bewusst der *generische* Code-Block (Inline-Code-Beispiele), **nicht** der Typst-Raw-Block — der ist `/Typst-Code` (`typstRawBlock`).
+- **Typst-Block verlassen** jetzt auch per **`Esc`** / **`Cmd+Enter`** (zusätzlich zu „✓ Fertig") — in `typstRawBlock.ts`, eigener Tooltip-Key `rawBlockDoneTooltip`.
+- **Onboarding:** neuer Schritt „Alles einfügen — der ＋-Button" zwischen „Schreiben" und „Design" (`onboarding.steps.insert`).
+- **Doku nachgezogen:** `CLAUDE.md` (Action-Discovery-Split), in-App-Handbuch `handbook.md`/`handbuch.md` (Toolbar-Tabelle, Abschnitt „Inhalte einfügen", Oberflächensprache-Hinweis + Layout-Diagramm), `project_status.md`.
 
 ---
 

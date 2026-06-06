@@ -1,0 +1,61 @@
+/** App shell — alerts, nav tabs, status bar, trial banner (App.svelte). */
+export const app = {
+  // Alerts / toasts
+  openFileFirst: 'Please open a file first.',
+  selectTextToComment: 'Please select the text you want to comment on.',
+  noProjectOpen: 'No project open.',
+  commentCreateFailed: 'Could not create the comment.',
+  selectTextToDesign: 'Please select the text you want to design.',
+  pinFailed: 'Could not pin the selection.',
+
+  // Navigation tabs
+  navAria: 'Sidebar panels',
+  navFiles: 'Files',
+  navOutline: 'Outline',
+  navChapters: 'Chapters',
+  navProject: 'Project',
+  navComments: 'Comments',
+
+  // Mode toggles (tooltips)
+  typewriterMode: 'Typewriter Mode',
+  readingMode: 'Reading Mode (Cmd+Alt+R)',
+  focusMode: 'Focus Mode',
+  exitFocusMode: 'Exit Focus Mode (Esc)',
+
+  // Tabs
+  openFilesAria: 'Open files',
+  closeTabAria: (name: string) => `Close ${name}`,
+
+  // Status bar
+  toggleSidebar: 'Toggle project sidebar',
+  toggleTerminal: 'Toggle terminal panel',
+  togglePreview: 'Toggle preview panel',
+  statusProject: 'Project',
+  statusTerminal: 'Terminal / AI',
+  statusPreview: 'Preview',
+  wordsLabel: (n: number): string => (n === 1 ? 'word' : 'words'),
+  minRead: (m: number) => `${m} min read`,
+  readingTimeTitle: 'Word count · estimated reading time at 200 wpm',
+  editorZoom: 'Editor zoom',
+  editorZoomTitle: 'Editor zoom · click to adjust',
+  zoomOut: 'Zoom out',
+  zoomIn: 'Zoom in',
+  zoomSlider: 'Editor zoom slider',
+  reset: 'Reset',
+  exporting: (fmt: string) => `Exporting ${fmt}…`,
+  unsaved: 'Unsaved',
+  saved: (time: string) => `Saved ${time}`,
+
+  // License badge + language toggle
+  switchLanguage: 'Switch language (English / German)',
+  licenseTitle: 'License',
+  licensed: 'Licensed',
+  locked: 'Locked',
+  trialStatus: (days: number) => `Trial: ${days} ${days === 1 ? 'day' : 'days'}`,
+
+  // Trial banner
+  trialLeft: (days: number) => `Trial — ${days} ${days === 1 ? 'day' : 'days'} left`,
+  buyNow: 'Buy now – €59',
+};
+
+export type AppMessages = typeof app;

@@ -3,6 +3,7 @@
   import * as pdfjsLib from 'pdfjs-dist';
   import { TextLayer } from 'pdfjs-dist';
   import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom } from '../appState.svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
@@ -89,7 +90,7 @@
       setupPlaceholders();
       setupIntersectionObserver();
     } catch (err) {
-      errorMsg = `Failed to load PDF: ${err}`;
+      errorMsg = t().pickers.pdfLoadFailed(String(err));
       console.error('[penwright] PDF load error:', err);
     }
     loading = false;
@@ -195,16 +196,16 @@
       <span class="file-badge">pdf</span>
       <span class="file-title">{fileName}</span>
       {#if pageCount > 0}
-        <span class="page-count">{pageCount} {pageCount === 1 ? 'page' : 'pages'}</span>
+        <span class="page-count">{t().pickers.pdfPages(pageCount)}</span>
       {/if}
     </div>
     <div class="header-right">
-      <div class="zoom-controls" role="group" aria-label="PDF zoom">
-        <button class="zoom-btn" onclick={zoomPdfOut} title="Zoom Out" aria-label="Zoom out">−</button>
-        <button class="zoom-percent" onclick={resetPdfZoom} title="Reset zoom" aria-label="Reset zoom">{Math.round(zoomState.pdf * 100)}%</button>
-        <button class="zoom-btn" onclick={zoomPdfIn} title="Zoom In" aria-label="Zoom in">+</button>
+      <div class="zoom-controls" role="group" aria-label={t().pickers.previewLabel}>
+        <button class="zoom-btn" onclick={zoomPdfOut} title={t().pickers.previewZoomOut} aria-label={t().pickers.previewZoomOut}>−</button>
+        <button class="zoom-percent" onclick={resetPdfZoom} title={t().pickers.previewResetZoom} aria-label={t().pickers.previewResetZoom}>{Math.round(zoomState.pdf * 100)}%</button>
+        <button class="zoom-btn" onclick={zoomPdfIn} title={t().pickers.previewZoomIn} aria-label={t().pickers.previewZoomIn}>+</button>
       </div>
-      <button class="close-btn" onclick={onClose} title="Close">
+      <button class="close-btn" onclick={onClose} title={t().common.close}>
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
     </div>
@@ -212,7 +213,7 @@
 
   <div class="pdf-scroll" bind:this={scrollContainer}>
     {#if loading}
-      <div class="pdf-status">Loading PDF...</div>
+      <div class="pdf-status">{t().pickers.pdfLoading}</div>
     {:else if errorMsg}
       <div class="pdf-error"><pre>{errorMsg}</pre></div>
     {:else}

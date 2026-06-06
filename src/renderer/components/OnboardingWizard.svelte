@@ -11,6 +11,8 @@
    * {@html} bold markup is safe.
    */
 
+  import { t } from '@shared/i18n/store.svelte';
+
   let { onClose }: { onClose: () => void } = $props();
 
   const api = (window as unknown as {
@@ -24,43 +26,20 @@
     bullets?: string[];  // optional list (also static/trusted)
   }
 
-  const steps: Step[] = [
-    {
-      icon: '✍️',
-      title: 'Willkommen bei Penwright',
-      body: 'Schreib schöne Dokumente — wissenschaftlich, editorial, magazinartig — komplett <strong>ohne Code</strong>. Penwright ist ein WYSIWYG-Editor über Typst. Alles ist gebündelt: einfach loslegen, nichts zu installieren.',
-    },
-    {
-      icon: '📁',
-      title: 'Alles im Projektordner',
-      body: 'Jedes Dokument lebt in einem eigenen <strong>Projekt</strong>. Versionen, Auto-Backups und Einstellungen liegen mit drin — kopierst du den Ordner, nimmst du den ganzen Stand mit.',
-    },
-    {
-      icon: '⌨️',
-      title: 'Schreiben wie gewohnt',
-      body: 'Formatiere über die Leiste oben (Fett, Kursiv, Überschriften, Listen). Tipp <code>/</code> für Bilder, Tabellen, Formeln, Zitate und mehr. Die Typst-Quelle bleibt dabei immer sauber.',
-    },
+  const steps = $derived<Step[]>([
+    { icon: '✍️', title: t().onboarding.steps.welcome.title, body: t().onboarding.steps.welcome.body },
+    { icon: '📁', title: t().onboarding.steps.project.title, body: t().onboarding.steps.project.body },
+    { icon: '⌨️', title: t().onboarding.steps.writing.title, body: t().onboarding.steps.writing.body },
+    { icon: '➕', title: t().onboarding.steps.insert.title, body: t().onboarding.steps.insert.body },
     {
       icon: '✨',
-      title: 'Design — getrennt vom Schreiben',
-      body: 'Erst schreiben, dann gestalten. Im <strong>Design-Tab</strong> gibt es drei Wege:',
-      bullets: [
-        '<strong>Direkte Formatierung</strong> — die Buttons oben in der Leiste, wie in Word.',
-        '<strong>Design with AI</strong> — Text markieren → Rechtsklick → die KI gestaltet genau diese Stelle.',
-        '<strong>Globale &amp; Section Styles</strong> — Look fürs ganze Dokument oder einzelne Kapitel.',
-      ],
+      title: t().onboarding.steps.design.title,
+      body: t().onboarding.steps.design.body,
+      bullets: t().onboarding.steps.design.bullets,
     },
-    {
-      icon: '🤖',
-      title: 'Mit Claude Desktop verbinden',
-      body: 'Optional: Verbinde Penwright mit Claude Desktop und lass die KI beim Schreiben und Gestalten helfen. Den Assistenten dafür findest du jederzeit unter <strong>Hilfe → Mit Claude Desktop verbinden</strong>.',
-    },
-    {
-      icon: '🚀',
-      title: 'Bereit loszulegen?',
-      body: 'Am besten startest du mit dem <strong>Beispiel-Projekt</strong> — es zeigt Kapitel, Kommentare, Zitate und Design an echtem Material. Oder leg direkt ein neues Projekt an.',
-    },
-  ];
+    { icon: '🤖', title: t().onboarding.steps.claude.title, body: t().onboarding.steps.claude.body },
+    { icon: '🚀', title: t().onboarding.steps.ready.title, body: t().onboarding.steps.ready.body },
+  ]);
 
   let i = $state(0);
   const isLast = $derived(i === steps.length - 1);
@@ -90,8 +69,8 @@
 
 <div class="ob-overlay" role="presentation" onclick={finish}>
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="ob-card" role="dialog" aria-modal="true" aria-label="Penwright — Einführung" onclick={(e) => e.stopPropagation()}>
-    <button class="ob-skip" onclick={finish}>Überspringen</button>
+  <div class="ob-card" role="dialog" aria-modal="true" aria-label={t().onboarding.ariaLabel} onclick={(e) => e.stopPropagation()}>
+    <button class="ob-skip" onclick={finish}>{t().common.skip}</button>
 
     <div class="ob-body">
       <div class="ob-icon">{steps[i].icon}</div>
@@ -111,20 +90,20 @@
         <button
           class="ob-dot"
           class:active={d === i}
-          aria-label={`Schritt ${d + 1}`}
+          aria-label={t().onboarding.stepAria(d + 1)}
           onclick={() => (i = d)}
         ></button>
       {/each}
     </div>
 
     <div class="ob-nav">
-      <button class="ob-btn ghost" onclick={back} disabled={i === 0}>Zurück</button>
+      <button class="ob-btn ghost" onclick={back} disabled={i === 0}>{t().common.back}</button>
       <div class="ob-nav-right">
         {#if isLast}
-          <button class="ob-btn" onclick={finish}>Fertig</button>
-          <button class="ob-btn primary" onclick={openSample}>Beispiel-Projekt öffnen</button>
+          <button class="ob-btn" onclick={finish}>{t().common.finish}</button>
+          <button class="ob-btn primary" onclick={openSample}>{t().onboarding.openSample}</button>
         {:else}
-          <button class="ob-btn primary" onclick={next}>Weiter</button>
+          <button class="ob-btn primary" onclick={next}>{t().common.next}</button>
         {/if}
       </div>
     </div>

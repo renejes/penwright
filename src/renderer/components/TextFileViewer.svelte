@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import CodeEditor from './CodeEditor.svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   let {
     filePath = '',
@@ -37,7 +38,7 @@
       originalContent = text;
       isDirty = false;
     } catch (e) {
-      content = `Error loading file: ${e}`;
+      content = t().pickers.textLoadError(String(e));
     }
   }
 
@@ -80,10 +81,10 @@
     <div class="header-right">
       {#if isDirty}
         <button class="save-btn" onclick={save} disabled={saving}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t().pickers.textSaving : t().common.save}
         </button>
       {/if}
-      <button class="close-btn" onclick={onClose} title="Close">
+      <button class="close-btn" onclick={onClose} title={t().common.close}>
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
     </div>

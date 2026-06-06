@@ -12,8 +12,10 @@ import {
   saveLicenseData,
   clearLicenseData,
   ensureTrialStarted,
+  getLocale,
   type LicenseData,
 } from './persistenceManager';
+import { resolveDict } from '../shared/i18n';
 
 const POLAR_ORG_ID = 'a5a6573b-aacf-4501-a6c1-ebc15ef67b04';
 /** Days a valid license keeps working offline before re-validation is forced. */
@@ -106,7 +108,7 @@ export async function validateLicense(): Promise<LicenseInfo> {
       status: 'expired',
       tier: null,
       key: null,
-      message: 'Your license has been revoked or has expired.',
+      message: resolveDict(getLocale()).mainDialogs.licenseRevoked,
     };
   } catch {
     // Network error — check offline grace period
@@ -117,7 +119,7 @@ export async function validateLicense(): Promise<LicenseInfo> {
         status: 'active',
         tier: data.licenseTier,
         key: data.licenseKey,
-        message: `Offline mode (${Math.ceil(OFFLINE_GRACE_DAYS - daysSince)} days remaining)`,
+        message: resolveDict(getLocale()).mainDialogs.licenseOfflineMode(Math.ceil(OFFLINE_GRACE_DAYS - daysSince)),
       };
     }
 
@@ -125,7 +127,7 @@ export async function validateLicense(): Promise<LicenseInfo> {
       status: 'expired',
       tier: null,
       key: null,
-      message: 'Offline grace period expired. Please connect to the internet to re-validate.',
+      message: resolveDict(getLocale()).mainDialogs.licenseOfflineExpired,
     };
   }
 }

@@ -5,7 +5,6 @@
   import SettingsPanel from '../editor/components/SettingsPanel.svelte';
   import SearchReplace from '../editor/components/SearchReplace.svelte';
   import ProjectSearchPanel from './components/ProjectSearchPanel.svelte';
-  import QuickSettings from '../editor/components/QuickSettings.svelte';
   import WelcomeScreen from '../editor/components/WelcomeScreen.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import OutlinePanel from './components/OutlinePanel.svelte';
@@ -33,6 +32,7 @@
   import SectionLookEditor from './components/SectionLookEditor.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
+  import { t, applyLocale, i18nState, setLocale } from '@shared/i18n/store.svelte';
   import { createEditor, setEditorLanguage } from '../editor/lib/editor';
   import { serializeTypstCached } from '../editor/lib/serializer';
   import { ipc } from '../editor/lib/ipcAdapter';
@@ -206,7 +206,8 @@
     return () => clearTimeout(wordStatsTimer);
   });
 
-  // IPC adapter for CommandHub/QuickSettings compatibility
+  // IPC adapter exposed as window.penwrightApi — used by the editor node-views
+  // (image picker, etc.) that postMessage through the legacy VS Code bridge.
   const vscodeBridge = {
     postMessage(msg: unknown) {
       ipc.send(msg as import('../editor/lib/messages').WebviewMessage);
@@ -320,6 +321,11 @@
     // Restore persisted panel state
     const electronAPI = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
     if (electronAPI) {
+      // Restore the persisted UI language (resolves OS locale on first launch).
+      electronAPI.invoke('app:getLocale').then((loc) => {
+        applyLocale(loc as string);
+      }).catch(() => { /* keep navigator-based default */ });
+
       electronAPI.invoke('persist:getPanelState').then((stored) => {
         if (stored && typeof stored === 'object') {
           const s = stored as Record<string, unknown>;
@@ -443,7 +449,7 @@
   async function addCommentFromSelection() {
     const editor = editorRef.current;
     if (!editor || !tabState.currentFile) {
-      alert('Bitte zuerst eine Datei öffnen.');
+      alert(t().app.openFileFirst);
       return;
     }
     const { state } = editor;
@@ -462,7 +468,7 @@
       while (end < text.length && /\S/.test(text[end])) end++;
       anchorText = text.slice(start, end);
       if (!anchorText) {
-        alert('Bitte Text markieren, der kommentiert werden soll.');
+        alert(t().app.selectTextToComment);
         return;
       }
     }
@@ -477,7 +483,7 @@
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
     }).electronAPI.invoke('project:getInfo') as { projectDir: string | null };
     if (!projectInfo.projectDir) {
-      alert('Kein Projekt geöffnet.');
+      alert(t().app.noProjectOpen);
       return;
     }
 
@@ -497,7 +503,7 @@
     });
 
     if (!created) {
-      alert('Kommentar konnte nicht angelegt werden.');
+      alert(t().app.commentCreateFailed);
       return;
     }
 
@@ -516,7 +522,7 @@
   async function pinSelectionForDesign() {
     const editor = editorRef.current;
     if (!editor || !tabState.currentFile) {
-      alert('Bitte zuerst eine Datei öffnen.');
+      alert(t().app.openFileFirst);
       return;
     }
     const { state } = editor;
@@ -535,7 +541,7 @@
       while (end < text.length && /\S/.test(text[end])) end++;
       selectionText = text.slice(start, end);
       if (!selectionText) {
-        alert('Bitte Text markieren, der gestaltet werden soll.');
+        alert(t().app.selectTextToDesign);
         return;
       }
     }
@@ -567,7 +573,7 @@
 
     const projectInfo = await api.invoke('project:getInfo') as { projectDir: string | null };
     if (!projectInfo.projectDir) {
-      alert('Kein Projekt geöffnet.');
+      alert(t().app.noProjectOpen);
       return;
     }
 
@@ -584,7 +590,7 @@
     }) as { ok: boolean; error?: string };
 
     if (!result?.ok) {
-      alert('Auswahl konnte nicht gepinnt werden.' + (result?.error ? `\n${result.error}` : ''));
+      alert(t().app.pinFailed + (result?.error ? `\n${result.error}` : ''));
       return;
     }
 
@@ -921,9 +927,9 @@
   <!-- Trial banner: slim, non-blocking, only during the local trial. -->
   {#if uiState.licenseAccess === 'trial'}
     <div class="trial-banner">
-      <span>Trial — {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'day' : 'days'} left</span>
+      <span>{t().app.trialLeft(uiState.trialDaysLeft)}</span>
       <button class="trial-buy" onclick={openCheckout}>
-        Buy now – €59
+        {t().app.buyNow}
       </button>
     </div>
   {/if}
@@ -934,12 +940,12 @@
          the status bar — not up here. -->
     {#if hasFileOpen && !uiState.focusMode}
       <div class="top-bar">
-        <div class="top-nav" role="tablist" aria-label="Sidebar panels">
-          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'files'} onclick={() => selectNavTab('files')} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label="Files panel">Files</button>
-          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'outline'} onclick={() => selectNavTab('outline')} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label="Outline panel">Outline</button>
-          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'includes'} onclick={() => selectNavTab('includes')} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label="Chapters panel">Chapters</button>
-          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'git'} onclick={() => selectNavTab('git')} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label="Project panel">Project</button>
-          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'comments'} onclick={() => selectNavTab('comments')} role="tab" aria-selected={panelState.sidebarTab === 'comments'} aria-label="Comments panel">Comments</button>
+        <div class="top-nav" role="tablist" aria-label={t().app.navAria}>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'files'} onclick={() => selectNavTab('files')} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label={t().app.navFiles}>{t().app.navFiles}</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'outline'} onclick={() => selectNavTab('outline')} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label={t().app.navOutline}>{t().app.navOutline}</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'includes'} onclick={() => selectNavTab('includes')} role="tab" aria-selected={panelState.sidebarTab === 'includes'} aria-label={t().app.navChapters}>{t().app.navChapters}</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'git'} onclick={() => selectNavTab('git')} role="tab" aria-selected={panelState.sidebarTab === 'git'} aria-label={t().app.navProject}>{t().app.navProject}</button>
+          <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'comments'} onclick={() => selectNavTab('comments')} role="tab" aria-selected={panelState.sidebarTab === 'comments'} aria-label={t().app.navComments}>{t().app.navComments}</button>
         </div>
         {#if editorRef.current && !designViewerFile && !pdfViewerFile && !textViewerFile}
           {@const _ = editorVersion.value}
@@ -948,16 +954,9 @@
             <div class="toolbar-right">
               <button
                 class="toolbar-icon-btn"
-                onclick={() => (uiState.showQuickSettings = !uiState.showQuickSettings)}
-                title="Quick Settings"
-              >
-                &#9881;
-              </button>
-              <button
-                class="toolbar-icon-btn"
                 class:active={uiState.typewriterMode}
                 onclick={toggleTypewriterMode}
-                title="Typewriter Mode"
+                title={t().app.typewriterMode}
               >
                 &#8230;
               </button>
@@ -965,7 +964,7 @@
                 class="toolbar-icon-btn"
                 class:active={uiState.readingMode}
                 onclick={toggleReadingMode}
-                title="Reading Mode (Cmd+Alt+R)"
+                title={t().app.readingMode}
                 aria-pressed={uiState.readingMode}
               >
                 &#x1D4E1;
@@ -973,17 +972,11 @@
               <button
                 class="toolbar-icon-btn"
                 onclick={toggleFocusMode}
-                title="Focus Mode"
+                title={t().app.focusMode}
               >
                 &#9678;
               </button>
             </div>
-            {#if uiState.showQuickSettings}
-              <QuickSettings
-                vscode={vscodeBridge}
-                onClose={() => (uiState.showQuickSettings = false)}
-              />
-            {/if}
           </div>
         {/if}
       </div>
@@ -1038,7 +1031,7 @@
       <div class="panel-editor">
         <!-- Tab Bar -->
         {#if tabState.openTabs.length > 0}
-          <div class="tab-bar" role="tablist" aria-label="Open files">
+          <div class="tab-bar" role="tablist" aria-label={t().app.openFilesAria}>
             {#each tabState.openTabs as tab, i}
               <div
                 class="editor-tab"
@@ -1056,10 +1049,10 @@
                   class="tab-close"
                   onclick={(e) => { e.stopPropagation(); closeTab(i); }}
                   onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); closeTab(i); } }}
-                  title="Close"
+                  title={t().common.close}
                   role="button"
                   tabindex="0"
-                  aria-label="Close {tabName(tab)}"
+                  aria-label={t().app.closeTabAria(tabName(tab))}
                 >
                   <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </span>
@@ -1146,7 +1139,7 @@
 
     <!-- Modals (always available, also from Start Screen) -->
     {#if uiState.focusMode}
-      <button class="focus-exit-btn" onclick={toggleFocusMode} title="Exit Focus Mode (Esc)">
+      <button class="focus-exit-btn" onclick={toggleFocusMode} title={t().app.exitFocusMode}>
         Exit Focus Mode
       </button>
     {/if}
@@ -1242,30 +1235,30 @@
         class:active={panelState.showSidebar}
         onclick={() => (panelState.showSidebar = !panelState.showSidebar)}
         title="Cmd+B"
-        aria-label="Toggle project sidebar"
+        aria-label={t().app.toggleSidebar}
         aria-pressed={panelState.showSidebar}
       >
-        Project
+        {t().app.statusProject}
       </button>
       <button
         class="status-toggle"
         class:active={panelState.showTerminal}
         onclick={() => (panelState.showTerminal = !panelState.showTerminal)}
         title="Cmd+`"
-        aria-label="Toggle terminal panel"
+        aria-label={t().app.toggleTerminal}
         aria-pressed={panelState.showTerminal}
       >
-        Terminal / AI
+        {t().app.statusTerminal}
       </button>
       <button
         class="status-toggle"
         class:active={panelState.showPreview}
         onclick={() => (panelState.showPreview = !panelState.showPreview)}
         title="Cmd+Shift+P"
-        aria-label="Toggle preview panel"
+        aria-label={t().app.togglePreview}
         aria-pressed={panelState.showPreview}
       >
-        Preview
+        {t().app.statusPreview}
       </button>
     </div>
     {#if hasFileOpen}
@@ -1279,8 +1272,8 @@
     {/if}
     <div class="status-right">
       {#if hasFileOpen && wordStats.words > 0}
-        <span class="status-info" title="Word count · estimated reading time at 200 wpm">
-          {wordStats.words.toLocaleString()} {wordStats.words === 1 ? 'word' : 'words'} · {wordStats.minutes} min read
+        <span class="status-info" title={t().app.readingTimeTitle}>
+          {wordStats.words.toLocaleString()} {t().app.wordsLabel(wordStats.words)} · {t().app.minRead(wordStats.minutes)}
         </span>
       {/if}
       {#if hasFileOpen}
@@ -1289,8 +1282,8 @@
             class="zoom-status-btn"
             class:active={showEditorZoomPopover}
             onclick={() => (showEditorZoomPopover = !showEditorZoomPopover)}
-            title="Editor zoom · click to adjust"
-            aria-label="Editor zoom"
+            title={t().app.editorZoomTitle}
+            aria-label={t().app.editorZoom}
             aria-haspopup="true"
             aria-expanded={showEditorZoomPopover}
           >
@@ -1299,9 +1292,9 @@
           {#if showEditorZoomPopover}
             <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
             <div class="zoom-popover-overlay" onclick={() => (showEditorZoomPopover = false)}></div>
-            <div class="zoom-popover" role="dialog" aria-label="Editor zoom">
+            <div class="zoom-popover" role="dialog" aria-label={t().app.editorZoom}>
               <div class="zoom-popover-row">
-                <button class="zoom-btn-sq" onclick={zoomEditorOut} aria-label="Zoom out">−</button>
+                <button class="zoom-btn-sq" onclick={zoomEditorOut} aria-label={t().app.zoomOut}>−</button>
                 <input
                   type="range"
                   min={ZOOM_MIN}
@@ -1309,41 +1302,49 @@
                   step="0.05"
                   value={zoomState.editor}
                   oninput={(e) => setEditorZoom(parseFloat((e.currentTarget as HTMLInputElement).value))}
-                  aria-label="Editor zoom slider"
+                  aria-label={t().app.zoomSlider}
                 />
-                <button class="zoom-btn-sq" onclick={zoomEditorIn} aria-label="Zoom in">+</button>
+                <button class="zoom-btn-sq" onclick={zoomEditorIn} aria-label={t().app.zoomIn}>+</button>
               </div>
               <div class="zoom-popover-footer">
                 <span class="zoom-popover-value">{Math.round(zoomState.editor * 100)}%</span>
-                <button class="zoom-reset-btn" onclick={resetEditorZoom}>Reset</button>
+                <button class="zoom-reset-btn" onclick={resetEditorZoom}>{t().app.reset}</button>
               </div>
             </div>
           {/if}
         </div>
       {/if}
       {#if uiState.exporting}
-        <span class="status-info status-exporting" aria-live="polite">Exporting {uiState.exportFormat.toUpperCase()}...</span>
+        <span class="status-info status-exporting" aria-live="polite">{t().app.exporting(uiState.exportFormat.toUpperCase())}</span>
       {:else if !tabState.isSaved}
-        <span class="status-info status-unsaved">Unsaved</span>
+        <span class="status-info status-unsaved">{t().app.unsaved}</span>
       {:else if tabState.lastSaveTime}
-        <span class="status-info">Saved {tabState.lastSaveTime}</span>
+        <span class="status-info">{t().app.saved(tabState.lastSaveTime)}</span>
       {/if}
       {#if tabState.currentFile}
         <span class="status-info">{tabState.currentFile.split('/').pop()}</span>
       {/if}
       <button
+        class="status-toggle lang-status"
+        onclick={() => setLocale(i18nState.locale === 'de' ? 'en' : 'de')}
+        title={t().app.switchLanguage}
+        aria-label={t().app.switchLanguage}
+      >
+        {i18nState.locale === 'de' ? 'DE' : 'EN'}
+      </button>
+      <button
         class="status-toggle"
         class:licensed={uiState.licenseAccess === 'licensed'}
         class:expired={uiState.licenseAccess === 'expired'}
         onclick={() => (uiState.showLicense = true)}
-        title="License"
+        title={t().app.licenseTitle}
       >
         {#if uiState.licenseAccess === 'licensed'}
-          Licensed
+          {t().app.licensed}
         {:else if uiState.licenseAccess === 'trial'}
-          Trial: {uiState.trialDaysLeft} {uiState.trialDaysLeft === 1 ? 'day' : 'days'}
+          {t().app.trialStatus(uiState.trialDaysLeft)}
         {:else}
-          Locked
+          {t().app.locked}
         {/if}
       </button>
     </div>
@@ -1741,6 +1742,12 @@
   .status-toggle:hover {
     background: #f5f5f5;
     color: #666;
+  }
+
+  .status-toggle.lang-status {
+    padding: 0 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
   }
 
   .status-toggle.active {

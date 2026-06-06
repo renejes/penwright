@@ -1,0 +1,93 @@
+/** Editor node-view popups + slash commands. */
+export const editorLib = {
+  // Shared "Done" button label + tooltips (used by image / table / raw block / bibliography node-views)
+  blockDone: '✓ Done',
+  blockDoneTooltip: 'Exit block and add new line below',
+  rawBlockDoneTooltip: 'Exit block and add a new line below (Esc or Cmd+Enter)',
+  tableDoneTooltip: 'Exit table and add new line below',
+
+  // Slash commands — titles + descriptions
+  slashHeading1Title: 'Heading 1',
+  slashHeading1Desc: 'Large heading',
+  slashHeading2Title: 'Heading 2',
+  slashHeading2Desc: 'Medium heading',
+  slashHeading3Title: 'Heading 3',
+  slashHeading3Desc: 'Small heading',
+  slashBulletListTitle: 'Bullet List',
+  slashBulletListDesc: 'Unordered list',
+  slashNumberedListTitle: 'Numbered List',
+  slashNumberedListDesc: 'Ordered list',
+  slashQuoteTitle: 'Quote',
+  slashQuoteDesc: 'Blockquote',
+  slashCodeBlockTitle: 'Code Block',
+  slashCodeBlockDesc: 'Fenced code',
+  slashDividerTitle: 'Divider',
+  slashDividerDesc: 'Horizontal line',
+  slashPageBreakTitle: 'Page Break',
+  slashPageBreakDesc: 'Start a new page',
+  slashTocTitle: 'Table of Contents',
+  slashTocDesc: 'Insert table of contents',
+  slashMathTitle: 'Math',
+  slashMathDesc: 'Typst math block',
+  slashTypstCodeTitle: 'Typst Code',
+  slashTypstCodeDesc: 'Raw Typst code',
+  slashTableTitle: 'Table',
+  slashTableDesc: 'Insert table',
+  slashFootnoteTitle: 'Footnote',
+  slashFootnoteDesc: 'Insert footnote (opens editor)',
+  slashCitationTitle: 'Citation',
+  slashCitationDesc: 'Insert citation (@citekey)',
+  slashReferenceTitle: 'Reference',
+  slashReferenceDesc: 'Insert cross-reference (@label)',
+  slashImageTitle: 'Image',
+  slashImageDesc: 'Insert image from file',
+
+  // Image dialog
+  imageWidthLabel: 'Width',
+  imageCustomLabel: 'Custom',
+  imageCustomPlaceholder: 'e.g. 60%, 8cm, auto',
+  imageAltLabel: 'Alt text',
+  imageAltPlaceholder: 'Image description',
+  imageAlignLabel: 'Align',
+  imageAlignLeft: 'Left',
+  imageAlignCenter: 'Center',
+  imageAlignRight: 'Right',
+  imageAlignTooltip: 'Align {label}',
+  imageNoImage: 'No image',
+
+  // Footnote popup
+  footnoteEditTitle: 'Click to edit footnote',
+  footnoteLabel: 'Footnote',
+  footnotePlaceholder: 'Enter footnote text…',
+  footnoteHint: 'Esc or Cmd+Enter to close',
+  footnotePreviewEmpty: 'click to edit',
+
+  // Table settings
+  tableSettingsTitle: 'Table Settings',
+  tableHeader: 'Table',
+  tableDims: '{cols} columns × {rows} rows',
+  tableAddColumn: '+ Column',
+  tableAddRow: '+ Row',
+  tableRemoveColumn: '− Column',
+  tableRemoveRow: '− Row',
+  tableDelete: 'Delete Table',
+
+  // Bibliography
+  bibliographyHeader: 'Bibliography',
+  bibliographyEmpty: 'No references found',
+  bibliographyUnknownAuthor: 'Unknown',
+
+  // Raw block labels
+  rawBlockMath: 'typst · math',
+  rawBlockConfig: 'typst · configuration',
+  rawBlockCode: 'typst · code',
+  rawBlockComment: 'typst · comment',
+  rawBlockDefault: 'typst',
+
+  // Page break
+  pageBreakLabel: 'Page Break',
+
+  // Link prompt (Cmd+K)
+  linkPrompt: 'URL:',
+};
+export type EditorLibMessages = typeof editorLib;

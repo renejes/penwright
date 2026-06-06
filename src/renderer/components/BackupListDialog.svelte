@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '@shared/i18n/store.svelte';
 
   interface Props {
     onClose: () => void;
@@ -55,25 +56,22 @@
     }
   }
 
-  const intervalChoices = [
-    { value: 10, label: 'alle 10 Sekunden' },
-    { value: 30, label: 'alle 30 Sekunden' },
-    { value: 60, label: 'jede Minute' },
-    { value: 300, label: 'alle 5 Minuten' },
-  ];
+  const intervalChoices = $derived([
+    { value: 10, label: t().backup.intervalEvery10Sec },
+    { value: 30, label: t().backup.intervalEvery30Sec },
+    { value: 60, label: t().backup.intervalEveryMinute },
+    { value: 300, label: t().backup.intervalEvery5Min },
+  ]);
 
-  const maxCountChoices = [
-    { value: 10, label: '10 Backups' },
-    { value: 30, label: '30 Backups' },
-    { value: 100, label: '100 Backups' },
-    { value: 1000, label: '1000 Backups (unbegrenzt)' },
-  ];
+  const maxCountChoices = $derived([
+    { value: 10, label: t().backup.maxCountOption(10) },
+    { value: 30, label: t().backup.maxCountOption(30) },
+    { value: 100, label: t().backup.maxCountOption(100) },
+    { value: 1000, label: t().backup.maxCountUnlimited },
+  ]);
 
   async function apply(snap: BackupSnapshot) {
-    const confirmed = confirm(
-      `Aktueller Stand wird durch das Backup vom ${formatDate(snap.timestampMs)} ersetzt.\n\n` +
-      `Tipp: Speichere vorher den aktuellen Stand als eigene Version, falls du nichts verlieren willst.\n\nFortfahren?`,
-    );
+    const confirmed = confirm(t().backup.applyConfirm(formatDate(snap.timestampMs)));
     if (!confirmed) return;
     applying = true;
     try {
@@ -81,10 +79,10 @@
       if (result.ok) {
         onApplied();
       } else {
-        alert('Backup konnte nicht angewendet werden.');
+        alert(t().backup.applyFailed);
       }
     } catch (err) {
-      alert('Fehler beim Anwenden: ' + (err instanceof Error ? err.message : String(err)));
+      alert(t().backup.applyError(err instanceof Error ? err.message : String(err)));
     } finally {
       applying = false;
     }
@@ -117,31 +115,31 @@
   onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
   role="dialog"
   tabindex="-1"
-  aria-label="Auto-Backups"
+  aria-label={t().backup.title}
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <div class="modal-header">
-      <div class="modal-title">Auto-Backups</div>
+      <div class="modal-title">{t().backup.title}</div>
       <button
         class="settings-btn"
         onclick={() => showSettings = !showSettings}
-        aria-label="Backup-Einstellungen"
-        title="Einstellungen"
+        aria-label={t().backup.settingsAria}
+        title={t().backup.settingsButton}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.3"/>
           <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M3 13l1.5-1.5M11.5 4.5L13 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
         </svg>
       </button>
-      <button class="close-btn" onclick={onClose} aria-label="Schließen">×</button>
+      <button class="close-btn" onclick={onClose} aria-label={t().common.close}>×</button>
     </div>
 
     {#if showSettings}
       <div class="settings-block">
-        <div class="settings-title">Einstellungen</div>
+        <div class="settings-title">{t().backup.settingsTitle}</div>
         <label class="setting-row">
-          <span>Backup-Intervall</span>
+          <span>{t().backup.intervalLabel}</span>
           <select bind:value={config.intervalSec} onchange={saveConfig}>
             {#each intervalChoices as choice}
               <option value={choice.value}>{choice.label}</option>
@@ -149,7 +147,7 @@
           </select>
         </label>
         <label class="setting-row">
-          <span>Maximale Anzahl Backups</span>
+          <span>{t().backup.maxCountLabel}</span>
           <select bind:value={config.maxCount} onchange={saveConfig}>
             {#each maxCountChoices as choice}
               <option value={choice.value}>{choice.label}</option>
@@ -157,7 +155,7 @@
           </select>
         </label>
         <label class="setting-row">
-          <span>Maximale AI-Edit-Snapshots</span>
+          <span>{t().backup.maxAiSnapshotsLabel}</span>
           <input
             type="number"
             min="1"
@@ -167,31 +165,31 @@
           />
         </label>
         <div class="settings-note">
-          Backups werden in <code>.penwright/backups/</code> innerhalb des Projektordners gespeichert.
+          {t().backup.settingsNotePrefix}<code>.penwright/backups/</code>{t().backup.settingsNoteSuffix}
         </div>
       </div>
     {/if}
 
     <div class="modal-body">
       {#if loading}
-        <div class="muted">Lade Backups...</div>
+        <div class="muted">{t().backup.loading}</div>
       {:else if backups.length === 0}
         <div class="muted">
-          Noch keine Auto-Backups vorhanden.<br/>
-          Sobald du am Projekt arbeitest, werden hier automatisch Backups gespeichert.
+          {t().backup.emptyLine1}<br/>
+          {t().backup.emptyLine2}
         </div>
       {:else}
         <div class="hint">
-          Auto-Backups schützen vor Abstürzen. Klicke auf „Laden", um einen Stand zurückzuholen.
+          {t().backup.hint}
         </div>
         <ul class="backup-list">
           {#each backups as snap}
             <li class="backup-row">
               <div class="backup-info">
                 <div class="backup-date">{formatDate(snap.timestampMs)}</div>
-                <div class="backup-meta">{snap.fileCount} {snap.fileCount === 1 ? 'Datei' : 'Dateien'} · {formatSize(snap.totalBytes)}</div>
+                <div class="backup-meta">{t().backup.fileCount(snap.fileCount)} · {formatSize(snap.totalBytes)}</div>
               </div>
-              <button class="apply-btn" onclick={() => apply(snap)} disabled={applying}>Laden</button>
+              <button class="apply-btn" onclick={() => apply(snap)} disabled={applying}>{t().backup.loadButton}</button>
             </li>
           {/each}
         </ul>
@@ -199,9 +197,9 @@
     </div>
 
     <div class="modal-footer">
-      <button class="secondary" onclick={openFolder}>Im Finder öffnen</button>
+      <button class="secondary" onclick={openFolder}>{t().common.openInFinder}</button>
       <span class="spacer"></span>
-      <button class="secondary" onclick={onClose}>Schließen</button>
+      <button class="secondary" onclick={onClose}>{t().common.close}</button>
     </div>
   </div>
 </div>

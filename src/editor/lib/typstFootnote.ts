@@ -1,4 +1,5 @@
 import { Node, type Editor } from '@tiptap/core';
+import { t } from '../../shared/i18n/store.svelte';
 
 /**
  * Insert a footnote at the current selection and immediately open its
@@ -96,13 +97,13 @@ export const TypstFootnote = Node.create({
       const preview = document.createElement('span');
       preview.className = 'typst-footnote-preview';
       const updatePreview = (text: string) => {
-        preview.textContent = text.length > 30 ? text.slice(0, 30) + '\u2026' : (text || 'click to edit');
+        preview.textContent = text.length > 30 ? text.slice(0, 30) + '\u2026' : (text || t().editorLib.footnotePreviewEmpty);
         if (!text) preview.classList.add('typst-footnote-empty');
         else preview.classList.remove('typst-footnote-empty');
       };
       updatePreview(node.attrs.content as string);
 
-      dom.title = 'Click to edit footnote';
+      dom.title = t().editorLib.footnoteEditTitle;
       dom.appendChild(marker);
       dom.appendChild(preview);
 
@@ -160,13 +161,13 @@ export const TypstFootnote = Node.create({
 
         const label = document.createElement('div');
         label.className = 'footnote-popup-label';
-        label.textContent = 'Footnote';
+        label.textContent = t().editorLib.footnoteLabel;
         popup.appendChild(label);
 
         const textarea = document.createElement('textarea');
         textarea.className = 'footnote-popup-textarea';
         textarea.value = node.attrs.content as string;
-        textarea.placeholder = 'Enter footnote text...';
+        textarea.placeholder = t().editorLib.footnotePlaceholder;
         textarea.rows = 3;
 
         // Auto-resize
@@ -199,7 +200,7 @@ export const TypstFootnote = Node.create({
 
         const hint = document.createElement('div');
         hint.className = 'footnote-popup-hint';
-        hint.textContent = 'Esc or Cmd+Enter to close';
+        hint.textContent = t().editorLib.footnoteHint;
         popup.appendChild(hint);
 
         document.body.appendChild(popup);
@@ -226,9 +227,9 @@ export const TypstFootnote = Node.create({
         update(updatedNode) {
           if (updatedNode.type.name !== 'footnote') return false;
           node = updatedNode;
-          const t = updatedNode.attrs.content as string;
-          updatePreview(t);
-          dom.title = 'Click to edit footnote';
+          const content = updatedNode.attrs.content as string;
+          updatePreview(content);
+          dom.title = t().editorLib.footnoteEditTitle;
           return true;
         },
         destroy() {

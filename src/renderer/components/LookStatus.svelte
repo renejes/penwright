@@ -12,6 +12,7 @@
 
   import { onMount, onDestroy } from 'svelte';
   import { SECTION_PRESETS } from '../../shared/sectionPresets';
+  import { t } from '@shared/i18n/store.svelte';
 
   let { file, isDesignView, onOpenGlobalLook }:
     { file: string; isDesignView: boolean; onOpenGlobalLook: () => void } = $props();
@@ -56,7 +57,7 @@
         window.dispatchEvent(new CustomEvent('penwright:design-changed'));
       } else {
         styleId = prev;
-        note = 'nicht angewendet';
+        note = t().look.notApplied;
         setTimeout(() => { if (note) note = ''; }, 4000);
       }
     } catch {
@@ -69,17 +70,17 @@
 </script>
 
 {#if isDesignView}
-  <span class="ls-badge active">✦ Global-Look</span>
+  <span class="ls-badge active">{t().look.globalBadge}</span>
 {:else if isChapter}
-  <span class="ls-label">Kapitel-Look</span>
+  <span class="ls-label">{t().look.chapterLabel}</span>
   <select
     class="ls-select"
     disabled={busy}
     value={styleId ?? ''}
     onchange={(e) => pick((e.currentTarget as HTMLSelectElement).value)}
-    title="Gestaltet nur dieses Kapitel (Farbe, Schrift, Spalten). Seitenformat bleibt global. Sicher — bei Fehler bleibt alles wie es war."
+    title={t().look.chapterSelectTitle}
   >
-    <option value="">Standard</option>
+    <option value="">{t().look.optionDefault}</option>
     {#each SECTION_PRESETS as p}
       <option value={p.id}>{p.name}</option>
     {/each}
@@ -88,13 +89,13 @@
     <button
       class="ls-edit"
       onclick={() => window.dispatchEvent(new CustomEvent('penwright:edit-chapter-look', { detail: { chapterPath: file, styleId } }))}
-      title="Diesen Look anpassen (Farben, Schriften, Spalten …)"
-      aria-label="Look anpassen"
+      title={t().look.editTitle}
+      aria-label={t().look.editAria}
     >✎</button>
   {/if}
   {#if note}<span class="ls-note">{note}</span>{/if}
 {:else}
-  <button class="ls-badge" onclick={onOpenGlobalLook} title="Den Look des ganzen Dokuments bearbeiten">✦ Look</button>
+  <button class="ls-badge" onclick={onOpenGlobalLook} title={t().look.openGlobalTitle}>{t().look.lookBadge}</button>
 {/if}
 
 <style>

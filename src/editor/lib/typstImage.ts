@@ -1,5 +1,6 @@
 import { Node } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
+import { t } from '../../shared/i18n/store.svelte';
 
 /**
  * Document base URI for resolving relative image paths in the webview.
@@ -79,7 +80,7 @@ function showImageDialog(
 
   const widthLabel = document.createElement('span');
   widthLabel.classList.add('typst-image-dialog-label');
-  widthLabel.textContent = 'Width';
+  widthLabel.textContent = t().editorLib.imageWidthLabel;
   widthPresetsRow.appendChild(widthLabel);
 
   const presetsWrap = document.createElement('div');
@@ -116,13 +117,13 @@ function showImageDialog(
 
   const customLabel = document.createElement('span');
   customLabel.classList.add('typst-image-dialog-label');
-  customLabel.textContent = 'Custom';
+  customLabel.textContent = t().editorLib.imageCustomLabel;
   customRow.appendChild(customLabel);
 
   const customInput = document.createElement('input');
   customInput.classList.add('typst-image-dialog-input');
   customInput.type = 'text';
-  customInput.placeholder = 'e.g. 60%, 8cm, auto';
+  customInput.placeholder = t().editorLib.imageCustomPlaceholder;
   customInput.value = currentWidth;
   customInput.addEventListener('keydown', (e) => {
     e.stopPropagation();
@@ -158,13 +159,13 @@ function showImageDialog(
 
   const altLabel = document.createElement('span');
   altLabel.classList.add('typst-image-dialog-label');
-  altLabel.textContent = 'Alt text';
+  altLabel.textContent = t().editorLib.imageAltLabel;
   altRow.appendChild(altLabel);
 
   const altInput = document.createElement('input');
   altInput.classList.add('typst-image-dialog-input');
   altInput.type = 'text';
-  altInput.placeholder = 'Image description';
+  altInput.placeholder = t().editorLib.imageAltPlaceholder;
   altInput.value = node.attrs.alt || '';
   altInput.addEventListener('keydown', (e) => {
     e.stopPropagation();
@@ -186,16 +187,16 @@ function showImageDialog(
 
   const alignLabel = document.createElement('span');
   alignLabel.classList.add('typst-image-dialog-label');
-  alignLabel.textContent = 'Align';
+  alignLabel.textContent = t().editorLib.imageAlignLabel;
   alignRow.appendChild(alignLabel);
 
   const alignPresetsWrap = document.createElement('div');
   alignPresetsWrap.classList.add('typst-image-dialog-presets');
 
   const alignOptions: { label: string; value: string; icon: string }[] = [
-    { label: 'Left', value: '', icon: '\u2590' },
-    { label: 'Center', value: 'center', icon: '\u2501' },
-    { label: 'Right', value: 'right', icon: '\u258C' },
+    { label: t().editorLib.imageAlignLeft, value: '', icon: '\u2590' },
+    { label: t().editorLib.imageAlignCenter, value: 'center', icon: '\u2501' },
+    { label: t().editorLib.imageAlignRight, value: 'right', icon: '\u258C' },
   ];
   const currentAlign = node.attrs.align || '';
 
@@ -206,7 +207,7 @@ function showImageDialog(
       btn.classList.add('active');
     }
     btn.textContent = opt.label;
-    btn.title = `Align ${opt.label}`;
+    btn.title = t().editorLib.imageAlignTooltip.replace('{label}', opt.label);
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -377,7 +378,7 @@ export const TypstImage = Node.create({
 
       const placeholder = document.createElement('div');
       placeholder.classList.add('typst-image-placeholder');
-      placeholder.textContent = node.attrs.src || 'No image';
+      placeholder.textContent = node.attrs.src || t().editorLib.imageNoImage;
       placeholder.style.display = 'none';
 
       // Path label
@@ -392,8 +393,8 @@ export const TypstImage = Node.create({
       // "Done" button to exit the block and create a new line below
       const doneBtn = document.createElement('button');
       doneBtn.classList.add('typst-raw-done');
-      doneBtn.textContent = '\u2713 Done';
-      doneBtn.title = 'Exit block and add new line below';
+      doneBtn.textContent = t().editorLib.blockDone;
+      doneBtn.title = t().editorLib.blockDoneTooltip;
       doneBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (typeof getPos === 'function') {
@@ -451,7 +452,7 @@ export const TypstImage = Node.create({
             img.style.display = '';
           }
           pathLabel.textContent = updatedNode.attrs.src;
-          placeholder.textContent = updatedNode.attrs.src || 'No image';
+          placeholder.textContent = updatedNode.attrs.src || t().editorLib.imageNoImage;
           return true;
         },
       };
