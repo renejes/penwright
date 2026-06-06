@@ -17,9 +17,6 @@ export let uiState = $state({
   showSettings: false,
   showSearch: false,
   showProjectSearch: false,
-  focusMode: false,
-  typewriterMode: false,
-  readingMode: false,
   showWelcome: false,
   welcomeTypstInstalled: true,
   welcomePlatform: '',
@@ -43,11 +40,9 @@ export let uiState = $state({
 export let panelState = $state({
   showSidebar: true,
   showPreview: false,
-  showTerminal: false,
   sidebarTab: 'files' as 'files' | 'outline' | 'includes' | 'git' | 'comments' | 'design',
   sidebarWidth: 220,
   previewWidth: 400,
-  terminalHeight: 200,
 });
 
 // ─── Document Zoom ──────────────────────────────
@@ -182,7 +177,6 @@ export function switchToTab(index: number) {
 export let resizeBase = {
   sidebarWidth: 0,
   previewWidth: 0,
-  terminalHeight: 0,
 };
 
 export function startSidebarResize() {
@@ -197,11 +191,4 @@ export function startPreviewResize() {
 }
 export function onPreviewResize(delta: number) {
   panelState.previewWidth = Math.max(200, Math.min(800, resizeBase.previewWidth - delta));
-}
-
-export function startTerminalResize() {
-  resizeBase.terminalHeight = panelState.terminalHeight;
-}
-export function onTerminalResize(delta: number) {
-  panelState.terminalHeight = Math.max(100, Math.min(600, resizeBase.terminalHeight - delta));
 }

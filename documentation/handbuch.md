@@ -48,16 +48,14 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 |                        (Titelleiste)                          |
 +------------------------------+-------------------------------+
 |[Files Outline Chapters       | ＋ B I U S  H1 H2 H3  bul Link|  Top-Bar:
-| Project Comments]            |             ‥ 𝓡 ◎            |  Nav-Tabs + Toolbar
+| Project Comments]            |                              |  Nav-Tabs + Toolbar
 +------+-------------------------------+-----------------------+
 |      |  [main.typ] [refs.bib]        |                       |
 | Side-|                               |   Preview Panel       |
 | bar  |  WYSIWYG Editor               |   (Live-PDF)          |
 |      |                               |                       |
 +------+-------------------------------+-----------------------+
-|  Terminal / AI  (echtes Shell-Terminal)                       |
-+--------------------------------------------------------------+
-| [Project][Term/AI][Preview]  Kapitel-Look ▾  1.247 Wörter · …  DE  Trial |
+| [Project][Preview]  Kapitel-Look ▾  1.247 Wörter · …  DE  Trial |
 +--------------------------------------------------------------+
 ```
 Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitzen in der Top-Bar; Klick zeigt das Panel, Klick auf den aktiven Tab klappt die Seitenleiste ein. Der **＋-Button** links in der Toolbar öffnet das Einfügen-Menü (siehe [Inhalte einfügen](#inhalte-einfügen--button--und-)). Die **Mitte der Statusleiste** ist die kontextuelle **Look**-Steuerung (Kapitel-Look / Global-Look / Look — siehe [das Look-Modell](#design--das-look-modell)). Es gibt keinen separaten „Design"-Tab — Gestalten lebt in `style.typ` und der Statusleiste.
@@ -69,7 +67,6 @@ Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitze
 | Panel | Shortcut | Status Bar Button |
 |-------|----------|-------------------|
 | Sidebar (links) | `Cmd+B` | **Project** |
-| Terminal (unten) | `` Cmd+` `` | **Terminal / AI** |
 | Preview (rechts) | `Cmd+Shift+P` | **Preview** |
 
 Alle Panels sind per Drag resizeable.
@@ -94,9 +91,6 @@ Alle Panels sind per Drag resizeable.
 | { } | Code-Block | `Cmd+Alt+C` |
 | Fn | Fußnote einfuegen (oeffnet Popup-Editor) | — |
 | Cm | Kommentar zur Auswahl (oder Wort am Cursor) | `Cmd+Alt+M` |
-| ‥ Typewriter | Typewriter-Mode-Toggle | — |
-| 𝓡 Reading | Reading-Mode-Toggle (Buchsatz-Typografie) | `Cmd+Alt+R` |
-| ◎ Focus | Focus-Mode-Toggle | — |
 
 ### Native Menueleiste
 
@@ -104,7 +98,7 @@ Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleist
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
-- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus Standard-Window-/Zoom-Rollen
+- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), plus Standard-Window-/Zoom-Rollen
 - **Document** — Document Settings (**Oberflächensprache** + Dokumentsprache + Zitierstil; der Look des Dokuments lebt in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (oeffnet `<userData>/crash-reports/` im Finder); About auf Windows / Linux
 
@@ -380,27 +374,6 @@ Vorteil: Cloud-Sync (Dropbox / iCloud) nimmt Kommentare automatisch mit, dein Be
 
 ---
 
-## Reading Mode
-
-Zum Korrekturlesen schaltet Penwright den Editor auf **Buchsatz-Typografie** um — Serife, grosszuegiger Zeilenabstand, Justified Text, schmaler Spaltenbereich. Im Gegensatz zur PDF-Preview bleibt das Editing aktiv: Tippfehler kannst du direkt in dieser Ansicht korrigieren.
-
-**Aktivieren:**
-- Toolbar-Button **𝓡** (zwischen Typewriter und Focus)
-- Menue **View → Reading Mode**
-- Shortcut `Cmd+Alt+R`
-
-**Was passiert:**
-- Schriftart wechselt auf Iowan Old Style / Palatino / Georgia (je nach Verfuegbarkeit)
-- Schriftgrosse 17 px, Zeilenhoehe 1.75, max. 640 px Spaltenbreite
-- Absaetze sind im Blocksatz mit Auto-Trennung
-- Hintergrund leicht waermer (`#fdfcf8`) — angenehmer fuer laengeres Lesen
-- Headings bekommen klassische Buchsatz-Stile (H3 italic + 600er Gewicht etc.)
-- **Code-, Math- und Raw-Typst-Bloecke bleiben Monospace** — Code muss strukturell lesbar bleiben
-
-Sidebar und Preview bleiben so, wie du sie hattest. Wer voll ungestoert lesen will, kombiniert Reading Mode mit Focus Mode (`◎`-Toolbar-Button).
-
----
-
 ## Backlinks — „Wo wird das sonst noch erwaehnt?"
 
 Bei wissenschaftlichem Schreiben ist der Konsistenz-Check wichtig: jede Erwaehnung eines Konzepts oder einer Quelle ueber alle Kapitel hinweg finden. Penwright hat dafuer zwei eingebaute Trigger, die im Hintergrund [Suche im Projekt](#suche-im-projekt) mit der richtigen Query starten.
@@ -558,7 +531,7 @@ Penwright haelt drei unabhaengige Schichten zur Absicherung deiner Arbeit — je
 |---------|-----------|-------|------------|
 | **Versionen** | Du klickst **Version speichern** | Bewusste Meilensteine im Projektverlauf | `<projekt>/.git/` |
 | **Auto-Backup** | Timer (konfigurierbar, Default alle 30 s) | Crash-/Hänger-Schutz — nie mehr als X Sekunden Arbeit verlieren | `<projekt>/.penwright/backups/` |
-| **AI-Edit-Undo** | Externe Aenderung (Terminal / MCP) | Schnelles Rueckgaengig der letzten AI-Aenderung | `<projekt>/.penwright/ai-snapshots/` |
+| **AI-Edit-Undo** | Externe Aenderung (KI-Agent / MCP) | Schnelles Rueckgaengig der letzten AI-Aenderung | `<projekt>/.penwright/ai-snapshots/` |
 
 Alle drei leben **innerhalb des Projektordners**, das Projekt ist also self-contained: kopierst oder verschiebst du es, wandert der vollstaendige Verlauf mit.
 
@@ -589,7 +562,7 @@ Eine kleine Status-Zeile am unteren Rand des **Project**-Tabs zeigt, wann das le
 
 ### AI-Edit-Undo
 
-Wenn ein externes Tool (Claude Code im Terminal, der MCP-Server, …) eine offene Datei aendert, sichert Penwright den vorherigen Inhalt **vor** der Aenderung in den AI-Snapshot-Ringpuffer. Mit dem Menue-Eintrag **Undo AI Edit** gehst du Schritt fuer Schritt zurueck. Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`).
+Wenn ein externes Tool (ein KI-Agent, der MCP-Server, …) eine offene Datei aendert, sichert Penwright den vorherigen Inhalt **vor** der Aenderung in den AI-Snapshot-Ringpuffer. Mit dem Menue-Eintrag **Undo AI Edit** gehst du Schritt fuer Schritt zurueck. Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`).
 
 ### Cloud-Backup (optional)
 
@@ -605,7 +578,7 @@ Zwei Geraete parallel sind nicht abgesichert — immer nur ein Geraet zur Zeit.
 
 ## File Watcher
 
-Externe Dateiaenderungen (z. B. durch Claude Code im Terminal) werden automatisch erkannt:
+Externe Dateiaenderungen (z. B. durch einen KI-Agenten oder den MCP-Server) werden automatisch erkannt:
 - Aktuelle Datei geaendert -> Editor updatet sofort
 - `.bib` geaendert -> Citations werden neu geladen
 - Dateien hinzugefuegt/geloescht -> File-Tree refresht
@@ -613,17 +586,6 @@ Externe Dateiaenderungen (z. B. durch Claude Code im Terminal) werden automatisc
 - Der `.penwright/`-Ordner wird vom Watcher ausgeschlossen, damit Backups keine Refresh-Schleifen ausloesen
 
 Zum Rueckgaengig-Machen von AI-Edits siehe Abschnitt [Versionen & Auto-Backup](#versionen--auto-backup).
-
----
-
-## Terminal / AI
-
-Echtes PTY-Terminal (xterm.js + node-pty):
-- Shell: zsh (macOS), bash (Linux), PowerShell (Windows)
-- Working Directory: Projektordner
-- Claude Code: `claude` direkt starten
-- Claude Code Skills werden automatisch in `.claude/skills/` erzeugt
-- Auto-Resize, Auto-Respawn (max. 5 Mal)
 
 ---
 
@@ -972,13 +934,10 @@ Der MCP-Server bietet zusaetzlich fuenf **Prompts** (`typst-reference`, `penwrig
 | Suchen im Projekt | `Cmd+Shift+F` |
 | Kommentar hinzufuegen | `Cmd+Alt+M` |
 | Cross-Reference einfuegen | `Cmd+Alt+L` |
-| Reading Mode | `Cmd+Alt+R` |
 | Sidebar ein/aus | `Cmd+B` |
 | Preview ein/aus | `Cmd+Shift+P` |
-| Terminal ein/aus | `` Cmd+` `` |
 | Rueckgaengig | `Cmd+Z` |
 | Wiederholen | `Cmd+Shift+Z` |
-| Focus Mode beenden | `Escape` |
 | Fett | `Cmd+B` |
 | Kursiv | `Cmd+I` |
 | Durchgestrichen | `Cmd+Shift+X` |

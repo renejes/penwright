@@ -18,18 +18,14 @@ export const startScreen: StartScreenMessages = {
 
   recent: 'Zuletzt geöffnet',
 
-  terminalTitle: 'Integriertes Terminal mit KI-Anbindung',
-  terminalIntroBefore: 'Penwright enthält ein vollwertiges Terminal (',
-  terminalIntroAfter:
-    '), in dem du Claude Code, OpenAI Codex oder Gemini CLI direkt in deinem Projekt ausführen kannst.',
+  aiTitle: 'KI-Anbindung',
   skillsIntro: 'Jedes neue Projekt erhält automatisch 3 Claude-Code-Skills unter',
   skillTypst: 'Typst-Sprachreferenz',
   skillPenwright: 'Projekt-Konventionen',
   skillResearch: 'Tiefe Web-Recherche',
-  aiHint: 'KI-Agenten können deine .typ-Dateien direkt bearbeiten — der Editor aktualisiert sich live.',
+  aiHint: 'Verbinde Claude Desktop (Hilfe → Mit Claude Desktop verbinden), dann können KI-Agenten deine .typ-Dateien direkt bearbeiten — der Editor aktualisiert sich live.',
 
   shortcutNew: 'Neu',
   shortcutOpen: 'Öffnen',
   shortcutSidebar: 'Seitenleiste',
-  shortcutTerminal: 'Terminal',
 };

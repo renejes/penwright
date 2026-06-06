@@ -439,16 +439,6 @@ In the editor:
 - \`@chen2021codex\` renders as a **blue badge**
 - \`@fig:scaling\` renders as an **orange ↳ pill**
 
-## Mode Toggles (UI-only — never change the source)
-
-| Mode | Effect | Trigger |
-|---|---|---|
-| **Reading Mode** | Serif font, generous leading, justified, narrow column. Editing stays active. | \`Cmd+Alt+R\` / 𝓡 toolbar / View menu |
-| **Focus Mode** | Hides sidebar + preview, dims surrounding paragraphs. | ◎ toolbar |
-| **Typewriter Mode** | Active line stays vertically centered. | ‥ toolbar |
-
-These are display-only — toggling them never modifies \`.typ\` files.
-
 ## Design surface — \`style.json\` + \`style.typ\` + \`apply-style\`
 
 Penwright projects keep all visual design tokens in a single typed file: \`<project>/.penwright/style.json\`. The Penwright app regenerates \`<project>/style.typ\` from that JSON whenever the user (or an MCP tool) writes to it, then ensures the root \`.typ\` file has:

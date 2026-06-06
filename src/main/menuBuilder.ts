@@ -156,25 +156,6 @@ export function buildMenu(state: AppState): void {
           accelerator: 'CmdOrCtrl+Shift+P',
           click: () => send('togglePanel', { panel: 'preview' }),
         },
-        {
-          label: m.toggleTerminal,
-          accelerator: 'CmdOrCtrl+`',
-          click: () => send('togglePanel', { panel: 'terminal' }),
-        },
-        { type: 'separator' },
-        {
-          label: m.focusMode,
-          click: () => send('toggleFocusMode'),
-        },
-        {
-          label: m.typewriterMode,
-          click: () => send('toggleTypewriterMode'),
-        },
-        {
-          label: m.readingMode,
-          accelerator: 'CmdOrCtrl+Alt+R',
-          click: () => send('toggleReadingMode'),
-        },
         { type: 'separator' },
         {
           label: m.editorZoom,

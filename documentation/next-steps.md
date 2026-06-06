@@ -59,7 +59,6 @@ Optional vor 1.0; nicht launch-blocking.
 
 ```bash
 npm install                              # einmalig Dependencies installieren
-npx electron-rebuild -f -w node-pty      # einmalig, nativ fuer Terminal bauen
 
 npm run dev                              # Dev-Server + Hot-Reload
 npm run build                            # electron-vite build (Main + Preload + Renderer)
@@ -413,7 +412,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Alle Features auf macOS manuell testen
 - [ ] Multi-File-Projekte, Includes, Zitationen
 - [ ] File-Locking, externe Edits, Crash Recovery
-- [ ] Undo AI Edit (Terminal-Edit -> Undo)
+- [ ] Undo AI Edit (externe Datei-Aenderung via MCP/Agent -> Undo)
 - [ ] **Crash-Reporting E2E:** kuenstlichen Crash provozieren (`throw new Error('test')` in Renderer + Main), Boot-Dialog erscheint mit korrektem Inhalt, Mail-Vorbereitung oeffnet `feedback@penwright.online` mit Body
 - [ ] **DOCX-Export auf realer 100-Seiten-Thesis** — in Word / Pages / LibreOffice oeffnen, TOC-Refresh, Heading-Numbering-Live-Test durch Umordnen
 - [ ] Auto-Updater-E2E-Test
@@ -449,12 +448,6 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Comments **erscheinen NICHT** im PDF/DOCX-Output
 - [ ] Resolved-Toggle blendet Highlight aus, Eintrag bleibt im Panel
 - [ ] Loeschen entfernt Datei + Highlight
-
-**Reading Mode:**
-- [ ] `Cmd+Alt+R` toggelt Buchsatz-Typografie
-- [ ] Code-, Math- und Raw-Typst-Bloecke bleiben monospace
-- [ ] Editing bleibt aktiv (Tippfehler direkt korrigierbar)
-- [ ] View-Menue + Toolbar-`𝓡`-Toggle synchron
 
 **Backlinks:**
 - [ ] Hover ueber ein Heading im Outline zeigt `↪`-Button → oeffnet Project-Search mit dem Heading-Text

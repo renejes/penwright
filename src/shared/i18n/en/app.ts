@@ -16,22 +16,14 @@ export const app = {
   navProject: 'Project',
   navComments: 'Comments',
 
-  // Mode toggles (tooltips)
-  typewriterMode: 'Typewriter Mode',
-  readingMode: 'Reading Mode (Cmd+Alt+R)',
-  focusMode: 'Focus Mode',
-  exitFocusMode: 'Exit Focus Mode (Esc)',
-
   // Tabs
   openFilesAria: 'Open files',
   closeTabAria: (name: string) => `Close ${name}`,
 
   // Status bar
   toggleSidebar: 'Toggle project sidebar',
-  toggleTerminal: 'Toggle terminal panel',
   togglePreview: 'Toggle preview panel',
   statusProject: 'Project',
-  statusTerminal: 'Terminal / AI',
   statusPreview: 'Preview',
   wordsLabel: (n: number): string => (n === 1 ? 'word' : 'words'),
   minRead: (m: number) => `${m} min read`,

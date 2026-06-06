@@ -17,22 +17,14 @@ export const app: AppMessages = {
   navProject: 'Projekt',
   navComments: 'Kommentare',
 
-  // Mode toggles (tooltips)
-  typewriterMode: 'Schreibmaschinenmodus',
-  readingMode: 'Lesemodus (Cmd+Alt+R)',
-  focusMode: 'Fokusmodus',
-  exitFocusMode: 'Fokusmodus beenden (Esc)',
-
   // Tabs
   openFilesAria: 'Geöffnete Dateien',
   closeTabAria: (name: string) => `${name} schließen`,
 
   // Status bar
   toggleSidebar: 'Seitenleiste umschalten',
-  toggleTerminal: 'Terminal umschalten',
   togglePreview: 'Vorschau umschalten',
   statusProject: 'Projekt',
-  statusTerminal: 'Terminal / KI',
   statusPreview: 'Vorschau',
   wordsLabel: (n: number) => (n === 1 ? 'Wort' : 'Wörter'),
   minRead: (m: number) => `${m} Min. Lesezeit`,

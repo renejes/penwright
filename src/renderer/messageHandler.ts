@@ -148,7 +148,6 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'togglePanel') {
     if (msg.panel === 'sidebar') panelState.showSidebar = !panelState.showSidebar;
     if (msg.panel === 'preview') panelState.showPreview = !panelState.showPreview;
-    if (msg.panel === 'terminal') panelState.showTerminal = !panelState.showTerminal;
   }
 
   // Open the About dialog from the native menu
@@ -188,15 +187,6 @@ export function handleMessage(message: ExtensionMessage): void {
   // Help → "Show Introduction": re-open the first-run onboarding tour.
   if (msg.type === 'showOnboarding') {
     window.dispatchEvent(new CustomEvent('penwright:show-onboarding'));
-  }
-  if (msg.type === 'toggleFocusMode') {
-    uiState.focusMode = !uiState.focusMode;
-  }
-  if (msg.type === 'toggleTypewriterMode') {
-    uiState.typewriterMode = !uiState.typewriterMode;
-  }
-  if (msg.type === 'toggleReadingMode') {
-    uiState.readingMode = !uiState.readingMode;
   }
 
   // Open the Export selection dialog when the menu triggers an export on

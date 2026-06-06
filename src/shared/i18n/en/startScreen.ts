@@ -18,19 +18,15 @@ export const startScreen = {
 
   recent: 'Recent Projects',
 
-  terminalTitle: 'Built-in Terminal with AI Integration',
-  terminalIntroBefore: 'Penwright includes a full terminal (',
-  terminalIntroAfter:
-    ') where you can run Claude Code, OpenAI Codex, or Gemini CLI directly in your project.',
+  aiTitle: 'AI integration',
   skillsIntro: 'Every new project automatically gets 3 Claude Code Skills deployed to',
   skillTypst: 'Typst language reference',
   skillPenwright: 'Project conventions',
   skillResearch: 'Deep web research',
-  aiHint: 'AI agents can edit your .typ files directly — the editor updates live.',
+  aiHint: 'Connect Claude Desktop (Help → Connect to Claude Desktop) and AI agents can edit your .typ files directly — the editor updates live.',
 
   shortcutNew: 'New',
   shortcutOpen: 'Open',
   shortcutSidebar: 'Sidebar',
-  shortcutTerminal: 'Terminal',
 };
 export type StartScreenMessages = typeof startScreen;

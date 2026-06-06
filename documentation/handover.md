@@ -1,9 +1,9 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-06-06, Ende der i18n-Session.
-> **Branch:** `design-on-selection` (ab `main`).
-> **Letzte Aufgabe (erledigt):** **Volles i18n** — die gesamte UI ist jetzt EN + DE umschaltbar
-> (Dropdown im Dokument-Einstellungen-Dialog, OS-Erkennung beim Erststart). Siehe §1 + `CLAUDE.md` → „Internationalization (i18n)".
+> **Stand:** 2026-06-06, Ende der Fokus-Schnitt-Session.
+> **Branch:** `main` (i18n + Vorschau-Runde sind committet/gepusht; der Fokus-Schnitt aus Session 29 ist **uncommittet** im Working-Tree).
+> **Zuletzt erledigt:** Session 28 = volles i18n (EN+DE) + ＋-Einfügen-Menü + Vorschau (Auto/Manuell + folgt Kapitel); Session 29 = **Fokus-Schnitt** (CLI, integriertes Terminal und Focus/Typewriter/Reading-Modi entfernt — siehe §1d).
+> **Nächste Session:** drei vom User priorisierte Punkte — **a11y-Warnungen**, **Onboarding-Wizard umformulieren**, **Persistenz-Schichten klar darstellen**. Siehe Abschnitt **„Nächste Session"** unten.
 > Lies diesen Handover, dann `CLAUDE.md` → danach loslegen.
 
 ---
@@ -82,6 +82,25 @@ Prinzip: **du gestaltest dort, wo es wirkt.** Drei Reichweiten, drei Orte, eine 
 
 > Hinweis: zwei latente Bugs in dieser Runde gefixt — (1) **native Menü-Main-Aktionen** (Document Settings, Merge/Split, Open as Typst Source, Ensure Bibliography, Open Sources Folder, Add Citation Manually, Undo AI Edit, New Project) wurden vom Renderer nie an Main weitergeleitet → `messageHandler` leitet sie jetzt via `MENU_MAIN_ACTIONS` weiter; (2) Kapitel-Sprung landete auf Seite 1 (Label-Suffix + Recompile-Race) — behoben.
 - **Offen/Test:** manuell prüfen — Modus-Umschaltung greift live; bei langen Multi-Kapitel-Docs Kapitel-Sprung verifizieren (setzt voraus, dass Typst PDF-Lesezeichen aus Headings erzeugt — sollte default sein); Heading-Matching ist fuzzy (Nummerierung/Markup werden normalisiert).
+
+---
+
+## 1d. Fokus-Schnitt (Session 29 — erledigt)
+
+Auf Produkt-Feedback hin wurde Wartungs-/Identitäts-Ballast entfernt (Ziel: ruhigeres „Schreibwerkzeug", weniger Fläche):
+- **CLI** (`src/cli/`, ungenutzt) gelöscht.
+- **Integriertes Terminal** komplett raus: `terminalManager.ts`, `TerminalPanel.svelte`, `setupTerminal` + `terminal:*`-IPC, `terminal`-Feld der Main-AppState, Preload-Kanäle, Statusleisten-Button, `PanelState.showTerminal/terminalHeight`. **node-pty wird nicht mehr importiert** (dep kann optional aus `package.json` — braucht `npm install`).
+- **Focus / Typewriter / Reading Mode** komplett raus: Funktionen, `uiState`-Felder, Toolbar-Buttons, Focus-Exit-Button, `scrollCursorToCenter`, Shortcuts (`Cmd+\``, `Cmd+Alt+R`, `Esc`-Exit), View-Menü-Einträge, ~120 Z. CSS in `App.svelte` + `editor/style.css`.
+- **Spuren bereinigt:** ShortcutCheatsheet, StartScreen (Block „Terminal/AI" → reine KI-Anbindung), `skillTemplates` (Mode-Toggles-Sektion), ~16 verwaiste i18n-Keys (en+de), Doku (CLAUDE.md, Handbuch EN/DE, project_status, next-steps). `tsc` + Build grün.
+- **Status:** uncommittet im Working-Tree (auf `main`).
+
+---
+
+## Nächste Session (vom User priorisiert)
+
+1. **a11y-Warnungen angehen** — der `electron-vite build` wirft durchgängig Svelte-a11y-Warnungen (fehlende ARIA-Rollen/-Labels, Click-Handler auf nicht-interaktiven Elementen, `tabindex`). Für eine polierte Bezahl-App einen Durchgang wert. Start: Build-Output nach `a11y_` filtern, die Muster (Overlays/Modals/Dropdowns) systematisch beheben.
+2. **Onboarding-Wizard umformulieren** — der „Design"-Schritt (`onboarding.steps.design`, en+de) beschreibt noch einen **„Design-Tab"**, den es seit dem Look-Umbau nicht mehr gibt (Look lebt in `style.typ` + Statusleiste). Texte an das aktuelle Look-Modell + die gestrichenen Modi anpassen; ggf. die 7 Schritte straffen.
+3. **Persistenz-Schichten klar darstellen** — aktuell drei nebeneinander (Versionen/Git, Auto-Backup, KI-Snapshots), konzeptionell überladen für den Nutzer. **Überlegen, wie man sie so klar und eindeutig wie möglich präsentiert** (eine gemeinsame „Verlauf/Wiederherstellen"-Oberfläche? klarere Benennung? eine Schicht zusammenlegen?). Mechanik bleibt; es geht um die *Darstellung*. (Das war der ursprünglich als Nächstes geplante „Persistenz bündeln"-Schritt.)
 
 ---
 

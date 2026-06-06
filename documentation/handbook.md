@@ -48,16 +48,14 @@ To stop working on a project without quitting the app, use **File -> Close Proje
 |                         (Title bar)                           |
 +------------------------------+-------------------------------+
 |[Files Outline Chapters       | ＋ B I U S  H1 H2 H3  bul Link|  Top bar:
-| Project Comments]            |             ‥ 𝓡 ◎            |  nav tabs + toolbar
+| Project Comments]            |                              |  nav tabs + toolbar
 +------+-------------------------------+-----------------------+
 |      |  [main.typ] [refs.bib]        |                       |
 | Side-|                               |   Preview Panel       |
 | bar  |  WYSIWYG Editor               |   (live PDF)          |
 |      |                               |                       |
 +------+-------------------------------+-----------------------+
-|  Terminal / AI  (real shell terminal)                         |
-+--------------------------------------------------------------+
-| [Project][Term/AI][Preview]  Chapter Look ▾  1,247 words · …  DE  Trial |
+| [Project][Preview]  Chapter Look ▾  1,247 words · …  DE  Trial |
 +--------------------------------------------------------------+
 ```
 The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in the top bar; clicking one shows that panel, clicking the active one collapses the sidebar. The **＋ button** on the left of the toolbar opens the insert menu (see [Inserting content](#inserting-content---button--and-)). The **status bar centre** is the contextual **Look** control (Chapter Look / Global-Look / Look — see [the Look model](#design--the-look-model)). There is no separate "Design" tab — design lives in `style.typ` and the status bar.
@@ -69,7 +67,6 @@ The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in
 | Panel | Shortcut | Status Bar button |
 |-------|----------|-------------------|
 | Sidebar (left) | `Cmd+B` | **Project** |
-| Terminal (bottom) | `` Cmd+` `` | **Terminal / AI** |
 | Preview (right) | `Cmd+Shift+P` | **Preview** |
 
 All panels are resizable by dragging their edges.
@@ -94,9 +91,6 @@ All panels are resizable by dragging their edges.
 | { } | Code block | `Cmd+Alt+C` |
 | Fn | Insert footnote (opens popup editor) | — |
 | Cm | Add comment to selection (or word under cursor) | `Cmd+Alt+M` |
-| ‥ Typewriter | Typewriter mode toggle | — |
-| 𝓡 Reading | Reading-mode toggle (book-style typography) | `Cmd+Alt+R` |
-| ◎ Focus | Focus mode toggle | — |
 
 ### Native menu
 
@@ -104,7 +98,7 @@ All project-level and document-level actions live in the **native menu bar** (to
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
-- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), Toggle Terminal (`` Cmd+` ``), Focus Mode, Typewriter Mode, **Reading Mode** (`Cmd+Alt+R`), plus standard window/zoom roles
+- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), plus standard window/zoom roles
 - **Document** — Document Settings (**interface language** + document language + bibliography style; the document's Look lives in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
 
@@ -380,27 +374,6 @@ The advantage: cloud sync (Dropbox / iCloud) carries the comments along automati
 
 ---
 
-## Reading Mode
-
-For proofreading, Penwright can switch the editor into **book-style typography** — serif font, generous line height, justified text, narrow column. Unlike the PDF preview, editing stays active: you can fix typos right in this view.
-
-**Toggle:**
-- Toolbar button **𝓡** (between Typewriter and Focus)
-- Menu **View → Reading Mode**
-- Shortcut `Cmd+Alt+R`
-
-**What changes:**
-- Font switches to Iowan Old Style / Palatino / Georgia (whichever is available)
-- 17 px / 1.75 line height, 640 px max column width
-- Paragraphs are justified with auto-hyphenation
-- Background warms slightly (`#fdfcf8`) — easier on the eyes for longer reads
-- Headings get classic book-typography styling (italic + 600 weight for H3, etc.)
-- **Code, math, and raw-Typst blocks stay monospace** — code must remain structurally readable
-
-The sidebar and preview stay as you had them. For a fully distraction-free read, combine Reading Mode with Focus Mode (the `◎` toolbar toggle).
-
----
-
 ## Backlinks — "Where else is this mentioned?"
 
 For consistency checks in academic work, you often want every mention of a concept or source across all chapters. Penwright has two built-in triggers that under the hood open [Find in Project](#find-in-project) with the right query.
@@ -558,7 +531,7 @@ Penwright keeps three independent layers of safety for your work — each with a
 |-------|---------|---------|----------------|
 | **Versions** | You click **Save Version** | Deliberate milestones in your project's history | `<project>/.git/` |
 | **Auto-Backup** | Timer (configurable, default every 30 s) | Crash / freeze protection — never lose more than X seconds of work | `<project>/.penwright/backups/` |
-| **AI-Edit Undo** | Triggered by an external edit (terminal / MCP) | Quick rollback of the last AI change | `<project>/.penwright/ai-snapshots/` |
+| **AI-Edit Undo** | Triggered by an external edit (an AI agent / MCP) | Quick rollback of the last AI change | `<project>/.penwright/ai-snapshots/` |
 
 All three live **inside the project folder**, so the project is self-contained: copy or move it and the full history goes with it.
 
@@ -589,7 +562,7 @@ A small status line at the bottom of the **Project** tab shows when the last aut
 
 ### AI-Edit Undo
 
-When an external tool (Claude Code in the terminal, the MCP server, …) modifies a file you have open, Penwright saves the previous content into the AI-snapshot ring buffer **before** applying the change. Use the **Undo AI Edit** menu entry to step back through them one by one. Snapshots survive app restarts (they're persisted to `.penwright/ai-snapshots/`).
+When an external tool (an AI agent, the MCP server, …) modifies a file you have open, Penwright saves the previous content into the AI-snapshot ring buffer **before** applying the change. Use the **Undo AI Edit** menu entry to step back through them one by one. Snapshots survive app restarts (they're persisted to `.penwright/ai-snapshots/`).
 
 ### Cloud backup (optional)
 
@@ -605,7 +578,7 @@ Two devices in parallel are not safe — one machine at a time.
 
 ## File Watcher
 
-External file changes (e.g. from Claude Code in the terminal) are picked up automatically:
+External file changes (e.g. from an AI agent or the MCP server) are picked up automatically:
 - Current file changed -> editor updates immediately
 - `.bib` changed -> citations are reloaded
 - Files added/removed -> file tree refreshes
@@ -613,17 +586,6 @@ External file changes (e.g. from Claude Code in the terminal) are picked up auto
 - The `.penwright/` folder is excluded from the watcher so backups never trigger refresh loops
 
 For rolling back AI edits, see the [Versions & Auto-Backup](#versions--auto-backup) section.
-
----
-
-## Terminal / AI
-
-Real PTY terminal (xterm.js + node-pty):
-- Shell: zsh (macOS), bash (Linux), PowerShell (Windows)
-- Working directory: project folder
-- Claude Code: run `claude` directly
-- Claude Code skills are auto-generated in `.claude/skills/`
-- Auto-resize, auto-respawn (max 5 times)
 
 ---
 
@@ -732,7 +694,7 @@ The dialog shows:
 
 ## MCP Server — AI integration with Claude Desktop & Co.
 
-Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Claude Desktop**, **Codex Desktop** or **Clawdbot** work on your Typst documents directly — without going through the terminal.
+Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Claude Desktop**, **Codex Desktop** or **Clawdbot** work on your Typst documents directly.
 
 > **Note:** the MCP server requires a **valid license** — the same `pw_LIC…` key as the app (there are no tiers). See [License Management](#license-management).
 
@@ -972,13 +934,10 @@ The MCP server also exposes five **prompts** backed by the deployed `.claude/ski
 | Find in Project | `Cmd+Shift+F` |
 | Add Comment | `Cmd+Alt+M` |
 | Insert Reference | `Cmd+Alt+L` |
-| Reading Mode | `Cmd+Alt+R` |
 | Toggle sidebar | `Cmd+B` |
 | Toggle preview | `Cmd+Shift+P` |
-| Toggle terminal | `` Cmd+` `` |
 | Undo | `Cmd+Z` |
 | Redo | `Cmd+Shift+Z` |
-| Exit focus mode | `Escape` |
 | Bold | `Cmd+B` |
 | Italic | `Cmd+I` |
 | Strikethrough | `Cmd+Shift+X` |

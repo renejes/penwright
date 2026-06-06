@@ -36,11 +36,9 @@ export interface WindowBounds {
 export interface PanelState {
   showSidebar: boolean;
   showPreview: boolean;
-  showTerminal: boolean;
   sidebarTab: string;
   sidebarWidth: number;
   previewWidth: number;
-  terminalHeight: number;
 }
 
 export interface LicenseData {
@@ -97,11 +95,9 @@ const store = new Store<StoreSchema>({
     panelState: {
       showSidebar: true,
       showPreview: false,
-      showTerminal: false,
       sidebarTab: 'files',
       sidebarWidth: 220,
       previewWidth: 400,
-      terminalHeight: 200,
     },
     recentProjects: [],
     lastProjectPath: null,

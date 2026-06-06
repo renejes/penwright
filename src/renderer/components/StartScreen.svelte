@@ -150,13 +150,9 @@
       </div>
     {/if}
 
-    <!-- Terminal / AI Info -->
+    <!-- AI / Skills Info -->
     <div class="info-section">
-      <h3>{t().startScreen.terminalTitle}</h3>
-      <p>
-        {t().startScreen.terminalIntroBefore}<code>Cmd+`</code>{t().startScreen
-          .terminalIntroAfter}
-      </p>
+      <h3>{t().startScreen.aiTitle}</h3>
       <p>
         {t().startScreen.skillsIntro}
         <code>.claude/skills/</code>:
@@ -194,7 +190,6 @@
       <span><kbd>Cmd+N</kbd> {t().startScreen.shortcutNew}</span>
       <span><kbd>Cmd+O</kbd> {t().startScreen.shortcutOpen}</span>
       <span><kbd>Cmd+B</kbd> {t().startScreen.shortcutSidebar}</span>
-      <span><kbd>Cmd+`</kbd> {t().startScreen.shortcutTerminal}</span>
     </div>
   </div>
 </div>

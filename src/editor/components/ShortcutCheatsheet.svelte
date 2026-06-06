@@ -41,7 +41,6 @@
       entries: [
         { action: t().editor.shortcutAddComment, shortcut: `${mod}+${alt}+M` },
         { action: t().editor.shortcutInsertCrossRef, shortcut: `${mod}+${alt}+L` },
-        { action: t().editor.shortcutReadingMode, shortcut: `${mod}+${alt}+R` },
       ],
     },
     {
@@ -68,8 +67,6 @@
       entries: [
         { action: t().editor.shortcutToggleSidebar, shortcut: `${mod}+B` },
         { action: t().editor.shortcutTogglePreview, shortcut: `${mod}+Shift+P` },
-        { action: t().editor.shortcutToggleTerminal, shortcut: `${mod}+\`` },
-        { action: t().editor.shortcutExitFocusMode, shortcut: 'Esc' },
       ],
     },
     {

@@ -8,7 +8,6 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol, net, Menu } from 'electron';
 import * as path from 'path';
 import { appState } from './appState';
-import { TerminalManager } from './terminalManager';
 import { buildMenu } from './menuBuilder';
 import { setupIPC } from './ipcHandlers';
 import { setupGitIPC } from './gitManager';
@@ -161,27 +160,6 @@ function createWindow(): void {
   appState.mainWindow.setTitle(`${fileName} — Penwright`);
 }
 
-// ─── Terminal Setup ───────────────────────────────────
-
-function setupTerminal(): void {
-  if (!appState.mainWindow) return;
-
-  appState.terminal = new TerminalManager(appState.mainWindow);
-
-  ipcMain.on('terminal:input', (_event, data: string) => {
-    appState.terminal?.write(data);
-  });
-
-  ipcMain.on('terminal:resize', (_event, size: { cols: number; rows: number }) => {
-    appState.terminal?.resize(size.cols, size.rows);
-  });
-
-  ipcMain.on('terminal:create', () => {
-    const cwd = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : process.env.HOME || '/');
-    appState.terminal?.spawn(cwd);
-  });
-}
-
 // ─── Wire up appState callbacks ───────────────────────
 
 appState.openFile = openFile;
@@ -231,7 +209,6 @@ app.whenReady().then(() => {
   buildMenu(appState);
   setupIPC();
   createWindow();
-  setupTerminal();
   setupGitIPC();
   addBreadcrumb('lifecycle', 'window created');
 
@@ -255,7 +232,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   releaseLock();
-  appState.terminal?.dispose();
   stopFileWatcher();
   getZoteroWatcher()?.close();
   if (process.platform !== 'darwin') {

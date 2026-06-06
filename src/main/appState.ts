@@ -5,7 +5,6 @@
  */
 
 import type { BrowserWindow } from 'electron';
-import type { TerminalManager } from './terminalManager';
 
 export interface AppState {
   mainWindow: BrowserWindow | null;
@@ -13,7 +12,6 @@ export interface AppState {
   currentContent: string;
   isDirty: boolean;
   projectDir: string | null;
-  terminal: TerminalManager | null;
   lastSaveTimestamp: number;
   /** Whether the most recent preview compile succeeded. Lets the safe-apply
    *  engine tell "this design change broke a working doc" (→ roll back) from
@@ -38,7 +36,6 @@ export const appState: AppState = {
   currentContent: '',
   isDirty: false,
   projectDir: null,
-  terminal: null,
   lastSaveTimestamp: 0,
   lastCompileOk: true,
 

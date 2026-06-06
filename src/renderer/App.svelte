@@ -13,7 +13,6 @@
   import CommentsPanel from './components/CommentsPanel.svelte';
   import DesignPanel from './components/DesignPanel.svelte';
   import PreviewPanel from './components/PreviewPanel.svelte';
-  import TerminalPanel from './components/TerminalPanel.svelte';
   import TextFileViewer from './components/TextFileViewer.svelte';
   import PdfFileViewer from './components/PdfFileViewer.svelte';
   import NewProjectDialog from './components/NewProjectDialog.svelte';
@@ -68,8 +67,6 @@
     onSidebarResize,
     startPreviewResize,
     onPreviewResize,
-    startTerminalResize,
-    onTerminalResize,
   } from './appState.svelte';
   import { handleMessage } from './messageHandler';
   import { setCommentMarks, type CommentMark } from '../editor/lib/commentDecorations';
@@ -146,11 +143,9 @@
     const snapshot = {
       showSidebar: panelState.showSidebar,
       showPreview: panelState.showPreview,
-      showTerminal: panelState.showTerminal,
       sidebarTab: panelState.sidebarTab,
       sidebarWidth: panelState.sidebarWidth,
       previewWidth: panelState.previewWidth,
-      terminalHeight: panelState.terminalHeight,
     };
     clearTimeout(panelSaveTimer);
     panelSaveTimer = setTimeout(() => {
@@ -262,9 +257,6 @@
       onTransaction({ docChanged }) {
         editorVersion.value++;
         if (docChanged) docVersion++;
-        if (uiState.typewriterMode) {
-          requestAnimationFrame(() => scrollCursorToCenter());
-        }
       },
       onUpdate() {
         if (isUpdatingFromExtension.value) return;
@@ -273,9 +265,6 @@
         previewState.dirty = true;
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(sendUpdate, 300);
-        if (uiState.typewriterMode) {
-          requestAnimationFrame(() => scrollCursorToCenter());
-        }
       },
     });
 
@@ -339,11 +328,9 @@
           const s = stored as Record<string, unknown>;
           if (typeof s.showSidebar === 'boolean') panelState.showSidebar = s.showSidebar;
           if (typeof s.showPreview === 'boolean') panelState.showPreview = s.showPreview;
-          if (typeof s.showTerminal === 'boolean') panelState.showTerminal = s.showTerminal;
           if (typeof s.sidebarTab === 'string') panelState.sidebarTab = s.sidebarTab as typeof panelState.sidebarTab;
           if (typeof s.sidebarWidth === 'number') panelState.sidebarWidth = s.sidebarWidth;
           if (typeof s.previewWidth === 'number') panelState.previewWidth = s.previewWidth;
-          if (typeof s.terminalHeight === 'number') panelState.terminalHeight = s.terminalHeight;
         }
       });
 
@@ -393,20 +380,6 @@
     ipc.send({ type: 'ready' });
   });
 
-  function scrollCursorToCenter() {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const { from } = editor.state.selection;
-    const coords = editor.view.coordsAtPos(from);
-    if (!coords) return;
-    const container = editorElement?.closest('.editor-container');
-    if (!container) return;
-    const containerRect = container.getBoundingClientRect();
-    const cursorRelative = coords.top - containerRect.top + container.scrollTop;
-    const targetScroll = cursorRelative - containerRect.height / 2;
-    container.scrollTo({ top: targetScroll, behavior: 'smooth' });
-  }
-
   function sendUpdate() {
     const editor = editorRef.current;
     if (!editor) return;
@@ -428,18 +401,6 @@
   function dismissWelcome(dontShowAgain: boolean) {
     uiState.showWelcome = false;
     ipc.send({ type: 'dismissWelcome', dontShowAgain } as unknown as import('../editor/lib/messages').WebviewMessage);
-  }
-
-  function toggleFocusMode() {
-    uiState.focusMode = !uiState.focusMode;
-  }
-
-  function toggleTypewriterMode() {
-    uiState.typewriterMode = !uiState.typewriterMode;
-  }
-
-  function toggleReadingMode() {
-    uiState.readingMode = !uiState.readingMode;
   }
 
   // Persist the preview-update mode (global). Switching back to 'auto' while the
@@ -833,21 +794,9 @@
       e.preventDefault();
       panelState.showPreview = !panelState.showPreview;
     }
-    if (mod && e.key === '`') {
-      e.preventDefault();
-      panelState.showTerminal = !panelState.showTerminal;
-    }
-    if (mod && e.altKey && (e.key === 'r' || e.key === 'R')) {
-      e.preventDefault();
-      toggleReadingMode();
-    }
     if (mod && e.altKey && (e.key === 'l' || e.key === 'L')) {
       e.preventDefault();
       handleOpenReferencePicker();
-    }
-    if (e.key === 'Escape') {
-      if (uiState.focusMode) uiState.focusMode = false;
-      if (uiState.typewriterMode) uiState.typewriterMode = false;
     }
   }
 
@@ -958,11 +907,11 @@
     </div>
   {/if}
 
-  <div class="penwright-container" class:focus-mode={uiState.focusMode} class:typewriter-mode={uiState.typewriterMode} class:reading-mode={uiState.readingMode}>
+  <div class="penwright-container">
     <!-- Top bar: project-level navigation tabs (left) + formatting toolbar
          (over the editor). "Look" is occasional, so it lives at style.typ /
          the status bar — not up here. -->
-    {#if hasFileOpen && !uiState.focusMode}
+    {#if hasFileOpen}
       <div class="top-bar">
         <div class="top-nav" role="tablist" aria-label={t().app.navAria}>
           <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'files'} onclick={() => selectNavTab('files')} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label={t().app.navFiles}>{t().app.navFiles}</button>
@@ -975,32 +924,6 @@
           {@const _ = editorVersion.value}
           <div class="toolbar top-toolbar">
             <Toolbar editor={editorRef.current} />
-            <div class="toolbar-right">
-              <button
-                class="toolbar-icon-btn"
-                class:active={uiState.typewriterMode}
-                onclick={toggleTypewriterMode}
-                title={t().app.typewriterMode}
-              >
-                &#8230;
-              </button>
-              <button
-                class="toolbar-icon-btn"
-                class:active={uiState.readingMode}
-                onclick={toggleReadingMode}
-                title={t().app.readingMode}
-                aria-pressed={uiState.readingMode}
-              >
-                &#x1D4E1;
-              </button>
-              <button
-                class="toolbar-icon-btn"
-                onclick={toggleFocusMode}
-                title={t().app.focusMode}
-              >
-                &#9678;
-              </button>
-            </div>
           </div>
         {/if}
       </div>
@@ -1151,26 +1074,7 @@
       {/if}
     </div>
 
-    <!-- Terminal (below main content) -->
-    {#if panelState.showTerminal}
-      <ResizeHandle
-        orientation="horizontal"
-        onResize={(delta) => {
-          if (resizeBase.terminalHeight === 0) startTerminalResize();
-          onTerminalResize(delta);
-        }}
-      />
-      <div class="panel-terminal" style="height: {panelState.terminalHeight}px">
-        <TerminalPanel />
-      </div>
-    {/if}
-
     <!-- Modals (always available, also from Start Screen) -->
-    {#if uiState.focusMode}
-      <button class="focus-exit-btn" onclick={toggleFocusMode} title={t().app.exitFocusMode}>
-        Exit Focus Mode
-      </button>
-    {/if}
     {#if uiState.showShortcuts}
       <ShortcutCheatsheet onClose={() => (uiState.showShortcuts = false)} />
     {/if}
@@ -1269,16 +1173,6 @@
         aria-pressed={panelState.showSidebar}
       >
         {t().app.statusProject}
-      </button>
-      <button
-        class="status-toggle"
-        class:active={panelState.showTerminal}
-        onclick={() => (panelState.showTerminal = !panelState.showTerminal)}
-        title="Cmd+`"
-        aria-label={t().app.toggleTerminal}
-        aria-pressed={panelState.showTerminal}
-      >
-        {t().app.statusTerminal}
       </button>
       <button
         class="status-toggle"
@@ -1456,38 +1350,6 @@
     flex: 1;
     min-width: 0;
     border-bottom: none;
-  }
-
-  .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    margin-left: auto;
-  }
-
-  .toolbar-icon-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #999;
-    cursor: pointer;
-    font-size: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s;
-  }
-
-  .toolbar-icon-btn:hover {
-    background: #f5f5f5;
-    color: #555;
-  }
-
-  .toolbar-icon-btn.active {
-    background: #eef4ff;
-    color: #4f7df9;
   }
 
   /* ─── Main Content Area ─── */
@@ -1686,37 +1548,6 @@
     flex-shrink: 0;
     overflow: hidden;
     border-left: 1px solid #f0f0f0;
-  }
-
-  /* ─── Terminal ─── */
-  .panel-terminal {
-    flex-shrink: 0;
-    overflow: hidden;
-    border-top: 1px solid #e8e8e8;
-  }
-
-  /* ─── Focus Mode ─── */
-  .focus-exit-btn {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 8px 18px;
-    border: none;
-    border-radius: 20px;
-    background: #f5f5f5;
-    color: #999;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-    z-index: 100;
-    transition: all 0.2s;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  }
-
-  .focus-exit-btn:hover {
-    background: #eee;
-    color: #555;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
   /* ─── Status Bar ─── */
