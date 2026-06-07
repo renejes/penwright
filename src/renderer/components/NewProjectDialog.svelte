@@ -31,6 +31,10 @@
     if (e.key === 'Escape') onClose();
   }
 
+  function focusOnMount(node: HTMLElement) {
+    node.focus();
+  }
+
   const templateIcons: Record<string, string> = {
     document: '&#9634;',
     thesis: '&#9883;',
@@ -40,10 +44,8 @@
   };
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-<div class="dialog-overlay" onclick={onClose}>
-  <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-  <div class="dialog" onclick={(e) => e.stopPropagation()} onkeydown={handleKeydown}>
+<div class="dialog-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label={t().pickers.newProjectTitle} tabindex="-1" onkeydown={handleKeydown}>
     <div class="dialog-header">
       <h2>{t().pickers.newProjectTitle}</h2>
       <button class="close-btn" onclick={onClose} aria-label={t().common.close}>
@@ -52,16 +54,17 @@
     </div>
 
     <div class="dialog-body">
-      <label class="field-label">{t().pickers.newProjectNameLabel}</label>
+      <label class="field-label" for="np-project-name">{t().pickers.newProjectNameLabel}</label>
       <input
+        id="np-project-name"
         class="field-input"
         type="text"
         bind:value={projectName}
         placeholder={t().pickers.newProjectNamePlaceholder}
-        autofocus
+        use:focusOnMount
       />
 
-      <label class="field-label">{t().pickers.newProjectTemplateLabel}</label>
+      <div class="field-label">{t().pickers.newProjectTemplateLabel}</div>
       <div class="template-grid">
         {#each templates as tmpl}
           <button

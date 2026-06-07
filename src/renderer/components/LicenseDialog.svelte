@@ -106,8 +106,8 @@
   }
 </script>
 
-<div class="license-overlay" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()} role="dialog" tabindex="-1">
-  <div class="license-dialog" onclick={(e) => e.stopPropagation()} role="document">
+<div class="license-overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }} onkeydown={(e) => e.key === 'Escape' && onClose()} role="dialog" tabindex="-1">
+  <div class="license-dialog" role="document">
     <div class="dialog-header">
       <h2>{t().license.dialogTitle}</h2>
       <button class="close-btn" onclick={onClose}>×</button>

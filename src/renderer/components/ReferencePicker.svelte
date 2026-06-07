@@ -151,17 +151,14 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<svelte:window onkeydown={onKeyDown} />
+
 <div
   class="ref-picker-backdrop"
-  onclick={onClose}
-  onkeydown={onKeyDown}
-  role="dialog"
-  aria-modal="true"
-  aria-labelledby="ref-picker-title"
+  role="presentation"
+  onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
 >
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="ref-picker" onclick={(e) => e.stopPropagation()}>
+  <div class="ref-picker" role="dialog" aria-modal="true" aria-labelledby="ref-picker-title" tabindex="-1">
     <div class="ref-picker-header">
       <div class="ref-picker-title" id="ref-picker-title">{t().pickers.refPickerTitle}</div>
       <button class="ref-picker-close" onclick={onClose} aria-label={t().common.close}>×</button>
@@ -175,7 +172,6 @@
         placeholder={t().pickers.refPickerSearchPlaceholder}
         autocomplete="off"
         spellcheck="false"
-        onkeydown={onKeyDown}
       />
       <div class="ref-picker-types">
         <button class:active={typeFilter === 'all'} onclick={() => (typeFilter = 'all')}>{t().pickers.refPickerFilterAll}</button>
@@ -206,16 +202,18 @@
             {typeLabel(group.type)}
             <span class="ref-picker-group-count">{group.items.length}</span>
           </div>
-          <ul class="ref-picker-list">
+          <ul class="ref-picker-list" role="listbox" aria-label={typeLabel(group.type)}>
             {#each group.items as item (item.filePath + ':' + item.label + ':' + item.line)}
               {@const idx = flatIndex(item.filePath, item.label)}
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
               <li
                 class="ref-picker-item"
                 class:selected={idx === selectedIdx}
                 data-flat-idx={idx}
+                role="option"
+                aria-selected={idx === selectedIdx}
                 onclick={() => pickIndex(idx)}
                 onmouseenter={() => (selectedIdx = idx)}
+                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickIndex(idx); } }}
               >
                 <div class="ref-picker-item-main">
                   <span class="ref-picker-item-label">{item.label}</span>
@@ -348,12 +346,6 @@
     color: #999;
     font-size: 13px;
     line-height: 1.5;
-  }
-  .ref-picker-empty code {
-    background: rgba(0, 0, 0, 0.05);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 12px;
   }
 
   .ref-picker-group-label {

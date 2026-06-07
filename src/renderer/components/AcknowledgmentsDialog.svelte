@@ -88,10 +88,8 @@
   });
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="overlay" onclick={onClose} role="presentation">
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="ack-title">
+<div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ack-title" tabindex="-1">
     <header>
       <div>
         <h2 id="ack-title">{t().about.ackTitle}</h2>

@@ -24,11 +24,11 @@ export const onboarding: OnboardingMessages = {
     },
     design: {
       title: 'Design — getrennt vom Schreiben',
-      body: 'Erst schreiben, dann gestalten. Im <strong>Design-Tab</strong> gibt es drei Wege:',
+      body: 'Erst schreiben, dann gestalten. Den <strong>Look</strong> bestimmst du dort, wo er wirkt:',
       bullets: [
         '<strong>Direkte Formatierung</strong> — die Buttons oben in der Leiste, wie in Word.',
-        '<strong>Design with AI</strong> — Text markieren → Rechtsklick → die KI gestaltet genau diese Stelle.',
-        '<strong>Globale &amp; Section Styles</strong> — Look fürs ganze Dokument oder einzelne Kapitel.',
+        '<strong>Der Look</strong> — öffne <code>style.typ</code> für den visuellen Designer (ganzes Dokument), oder wähle unten in der Statusleiste einen Kapitel-Look.',
+        '<strong>Design with AI</strong> — Text markieren, Rechtsklick, und die KI gestaltet genau diese Stelle.',
       ],
     },
     claude: {

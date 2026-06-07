@@ -519,7 +519,7 @@ Seven font families ship with Penwright — no system install needed, no interne
 
 ### Style Templates menu (legacy)
 
-The old **Document → Style Templates** submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) was retired in Session 22 and replaced by the Themes section in the Design tab. The MCP tools `penwright_list_styles` and `penwright_apply_style` still work — they now point at the new theme presets.
+The old **Document → Style Templates** submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) was retired in Session 22 and replaced by the Themes section of the Look designer (open `style.typ`). The MCP tools `penwright_list_styles` and `penwright_apply_style` still work — they now point at the new theme presets.
 
 ---
 
@@ -833,7 +833,7 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 
 **Design (15) — themes, layouts, palette, fonts, elements, section styles**
 
-The structured design surface from the Design tab. Writes directly to `.penwright/style.json`, regenerates `style.typ`, ensures the root `.typ` file has `#import "style.typ": *` + `#show: apply-style` at the top. Theme / layout swaps preserve `style.custom.preamble` (the user escape-hatch block) and `style.sections` (per-chapter section styles).
+The structured design surface — the visual Look designer (open `style.typ`). Writes directly to `.penwright/style.json`, regenerates `style.typ`, ensures the root `.typ` file has `#import "style.typ": *` + `#show: apply-style` at the top. Theme / layout swaps preserve `style.custom.preamble` (the user escape-hatch block) and `style.sections` (per-chapter section styles).
 
 - `penwright_get_style` — Return the full `ProjectStyle` JSON (colors / fonts / scale / layout / headings / elements / custom).
 - `penwright_update_style` — Partial deep-merge patch with per-leaf sanitiser; invalid values fall back to the old value.

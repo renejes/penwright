@@ -153,6 +153,14 @@ export function getAiSnapshotCount(filePath?: string): number {
   return aiSnapshots.filter(s => s.filePath === filePath).length;
 }
 
+// Lightweight listing (no content) for the History & Restore hub — newest first.
+export function getAiSnapshotsList(filePath?: string): { timestamp: number; filePath: string }[] {
+  const list = filePath ? aiSnapshots.filter(s => s.filePath === filePath) : aiSnapshots;
+  return list
+    .map(s => ({ timestamp: s.timestamp, filePath: s.filePath }))
+    .sort((a, b) => b.timestamp - a.timestamp);
+}
+
 // ─── File Operations ──────────────────────────────────
 
 export async function openFile(filePath?: string): Promise<void> {

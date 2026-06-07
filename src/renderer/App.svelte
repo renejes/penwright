@@ -1036,8 +1036,7 @@
 
       <!-- Context Menu -->
       {#if contextMenu.path}
-        <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-        <div class="context-overlay" onclick={closeContextMenu}>
+        <div class="context-overlay" role="presentation" onclick={closeContextMenu}>
           <div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px">
             <button class="context-item" onclick={() => { handleFileOpenInNewTab(contextMenu.path); closeContextMenu(); }}>
               Open in New Tab
@@ -1214,8 +1213,7 @@
             {Math.round(zoomState.editor * 100)}%
           </button>
           {#if showEditorZoomPopover}
-            <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-            <div class="zoom-popover-overlay" onclick={() => (showEditorZoomPopover = false)}></div>
+            <div class="zoom-popover-overlay" role="presentation" onclick={() => (showEditorZoomPopover = false)}></div>
             <div class="zoom-popover" role="dialog" aria-label={t().app.editorZoom}>
               <div class="zoom-popover-row">
                 <button class="zoom-btn-sq" onclick={zoomEditorOut} aria-label={t().app.zoomOut}>−</button>

@@ -77,14 +77,13 @@
 
 <div
   class="about-overlay"
-  onclick={onClose}
+  onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
   onkeydown={(e) => e.key === 'Escape' && onClose()}
   role="dialog"
   tabindex="-1"
   aria-label="Penwright"
 >
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-  <div class="about-dialog" onclick={(e) => e.stopPropagation()} role="document">
+  <div class="about-dialog" role="document">
     <button class="close-btn" onclick={onClose} aria-label={t().common.close}>×</button>
 
     <div class="hero">

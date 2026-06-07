@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '@shared/i18n/store.svelte';
+  import { untrack } from 'svelte';
 
   interface Chapter {
     includePath: string;
@@ -21,9 +22,9 @@
 
   let { initialFormat, sections, onClose }: Props = $props();
 
-  let format: 'pdf' | 'docx' = $state(initialFormat);
-  let selectedIncludes: Set<string> = $state(new Set(sections.chapters.map(c => c.includePath)));
-  let includeBibliography = $state(sections.hasBibliography);
+  let format: 'pdf' | 'docx' = $state(untrack(() => initialFormat));
+  let selectedIncludes: Set<string> = $state(untrack(() => new Set(sections.chapters.map(c => c.includePath))));
+  let includeBibliography = $state(untrack(() => sections.hasBibliography));
   let exporting = $state(false);
 
   const api = (window as unknown as { electronAPI: {
@@ -86,8 +87,7 @@
   tabindex="-1"
   aria-label={t().exportDialog.title}
 >
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal" role="presentation" onclick={(e) => e.stopPropagation()}>
     <div class="modal-header">
       <div class="modal-title">{t().exportDialog.title}</div>
       <button class="close-btn" onclick={onClose} aria-label={t().common.close} disabled={exporting}>×</button>

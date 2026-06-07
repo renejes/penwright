@@ -29,17 +29,10 @@ export const project: ProjectMessages = {
   statusNew: 'neu',
   statusRenamed: 'umbenannt',
 
-  // History section
-  historyTitle: 'Verlauf',
+  // History (version list shown in the History & Restore hub)
   refresh: 'Aktualisieren',
   refreshHistoryAria: 'Verlauf aktualisieren',
-  noVersions: 'Noch keine Versionen.',
   autoTag: 'auto',
-
-  // Backup status
-  showBackups: 'Auto-Backups anzeigen',
-  lastBackup: (time: string) => `Letztes Auto-Backup ${time}`,
-  noBackup: 'Noch kein Auto-Backup',
 
   // Relative time
   justNow: 'gerade eben',

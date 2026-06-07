@@ -13,7 +13,7 @@ import { templates as projectTemplates } from '../shared/projectTemplates';
 import { appState } from './appState';
 import { resolveDict } from '../shared/i18n';
 import { buildMenu } from './menuBuilder';
-import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, closeProjectInteractive } from './fileManager';
+import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, getAiSnapshotsList, getAiSnapshotCount, closeProjectInteractive } from './fileManager';
 import { isPathWithin } from './pathSecurity';
 
 /** Validates that a file path is within the current project directory (symlink-aware). */
@@ -892,6 +892,19 @@ export function setupIPC(): void {
   ipcMain.handle('project:setBackupConfig', (_event, config: BackupConfig) => {
     setBackupConfig(config);
     return getBackupConfig();
+  });
+
+  // AI-edit snapshots — read-only listing + "undo last" for the current file.
+  // The stack mechanic is unchanged (popAiSnapshot); these just surface it in
+  // the History & Restore hub instead of only the native "Undo AI Edit" menu.
+  ipcMain.handle('ai:list', () => {
+    if (!appState.currentFilePath) return [];
+    return getAiSnapshotsList(appState.currentFilePath);
+  });
+
+  ipcMain.handle('ai:undoLast', () => {
+    const undone = popAiSnapshot();
+    return { undone, count: getAiSnapshotCount(appState.currentFilePath ?? undefined) };
   });
 
   // Looks for a PDF in `<project>/sources/` whose filename starts with the

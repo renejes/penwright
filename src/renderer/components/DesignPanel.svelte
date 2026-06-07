@@ -1907,23 +1907,6 @@
     flex: 0 0 auto;
   }
 
-  .design-subgroup {
-    border-left: 2px solid #eee;
-    padding-left: 10px;
-    margin-top: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .design-subgroup-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #999;
-    margin-bottom: 2px;
-  }
 
   /* Heading cards (H1–H6 in the Headings section) */
 

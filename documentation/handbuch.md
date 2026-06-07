@@ -519,7 +519,7 @@ Sieben Font-Familien sind mit Penwright ausgeliefert — keine System-Installati
 
 ### Style-Templates-Menue (Legacy)
 
-Das alte **Document → Style Templates** Submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) wurde in Session 22 ersetzt durch die Themes-Section im Design-Tab. Die MCP-Tools `penwright_list_styles` und `penwright_apply_style` funktionieren weiterhin — sie zeigen jetzt auf die neuen Theme-Presets.
+Das alte **Document → Style Templates** Submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) wurde in Session 22 ersetzt durch die Themes-Section im Look-Designer (öffne `style.typ`). Die MCP-Tools `penwright_list_styles` und `penwright_apply_style` funktionieren weiterhin — sie zeigen jetzt auf die neuen Theme-Presets.
 
 ---
 
@@ -833,7 +833,7 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 
 **Design (15) — Themes, Layouts, Palette, Fonts, Elements, Section Styles**
 
-Die strukturierte Design-Surface aus dem Design-Tab. Schreibt direkt nach `.penwright/style.json`, regeneriert `style.typ`, stellt sicher dass die Root-`.typ`-Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Theme-/Layout-Swaps preservieren `style.custom.preamble` (User-Escape-Hatch-Code) und `style.sections` (per-Chapter Section Styles).
+Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.typ`). Schreibt direkt nach `.penwright/style.json`, regeneriert `style.typ`, stellt sicher dass die Root-`.typ`-Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Theme-/Layout-Swaps preservieren `style.custom.preamble` (User-Escape-Hatch-Code) und `style.sections` (per-Chapter Section Styles).
 
 - `penwright_get_style` — Liefert das vollstaendige `ProjectStyle`-JSON (colors / fonts / scale / layout / headings / elements / custom).
 - `penwright_update_style` — Partial-Patch mit Deep-Merge und Per-Leaf-Sanitizer; ungueltige Werte fallen auf den alten zurueck.

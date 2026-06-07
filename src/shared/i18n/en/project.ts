@@ -29,17 +29,10 @@ export const project = {
   statusNew: 'new',
   statusRenamed: 'renamed',
 
-  // History section
-  historyTitle: 'History',
+  // History (version list shown in the History & Restore hub)
   refresh: 'Refresh',
   refreshHistoryAria: 'Refresh history',
-  noVersions: 'No versions yet.',
   autoTag: 'auto',
-
-  // Backup status
-  showBackups: 'Show auto-backups',
-  lastBackup: (time: string) => `Last auto-backup ${time}`,
-  noBackup: 'No auto-backup yet',
 
   // Relative time
   justNow: 'just now',

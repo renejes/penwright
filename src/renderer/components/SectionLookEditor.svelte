@@ -112,9 +112,8 @@
   }
 </script>
 
-<div class="sle-overlay" role="presentation" onclick={onClose}>
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="sle" role="dialog" aria-modal="true" aria-label={t().look.editorDialogAria} onclick={(e) => e.stopPropagation()}>
+<div class="sle-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+  <div class="sle" role="dialog" aria-modal="true" aria-label={t().look.editorDialogAria} tabindex="-1">
     <header class="sle-head">
       <div>
         <div class="sle-title">{t().look.editorTitle}</div>

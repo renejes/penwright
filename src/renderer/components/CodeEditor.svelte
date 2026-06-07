@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
   import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands';
@@ -138,7 +138,7 @@
   });
 
   // Recreate editor when file extension changes (different language)
-  let prevExt = $state(fileExt);
+  let prevExt = $state(untrack(() => fileExt));
   $effect(() => {
     if (fileExt !== prevExt && view) {
       prevExt = fileExt;

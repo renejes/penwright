@@ -87,8 +87,7 @@
   tabindex="-1"
   aria-label={t().version.title}
 >
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal" role="presentation" onclick={(e) => e.stopPropagation()}>
     <div class="modal-header">
       <div class="modal-title">{t().version.title}</div>
       <button class="close-btn" onclick={onClose} aria-label={t().common.close}>×</button>

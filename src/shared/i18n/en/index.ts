@@ -29,6 +29,7 @@ import { license } from './license';
 import { about } from './about';
 import { editor } from './editor';
 import { editorLib } from './editorLib';
+import { history } from './history';
 
 export const en = {
   common,
@@ -54,4 +55,5 @@ export const en = {
   about,
   editor,
   editorLib,
+  history,
 };

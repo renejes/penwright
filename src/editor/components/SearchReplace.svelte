@@ -178,8 +178,7 @@
   });
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-<div class="search-bar" onkeydown={handleKeydown} role="search">
+<div class="search-bar" role="search">
   <div class="search-row">
     <input
       bind:this={searchInput}
@@ -187,6 +186,7 @@
       type="text"
       placeholder={t().editor.searchPlaceholder}
       class="search-input"
+      onkeydown={handleKeydown}
     />
     <span class="search-count">
       {#if searchTerm}
@@ -207,6 +207,7 @@
         type="text"
         placeholder={t().editor.searchReplacePlaceholder}
         class="search-input"
+        onkeydown={handleKeydown}
       />
       <button class="search-action-btn" onclick={replaceOne}>{t().editor.searchReplaceOne}</button>
       <button class="search-action-btn" onclick={replaceAll}>{t().editor.searchReplaceAll}</button>

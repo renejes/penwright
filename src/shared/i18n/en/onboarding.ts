@@ -23,11 +23,11 @@ export const onboarding = {
     },
     design: {
       title: 'Design — separate from writing',
-      body: 'Write first, design later. The <strong>Design tab</strong> offers three paths:',
+      body: 'Write first, design later. You shape the <strong>Look</strong> wherever it should apply:',
       bullets: [
         '<strong>Direct formatting</strong> — the buttons in the toolbar at the top, just like in Word.',
-        '<strong>Design with AI</strong> — select text → right-click → the AI designs exactly that spot.',
-        '<strong>Global &amp; section styles</strong> — a look for the whole document or individual chapters.',
+        '<strong>The Look</strong> — open <code>style.typ</code> for the visual designer (the whole document), or pick a per-chapter Look in the status bar below.',
+        '<strong>Design with AI</strong> — select text, right-click, and the AI designs exactly that spot.',
       ],
     },
     claude: {

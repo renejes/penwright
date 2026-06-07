@@ -1,29 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { t } from '@shared/i18n/store.svelte';
-  import VersionDetail from './VersionDetail.svelte';
-  import BackupListDialog from './BackupListDialog.svelte';
+  import HistoryDialog from './HistoryDialog.svelte';
 
   interface ChangedFile {
     path: string;
     status: string;
     staged: boolean;
     selected: boolean;
-  }
-
-  interface Version {
-    sha: string;
-    message: string;
-    date: string;
-    author: string;
-    isAuto: boolean;
-  }
-
-  interface BackupSnapshot {
-    timestamp: string;
-    timestampMs: number;
-    fileCount: number;
-    totalBytes: number;
   }
 
   interface ProjectInfo {
@@ -35,16 +19,12 @@
   let projectInfo: ProjectInfo = $state({ projectDir: null, currentFilePath: null, projectName: null });
   let isRepo = $state(false);
   let changedFiles: ChangedFile[] = $state([]);
-  let versions: Version[] = $state([]);
-  let lastBackup: BackupSnapshot | null = $state(null);
-  let backupTickNow = $state(Date.now());
 
   let versionMessage = $state('');
   let saving = $state(false);
   let loading = $state(true);
 
-  let activeVersionSha: string | null = $state(null);
-  let showBackupDialog = $state(false);
+  let showHistory = $state(false);
   let advancedOpen = $state(false);
 
   let cloudRemote = $state('');
@@ -56,7 +36,6 @@
   } }).electronAPI;
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
-  let backupTickTimer: ReturnType<typeof setInterval> | null = null;
 
   onMount(async () => {
     await refreshAll();
@@ -65,26 +44,20 @@
       const msg = data as { type: string };
       if (msg.type === 'filetreeChanged' || msg.type === 'saveStatus' || msg.type === 'currentFile') {
         refreshAll();
-      } else if (msg.type === 'backupCreated') {
-        refreshBackups();
       }
     });
 
     pollTimer = setInterval(() => refreshStatus(), 8000);
-    backupTickTimer = setInterval(() => { backupTickNow = Date.now(); }, 1000);
   });
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
-    if (backupTickTimer) clearInterval(backupTickTimer);
   });
 
   async function refreshAll() {
     await Promise.all([
       refreshInfo(),
       refreshStatus(),
-      refreshVersions(),
-      refreshBackups(),
     ]);
     loading = false;
   }
@@ -122,23 +95,6 @@
     }
   }
 
-  async function refreshVersions() {
-    try {
-      versions = await api.invoke('git:listVersions') as Version[];
-    } catch {
-      versions = [];
-    }
-  }
-
-  async function refreshBackups() {
-    try {
-      const list = await api.invoke('project:listBackups') as BackupSnapshot[];
-      lastBackup = list[0] ?? null;
-    } catch {
-      lastBackup = null;
-    }
-  }
-
   async function saveVersion() {
     if (!versionMessage.trim() || changedFiles.length === 0) return;
     const selected = changedFiles.filter(f => f.selected).map(f => f.path);
@@ -155,7 +111,7 @@
 
       if (result.sha) {
         versionMessage = '';
-        await Promise.all([refreshStatus(), refreshVersions()]);
+        await refreshStatus();
       }
     } catch (err) {
       console.error('[ProjectPanel] saveVersion failed:', err);
@@ -196,20 +152,6 @@
       case '?': return '#888';
       default: return '#888';
     }
-  }
-
-  function relativeTime(date: string | number): string {
-    const ms = typeof date === 'string' ? new Date(date).getTime() : date;
-    const diff = backupTickNow - ms;
-    if (diff < 0) return t().project.justNow;
-    if (diff < 60000) return t().project.secondsAgo(Math.floor(diff / 1000));
-    if (diff < 3600000) return t().project.minutesAgo(Math.floor(diff / 60000));
-    if (diff < 86400000) return t().project.hoursAgo(Math.floor(diff / 3600000));
-    return new Date(ms).toLocaleDateString();
-  }
-
-  function formatDate(date: string): string {
-    return new Date(date).toLocaleString();
   }
 
   async function openAdvanced() {
@@ -296,7 +238,8 @@
       </button>
     </div>
 
-    <!-- 3. Changes since last version -->
+    <!-- 3. Changes since last version (scrolls if long) -->
+    <div class="scroll-area">
     {#if changedFiles.length > 0}
       <div class="section">
         <div class="section-header">
@@ -325,45 +268,16 @@
         {t().project.firstVersionHint}
       </div>
     {/if}
-
-    <!-- 4. History -->
-    <div class="section history-section">
-      <div class="section-header">
-        <span class="section-title">{t().project.historyTitle}</span>
-        <button class="icon-btn small" onclick={refreshVersions} title={t().project.refresh} aria-label={t().project.refreshHistoryAria}>↻</button>
-      </div>
-      {#if versions.length === 0}
-        <div class="muted-block tight">{t().project.noVersions}</div>
-      {:else}
-        <ul class="version-list">
-          {#each versions as v (v.sha)}
-            <li>
-              <button class="version-row" class:auto={v.isAuto} onclick={() => activeVersionSha = v.sha}>
-                <div class="version-message">{v.message.replace(/^\[auto\]\s*/, '')}</div>
-                <div class="version-meta">
-                  <span class="version-date">{relativeTime(v.date)}</span>
-                  {#if v.isAuto}<span class="version-tag">{t().project.autoTag}</span>{/if}
-                </div>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
     </div>
 
-    <!-- 5. Auto-Backup status -->
-    <button class="backup-status" onclick={() => showBackupDialog = true} title={t().project.showBackups}>
-      <span class="backup-dot"></span>
-      <span>
-        {#if lastBackup}
-          {t().project.lastBackup(relativeTime(lastBackup.timestampMs))}
-        {:else}
-          {t().project.noBackup}
-        {/if}
-      </span>
+    <!-- 4. History & Restore hub — versions + auto-backups + AI changes in one place -->
+    <button class="history-btn" onclick={() => showHistory = true}>
+      <span class="history-icon">↺</span>
+      <span class="history-label">{t().history.openButton}</span>
+      <span class="history-chevron">›</span>
     </button>
 
-    <!-- 6. Advanced (collapsed) -->
+    <!-- 5. Advanced (collapsed) -->
     <div class="advanced">
       <button class="advanced-toggle" onclick={openAdvanced} aria-expanded={advancedOpen}>
         <span class="chevron">{advancedOpen ? '▾' : '▸'}</span>
@@ -396,18 +310,10 @@
   {/if}
 </div>
 
-{#if activeVersionSha}
-  <VersionDetail
-    sha={activeVersionSha}
-    onClose={() => activeVersionSha = null}
-    onRestored={() => { activeVersionSha = null; refreshAll(); }}
-  />
-{/if}
-
-{#if showBackupDialog}
-  <BackupListDialog
-    onClose={() => showBackupDialog = false}
-    onApplied={() => { showBackupDialog = false; refreshAll(); }}
+{#if showHistory}
+  <HistoryDialog
+    onClose={() => showHistory = false}
+    onRestored={() => { showHistory = false; refreshAll(); }}
   />
 {/if}
 
@@ -498,12 +404,6 @@
     padding: 8px 0 4px;
     border-bottom: 1px solid #f5f5f5;
   }
-  .history-section {
-    flex: 1;
-    min-height: 80px;
-    overflow-y: auto;
-    border-bottom: none;
-  }
 
   .section-header {
     display: flex;
@@ -531,7 +431,7 @@
   }
   .link-btn:hover { text-decoration: underline; }
 
-  .file-list, .version-list {
+  .file-list {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -569,70 +469,6 @@
     color: #bbb;
     font-size: 12px;
     text-align: center;
-  }
-  .muted-block.tight { padding: 10px 12px; }
-
-  .version-row {
-    width: 100%;
-    text-align: left;
-    border: none;
-    background: none;
-    padding: 6px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid #f8f8f8;
-    font-family: inherit;
-  }
-  .version-row:hover { background: rgba(79, 125, 249, 0.06); }
-  .version-row.auto { opacity: 0.6; }
-
-  .version-message {
-    font-size: 12px;
-    color: #333;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .version-meta {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    margin-top: 2px;
-    font-size: 11px;
-    color: #999;
-  }
-  .version-tag {
-    background: #f0f0f0;
-    color: #888;
-    padding: 0 6px;
-    border-radius: 8px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-
-  .backup-status {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border: none;
-    border-top: 1px solid #f0f0f0;
-    background: #fafafa;
-    color: #888;
-    font-size: 11px;
-    font-family: inherit;
-    cursor: pointer;
-    text-align: left;
-  }
-  .backup-status:hover { background: #f5f5f5; color: #555; }
-  .backup-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #4ec9b0;
-    flex-shrink: 0;
   }
 
   .advanced {
@@ -707,5 +543,26 @@
     justify-content: center;
   }
   .icon-btn:hover { background: #f0f0f0; color: #555; }
-  .icon-btn.small { width: 20px; height: 20px; font-size: 12px; }
+
+  .history-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% - 24px);
+    margin: 10px 12px 0;
+    padding: 10px 12px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    background: #fff;
+    color: #444;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .history-btn:hover { background: #f7f9ff; border-color: #cdd9ff; color: #2c4fb0; }
+  .history-icon { font-size: 15px; line-height: 1; color: #4f7df9; }
+  .history-label { flex: 1; text-align: left; font-weight: 500; }
+  .history-chevron { color: #bbb; font-size: 16px; }
+  .scroll-area { flex: 1; min-height: 0; overflow-y: auto; }
 </style>

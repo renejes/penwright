@@ -67,9 +67,8 @@
   }
 </script>
 
-<div class="ob-overlay" role="presentation" onclick={finish}>
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="ob-card" role="dialog" aria-modal="true" aria-label={t().onboarding.ariaLabel} onclick={(e) => e.stopPropagation()}>
+<div class="ob-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) finish(); }}>
+  <div class="ob-card" role="dialog" aria-modal="true" aria-label={t().onboarding.ariaLabel} tabindex="-1">
     <button class="ob-skip" onclick={finish}>{t().common.skip}</button>
 
     <div class="ob-body">

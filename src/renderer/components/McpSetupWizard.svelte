@@ -81,10 +81,8 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="overlay" onclick={skip} role="presentation">
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="mcp-wizard-title">
+<div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) skip(); }}>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mcp-wizard-title" tabindex="-1">
     {#if step === 'intro'}
       <div class="icon-circle indigo">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>

@@ -72,10 +72,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="crash-overlay" onclick={onClose} role="presentation">
-  <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-  <div class="crash-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+<div class="crash-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+  <div class="crash-modal" role="dialog" tabindex="-1">
     <div class="crash-header">
       <h2>{view === 'intro' ? t().crash.introTitle : t().crash.detailTitle}</h2>
       <button class="crash-close" onclick={onClose} title={t().common.close}>&times;</button>

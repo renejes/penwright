@@ -351,7 +351,7 @@
     border-bottom: 1px solid #f0f0f0;
     line-height: 1.4;
   }
-  .cp-info code {
+  .cp-info :global(code) {
     background: rgba(0, 0, 0, 0.05);
     padding: 0 3px;
     border-radius: 2px;

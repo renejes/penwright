@@ -1,9 +1,10 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-06-06, Ende der Fokus-Schnitt-Session.
-> **Branch:** `main` (i18n + Vorschau-Runde sind committet/gepusht; der Fokus-Schnitt aus Session 29 ist **uncommittet** im Working-Tree).
-> **Zuletzt erledigt:** Session 28 = volles i18n (EN+DE) + ＋-Einfügen-Menü + Vorschau (Auto/Manuell + folgt Kapitel); Session 29 = **Fokus-Schnitt** (CLI, integriertes Terminal und Focus/Typewriter/Reading-Modi entfernt — siehe §1d).
-> **Nächste Session:** drei vom User priorisierte Punkte — **a11y-Warnungen**, **Onboarding-Wizard umformulieren**, **Persistenz-Schichten klar darstellen**. Siehe Abschnitt **„Nächste Session"** unten.
+> **Stand:** 2026-06-07, Ende der Politur-Session (Session 30).
+> **Branch:** `main` (alles bis Fokus-Schnitt/Session 29 committet; **Session 30 — a11y + Onboarding + Persistenz-Hub — ist uncommittet** im Working-Tree).
+> **Zuletzt erledigt:** Session 30 = die drei vom User priorisierten Punkte: (1) **alle Svelte-Build-Warnungen weg** (a11y + unused-CSS + Reaktivität → sauberer Build), (2) **Onboarding-„Design"-Schritt** aufs Look-Modell umgeschrieben, (3) **Persistenz vereinheitlicht** → neuer „Verlauf & Wiederherstellen"-Hub (`HistoryDialog`: Versionen + Auto-Backups + KI-Änderungen an einem Ort; KI-Undo endlich sichtbar). Siehe **„Status Session 30"** unten.
+> **Davor:** Session 28 = volles i18n (EN+DE) + ＋-Einfügen-Menü + Vorschau (Auto/Manuell + folgt Kapitel); Session 29 = **Fokus-Schnitt** (CLI, integriertes Terminal, Focus/Typewriter/Reading-Modi entfernt — §1d).
+> **Nächste Session:** v. a. manuelle Smoke-Tests (s. u.) + offene Launch-Themen (`penwright.online` registrieren, Showcase-Projekte).
 > Lies diesen Handover, dann `CLAUDE.md` → danach loslegen.
 
 ---
@@ -96,11 +97,23 @@ Auf Produkt-Feedback hin wurde Wartungs-/Identitäts-Ballast entfernt (Ziel: ruh
 
 ---
 
-## Nächste Session (vom User priorisiert)
+## Status Session 30 (die drei priorisierten Punkte — erledigt)
 
-1. **a11y-Warnungen angehen** — der `electron-vite build` wirft durchgängig Svelte-a11y-Warnungen (fehlende ARIA-Rollen/-Labels, Click-Handler auf nicht-interaktiven Elementen, `tabindex`). Für eine polierte Bezahl-App einen Durchgang wert. Start: Build-Output nach `a11y_` filtern, die Muster (Overlays/Modals/Dropdowns) systematisch beheben.
-2. **Onboarding-Wizard umformulieren** — der „Design"-Schritt (`onboarding.steps.design`, en+de) beschreibt noch einen **„Design-Tab"**, den es seit dem Look-Umbau nicht mehr gibt (Look lebt in `style.typ` + Statusleiste). Texte an das aktuelle Look-Modell + die gestrichenen Modi anpassen; ggf. die 7 Schritte straffen.
-3. **Persistenz-Schichten klar darstellen** — aktuell drei nebeneinander (Versionen/Git, Auto-Backup, KI-Snapshots), konzeptionell überladen für den Nutzer. **Überlegen, wie man sie so klar und eindeutig wie möglich präsentiert** (eine gemeinsame „Verlauf/Wiederherstellen"-Oberfläche? klarere Benennung? eine Schicht zusammenlegen?). Mechanik bleibt; es geht um die *Darstellung*. (Das war der ursprünglich als Nächstes geplante „Persistenz bündeln"-Schritt.)
+> **Verifikation:** `unset ELECTRON_RUN_AS_NODE && npx electron-vite build` = **0 Warnungen** (vorher 34), `tsc --noEmit -p tsconfig.json` = grün. **Noch nicht committet.**
+
+1. **a11y-Warnungen weg — sauberer Build.**
+   - **Root cause:** `svelte-ignore`-Kommentare wirken in diesem Projekt **nicht zuverlässig**, sobald die Komponente `<script lang="ts">` hat (TS-Preprocessing verschiebt Quell-Positionen) — deshalb feuerten viele a11y-Warnungen **trotz** vorhandener Ignore-Kommentare. (Standalone mit `svelte/compiler` reproduziert + bestätigt.)
+   - **Fix daher markup-basiert** statt Ignore: Modal-Backdrops schließen via `e.target === e.currentTarget` (statt innerer `stopPropagation`), Dialog-Container `role="dialog"` + `tabindex="-1"`, leere Overlays `role="presentation"`, Labels via `for`/`id`, `autofocus` → `use:focusOnMount`-Action, ReferencePicker-Liste als `role="listbox"`/`option` (Tastatur über `<svelte:window>`), SearchReplace-Keydown auf die Inputs. Tote Ignore-Kommentare entfernt.
+   - Mitgenommen: 6 **unused-CSS**-Warnungen (3 davon `{@html}`-Code → `:global()` = Styling war faktisch kaputt + jetzt korrekt; 2 echt tot → gelöscht) und 4 **„state captures initial value"**-Warnungen (intentionale Prop-Seeds in `$state(...)` → `untrack()`).
+2. **Onboarding „Design"-Schritt** (`onboarding.steps.design`, en+de) aufs **Look-Modell** umgeschrieben — kein „Design-Tab" mehr: `style.typ` = visueller Look-Designer (ganzes Dokument), Statusleiste = Kapitel-Look, Rechtsklick = Design with AI. Zwei zurückgebliebene „Design tab"-Stellen im In-App-Handbuch (`handbook.md`/`handbuch.md`) gleich mitkorrigiert.
+3. **Persistenz vereinheitlicht — „Verlauf & Wiederherstellen"-Hub** (gewählte Variante: *ein gemeinsamer Verlauf-Hub*).
+   - Neuer **`HistoryDialog.svelte`**: drei beschriftete Abschnitte mit Zweck-Zeile — **Versionen** (Git → `VersionDetail` Diff/Restore), **Auto-Backups** (Restore + ⚙-Einstellungen interval/maxCount/maxAiSnapshots), **KI-Änderungen** (per-Datei-Stack → „↩ Letzte rückgängig"). **KI-Undo ist damit erstmals im UI sichtbar** (vorher nur Menü „Bearbeiten → KI-Bearbeitung rückgängig").
+   - `ProjectPanel` zeigt nur noch Save-Version + Änderungen + **einen** Button zum Hub (inline History-Liste + Auto-Backup-Footer raus). `BackupListDialog.svelte` **gelöscht** (vom Hub absorbiert).
+   - Backend: neue IPC `ai:list` / `ai:undoLast` (+ `fileManager.getAiSnapshotsList`), in `preload-entry` gewhitelistet. Neuer i18n-Namespace **`history`** (en+de, in beiden `index.ts` registriert → jetzt 24 Namespaces). **Mechanik unverändert** (popAiSnapshot-Stack, Git-Versionen, Backup-Snapshots bleiben getrennt — nur die *Darstellung* ist gebündelt). CLAUDE.md nachgezogen.
+
+**Offen — manuelle Smoke-Tests (headless nicht prüfbar):**
+- Projekt öffnen → Projekt-Tab → **„Verlauf & Wiederherstellen"**: Versionen-Klick → Diff + Restore; Auto-Backup → Restore + ⚙-Einstellungen ändern; KI-Änderungen → „Letzte rückgängig" (am besten nach einer echten MCP/KI-Bearbeitung der offenen Datei).
+- **a11y-Stichprobe:** Modale per **Esc** schließen, Klick auf Backdrop schließt, Klick **innerhalb** schließt **nicht**; ReferencePicker-Tastaturnav (↑↓ Enter Esc); „Neues Projekt"-Dialog fokussiert das Namensfeld automatisch.
 
 ---
 

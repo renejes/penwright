@@ -26,6 +26,7 @@ import { license } from './license';
 import { about } from './about';
 import { editor } from './editor';
 import { editorLib } from './editorLib';
+import { history } from './history';
 
 export const de: typeof en = {
   common,
@@ -51,4 +52,5 @@ export const de: typeof en = {
   about,
   editor,
   editorLib,
+  history,
 };

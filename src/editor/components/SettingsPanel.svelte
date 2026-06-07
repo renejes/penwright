@@ -98,10 +98,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="settings-overlay" onclick={onClose} role="presentation">
-  <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-  <div class="settings-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+<div class="settings-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+  <div class="settings-modal" role="dialog" tabindex="-1">
     <div class="settings-header">
       <h2>{t().settings.title}</h2>
       <button class="settings-close" onclick={onClose}>&times;</button>
@@ -187,7 +185,7 @@
     line-height: 1.5;
     color: #4b5563;
   }
-  .settings-intro strong { color: #1d4ed8; font-weight: 600; }
+  .settings-intro :global(strong) { color: #1d4ed8; font-weight: 600; }
   .settings-hint {
     margin: 6px 0 0 0;
     font-size: 11px;
