@@ -226,8 +226,7 @@ The sidebar has six tabs:
 This tab replaces the old Git panel and uses writer-friendly vocabulary instead of raw Git commands. See the **[Versions & Auto-Backup](#versions--auto-backup)** section below for the full workflow. In short:
 - **Save Version** — names your current state and stores it in the project's history
 - **Changes since last version** — checkboxes for which files go into the next version
-- **History** (always visible) — every saved version, click to view diff and restore
-- **Auto-Backup status** — small footer showing when the last automatic snapshot was taken
+- **History & Restore** — one button opens a hub with everything you can get back: your saved versions, automatic backups, and AI edits (see below)
 - **Advanced** (collapsed) — optional cloud sync (push/pull to GitHub or any other Git remote)
 
 ### Comments
@@ -533,7 +532,7 @@ Penwright keeps three independent layers of safety for your work — each with a
 | **Auto-Backup** | Timer (configurable, default every 30 s) | Crash / freeze protection — never lose more than X seconds of work | `<project>/.penwright/backups/` |
 | **AI-Edit Undo** | Triggered by an external edit (an AI agent / MCP) | Quick rollback of the last AI change | `<project>/.penwright/ai-snapshots/` |
 
-All three live **inside the project folder**, so the project is self-contained: copy or move it and the full history goes with it.
+All three live **inside the project folder**, so the project is self-contained: copy or move it and the full history goes with it. They're all reached from one place — the **History & Restore** button in the **Project** tab opens a hub with a labelled section for each.
 
 ### Saving a version
 
@@ -542,11 +541,11 @@ In the **Project** sidebar tab:
 2. Optionally untick files in **Changes since last version** that should not be part of this version
 3. Click **Save Version**
 
-The history list updates immediately. Every entry stays available forever (until you delete the project).
+Your new version appears in the **Versions** section of **History & Restore**. Every entry stays available forever (until you delete the project).
 
 ### Browsing the history
 
-Click any entry in the **History** to open its detail view:
+Open **History & Restore** (in the **Project** tab) and click any entry in the **Versions** section to open its detail view:
 - Date and message
 - A diff per file in source-text style (red removed lines, green added lines — like GitHub)
 - **Restore this version** button — replaces the current files with the historical ones (with a confirmation prompt)
@@ -555,14 +554,14 @@ The current document is never destroyed: restoring an old version overwrites you
 
 ### Auto-Backup
 
-A small status line at the bottom of the **Project** tab shows when the last automatic backup was taken ("Last backup 12 s ago"). Click it to open the backup browser:
+The **Auto-backups** section of **History & Restore** lists every automatic snapshot:
 - Every backup is a full snapshot of the project's `.typ` and `.bib` files at that point in time
-- **Load** restores a backup into the working tree (with a confirmation prompt — save a version first if you don't want to lose your current state)
-- The **gear icon** in the dialog header opens the settings: backup interval (10 s – 5 min), maximum number of backups kept (10 / 30 / 100 / 1000), maximum number of AI-edit snapshots
+- **Restore** loads a backup into the working tree (with a confirmation prompt — save a version first if you don't want to lose your current state)
+- The **gear icon** on that section opens the settings: backup interval (10 s – 5 min), maximum number of backups kept (10 / 30 / 100 / 1000), maximum number of AI-edit snapshots
 
 ### AI-Edit Undo
 
-When an external tool (an AI agent, the MCP server, …) modifies a file you have open, Penwright saves the previous content into the AI-snapshot ring buffer **before** applying the change. Use the **Undo AI Edit** menu entry to step back through them one by one. Snapshots survive app restarts (they're persisted to `.penwright/ai-snapshots/`).
+When an external tool (an AI agent, the MCP server, …) modifies a file you have open, Penwright saves the previous content into the AI-snapshot ring buffer **before** applying the change. Step back through them one at a time from the **AI changes** section of **History & Restore** (or the **Undo AI Edit** menu entry). Snapshots survive app restarts (they're persisted to `.penwright/ai-snapshots/`).
 
 ### Cloud backup (optional)
 

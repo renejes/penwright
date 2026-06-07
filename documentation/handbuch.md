@@ -226,8 +226,7 @@ Die Sidebar hat sechs Tabs:
 Dieser Tab ersetzt das alte Git-Panel und nutzt Schreiber-Vokabular statt roher Git-Befehle. Vollstaendiger Workflow: siehe Abschnitt **[Versionen & Auto-Backup](#versionen--auto-backup)** weiter unten. Kurzfassung:
 - **Version speichern** — benennt deinen aktuellen Stand und legt ihn im Verlauf des Projekts ab
 - **Aenderungen seit letzter Version** — Checkboxen, welche Dateien in die naechste Version kommen
-- **Verlauf** (immer sichtbar) — alle gespeicherten Versionen, Klick zeigt Diff + „Wiederherstellen"
-- **Auto-Backup-Status** — kleine Fusszeile, die zeigt, wann das letzte automatische Backup gemacht wurde
+- **Verlauf & Wiederherstellen** — ein Button oeffnet einen Hub mit allem, was du zurueckholen kannst: gespeicherte Versionen, automatische Backups und KI-Aenderungen (siehe unten)
 - **Erweitert** (zugeklappt) — optional: Cloud-Sync (Push/Pull zu GitHub oder einem beliebigen Git-Remote)
 
 ### Comments
@@ -533,7 +532,7 @@ Penwright haelt drei unabhaengige Schichten zur Absicherung deiner Arbeit — je
 | **Auto-Backup** | Timer (konfigurierbar, Default alle 30 s) | Crash-/Hänger-Schutz — nie mehr als X Sekunden Arbeit verlieren | `<projekt>/.penwright/backups/` |
 | **AI-Edit-Undo** | Externe Aenderung (KI-Agent / MCP) | Schnelles Rueckgaengig der letzten AI-Aenderung | `<projekt>/.penwright/ai-snapshots/` |
 
-Alle drei leben **innerhalb des Projektordners**, das Projekt ist also self-contained: kopierst oder verschiebst du es, wandert der vollstaendige Verlauf mit.
+Alle drei leben **innerhalb des Projektordners**, das Projekt ist also self-contained: kopierst oder verschiebst du es, wandert der vollstaendige Verlauf mit. Erreichbar sind sie alle an einem Ort — der Button **Verlauf & Wiederherstellen** im **Project**-Tab oeffnet einen Hub mit je einem beschrifteten Abschnitt.
 
 ### Eine Version speichern
 
@@ -542,11 +541,11 @@ Im **Project**-Sidebar-Tab:
 2. Optional: hak einzelne Dateien in **Aenderungen seit letzter Version** ab, die nicht in diese Version sollen
 3. Klick **Version speichern**
 
-Die Verlaufsliste aktualisiert sich sofort. Jeder Eintrag bleibt fuer immer abrufbar (bis du das Projekt loeschst).
+Deine neue Version erscheint im Abschnitt **Versionen** von **Verlauf & Wiederherstellen**. Jeder Eintrag bleibt fuer immer abrufbar (bis du das Projekt loeschst).
 
 ### Verlauf durchsuchen
 
-Klick auf einen Eintrag im **Verlauf** oeffnet die Detail-Ansicht:
+Oeffne **Verlauf & Wiederherstellen** (im **Project**-Tab) und klick auf einen Eintrag im Abschnitt **Versionen**, um die Detail-Ansicht zu oeffnen:
 - Datum + Beschreibung
 - Diff pro Datei im Quelltext-Stil (rote entfernte Zeilen, gruene neue — wie GitHub)
 - **Diese Version wiederherstellen**-Button — ueberschreibt die aktuellen Dateien mit dem historischen Stand (mit Bestaetigung)
@@ -555,14 +554,14 @@ Dein aktueller Stand geht nie verloren: vor dem Wiederherstellen kannst du eine 
 
 ### Auto-Backup
 
-Eine kleine Status-Zeile am unteren Rand des **Project**-Tabs zeigt, wann das letzte automatische Backup gemacht wurde („Letztes Backup vor 12 s"). Klick darauf oeffnet den Backup-Browser:
+Der Abschnitt **Auto-Backups** in **Verlauf & Wiederherstellen** listet jeden automatischen Snapshot:
 - Jedes Backup ist ein vollstaendiger Snapshot aller `.typ`- und `.bib`-Dateien zum Zeitpunkt
-- **Laden** stellt ein Backup in den Working-Tree zurueck (mit Bestaetigung — vorher Version speichern, falls du den jetzigen Stand nicht verlieren willst)
-- Das **Zahnrad-Icon** im Header oeffnet die Einstellungen: Backup-Intervall (10 s – 5 min), maximale Anzahl gespeicherter Backups (10 / 30 / 100 / 1000), maximale AI-Edit-Snapshots
+- **Wiederherstellen** stellt ein Backup in den Working-Tree zurueck (mit Bestaetigung — vorher Version speichern, falls du den jetzigen Stand nicht verlieren willst)
+- Das **Zahnrad-Icon** an diesem Abschnitt oeffnet die Einstellungen: Backup-Intervall (10 s – 5 min), maximale Anzahl gespeicherter Backups (10 / 30 / 100 / 1000), maximale AI-Edit-Snapshots
 
 ### AI-Edit-Undo
 
-Wenn ein externes Tool (ein KI-Agent, der MCP-Server, …) eine offene Datei aendert, sichert Penwright den vorherigen Inhalt **vor** der Aenderung in den AI-Snapshot-Ringpuffer. Mit dem Menue-Eintrag **Undo AI Edit** gehst du Schritt fuer Schritt zurueck. Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`).
+Wenn ein externes Tool (ein KI-Agent, der MCP-Server, …) eine offene Datei aendert, sichert Penwright den vorherigen Inhalt **vor** der Aenderung in den AI-Snapshot-Ringpuffer. Geh sie einzeln im Abschnitt **KI-Aenderungen** von **Verlauf & Wiederherstellen** zurueck (oder ueber den Menue-Eintrag **Undo AI Edit**). Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`).
 
 ### Cloud-Backup (optional)
 

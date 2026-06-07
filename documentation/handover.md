@@ -1,10 +1,10 @@
 # Penwright — Handover für den nächsten Chat
 
 > **Stand:** 2026-06-07, Ende der Politur-Session (Session 30).
-> **Branch:** `main` (alles bis Fokus-Schnitt/Session 29 committet; **Session 30 — a11y + Onboarding + Persistenz-Hub — ist uncommittet** im Working-Tree).
+> **Branch:** `main` (alles aus Session 30 — Code + Doku — ist **committet + auf `main` gepusht**, Commit `096219a` + Doku-Nachzug).
 > **Zuletzt erledigt:** Session 30 = die drei vom User priorisierten Punkte: (1) **alle Svelte-Build-Warnungen weg** (a11y + unused-CSS + Reaktivität → sauberer Build), (2) **Onboarding-„Design"-Schritt** aufs Look-Modell umgeschrieben, (3) **Persistenz vereinheitlicht** → neuer „Verlauf & Wiederherstellen"-Hub (`HistoryDialog`: Versionen + Auto-Backups + KI-Änderungen an einem Ort; KI-Undo endlich sichtbar). Siehe **„Status Session 30"** unten.
 > **Davor:** Session 28 = volles i18n (EN+DE) + ＋-Einfügen-Menü + Vorschau (Auto/Manuell + folgt Kapitel); Session 29 = **Fokus-Schnitt** (CLI, integriertes Terminal, Focus/Typewriter/Reading-Modi entfernt — §1d).
-> **Nächste Session:** v. a. manuelle Smoke-Tests (s. u.) + offene Launch-Themen (`penwright.online` registrieren, Showcase-Projekte).
+> **Nächste Session — Fokus:** (1) **MCP Apps** (interaktive UI im Chat-Host, v. a. Live-PDF-Vorschau in Claude Desktop) und (2) **UI-Polish**. Siehe **„Nächste Session — Fokus"** unten. Daneben: manuelle Smoke-Tests (s. u.) + Launch-Themen (`penwright.online`).
 > Lies diesen Handover, dann `CLAUDE.md` → danach loslegen.
 
 ---
@@ -99,7 +99,7 @@ Auf Produkt-Feedback hin wurde Wartungs-/Identitäts-Ballast entfernt (Ziel: ruh
 
 ## Status Session 30 (die drei priorisierten Punkte — erledigt)
 
-> **Verifikation:** `unset ELECTRON_RUN_AS_NODE && npx electron-vite build` = **0 Warnungen** (vorher 34), `tsc --noEmit -p tsconfig.json` = grün. **Noch nicht committet.**
+> **Verifikation:** `unset ELECTRON_RUN_AS_NODE && npx electron-vite build` = **0 Warnungen** (vorher 34), `tsc --noEmit -p tsconfig.json` = grün. **Committet + auf `main` gepusht** (`096219a` + Doku-Nachzug).
 
 1. **a11y-Warnungen weg — sauberer Build.**
    - **Root cause:** `svelte-ignore`-Kommentare wirken in diesem Projekt **nicht zuverlässig**, sobald die Komponente `<script lang="ts">` hat (TS-Preprocessing verschiebt Quell-Positionen) — deshalb feuerten viele a11y-Warnungen **trotz** vorhandener Ignore-Kommentare. (Standalone mit `svelte/compiler` reproduziert + bestätigt.)
@@ -114,6 +114,17 @@ Auf Produkt-Feedback hin wurde Wartungs-/Identitäts-Ballast entfernt (Ziel: ruh
 **Offen — manuelle Smoke-Tests (headless nicht prüfbar):**
 - Projekt öffnen → Projekt-Tab → **„Verlauf & Wiederherstellen"**: Versionen-Klick → Diff + Restore; Auto-Backup → Restore + ⚙-Einstellungen ändern; KI-Änderungen → „Letzte rückgängig" (am besten nach einer echten MCP/KI-Bearbeitung der offenen Datei).
 - **a11y-Stichprobe:** Modale per **Esc** schließen, Klick auf Backdrop schließt, Klick **innerhalb** schließt **nicht**; ReferencePicker-Tastaturnav (↑↓ Enter Esc); „Neues Projekt"-Dialog fokussiert das Namensfeld automatisch.
+
+---
+
+## Nächste Session — Fokus
+
+Zwei Schwerpunkte (vom User gesetzt):
+
+1. **MCP Apps** — die erste offizielle MCP-Erweiterung: MCP-Server können **interaktive UI in einem sandboxed iframe direkt im Chat-Host** rendern (Claude Desktop / ChatGPT / VS Code). **Größter Hebel für Penwright: eine Live-PDF-Vorschau in Claude Desktop** → Design-with-AI wird zu „beschreiben → *hier* sehen → iterieren" ohne App-Wechsel; dazu ein „Look anwenden"-/Vorher-Nachher-Widget. Passt zu `penwright_get_selection` + Safe-Apply (stehen schon). Penwrights MCP-Binary müsste dafür UI-Resources ausliefern. **Nicht** Penwright in Claude nachbauen — nur die „Loop-Closer". Volle Notizen + Refs in **§2 → „MCP Apps evaluieren"** (dort früher als *post-launch* markiert — jetzt vom User nach vorne gezogen; ggf. Spec-RC-Status prüfen).
+2. **UI-Polish** — allgemeiner visueller Feinschliff der Oberfläche für ein rundes Bezahl-Produkt-Gefühl: Konsistenz (Abstände/Typo/Farben/Radien), Hover-/Focus-/Disabled-/Empty-States, Microcopy, Übergänge. Beim Durchgehen konkrete Punkte sammeln und abarbeiten.
+
+> Davor/parallel sinnvoll: die offenen **manuellen Smoke-Tests** aus „Status Session 30" einmal durchklicken (History-Hub + a11y-Modale).
 
 ---
 
