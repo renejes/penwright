@@ -60,7 +60,7 @@ To stop working on a project without quitting the app, use **File -> Close Proje
 ```
 The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in the top bar; clicking one shows that panel, clicking the active one collapses the sidebar. The **＋ button** on the left of the toolbar opens the insert menu (see [Inserting content](#inserting-content---button--and-)). The **status bar centre** is the contextual **Look** control (Chapter Look / Global-Look / Look — see [the Look model](#design--the-look-model)). There is no separate "Design" tab — design lives in `style.typ` and the status bar.
 
-**Interface language (English / German):** Penwright picks your OS language on first launch. Switch it anytime with the small **DE/EN toggle** at the right of the status bar, on the Start Screen (top-right), or under **Document → Document Settings → Interface**. (This is the *app* language — separate from a document's text language, which is `#set text(lang: …)`.)
+**Interface language (English / German):** Penwright picks your OS language on first launch. Switch it anytime with the small **DE/EN toggle** at the right of the status bar, or under **Document → Document Settings → Interface**. (This is the *app* language — separate from a document's text language, which is `#set text(lang: …)`.)
 
 ### Toggling panels
 
@@ -699,7 +699,7 @@ Penwright ships a built-in MCP server (Model Context Protocol) that lets externa
 
 ### What can the MCP server do?
 
-Over MCP (56 tools) the AI can:
+Over MCP (57 tools) the AI can:
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
 - Change document settings (font, size, language, margins, …) and apply style templates
 - Manage chapters and bibliography end-to-end (incl. anchor-based comment / footnote / cross-reference inserts)
@@ -806,9 +806,9 @@ You don't need to edit the config every time you switch projects. Just tell Clau
 
 Claude will call `penwright_set_project` and work with the new project from there on.
 
-### Available tools (56)
+### Available tools (57)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 56 tools with one-line descriptions, grouped by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 57 tools with one-line descriptions, grouped by category:
 
 **Project & files (5)**
 
@@ -830,7 +830,7 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 - `penwright_get_settings` — Read the document settings (language + bibliography style; everything else has lived in the Design editor since Phase A).
 - `penwright_update_settings` — Update document settings; only passed keys are modified.
 
-**Design (15) — themes, layouts, palette, fonts, elements, section styles**
+**Design (16) — themes, layouts, palette, fonts, elements, section styles, selection handoff**
 
 The structured design surface — the visual Look designer (open `style.typ`). Writes directly to `.penwright/style.json`, regenerates `style.typ`, ensures the root `.typ` file has `#import "style.typ": *` + `#show: apply-style` at the top. Theme / layout swaps preserve `style.custom.preamble` (the user escape-hatch block) and `style.sections` (per-chapter section styles).
 
@@ -849,6 +849,7 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 - `penwright_define_section_style` — Create/update a section overlay (from a preset and/or explicit accent / fonts / columns / heading overrides); regenerates a `#let <id>-style` per variant.
 - `penwright_apply_section_style` — Assign a variant to one chapter (injects the scoped `#show`; auto-defines a preset if needed). Restyles just that chapter; page geometry stays document-level.
 - `penwright_clear_section_style` — Remove the section opt-in from a chapter.
+- `penwright_get_selection` — Design-with-AI handoff: read the pinned editor selection from `.penwright/selection.json` (anchor text + occurrence + a design snapshot); the agent acts at the anchor, and the watcher clears the pin after the external edit.
 
 **Chapters & structure (6)**
 

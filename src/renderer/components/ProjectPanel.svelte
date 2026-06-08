@@ -96,9 +96,13 @@
   }
 
   async function saveVersion() {
-    if (!versionMessage.trim() || changedFiles.length === 0) return;
+    if (!versionMessage.trim() || saving) return;
+    // First version: the project has no repo yet (`!isRepo`). There are no
+    // changed files to "select" because there's nothing to diff against, so we
+    // commit the whole project. An existing repo still requires a selection.
+    const firstVersion = !isRepo;
     const selected = changedFiles.filter(f => f.selected).map(f => f.path);
-    if (selected.length === 0) return;
+    if (!firstVersion && selected.length === 0) return;
 
     saving = true;
     try {
@@ -106,13 +110,13 @@
       await api.invoke('git:ensureRepo');
       const result = await api.invoke('git:saveVersion', {
         message: versionMessage.trim(),
-        files: selected,
+        // First version → no file list → backend stages everything (`git add -A`).
+        files: firstVersion ? undefined : selected,
       }) as { sha: string | null; skipped: boolean };
 
-      if (result.sha) {
-        versionMessage = '';
-        await refreshStatus();
-      }
+      if (result.sha) versionMessage = '';
+      // Always refresh: the first commit flips `isRepo` to true and clears the list.
+      await refreshStatus();
     } catch (err) {
       console.error('[ProjectPanel] saveVersion failed:', err);
       alert(t().project.saveFailed(err instanceof Error ? err.message : String(err)));
@@ -190,7 +194,13 @@
   }
 
   const selectedCount = $derived(changedFiles.filter(f => f.selected).length);
-  const canSave = $derived(versionMessage.trim().length > 0 && selectedCount > 0 && !saving);
+  // Enable when there's a name AND (a file is selected, OR this is the very first
+  // version of a not-yet-versioned project — which commits everything). `!loading`
+  // guards the brief window before `isRepo` is known, so an existing repo never
+  // mis-fires a "first version" whole-project commit.
+  const canSave = $derived(
+    versionMessage.trim().length > 0 && !saving && !loading && (selectedCount > 0 || !isRepo),
+  );
 </script>
 
 <div class="project-panel">
@@ -232,7 +242,7 @@
         class="save-btn"
         onclick={saveVersion}
         disabled={!canSave}
-        title={selectedCount === 0 ? t().project.saveDisabledNoSelection : t().project.saveDisabledTitle}
+        title={selectedCount === 0 && isRepo ? t().project.saveDisabledNoSelection : t().project.saveDisabledTitle}
       >
         {saving ? t().project.saving : t().project.saveVersion}
       </button>

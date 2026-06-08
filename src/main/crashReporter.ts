@@ -12,6 +12,7 @@ import { app, crashReporter as electronCrashReporter } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { appState } from './appState';
 
 const REPORTS_DIRNAME = 'crash-reports';
 const SHOWN_MARKER = '.last-shown';
@@ -130,9 +131,11 @@ function buildReport(args: {
 
   let projectInfoLines: string[] = [];
   try {
-    // Lazy import to keep this module decoupled from appState wiring.
-    // Failure here is fine — we just skip the project block.
-    const { appState } = require('./appState') as typeof import('./appState');
+    // `appState` is statically imported (a leaf singleton — no circular dep).
+    // It must NOT be a runtime `require('./appState')`: electron-vite bundles
+    // the main process into a single file, so a relative require throws at
+    // runtime and the project-context block would silently never appear.
+    // Failure here is still fine — we just skip the project block.
     if (appState.projectDir) {
       const fileCount = countProjectFiles(appState.projectDir);
       projectInfoLines = [

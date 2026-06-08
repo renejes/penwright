@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **56 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **57 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
 
 ---
 
@@ -13,10 +13,10 @@ AI-Desktop-App (Claude, Codex, ...)
   |
   | stdio (JSON-RPC)
   v
-Penwright MCP Server (Node.js)
+Penwright MCP Server (Standalone-Binary, Bun-compiled)
   |
   |-- Liest/schreibt .typ Dateien
-  |-- Kompiliert via typst CLI
+  |-- Kompiliert via gebuendelte typst-Binary
   |-- Verwaltet Projekt-Struktur
   |-- Git-Operationen
 ```
@@ -25,39 +25,51 @@ Penwright MCP Server (Node.js)
 
 ## Setup
 
-### 1. MCP Server bauen
+**Der normale Weg ist der Auto-Discovery-Wizard in der App** — du musst nichts von Hand bauen oder konfigurieren.
+
+### Empfohlen: Auto-Setup ueber die App
+
+1. Penwright oeffnen → **Hilfe → Mit Claude Desktop verbinden** (MCP-Setup-Wizard, `McpSetupWizard.svelte`). Voraussetzung: Claude Desktop ist installiert + eine gueltige Penwright-Lizenz (`pw_LIC…`).
+2. Der Wizard kopiert die **Bun-kompilierte Standalone-Binary** (`penwright-mcp`, ~64 MB) aus dem App-Bundle (`Contents/Resources/mcp/bin/`) nach `~/Library/Application Support/Penwright/mcp-server/` und traegt einen `Penwright`-Eintrag in `~/Library/Application Support/Claude/claude_desktop_config.json` ein — **idempotent**, andere `mcpServers` bleiben erhalten, mit timestamped Backup.
+3. In den Eintrag schreibt der Wizard die noetigen Env-Variablen:
+   - `PENWRIGHT_LICENSE_KEY` — der Lizenz-Key (Server validiert beim Start selbst).
+   - `TYPST_BIN` / `TYPST_PACKAGE_PATH` / `TYPST_FONT_PATH` — zeigen auf die gebuendelte Typst-Binary, die `@preview/*`-Packages und die OFL-Fonts im App-Bundle, **damit der Server auch auf einer Maschine ohne System-Typst kompiliert/exportiert**.
+4. Claude Desktop neu starten. Die Penwright-Tools erscheinen im MCP-Menue.
+
+Die Binary ist **von der laufenden App entkoppelt** — Claude Desktop kann sie unabhaengig spawnen, Reihenfolge egal, und Penwright zu beenden killt den MCP-Child nicht. (Plattformen: **macOS getestet**, Windows verdrahtet aber ungetestet; Linux n/a — kein Claude Desktop.) Aendert sich Binary oder Config-Schema, wird `MCP_SETUP_VERSION` (in `mcpSetup.ts`) erhoeht und der Wizard re-triggert.
+
+### Manuell (Power-User / Dev)
+
+Wer den Server unter eigenem Node laufen lassen will:
 
 ```bash
-cd vswrite-desktop
-npm run build:mcp    # -> dist/mcp/server.mjs
+npm run build:mcp          # -> dist/mcp/server.mjs           (esbuild, braucht Node 20+ zum Ausfuehren)
+# ODER die Standalone-Binary selbst bauen (braucht Bun):
+npm run build:mcp-binary   # -> dist/mcp/bin/penwright-mcp-<triple>   (bun build --compile)
 ```
 
-### 2. Claude Desktop konfigurieren
-
-Datei: `~/Library/Application Support/Claude/claude_desktop_config.json`
+`~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "Penwright": {
       "command": "node",
-      "args": [
-        "/ABSOLUTE/PATH/TO/vswrite-desktop/dist/mcp/server.mjs"
-      ]
+      "args": ["/ABSOLUTE/PATH/TO/vswrite-desktop/dist/mcp/server.mjs"],
+      "env": {
+        "PENWRIGHT_LICENSE_KEY": "pw_LIC…",
+        "TYPST_BIN": "/opt/homebrew/bin/typst"
+      }
     }
   }
 }
 ```
 
-Kein `--project` Pfad noetig — der Agent wechselt Projekte dynamisch via `penwright_set_project`.
-
-### 3. Claude Desktop neustarten
-
-Claude sieht jetzt die Penwright-Tools im MCP-Menue.
+Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penwright_set_project`. Beim manuellen Node-Pfad muss Typst im PATH sein **oder** `TYPST_BIN` gesetzt. Danach Claude Desktop neu starten — Claude sieht die Penwright-Tools im MCP-Menue.
 
 ---
 
-## Verfuegbare Tools (56)
+## Verfuegbare Tools (57)
 
 ### Projekt & Dateien (5)
 
@@ -87,7 +99,7 @@ Document Settings sind seit Session 22 auf `lang` + `bibliographyStyle` reduzier
 | `penwright_get_settings` | Document Settings lesen (lang + bibliographyStyle) |
 | `penwright_update_settings` | Settings aendern (nur geaenderte Keys angeben) |
 
-### Design (15) — Themes, Layouts, Palette, Fonts, Elements, Section Styles
+### Design (16) — Themes, Layouts, Palette, Fonts, Elements, Section Styles, Selection-Handoff
 
 Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach `.penwright/style.json`, regeneriert `style.typ`, und stellt sicher dass die root-`.typ` Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Operationen sind idempotent und preservieren `style.custom.preamble` (User-Escape-Hatch-Code) **und `style.sections`** (per-Chapter Section Styles) bei Theme- und Layout-Swaps.
 
@@ -108,6 +120,7 @@ Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach
 | `penwright_define_section_style` | Variante anlegen/aendern — `fromPreset` als Startpunkt und/oder explizite Overrides (accent / fonts / baseSize / leading / columns / h1*). Schreibt nach `style.sections`, regeneriert `style.typ` mit einem `#let <id>-style(body)` pro Variante |
 | `penwright_apply_section_style` | Variante einem Kapitel zuweisen — injiziert den scoped `#import "../style.typ": <id>-style` + `#show: <id>-style` oben in die Kapitel-Datei. Auto-definiert ein Preset falls noetig. Restyled NUR dieses Kapitel (accent / fonts / columns / headings); Page-Geometrie + Running-Heads bleiben dokument-level. Danach `penwright_compile` |
 | `penwright_clear_section_style` | Section-Opt-in aus einem Kapitel entfernen (zurueck zum Dokument-Default-Look). Die Variante bleibt in `style.json` definiert |
+| `penwright_get_selection` | **Design-with-AI-Handoff:** liest die im Editor gepinnte Auswahl aus `.penwright/selection.json` — Anker-Text + 1-basierte Occurrence + ein Design-Snapshot (Theme / Palette / Fonts / Layout / SectionStyle / grobe `usedElements`). Der Agent handelt an der Anker-Stelle (`insert_design_element` oder lokalisiertes Typst); der Watcher loescht den Pin automatisch, nachdem die Datei extern geaendert wurde |
 
 ### Kapitel & Struktur (6)
 
@@ -434,11 +447,15 @@ Der Agent ruft sie ueber MCP `prompts/get` ab. Inhalt liegt in `<projekt>/.claud
 
 ## Voraussetzungen
 
-- **Node.js 20+** — Zum Ausfuehren des MCP-Servers
-- **Typst CLI** — Muss im PATH installiert sein (`typst --version`)
-- **Git** — Fuer Git-Operationen (optional)
+**Beim Auto-Setup (Standalone-Binary) brauchst du weder System-Node noch System-Typst** — die Binary ist eigenstaendig, und Typst-Binary/Packages/Fonts kommen gebuendelt aus dem App-Bundle (via `TYPST_BIN` & Co.). Noetig sind nur **Claude Desktop** + eine gueltige **Penwright-Lizenz** (`pw_LIC…`).
 
-### Typst installieren
+Fuer den **manuellen Node-Pfad** zusaetzlich:
+
+- **Node.js 20+** — zum Ausfuehren von `server.mjs`
+- **Typst CLI** im PATH (`typst --version`) **oder** `TYPST_BIN` gesetzt
+- **Git** — fuer die Versionen-/Git-Tools (optional; das Repo wird bei der ersten Version automatisch initialisiert)
+
+### Typst installieren (nur manueller Pfad)
 
 ```bash
 # macOS
@@ -455,19 +472,21 @@ winget install --id Typst.Typst
 
 ## Lizenz
 
-Der MCP Server erfordert eine **gueltige Lizenz** — denselben `pw_LIC…`-Key wie die App (Single-Tier, keine Stufen). Ohne gueltigen Key sind die Tools nicht verfuegbar.
+Der MCP Server erfordert eine **gueltige Lizenz** — denselben `pw_LIC…`-Key wie die App (Single-Tier, keine Stufen). Der Auto-Setup-Wizard schreibt den Key als `env.PENWRIGHT_LICENSE_KEY` in die Claude-Config; der Server validiert beim Start selbst. Ohne gueltigen Key sind die Tools nicht verfuegbar.
 
 ---
 
 ## Architektur
 
-Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft `typst` CLI fuer Kompilierung auf.
+Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft die (gebuendelte oder System-)`typst`-Binary fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts      <- Alle 56 Tools in einer Datei (~1.900 Zeilen)
-esbuild.mcp.mjs        <- Build-Script (ESM, Node 20)
-dist/mcp/server.mjs    <- Gebundelte Ausgabe
+src/mcp/server.ts             <- Alle 57 Tools in einer Datei (~2.800 Zeilen)
+esbuild.mcp.mjs               <- Build (ESM, Node 20) -> dist/mcp/server.mjs (Dev / manueller Node-Pfad)
+scripts/build-mcp-binary.mjs  <- Bun `--compile` -> dist/mcp/bin/penwright-mcp-<triple> (die ausgelieferte Standalone-Binary)
 ```
+
+Die **ausgelieferte Form** ist die Bun-kompilierte Standalone-Binary (~64 MB), gebuendelt im App-Bundle (`Contents/Resources/mcp/bin/`) und vom Wizard nach `~/Library/Application Support/Penwright/mcp-server/` kopiert — entkoppelt von der laufenden App. `dist/mcp/server.mjs` (esbuild) bleibt nur fuer den manuellen Node-Pfad.
 
 ### Abgrenzung
 

@@ -1,14 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t, i18nState, setLocale } from "@shared/i18n/store.svelte";
+  import { t } from "@shared/i18n/store.svelte";
   import logoSvg from "../assets/penwright-logo.svg";
-
-  // The Settings dialog (where the main language picker lives) needs an open
-  // project, so the Start Screen carries its own compact switcher.
-  const UI_LANGS = [
-    { value: "en", label: "EN" },
-    { value: "de", label: "DE" },
-  ] as const;
 
   let {
     onNewProject,
@@ -54,21 +47,6 @@
 </script>
 
 <div class="start-screen">
-  <!-- Compact UI-language switcher (the full picker lives in Settings, which
-       requires an open project). -->
-  <div class="lang-switch" role="group" aria-label={t().common.language}>
-    {#each UI_LANGS as l}
-      <button
-        class="lang-btn"
-        class:active={i18nState.locale === l.value}
-        onclick={() => setLocale(l.value)}
-        aria-pressed={i18nState.locale === l.value}
-      >
-        {l.label}
-      </button>
-    {/each}
-  </div>
-
   <div class="start-content">
     <!-- Logo & Title -->
     <div class="start-header">
@@ -150,41 +128,6 @@
       </div>
     {/if}
 
-    <!-- AI / Skills Info -->
-    <div class="info-section">
-      <h3>{t().startScreen.aiTitle}</h3>
-      <p>
-        {t().startScreen.skillsIntro}
-        <code>.claude/skills/</code>:
-      </p>
-      <div class="skills-grid">
-        <div class="skill-badge">
-          <span class="skill-icon">T</span>
-          <div>
-            <strong>typst</strong>
-            <span>{t().startScreen.skillTypst}</span>
-          </div>
-        </div>
-        <div class="skill-badge">
-          <span class="skill-icon">P</span>
-          <div>
-            <strong>penwright</strong>
-            <span>{t().startScreen.skillPenwright}</span>
-          </div>
-        </div>
-        <div class="skill-badge">
-          <span class="skill-icon">R</span>
-          <div>
-            <strong>research</strong>
-            <span>{t().startScreen.skillResearch}</span>
-          </div>
-        </div>
-      </div>
-      <p class="info-hint">
-        {t().startScreen.aiHint}
-      </p>
-    </div>
-
     <!-- Keyboard shortcuts hint -->
     <div class="shortcuts-hint">
       <span><kbd>Cmd+N</kbd> {t().startScreen.shortcutNew}</span>
@@ -196,7 +139,6 @@
 
 <style>
   .start-screen {
-    position: relative;
     flex: 1;
     display: flex;
     align-items: center;
@@ -204,39 +146,6 @@
     background: #fafafa;
     overflow-y: auto;
     padding: 20px 20px;
-  }
-
-  .lang-switch {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    display: flex;
-    gap: 2px;
-    padding: 2px;
-    background: #f1f0ec;
-    border: 1px solid #e2e0da;
-    border-radius: 7px;
-    z-index: 2;
-  }
-  .lang-btn {
-    border: none;
-    background: transparent;
-    color: #8a8174;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    padding: 3px 9px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-  .lang-btn:hover {
-    color: #211e1a;
-  }
-  .lang-btn.active {
-    background: #ffffff;
-    color: #a8503a;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .start-content {
@@ -447,91 +356,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  /* Info Section */
-  .info-section {
-    padding: 20px 24px;
-    background: #ffffff;
-    border: 1px solid #f0f0f0;
-    border-radius: 12px;
-    margin-bottom: 24px;
-  }
-
-  .info-section h3 {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 8px;
-  }
-
-  .info-section p {
-    font-size: 13px;
-    color: #666;
-    line-height: 1.6;
-    margin: 0 0 12px;
-  }
-
-  .info-section code {
-    background: #f5f5f5;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-    color: #555;
-  }
-
-  .info-section strong {
-    color: #333;
-  }
-
-  .skills-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-
-  .skill-badge {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    background: #fafafa;
-    border-radius: 8px;
-    border: 1px solid #f0f0f0;
-  }
-
-  .skill-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: #eef4ff;
-    color: #4f7df9;
-    font-size: 13px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .skill-badge strong {
-    font-size: 12px;
-    color: #333;
-    display: block;
-  }
-
-  .skill-badge span {
-    font-size: 10px;
-    color: #999;
-    line-height: 1.3;
-  }
-
-  .info-hint {
-    font-size: 12px !important;
-    color: #999 !important;
-    font-style: italic;
-    margin-bottom: 0 !important;
   }
 
   /* Shortcuts */

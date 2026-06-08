@@ -1,6 +1,6 @@
 /** Start screen (no project open). */
 export const startScreen = {
-  subtitle: 'WYSIWYG Editor for Typst',
+  subtitle: 'Typst, written visually',
 
   typstNotFound: 'Typst not found',
   typstNeeded: 'Live preview and PDF export require the Typst CLI.',
@@ -17,13 +17,6 @@ export const startScreen = {
   openProjectDesc: 'Open an existing project folder',
 
   recent: 'Recent Projects',
-
-  aiTitle: 'AI integration',
-  skillsIntro: 'Every new project automatically gets 3 Claude Code Skills deployed to',
-  skillTypst: 'Typst language reference',
-  skillPenwright: 'Project conventions',
-  skillResearch: 'Deep web research',
-  aiHint: 'Connect Claude Desktop (Help → Connect to Claude Desktop) and AI agents can edit your .typ files directly — the editor updates live.',
 
   shortcutNew: 'New',
   shortcutOpen: 'Open',

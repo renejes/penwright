@@ -60,7 +60,7 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 ```
 Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitzen in der Top-Bar; Klick zeigt das Panel, Klick auf den aktiven Tab klappt die Seitenleiste ein. Der **＋-Button** links in der Toolbar öffnet das Einfügen-Menü (siehe [Inhalte einfügen](#inhalte-einfügen--button--und-)). Die **Mitte der Statusleiste** ist die kontextuelle **Look**-Steuerung (Kapitel-Look / Global-Look / Look — siehe [das Look-Modell](#design--das-look-modell)). Es gibt keinen separaten „Design"-Tab — Gestalten lebt in `style.typ` und der Statusleiste.
 
-**Oberflächensprache (Englisch / Deutsch):** Penwright übernimmt beim ersten Start die OS-Sprache. Wechseln kannst du jederzeit über den kleinen **DE/EN-Schalter** rechts in der Statusleiste, auf dem Startbildschirm (oben rechts) oder unter **Document → Document Settings → Oberfläche**. (Das ist die *App*-Sprache — getrennt von der Textsprache eines Dokuments, die `#set text(lang: …)` setzt.)
+**Oberflächensprache (Englisch / Deutsch):** Penwright übernimmt beim ersten Start die OS-Sprache. Wechseln kannst du jederzeit über den kleinen **DE/EN-Schalter** rechts in der Statusleiste oder unter **Document → Document Settings → Oberfläche**. (Das ist die *App*-Sprache — getrennt von der Textsprache eines Dokuments, die `#set text(lang: …)` setzt.)
 
 ### Panels ein-/ausblenden
 
@@ -699,7 +699,7 @@ Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit de
 
 ### Was kann der MCP-Server?
 
-Die KI kann ueber den MCP-Server (56 Tools):
+Die KI kann ueber den MCP-Server (57 Tools):
 - Typst-Dokumente oeffnen, lesen, bearbeiten und verifizieren (`compile` ist reiner Verifier; das Schreiben von Artefakten uebernehmen die Export-Tools)
 - Dokument-Einstellungen aendern (Schriftart, Groesse, Sprache, Raender …) und Style-Templates anwenden
 - Kapitel und Bibliographie End-to-End verwalten (inkl. anker-basierter Inserts fuer Comments, Footnotes, Cross-References)
@@ -806,9 +806,9 @@ Du musst die Config **nicht** jedes Mal aendern, wenn du das Projekt wechselst. 
 
 Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
-### Verfuegbare Tools (56)
+### Verfuegbare Tools (57)
 
-Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 56 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
+Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 57 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
 **Projekt & Dateien (5)**
 
@@ -830,7 +830,7 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 - `penwright_get_settings` — Liest die Document-Settings (Sprache + Bibliographie-Stil; alles andere lebt seit Phase A im Design-Editor).
 - `penwright_update_settings` — Aendert Document-Settings; nur uebergebene Keys werden modifiziert.
 
-**Design (15) — Themes, Layouts, Palette, Fonts, Elements, Section Styles**
+**Design (16) — Themes, Layouts, Palette, Fonts, Elements, Section Styles, Selection-Handoff**
 
 Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.typ`). Schreibt direkt nach `.penwright/style.json`, regeneriert `style.typ`, stellt sicher dass die Root-`.typ`-Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Theme-/Layout-Swaps preservieren `style.custom.preamble` (User-Escape-Hatch-Code) und `style.sections` (per-Chapter Section Styles).
 
@@ -849,6 +849,7 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 - `penwright_define_section_style` — Section-Overlay anlegen/aendern (aus Preset und/oder explizite accent / fonts / columns / heading-Overrides); regeneriert ein `#let <id>-style` pro Variante.
 - `penwright_apply_section_style` — Variante einem Kapitel zuweisen (injiziert das scoped `#show`; auto-definiert Preset falls noetig). Restyled nur dieses Kapitel; Page-Geometrie bleibt dokument-level.
 - `penwright_clear_section_style` — Section-Opt-in aus einem Kapitel entfernen.
+- `penwright_get_selection` — Design-with-AI-Handoff: liest die gepinnte Editor-Auswahl aus `.penwright/selection.json` (Anker-Text + Occurrence + Design-Snapshot); der Agent handelt an der Anker-Stelle, der Watcher loescht den Pin nach der externen Aenderung.
 
 **Kapitel & Struktur (6)**
 

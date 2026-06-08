@@ -6,6 +6,7 @@
 import { ipcMain, dialog, shell, app, clipboard } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { execFileSync } from 'child_process';
 import { parseSettings } from '../shared/settingsParser';
 import { resolveIncludes } from '../shared/mergeDocument';
 import { splitIntoChapters, slugify } from '../shared/splitDocument';
@@ -15,6 +16,7 @@ import { resolveDict } from '../shared/i18n';
 import { buildMenu } from './menuBuilder';
 import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, getAiSnapshotsList, getAiSnapshotCount, closeProjectInteractive } from './fileManager';
 import { isPathWithin } from './pathSecurity';
+import { getTypstPath } from './typstPath';
 
 /** Validates that a file path is within the current project directory (symlink-aware). */
 function isPathWithinProject(filePath: string): boolean {
@@ -534,8 +536,11 @@ export function setupIPC(): void {
 
   ipcMain.handle('app:checkTypst', () => {
     try {
-      const { getTypstPath } = require('./typstPath');
-      require('child_process').execFileSync(getTypstPath(), ['--version'], { stdio: 'ignore' });
+      // NOTE: `getTypstPath` must be a static import (above), NOT a runtime
+      // `require('./typstPath')` — electron-vite bundles the whole main process
+      // into a single `dist/main/index.js`, so a relative `require` at runtime
+      // throws "Cannot find module" and this handler would always return false.
+      execFileSync(getTypstPath(), ['--version'], { stdio: 'ignore' });
       return true;
     } catch {
       return false;
