@@ -51,6 +51,8 @@ import {
   clearSelectionPin,
   getMcpSetupVersion,
   saveMcpSetupVersion,
+  getMcpTarget,
+  setMcpTarget,
   type PanelState,
   type BackupConfig,
   type ProjectPreferences,
@@ -80,7 +82,15 @@ import {
   openClaudeDesktop,
   isMcpSetupSupported,
   MCP_SETUP_VERSION,
+  buildMcpEnv,
 } from './mcpSetup';
+import {
+  ensureMcpTarget,
+  probeMetaMcp,
+  getMetaConfigPath,
+  getClaudeCodeConfigPath,
+  type McpTarget,
+} from './mcpRegistration';
 import { activateLicense, validateLicense, deactivateLicense, getEntitlement } from './licenseManager';
 import { getLicenseData } from './persistenceManager';
 import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
@@ -91,6 +101,7 @@ import {
   markLatestAsShown,
   deleteAllReports,
   getReportsDir,
+  addBreadcrumb,
   type RendererCrashPayload,
 } from './crashReporter';
 import { listProjectLabels } from './projectLabels';
@@ -788,6 +799,36 @@ export function setupIPC(): void {
     // nag again until the next bump.
     saveMcpSetupVersion(MCP_SETUP_VERSION);
     return { ok: true };
+  });
+
+  // ─── MCP Registration target (Meta-MCP vs Claude Code) ───
+  // Where this app registers ITSELF as an MCP server. Exactly one of the two
+  // hosts is active; see mcpRegistration.ts.
+  ipcMain.handle('mcp:getConnectionStatus', async () => {
+    const target = getMcpTarget();
+    const metaReachable = await probeMetaMcp();
+    const defaultTarget: McpTarget = metaReachable ? 'meta' : 'claude';
+    const { access } = buildMcpEnv();
+    const ent = getEntitlement();
+    return {
+      target,                                  // null until the user/default decides
+      effectiveTarget: target ?? defaultTarget,
+      defaultTarget,
+      metaReachable,
+      access,                                  // 'licensed' | 'trial' | 'expired'
+      trialDaysLeft: ent.trialDaysLeft ?? null,
+      supported: true,                         // Meta-MCP + Claude Code work on all platforms
+      metaConfigPath: getMetaConfigPath(),
+      claudeConfigPath: getClaudeCodeConfigPath(),
+    };
+  });
+  ipcMain.handle('mcp:setTarget', async (_event, target: string) => {
+    if (target !== 'meta' && target !== 'claude') {
+      throw new Error(`Invalid MCP target: ${target}`);
+    }
+    setMcpTarget(target);
+    addBreadcrumb('mcp', `setTarget ${target}`);
+    return await ensureMcpTarget(target);
   });
 
   // ─── License Handlers ──────────────────────────

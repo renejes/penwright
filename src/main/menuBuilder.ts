@@ -271,6 +271,10 @@ export function buildMenu(state: AppState): void {
         },
         { type: 'separator' as const },
         {
+          label: m.mcpConnection,
+          click: () => send('showMcpConnection'),
+        },
+        {
           label: m.connectClaude,
           click: () => send('showMcpSetupWizard'),
         },

@@ -222,6 +222,8 @@ interface ServerState {
   projectDir: string;
   currentFile: string | null;
   licenseKey: string | null;
+  /** Epoch-ms the local 14-day trial ends; set during the demo (no license). */
+  trialUntil: number | null;
   licenseValidated: boolean;
 }
 
@@ -229,6 +231,7 @@ const state: ServerState = {
   projectDir: '',
   currentFile: null,
   licenseKey: null,
+  trialUntil: null,
   licenseValidated: false,
 };
 
@@ -241,6 +244,9 @@ function parseArgs(): void {
       state.projectDir = path.resolve(args[++i]);
     } else if (args[i] === '--license-key' && args[i + 1]) {
       state.licenseKey = args[++i];
+    } else if (args[i] === '--trial-until' && args[i + 1]) {
+      const v = Number(args[++i]);
+      if (Number.isFinite(v)) state.trialUntil = v;
     } else if (args[i] === '--file' && args[i + 1]) {
       const filePath = path.resolve(args[++i]);
       state.currentFile = filePath;
@@ -253,6 +259,12 @@ function parseArgs(): void {
   // License key from env var
   if (!state.licenseKey && process.env.PENWRIGHT_LICENSE_KEY) {
     state.licenseKey = process.env.PENWRIGHT_LICENSE_KEY;
+  }
+
+  // Trial-until from env var (set by Penwright during the 14-day demo).
+  if (state.trialUntil === null && process.env.PENWRIGHT_TRIAL_UNTIL) {
+    const v = Number(process.env.PENWRIGHT_TRIAL_UNTIL);
+    if (Number.isFinite(v)) state.trialUntil = v;
   }
 
   // Fallback: env var
@@ -2750,17 +2762,32 @@ async function validateProLicense(): Promise<boolean> {
   }
 }
 
+/** True while the local 14-day demo is still running. */
+function trialActive(): boolean {
+  return state.trialUntil !== null && Date.now() < state.trialUntil;
+}
+
+/**
+ * MCP access is granted by a valid paid license OR an active 14-day trial —
+ * the full feature set is unlocked during the demo.
+ */
+async function validateAccess(): Promise<boolean> {
+  if (await validateProLicense()) return true;
+  return trialActive();
+}
+
 // ─── Start Server ────────────────────────────────────
 
 async function main() {
   parseArgs();
 
-  // Validate the license for MCP access (single tier — any valid pw_LIC key)
-  state.licenseValidated = await validateProLicense();
+  // Access = paid license OR live 14-day trial. The full tool set runs in both.
+  state.licenseValidated = await validateAccess();
   if (!state.licenseValidated) {
     console.error(
-      'Penwright MCP Server requires a valid license.\n' +
-      'Provide your key via --license-key pw_LIC_xxx or PENWRIGHT_LICENSE_KEY env var.\n' +
+      'Penwright MCP Server requires a valid license or an active 14-day trial.\n' +
+      'Provide your key via --license-key pw_LIC_xxx or PENWRIGHT_LICENSE_KEY env var,\n' +
+      'or run it from Penwright during the free trial.\n' +
       'Get a license at https://buy.polar.sh/polar_cl_u6Fn7z0pPvGUX6pWvPJE4U9bWSBg80fiNdJw12vbJzm'
     );
     process.exit(1);

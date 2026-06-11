@@ -212,3 +212,12 @@ export function getEntitlement(): Entitlement {
 
   return { access: 'expired', tier: null, key: null };
 }
+
+/**
+ * Absolute epoch-ms at which the local 14-day trial ends (starting the clock
+ * if it hasn't been started yet). Baked into the MCP server's config env as
+ * `PENWRIGHT_TRIAL_UNTIL` so the decoupled server unlocks for the full demo.
+ */
+export function getTrialEndMs(): number {
+  return ensureTrialStarted() + TRIAL_DAYS * 86400000;
+}

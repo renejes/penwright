@@ -245,6 +245,11 @@ export function handleMessage(message: ExtensionMessage): void {
     window.dispatchEvent(new CustomEvent('penwright:show-mcp-wizard'));
   }
 
+  // Help menu → "MCP-Verbindung…" — the Meta-MCP vs Claude Code selector.
+  if (msg.type === 'showMcpConnection') {
+    window.dispatchEvent(new CustomEvent('penwright:show-mcp-connection'));
+  }
+
   // Native-menu actions whose logic lives in the MAIN process. The menu sends
   // them to the renderer (webContents.send); the renderer doesn't handle them
   // itself, so relay them to the main 'penwright' switch. Without this, menu

@@ -22,7 +22,7 @@ import { app, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getLicenseData } from './persistenceManager';
+import { getEntitlement, getTrialEndMs, type Access } from './licenseManager';
 import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath';
 
 /**
@@ -32,8 +32,13 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
  */
 export const MCP_SETUP_VERSION = '0.11.0';
 
-/** Key used in Claude Desktop's `mcpServers` map. */
-const MCP_SERVER_KEY = 'penwright';
+/**
+ * Key/name this app registers itself under in every MCP host — Claude
+ * Desktop's `mcpServers` map, Claude Code's `~/.claude.json`, and Meta-MCP's
+ * server list all use this exact name. Deduplication on the host side keys on
+ * it, so it MUST stay stable.
+ */
+export const MCP_SERVER_KEY = 'penwright';
 
 export interface ClaudeCheck {
   installed: boolean;
@@ -175,6 +180,68 @@ function copyExecutable(src: string, dst: string): void {
 }
 
 /**
+ * Copy the bundled MCP binary out to the stable user-writable location and
+ * return that path. Shared by the Claude-Desktop wizard (`setupMcpServer`) and
+ * the Meta-MCP / Claude-Code registration engine (`mcpRegistration.ts`) so all
+ * three hosts point at the exact same runnable binary.
+ *
+ * Rewrites on every call so updating Penwright upgrades the sidecar in
+ * lockstep. In dev, if the bundle output hasn't been built yet but a prior
+ * install exists, that install is reused; otherwise this throws with a
+ * build hint.
+ */
+export function ensureInstalledBinary(): string {
+  const installed = getInstalledBinaryPath();
+  const bundled = getBundledBinaryPath();
+  if (!fs.existsSync(bundled)) {
+    if (fs.existsSync(installed)) return installed;
+    throw new Error(
+      `Bundled MCP binary not found at ${bundled}. ` +
+      (app.isPackaged
+        ? 'Reinstall Penwright or contact support — the binary is missing from the bundle.'
+        : 'Run `node scripts/build-mcp-binary.mjs` first.'),
+    );
+  }
+  copyExecutable(bundled, installed);
+  return installed;
+}
+
+/**
+ * Build the environment block every MCP host gets for the Penwright server.
+ *
+ * Access is unlocked for the FULL 14-day trial as well as for paid licenses —
+ * exactly one of two credentials is baked in:
+ *   - PENWRIGHT_LICENSE_KEY → present when a `pw_LIC…` key is active.
+ *   - PENWRIGHT_TRIAL_UNTIL → epoch-ms the trial ends; present during the demo
+ *     when no license is active. The server starts while `now < this`.
+ * Once the trial has expired with no license, neither is set and the server
+ * refuses to start (the `access` field is `'expired'`).
+ *
+ *   - TYPST_BIN / TYPST_PACKAGE_PATH / TYPST_FONT_PATH → the bundled Typst
+ *     toolchain so the decoupled server compiles/exports on a machine with no
+ *     system Typst. All three point into the current .app's Resources.
+ *
+ * Unlike `setupMcpServer`, this never throws — callers inspect `access` to
+ * decide whether to warn (`'expired'`) or note the demo (`'trial'`).
+ */
+export function buildMcpEnv(): { env: Record<string, string>; access: Access } {
+  const ent = getEntitlement();
+  const env: Record<string, string> = {};
+  if (ent.access === 'licensed' && ent.key) {
+    env['PENWRIGHT_LICENSE_KEY'] = ent.key;
+  } else if (ent.access === 'trial') {
+    env['PENWRIGHT_TRIAL_UNTIL'] = String(getTrialEndMs());
+  }
+  const typstBin = getTypstPath();
+  if (typstBin && path.isAbsolute(typstBin)) env['TYPST_BIN'] = typstBin;
+  const pkgPath = getTypstPackagePath();
+  if (pkgPath) env['TYPST_PACKAGE_PATH'] = pkgPath;
+  const fontPath = getTypstFontPath();
+  if (fontPath) env['TYPST_FONT_PATH'] = fontPath;
+  return { env, access: ent.access };
+}
+
+/**
  * Merge the Penwright entry into Claude Desktop's `mcpServers` map without
  * touching any other server entries.
  *
@@ -189,31 +256,21 @@ export async function setupMcpServer(): Promise<SetupResult> {
     throw new Error('MCP setup is only supported on macOS and Windows.');
   }
 
-  // The MCP server enforces a valid license at startup. Pull the key the
-  // user activated in the app and embed it in the config as an env var
-  // so Claude Desktop can spawn the server independently of Penwright.
-  const license = getLicenseData();
-  if (!license.licenseKey || !license.licenseKey.startsWith('pw_LIC')) {
+  // The MCP server runs for the full 14-day demo AND with a paid license — the
+  // matching credential (license key or trial-until timestamp) is baked into
+  // the config env so Claude Desktop can spawn it independently of Penwright.
+  // It only refuses once the demo has expired with no license.
+  const mcpEnv = buildMcpEnv();
+  if (mcpEnv.access === 'expired') {
     throw new Error(
-      'Du brauchst eine aktivierte Penwright-Lizenz, damit der MCP-Server startet. ' +
-      'Aktiviere sie unter "Lizenz" in der Status-Leiste und fuehre die Einrichtung dann erneut aus.',
-    );
-  }
-
-  const bundled = getBundledBinaryPath();
-  if (!fs.existsSync(bundled)) {
-    throw new Error(
-      `Bundled MCP binary not found at ${bundled}. ` +
-      (app.isPackaged
-        ? 'Reinstall Penwright or contact support — the binary is missing from the bundle.'
-        : 'Run `node scripts/build-mcp-binary.mjs` first.'),
+      'Deine 14-taegige Penwright-Demo ist abgelaufen. Aktiviere eine Lizenz unter ' +
+      '"Lizenz" in der Status-Leiste, um den MCP-Server weiter zu nutzen.',
     );
   }
 
   // Copy into a stable, user-writable location. We rewrite on every run
   // so updating Penwright upgrades the sidecar in lockstep.
-  const installed = getInstalledBinaryPath();
-  copyExecutable(bundled, installed);
+  const installed = ensureInstalledBinary();
 
   const configPath = getClaudeConfigPath();
   const configDir = path.dirname(configPath);
@@ -265,13 +322,7 @@ export async function setupMcpServer(): Promise<SetupResult> {
   // TYPST_BIN the MCP server falls back to bare `typst` on PATH, which a clean
   // machine doesn't have → compile/export would fail. (The .mcpb distribution
   // sets the same var via its manifest; the in-app wizard must match.)
-  const env: Record<string, string> = { PENWRIGHT_LICENSE_KEY: license.licenseKey };
-  const typstBin = getTypstPath();
-  if (typstBin && path.isAbsolute(typstBin)) env['TYPST_BIN'] = typstBin;
-  const pkgPath = getTypstPackagePath();
-  if (pkgPath) env['TYPST_PACKAGE_PATH'] = pkgPath;
-  const fontPath = getTypstFontPath();
-  if (fontPath) env['TYPST_FONT_PATH'] = fontPath;
+  const { env } = mcpEnv;
 
   const newEntry: Record<string, unknown> = {
     command: installed,

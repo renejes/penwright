@@ -72,6 +72,13 @@ interface StoreSchema {
   backupConfig: BackupConfig;
   /** Last MCP_SETUP_VERSION the user ran the Claude-Desktop setup for. */
   mcpSetupVersion: string | null;
+  /**
+   * Which host this app registers its MCP server with: 'meta' (Meta-MCP proxy)
+   * or 'claude' (Claude Code, user scope). `null` = not yet chosen; the app
+   * applies a sensible default (Meta-MCP if reachable, else Claude Code) and
+   * the connection dialog auto-offers the choice until the user decides.
+   */
+  mcpTarget: 'meta' | 'claude' | null;
   /** UI language ('de' | 'en'); null until the user picks one (then OS-resolved). */
   locale: 'de' | 'en' | null;
   /** Preview recompile behaviour: 'auto' (debounced while typing) or 'manual' (Refresh button only). */
@@ -107,6 +114,7 @@ const store = new Store<StoreSchema>({
     licenseBlob: null,
     backupConfig: DEFAULT_BACKUP_CONFIG,
     mcpSetupVersion: null,
+    mcpTarget: null,
     locale: null,
     previewMode: 'auto',
   },
@@ -241,6 +249,19 @@ export function getMcpSetupVersion(): string | null {
 
 export function saveMcpSetupVersion(version: string | null): void {
   store.set('mcpSetupVersion', version);
+}
+
+// ─── MCP Registration Target ────────────────────
+// Which host this app registers its MCP server with. `null` until the user
+// (or the smart default) decides; see mcpRegistration.ts.
+
+export function getMcpTarget(): 'meta' | 'claude' | null {
+  const t = store.get('mcpTarget');
+  return t === 'meta' || t === 'claude' ? t : null;
+}
+
+export function setMcpTarget(target: 'meta' | 'claude'): void {
+  store.set('mcpTarget', target === 'claude' ? 'claude' : 'meta');
 }
 
 // ─── Zotero ──────────────────────────────────────

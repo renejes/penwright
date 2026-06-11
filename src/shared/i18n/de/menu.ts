@@ -48,5 +48,6 @@ export const menu: MenuMessages = {
   keyboardShortcuts: 'Tastenkürzel',
   reportIssue: 'Problem melden',
   connectClaude: 'Mit Claude Desktop verbinden…',
+  mcpConnection: 'MCP-Verbindung…',
   openCrashReports: 'Absturzberichte öffnen',
 };

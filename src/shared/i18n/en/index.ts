@@ -15,6 +15,7 @@ import { look } from './look';
 import { designAi } from './designAi';
 import { onboarding } from './onboarding';
 import { mcp } from './mcp';
+import { mcpConnection } from './mcpConnection';
 import { backup } from './backup';
 import { crash } from './crash';
 import { version } from './version';
@@ -41,6 +42,7 @@ export const en = {
   designAi,
   onboarding,
   mcp,
+  mcpConnection,
   backup,
   crash,
   version,

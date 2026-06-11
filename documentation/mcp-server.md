@@ -29,7 +29,7 @@ Penwright MCP Server (Standalone-Binary, Bun-compiled)
 
 ### Empfohlen: Auto-Setup ueber die App
 
-1. Penwright oeffnen → **Hilfe → Mit Claude Desktop verbinden** (MCP-Setup-Wizard, `McpSetupWizard.svelte`). Voraussetzung: Claude Desktop ist installiert + eine gueltige Penwright-Lizenz (`pw_LIC…`).
+1. Penwright oeffnen → **Hilfe → Mit Claude Desktop verbinden** (MCP-Setup-Wizard, `McpSetupWizard.svelte`). Voraussetzung: Claude Desktop ist installiert + eine gueltige Penwright-Lizenz **oder eine laufende 14-Tage-Demo** (der MCP-Server ist in der kompletten Demo freigeschaltet — s. „Lizenz" unten).
 2. Der Wizard kopiert die **Bun-kompilierte Standalone-Binary** (`penwright-mcp`, ~64 MB) aus dem App-Bundle (`Contents/Resources/mcp/bin/`) nach `~/Library/Application Support/Penwright/mcp-server/` und traegt einen `Penwright`-Eintrag in `~/Library/Application Support/Claude/claude_desktop_config.json` ein — **idempotent**, andere `mcpServers` bleiben erhalten, mit timestamped Backup.
 3. In den Eintrag schreibt der Wizard die noetigen Env-Variablen:
    - `PENWRIGHT_LICENSE_KEY` — der Lizenz-Key (Server validiert beim Start selbst).
@@ -37,6 +37,15 @@ Penwright MCP Server (Standalone-Binary, Bun-compiled)
 4. Claude Desktop neu starten. Die Penwright-Tools erscheinen im MCP-Menue.
 
 Die Binary ist **von der laufenden App entkoppelt** — Claude Desktop kann sie unabhaengig spawnen, Reihenfolge egal, und Penwright zu beenden killt den MCP-Child nicht. (Plattformen: **macOS getestet**, Windows verdrahtet aber ungetestet; Linux n/a — kein Claude Desktop.) Aendert sich Binary oder Config-Schema, wird `MCP_SETUP_VERSION` (in `mcpSetup.ts`) erhoeht und der Wizard re-triggert.
+
+### Alternativ: Meta-MCP oder Claude Code (Startauswahl, `mcpRegistration.ts`)
+
+Statt (oder zusaetzlich zu) Claude Desktop kann Penwright sich auch bei **genau einem** von zwei weiteren Hosts registrieren — gewaehlt ueber **Hilfe → „MCP-Verbindung…"** (Dialog `McpConnectionDialog.svelte`, beim Erststart automatisch) oder den CLI-Flag `--mcp-target=meta|claude`:
+
+- **Meta-MCP** — lokaler Aggregator-Proxy auf `http://localhost:3663`. Registrierung per `POST /register` (Hot-Reload, dedupliziert per `name`); Deregistrierung durch Editieren der beobachteten `…/com.metamcp.desktop/config.json` (es gibt keinen HTTP-Unregister).
+- **Claude Code** — User-Scope (global): `claude mcp add --scope user penwright --env … -- <bin>`, mit Fallback auf ein direktes `~/.claude.json`-Edit, falls die `claude`-CLI nicht im PATH liegt.
+
+Es ist **immer nur genau eine** dieser beiden Registrierungen aktiv (kein Doppel-Eintrag). Beim Start wird der gewaehlte Zustand idempotent hergestellt: Ziel registrieren, anderes Ziel deregistrieren. Server-Definition (Binary + Env, inkl. der oben genannten Typst-Pfade und Lizenz/Trial-Credential) ist identisch zum Claude-Desktop-Eintrag. Der **Claude-Desktop-Wizard** oben bleibt davon unberuehrt (eigener Host, koexistiert).
 
 ### Manuell (Power-User / Dev)
 
@@ -447,7 +456,7 @@ Der Agent ruft sie ueber MCP `prompts/get` ab. Inhalt liegt in `<projekt>/.claud
 
 ## Voraussetzungen
 
-**Beim Auto-Setup (Standalone-Binary) brauchst du weder System-Node noch System-Typst** — die Binary ist eigenstaendig, und Typst-Binary/Packages/Fonts kommen gebuendelt aus dem App-Bundle (via `TYPST_BIN` & Co.). Noetig sind nur **Claude Desktop** + eine gueltige **Penwright-Lizenz** (`pw_LIC…`).
+**Beim Auto-Setup (Standalone-Binary) brauchst du weder System-Node noch System-Typst** — die Binary ist eigenstaendig, und Typst-Binary/Packages/Fonts kommen gebuendelt aus dem App-Bundle (via `TYPST_BIN` & Co.). Noetig sind nur **Claude Desktop** + eine gueltige **Penwright-Lizenz** (`pw_LIC…`) **oder eine laufende 14-Tage-Demo** (s. „Lizenz").
 
 Fuer den **manuellen Node-Pfad** zusaetzlich:
 
@@ -472,7 +481,13 @@ winget install --id Typst.Typst
 
 ## Lizenz
 
-Der MCP Server erfordert eine **gueltige Lizenz** — denselben `pw_LIC…`-Key wie die App (Single-Tier, keine Stufen). Der Auto-Setup-Wizard schreibt den Key als `env.PENWRIGHT_LICENSE_KEY` in die Claude-Config; der Server validiert beim Start selbst. Ohne gueltigen Key sind die Tools nicht verfuegbar.
+Der MCP Server laeuft mit einer **gueltigen Lizenz ODER waehrend der 14-Tage-Demo** — er ist in der kompletten Demo voll freigeschaltet (`validateAccess()` = gueltige Lizenz **oder** aktiver Trial). Konkret:
+
+- **Lizenz aktiv** → der App-seitige `buildMcpEnv()` schreibt `env.PENWRIGHT_LICENSE_KEY` (derselbe `pw_LIC…`-Key wie die App, Single-Tier); der Server validiert beim Start selbst.
+- **Demo laeuft, keine Lizenz** → stattdessen `env.PENWRIGHT_TRIAL_UNTIL=<Trial-Ende epoch-ms>`; der Server startet, solange `now < PENWRIGHT_TRIAL_UNTIL`.
+- **Demo abgelaufen, keine Lizenz** → kein Credential, der Server verweigert den Start (Tools nicht verfuegbar).
+
+Das gilt fuer **alle In-App-Registrierungswege** (Claude-Desktop-Wizard, Meta-MCP, Claude Code). Die standalone **`.mcpb`-Distribution** ist ein separater Manual-Install-Kanal ohne App-Trial-Stempel und bleibt **lizenzpflichtig** (`license_key` ist dort `required`).
 
 ---
 

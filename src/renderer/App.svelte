@@ -25,6 +25,7 @@
   import ReferencePicker from './components/ReferencePicker.svelte';
   import CrashReportDialog from './components/CrashReportDialog.svelte';
   import McpSetupWizard from './components/McpSetupWizard.svelte';
+  import McpConnectionDialog from './components/McpConnectionDialog.svelte';
   import OnboardingWizard from './components/OnboardingWizard.svelte';
   import LookStatus from './components/LookStatus.svelte';
   import DesignAiPopover from './components/DesignAiPopover.svelte';
@@ -222,6 +223,9 @@
   // MCP setup wizard — auto-shown on first launch (or after MCP_SETUP_VERSION
   // bumps); also opens via Help → "Mit Claude Desktop verbinden…".
   let showMcpWizard = $state(false);
+  // MCP connection picker (Meta-MCP vs Claude Code). Auto-shown on first run
+  // until a target is chosen; also opens via Help → "MCP Connection…".
+  let showMcpConnection = $state(false);
   // First-run onboarding tour (shown once, tracked via `onboardingSeen`).
   let showOnboarding = $state(false);
   // Design-with-AI handoff popover, positioned at the pinned selection.
@@ -279,6 +283,7 @@
     window.addEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.addEventListener('penwright:project-closed', onProjectClosed as EventListener);
     window.addEventListener('penwright:show-mcp-wizard', () => { showMcpWizard = true; });
+    window.addEventListener('penwright:show-mcp-connection', () => { showMcpConnection = true; });
     window.addEventListener('penwright:show-onboarding', () => { showOnboarding = true; });
     window.addEventListener('penwright:edit-chapter-look', (e) => { editChapterLook = (e as CustomEvent).detail; });
 
@@ -364,15 +369,25 @@
         if (!seenAtBoot) {
           setTimeout(() => { if (!pendingCrash) showOnboarding = true; }, 700);
         }
-        // MCP setup probe — delayed 2s so it never competes with the crash
-        // dialog or the onboarding for attention.
-        setTimeout(() => {
-          electronAPI.invoke('mcp:getSetupStatus').then((status) => {
-            const s = status as { needsSetup: boolean; supported: boolean };
-            if (s?.needsSetup && s?.supported && !pendingCrash && seenAtBoot && !showOnboarding) {
+        // MCP probes — delayed 2s so they never compete with the crash dialog
+        // or the onboarding for attention. The connection picker (Meta-MCP vs
+        // Claude Code) takes first-run priority; the Claude-Desktop wizard only
+        // pops if the picker isn't showing, so two MCP modals never stack.
+        setTimeout(async () => {
+          if (pendingCrash || !seenAtBoot || showOnboarding) return;
+          try {
+            const cs = await electronAPI.invoke('mcp:getConnectionStatus') as { target: string | null; supported: boolean };
+            if (cs?.target == null && cs?.supported) {
+              showMcpConnection = true;
+              return; // don't also pop the Claude-Desktop wizard
+            }
+          } catch { /* ignore */ }
+          try {
+            const status = await electronAPI.invoke('mcp:getSetupStatus') as { needsSetup: boolean; supported: boolean };
+            if (status?.needsSetup && status?.supported && !showOnboarding) {
               showMcpWizard = true;
             }
-          }).catch(() => { /* ignore */ });
+          } catch { /* ignore */ }
         }, 2000);
       }).catch(() => { /* ignore */ });
     }
@@ -1127,6 +1142,9 @@
     {/if}
     {#if showMcpWizard}
       <McpSetupWizard onClose={() => (showMcpWizard = false)} />
+    {/if}
+    {#if showMcpConnection}
+      <McpConnectionDialog onClose={() => (showMcpConnection = false)} />
     {/if}
     {#if showOnboarding}
       <OnboardingWizard onClose={() => (showOnboarding = false)} />

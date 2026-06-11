@@ -53,6 +53,7 @@ export const menu = {
   keyboardShortcuts: 'Keyboard Shortcuts',
   reportIssue: 'Report Issue',
   connectClaude: 'Connect to Claude Desktop…',
+  mcpConnection: 'MCP Connection…',
   openCrashReports: 'Open Crash Reports',
 };
 

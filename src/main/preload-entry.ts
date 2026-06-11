@@ -112,6 +112,8 @@ const INVOKE_CHANNELS = [
   'mcp:openClaude',
   'mcp:getSetupStatus',
   'mcp:skipSetup',
+  'mcp:getConnectionStatus',
+  'mcp:setTarget',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {

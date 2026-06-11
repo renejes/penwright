@@ -14,7 +14,8 @@ import { setupGitIPC } from './gitManager';
 import { openFile, saveFile, saveFileAs, closeProjectInteractive, stopFileWatcher, disposeCompiler } from './fileManager';
 import { openProject } from './projectManager';
 import { releaseLock } from './lockManager';
-import { getWindowBounds, saveWindowBounds, getLocale } from './persistenceManager';
+import { getWindowBounds, saveWindowBounds, getLocale, getMcpTarget, setMcpTarget } from './persistenceManager';
+import { ensureMcpTarget, probeMetaMcp } from './mcpRegistration';
 import { resolveDict } from '../shared/i18n';
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
@@ -160,6 +161,35 @@ function createWindow(): void {
   appState.mainWindow.setTitle(`${fileName} — Penwright`);
 }
 
+// ─── MCP registration on boot ─────────────────────────
+
+/**
+ * Re-establish the chosen MCP registration target every launch, idempotently.
+ *
+ *   - `--mcp-target=meta|claude` CLI flag overrides + persists the choice.
+ *   - A persisted target is re-applied (register it, deregister the other).
+ *   - With no choice yet, a sensible default is applied (Meta-MCP if reachable,
+ *     else Claude Code) WITHOUT persisting — leaving `null` so the connection
+ *     dialog still offers the explicit choice on first run.
+ *
+ * Fire-and-forget: never blocks startup, never throws into the lifecycle.
+ */
+async function initMcpRegistration(): Promise<void> {
+  try {
+    const flag = process.argv.find((a) => a.startsWith('--mcp-target='));
+    if (flag) {
+      const value = flag.slice('--mcp-target='.length);
+      if (value === 'meta' || value === 'claude') setMcpTarget(value);
+    }
+    const persisted = getMcpTarget();
+    const effective = persisted ?? ((await probeMetaMcp()) ? 'meta' : 'claude');
+    const res = await ensureMcpTarget(effective);
+    addBreadcrumb('mcp', `boot ensure ${effective}: ok=${res.ok}${res.meta.error ? ` meta=${res.meta.error}` : ''}`);
+  } catch (err) {
+    console.warn('[penwright] MCP registration init failed:', err);
+  }
+}
+
 // ─── Wire up appState callbacks ───────────────────────
 
 appState.openFile = openFile;
@@ -211,6 +241,10 @@ app.whenReady().then(() => {
   createWindow();
   setupGitIPC();
   addBreadcrumb('lifecycle', 'window created');
+
+  // Register this app's MCP server with the chosen host (Meta-MCP or Claude
+  // Code), idempotently. Runs in the background so it never delays the UI.
+  void initMcpRegistration();
 
   // Open project from command-line arg if a .typ file path was passed
   // (e.g. "Open With Penwright" from Finder). The parent folder becomes the
