@@ -79,8 +79,13 @@ function splitIntoBlocks(text: string): string[] {
   let braceDepth = 0;
   let bracketDepth = 0;
   let parenDepth = 0;
+  let inMath = false;
 
   for (const line of lines) {
+    const wasNested =
+      inCodeBlock || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+    const wasInMath = inMath;
+
     // Track code block fences
     if (line.trim().startsWith('```')) {
       inCodeBlock = !inCodeBlock;
@@ -88,18 +93,34 @@ function splitIntoBlocks(text: string): string[] {
 
     // Track nesting depth (only outside code blocks)
     if (!inCodeBlock) {
-      for (const char of line) {
+      for (let ci = 0; ci < line.length; ci++) {
+        const char = line[ci];
         if (char === '{') braceDepth++;
         if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
         if (char === '[') bracketDepth++;
         if (char === ']') bracketDepth = Math.max(0, bracketDepth - 1);
         if (char === '(') parenDepth++;
         if (char === ')') parenDepth = Math.max(0, parenDepth - 1);
+        if (char === '$' && line[ci - 1] !== '\\') inMath = !inMath;
       }
     }
 
     const isNested =
       inCodeBlock || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+
+    // A heading line is its own block in Typst — no blank line required.
+    // Without this, consecutive `=== a` / `==== b` lines (or a heading
+    // directly under a paragraph) glue into one paragraph and the heading
+    // markers leak into the text. The math-parity guard keeps `= x` lines
+    // inside a multi-line `$ … $` display equation untouched.
+    if (/^={1,6}\s+\S/.test(line) && !wasNested && !isNested && !wasInMath) {
+      if (current.length > 0) {
+        blocks.push(current.join('\n'));
+        current = [];
+      }
+      blocks.push(line);
+      continue;
+    }
 
     if (line.trim() === '' && !isNested) {
       // Blank line outside nesting → block boundary
@@ -135,7 +156,7 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
   }
 
   // 2. Heading: = Title, == Title, etc.
-  const headingMatch = block.match(/^(={1,4})\s+(.+)$/);
+  const headingMatch = block.match(/^(={1,6})\s+(.+)$/);
   if (headingMatch) {
     return {
       type: 'heading',
@@ -459,7 +480,7 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
   }
 
   // Special-case: a single heading inside the align block.
-  const innerHeadingMatch = inner.match(/^(={1,4})\s+(.+)$/);
+  const innerHeadingMatch = inner.match(/^(={1,6})\s+(.+)$/);
   if (innerHeadingMatch) {
     return {
       type: 'heading',
@@ -1003,19 +1024,22 @@ function splitInlineConstructs(text: string): InlineSegment[] {
       const prev = i > 0 ? text[i - 1] : ' ';
       if (/[\s([\-,;:!?]/.test(prev) || i === 0) {
         // Reference-style labels can carry colons and dots, so allow them in
-        // the matched name. The classifier below decides the segment type.
+        // the matched name. Trailing `.` / `:` are sentence punctuation, not
+        // part of the name (`@key.` at sentence end) — Typst excludes them
+        // too, so strip before classifying. The classifier below decides the
+        // segment type.
         const refMatch = text.slice(i).match(/^@([a-zA-Z][\w:.-]*)/);
         if (refMatch) {
           if (i > textStart) {
             segments.push({ type: 'text', content: text.slice(textStart, i) });
           }
-          const name = refMatch[1];
+          const name = refMatch[1].replace(/[.:]+$/, '');
           if (isReferenceLabel(name)) {
             segments.push({ type: 'reference', content: name });
           } else {
             segments.push({ type: 'citation', content: name });
           }
-          i += refMatch[0].length;
+          i += 1 + name.length;
           textStart = i;
           matched = true;
         }

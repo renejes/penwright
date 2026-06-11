@@ -87,6 +87,9 @@ interface Resolved {
   headingFormats: NumberingLevelFormat[];
   /** Whether the style enables page numbering — drives the page-number footer. */
   pageNumbering: boolean;
+  /** Photographer-credit caption parts (style.elements.figure). */
+  creditSeparator: string;
+  creditLabel: string;
 }
 
 /** A Typst snippet rendered to a raster image (math, SVG). */
@@ -116,10 +119,40 @@ interface RefTarget {
   kind: 'figure' | 'table' | 'equation' | 'heading' | 'other';
   /** 1-based sequence number within its kind. */
   n: number;
-  /** For equations: the rendered number string, e.g. "(1)". */
+  /** For equations/headings: the rendered number string, e.g. "(1)" / "2.1". */
   numberText?: string;
   /** Heading title text, for section references. */
   title?: string;
+}
+
+/**
+ * Headings arrive from the deserializer with their Typst label still embedded
+ * in the text ("Introduction <sec:introduction>"). Extracts the label and the
+ * clean title.
+ */
+function splitHeadingLabel(node: TipTapNode): { title: string; label?: string } {
+  const text = getPlainText(node.content ?? []);
+  const m = text.match(/\s*<([^<>\s]+)>\s*$/);
+  if (!m) return { title: text.trim() };
+  return { title: text.slice(0, m.index).trim(), label: m[1] };
+}
+
+/** Returns the heading's inline content with a trailing `<label>` removed. */
+function stripHeadingLabelContent(content: TipTapNode[]): TipTapNode[] {
+  const out = content.map((n) => ({ ...n }));
+  for (let i = out.length - 1; i >= 0; i--) {
+    const n = out[i];
+    if (n.type !== 'text') break;
+    const t = n.text ?? '';
+    const stripped = t.replace(/\s*<[^<>\s]+>\s*$/, '');
+    if (stripped !== t) {
+      if (stripped) { out[i] = { ...n, text: stripped }; }
+      else { out.splice(i, 1); }
+      break;
+    }
+    if (t.trim() !== '') break;
+  }
+  return out;
 }
 
 /**
@@ -266,6 +299,8 @@ function resolveConfig(settings: DocumentSettings | null, style: ProjectStyle | 
     hasHeadingNumbering: !!headingNumbering,
     headingFormats: parseTypstNumberingPattern(headingNumbering),
     pageNumbering: !!(style?.layout.pageNumbering && style.layout.pageNumbering.trim()),
+    creditSeparator: style?.elements.figure.creditSeparator ?? ' — ',
+    creditLabel: style?.elements.figure.creditLabel ?? 'Photo: ',
   };
 }
 
@@ -427,7 +462,7 @@ function label(key: 'toc' | 'bibliography', lang: string): string {
       nl: 'Inhoudsopgave',
     },
     bibliography: {
-      en: 'Bibliography',
+      en: 'References',
       de: 'Literaturverzeichnis',
       fr: 'Bibliographie',
       es: 'Bibliografía',
@@ -787,28 +822,51 @@ function renderBibliography(entries: BibEntry[], lang: string, ctx: DocxCtx): Pa
   return paragraphs;
 }
 
+/** BibTeX `--` page/number ranges → en-dash; strip protective braces. */
+function cleanBibText(s: string): string {
+  return s.replace(/--/g, '–').replace(/[{}]/g, '');
+}
+
+/** "A, B. and C, D. and others" → "A, B., C, D., et al." */
+function formatBibAuthors(author: string): string {
+  const names = author.split(/\s+and\s+/).map(n => cleanBibText(n.trim())).filter(Boolean);
+  return names.map(n => (/^others$/i.test(n) ? 'et al.' : n)).join(', ');
+}
+
+/**
+ * Author–year reference entry, loosely APA-shaped:
+ * Authors (Year). Title. Venue, Volume(Issue), Pages. DOI/URL.
+ */
 function formatBibEntryRuns(entry: BibEntry): TextRun[] {
   const parts: TextRun[] = [];
 
   if (entry.author) {
-    parts.push(new TextRun({ text: entry.author }));
+    parts.push(new TextRun({ text: formatBibAuthors(entry.author) }));
   }
   if (entry.year) {
-    parts.push(new TextRun({ text: ` (${entry.year})` }));
+    parts.push(new TextRun({ text: ` (${entry.year}).` }));
   }
   if (entry.title) {
-    parts.push(new TextRun({ text: `: ` }));
-    parts.push(new TextRun({ text: entry.title, italics: true }));
+    parts.push(new TextRun({ text: ` ${cleanBibText(entry.title)}.` }));
   }
-  const publisher = entry.fields['publisher'] || entry.fields['journal'] || '';
-  if (publisher) {
-    parts.push(new TextRun({ text: `. ${publisher}` }));
+  const venue = entry.fields['journal'] || entry.fields['booktitle'] || entry.fields['publisher'] || '';
+  if (venue) {
+    parts.push(new TextRun({ text: ` ` }));
+    parts.push(new TextRun({ text: cleanBibText(venue), italics: true }));
   }
   const vol = entry.fields['volume'];
-  if (vol) parts.push(new TextRun({ text: ` ${vol}` }));
+  const num = entry.fields['number'];
+  if (vol) parts.push(new TextRun({ text: `, ${cleanBibText(vol)}${num ? `(${cleanBibText(num)})` : ''}` }));
   const pages = entry.fields['pages'];
-  if (pages) parts.push(new TextRun({ text: `, S. ${pages}` }));
-  parts.push(new TextRun({ text: '.' }));
+  if (pages) parts.push(new TextRun({ text: `, ${cleanBibText(pages)}` }));
+  if (venue || vol || pages) parts.push(new TextRun({ text: '.' }));
+  const doi = entry.fields['doi'];
+  const url = entry.fields['url'];
+  const link = doi ? `https://doi.org/${doi.replace(/^https?:\/\/doi\.org\//, '')}` : url;
+  if (link) {
+    parts.push(new TextRun({ text: ' ' }));
+    parts.push(new TextRun({ text: link, color: '444444' }));
+  }
 
   return parts;
 }
@@ -835,7 +893,7 @@ function convertNode(
       const level = (node.attrs?.level as number) ?? 1;
       const headingLevel = headingLevelMap[level] ?? HeadingLevel.HEADING_1;
       const runs = convertInlineContent(
-        node.content ?? [],
+        stripHeadingLabelContent(node.content ?? []),
         baseDir,
         footnotes,
         footnoteId,
@@ -1019,7 +1077,25 @@ function convertInlineContent(
 ): InlineResult {
   const children: (TextRun | ExternalHyperlink | ImageRun | FootnoteReferenceRun)[] = [];
 
-  for (const node of nodes) {
+  for (let idx = 0; idx < nodes.length; idx++) {
+    const node = nodes[idx];
+
+    // Adjacent citations (separated only by whitespace) collapse into one
+    // parenthetical group, like Typst renders `@a @b @c`.
+    if (node.type === 'citation') {
+      const keys = [(node.attrs?.citekey as string) ?? ''];
+      let j = idx + 1;
+      while (j < nodes.length) {
+        const nx = nodes[j];
+        if (nx.type === 'text' && (nx.text ?? '').trim() === '' && nodes[j + 1]?.type === 'citation') { j++; continue; }
+        if (nx.type === 'citation') { keys.push((nx.attrs?.citekey as string) ?? ''); j++; continue; }
+        break;
+      }
+      children.push(...renderCitationGroup(keys.filter(Boolean), bibEntries));
+      idx = j - 1;
+      continue;
+    }
+
     if (node.type === 'text') {
       const text = node.text ?? '';
       const marks = node.marks ?? [];
@@ -1096,9 +1172,6 @@ function convertInlineContent(
         ],
       };
       children.push(new FootnoteReferenceRun(currentId));
-    } else if (node.type === 'citation') {
-      const citekey = (node.attrs?.citekey as string) ?? '';
-      children.push(...renderCitation(citekey, bibEntries));
     } else if (node.type === 'reference') {
       // Cross-reference pill — was silently dropped before. Resolve to the
       // numbered target ("Figure 1") via the pre-pass label map.
@@ -1112,22 +1185,52 @@ function convertInlineContent(
 }
 
 /**
- * Render a citation as `(Author Year)` when the entry is known, otherwise
- * fall back to `[citekey]`. Produces readable inline cites instead of the
- * opaque `[smith2024]` placeholder users were seeing before.
+ * Inner text of an author-year citation: "Bender et al., 2021" /
+ * "Smith, 2020". Returns null when the citekey has no bib entry.
+ */
+function citationInner(citekey: string, entries: BibEntry[]): string | null {
+  const entry = entries.find(e => e.citekey === citekey);
+  if (!entry) return null;
+  const author = entry.author || '';
+  const surname = author.split(',')[0].split('&')[0].split(' and ')[0].trim() || citekey;
+  const multi = / and |&|\bothers\b|et al\./.test(author.slice(surname.length));
+  const name = multi ? `${surname} et al.` : surname;
+  return entry.year ? `${name}, ${entry.year}` : name;
+}
+
+/**
+ * Render a citation as `(Author et al., Year)` when the entry is known,
+ * otherwise fall back to `[citekey]`. Produces readable inline cites instead
+ * of the opaque `[smith2024]` placeholder users were seeing before.
  */
 function renderCitation(citekey: string, entries: BibEntry[]): TextRun[] {
   if (activeCtx?.citationMode === 'numeric') {
     const idx = activeCtx.numericOrder.indexOf(citekey);
     return [new TextRun({ text: `[${idx >= 0 ? idx + 1 : '?'}]` })];
   }
-  const entry = entries.find(e => e.citekey === citekey);
-  if (!entry) {
+  const inner = citationInner(citekey, entries);
+  if (!inner) {
     return [new TextRun({ text: `[${citekey}]`, color: '666666' })];
   }
-  const surname = (entry.author || '').split(',')[0].split('&')[0].trim() || citekey;
-  const year = entry.year ? ` ${entry.year}` : '';
-  return [new TextRun({ text: `(${surname}${year})` })];
+  return [new TextRun({ text: `(${inner})` })];
+}
+
+/**
+ * Renders a group of adjacent citations as one parenthetical —
+ * `(Bender et al., 2021; Chen et al., 2021)` — matching how Typst collapses
+ * `@a @b` into a single cite group. Numeric mode → `[1, 2]`.
+ */
+function renderCitationGroup(citekeys: string[], entries: BibEntry[]): TextRun[] {
+  if (citekeys.length === 1) return renderCitation(citekeys[0], entries);
+  if (activeCtx?.citationMode === 'numeric') {
+    const nums = citekeys.map(k => {
+      const idx = activeCtx!.numericOrder.indexOf(k);
+      return idx >= 0 ? String(idx + 1) : '?';
+    });
+    return [new TextRun({ text: `[${nums.join(', ')}]` })];
+  }
+  const parts = citekeys.map(k => citationInner(k, entries) ?? k);
+  return [new TextRun({ text: `(${parts.join('; ')})` })];
 }
 
 // ─── Images ──────────────────────────────────────────────────
@@ -1367,11 +1470,14 @@ function matchBracket(s: string, openIdx: number, open: string, close: string): 
 type RawDesc =
   | { kind: 'math'; tex: string; label?: string }
   | { kind: 'heading'; level: number; text: string }
-  | { kind: 'figure'; variant: 'image'; imagePath?: string; width?: string | null; caption?: string; label?: string }
-  | { kind: 'figure'; variant: 'table'; tableSrc: string; caption?: string; label?: string }
+  | { kind: 'figure'; variant: 'image'; imagePath?: string; width?: string | null; caption?: string; credit?: string; label?: string }
+  | { kind: 'figure'; variant: 'table'; tableSrc: string; caption?: string; credit?: string; label?: string }
   | { kind: 'quote'; body: string }
   | { kind: 'callout'; variant: string; title?: string; body: string }
   | { kind: 'prose'; content: string }
+  /** A design container (#align / #block / #dropcap / #wrap-content) whose
+   *  visible text is worth keeping — chunks become individual paragraphs. */
+  | { kind: 'designText'; alignment: string | null; chunks: string[] }
   | { kind: 'skip' };
 
 const CALLOUT_NAMES = new Set([
@@ -1379,17 +1485,85 @@ const CALLOUT_NAMES = new Set([
   'question', 'conclusion', 'important', 'abstract', 'example',
 ]);
 
-/** Leading layout/design functions that carry no manuscript content. */
-const SKIP_LEADERS = /^#(grid|block|stack|place|box|rect|line|image|wrap-content|dropcap|colbreak|columns|pad|move|scale|rotate|polygon|path|square|circle|ellipse|diagram|cetz|fletcher|highlight|stroke|raw)\b|^#[vh]\(/;
+/** Leading layout/design functions that carry no manuscript content.
+ *  `#align` / `#block` / `#dropcap` / `#wrap-content` are NOT in this list —
+ *  they are containers whose visible text (title pages, pull-quotes, drop-cap
+ *  paragraphs, wrapped prose) must survive the export; see classifyRawBlock. */
+const SKIP_LEADERS = /^#(grid|stack|place|box|rect|line|image|colbreak|columns|pad|move|scale|rotate|polygon|path|square|circle|ellipse|diagram|cetz|fletcher|highlight|stroke|raw)\b|^#[vh]\(/;
+
+/** A line that is pure vertical/horizontal spacing (or empty). */
+const SPACER_LINE = /^\s*(#[vh]\([^)]*\))?\s*$/;
 
 function extractTrailingLabel(s: string): string | undefined {
   const m = s.trim().match(/<([^>\s]+)>\s*$/);
   return m ? m[1] : undefined;
 }
 
+/**
+ * Splits a design-container body into paragraph chunks at blank lines and
+ * standalone `#v(…)` spacer lines — depth-aware, so blank lines inside a
+ * nested `#text[…]` bracket don't split.
+ */
+function splitDesignChunks(src: string): string[] {
+  const chunks: string[] = [];
+  let cur: string[] = [];
+  let depth = 0;
+  let inStr = false;
+  for (const line of src.split('\n')) {
+    if (depth === 0 && SPACER_LINE.test(line)) {
+      if (cur.length) { chunks.push(cur.join('\n').trim()); cur = []; }
+      continue;
+    }
+    cur.push(line);
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"' && line[i - 1] !== '\\') inStr = !inStr;
+      if (inStr) continue;
+      if (ch === '[' || ch === '(' || ch === '{') depth++;
+      else if (ch === ']' || ch === ')' || ch === '}') depth = Math.max(0, depth - 1);
+    }
+    inStr = false;
+  }
+  if (cur.length) chunks.push(cur.join('\n').trim());
+  return chunks.filter(Boolean);
+}
+
+/**
+ * Parses `#name(args)[body]` (args optional) that spans the entire string.
+ * Returns null if the shape doesn't match or trailing content follows.
+ */
+function parseContainer(trimmed: string, name: string): { args: string; body: string } | null {
+  const m = trimmed.match(new RegExp(`^#${name}\\s*`));
+  if (!m) return null;
+  let pos = m[0].length;
+  let args = '';
+  if (trimmed[pos] === '(') {
+    const a = matchBracket(trimmed, pos, '(', ')');
+    if (!a) return null;
+    args = a.inner;
+    pos = a.end;
+    while (/\s/.test(trimmed[pos] ?? '')) pos++;
+  }
+  if (trimmed[pos] !== '[') return null;
+  const b = matchBracket(trimmed, pos, '[', ']');
+  if (!b || trimmed.slice(b.end).trim() !== '') return null;
+  return { args, body: b.inner };
+}
+
+/** Strips leading/trailing spacer-only lines so a `#v(2em)` prefix doesn't
+ *  hide the real content (title heroes, pull-quotes) from classification. */
+function stripSpacerLines(content: string): string {
+  const lines = content.split('\n');
+  let a = 0, b = lines.length;
+  while (a < b && SPACER_LINE.test(lines[a])) a++;
+  while (b > a && SPACER_LINE.test(lines[b - 1])) b--;
+  return lines.slice(a, b).join('\n').trim();
+}
+
 function classifyRawBlock(content: string, blockType: string): RawDesc {
   if (isConfigBlock(content, blockType)) return { kind: 'skip' };
-  const trimmed = content.trim();
+  const trimmed = stripSpacerLines(content.trim());
+  if (!trimmed) return { kind: 'skip' };
 
   // Display math — must be *only* `$ … $` (optionally + a trailing label).
   // The deserializer sometimes tags prose-with-inline-math blocks `'math'`
@@ -1415,23 +1589,36 @@ function classifyRawBlock(content: string, blockType: string): RawDesc {
     const fig = open >= 0 ? matchBracket(trimmed, open, '(', ')') : null;
     const inner = fig ? fig.inner : trimmed;
     const label = extractTrailingLabel(trimmed.slice(fig ? fig.end : 0)) ?? extractTrailingLabel(trimmed);
-    // caption: [ ... ]
+    // caption: [ ... ]  |  caption: "…"  |  caption: figure-caption-credit("…", "…")
     let caption: string | undefined;
+    let credit: string | undefined;
     const capIdx = inner.search(/caption:\s*\[/);
     if (capIdx >= 0) {
       const br = inner.indexOf('[', capIdx);
       const cap = matchBracket(inner, br, '[', ']');
       if (cap) caption = cap.inner.trim();
+    } else {
+      const creditIdx = inner.search(/caption:\s*figure-caption-credit\s*\(/);
+      if (creditIdx >= 0) {
+        const pOpen = inner.indexOf('(', inner.indexOf('figure-caption-credit', creditIdx));
+        const args = matchBracket(inner, pOpen, '(', ')');
+        const strs = args ? [...args.inner.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m => m[1].replace(/\\"/g, '"')) : [];
+        if (strs[0]) caption = strs[0];
+        if (strs[1]) credit = strs[1];
+      } else {
+        const strCap = inner.match(/caption:\s*"((?:[^"\\]|\\.)*)"/);
+        if (strCap) caption = strCap[1].replace(/\\"/g, '"');
+      }
     }
     if (/\btable\s*\(/.test(inner) && !/\bimage\s*\(/.test(inner.slice(0, inner.search(/\btable\s*\(/)))) {
       const tIdx = inner.search(/\btable\s*\(/);
       const tOpen = inner.indexOf('(', tIdx);
       const tbl = matchBracket(inner, tOpen, '(', ')');
-      return { kind: 'figure', variant: 'table', tableSrc: tbl ? tbl.inner : inner, caption, label };
+      return { kind: 'figure', variant: 'table', tableSrc: tbl ? tbl.inner : inner, caption, credit, label };
     }
     const imgMatch = inner.match(/image\(\s*"([^"]+)"/);
     const widthMatch = inner.match(/image\([^)]*width:\s*([^,)\s]+)/);
-    return { kind: 'figure', variant: 'image', imagePath: imgMatch ? imgMatch[1] : undefined, width: widthMatch ? widthMatch[1] : null, caption, label };
+    return { kind: 'figure', variant: 'image', imagePath: imgMatch ? imgMatch[1] : undefined, width: widthMatch ? widthMatch[1] : null, caption, credit, label };
   }
 
   // #quote(block: true)[ ... ]
@@ -1450,6 +1637,46 @@ function classifyRawBlock(content: string, blockType: string): RawDesc {
     const br = trimmed.indexOf('[');
     const inner = matchBracket(trimmed, br, '[', ']');
     return { kind: 'callout', variant, title: titleM ? titleM[1] : undefined, body: inner ? inner.inner.trim() : '' };
+  }
+
+  // Design containers whose visible text must survive (title heroes,
+  // pull-quotes, drop-cap paragraphs, wrap-it prose). The PDF shows this
+  // text, so dropping it would be content loss.
+
+  // #align(spec)[ … ] spanning the whole block → aligned text chunks.
+  const alignC = parseContainer(trimmed, 'align');
+  if (alignC) {
+    const alignment = /\bright\b/.test(alignC.args) ? 'right' : /\bleft\b/.test(alignC.args) ? 'left' : 'center';
+    return { kind: 'designText', alignment, chunks: splitDesignChunks(alignC.body) };
+  }
+
+  // #block(args)[ … ] / #dropcap(args)[ … ] → unaligned text chunks.
+  for (const name of ['block', 'dropcap']) {
+    if (new RegExp(`^#${name}\\b`).test(trimmed)) {
+      const c = parseContainer(trimmed, name);
+      if (c) return { kind: 'designText', alignment: null, chunks: splitDesignChunks(c.body) };
+      return { kind: 'skip' };
+    }
+  }
+
+  // #wrap-content(float, [body]) → the bracketed content args hold the prose.
+  if (/^#wrap-content\s*\(/.test(trimmed)) {
+    const args = matchBracket(trimmed, trimmed.indexOf('('), '(', ')');
+    if (args) {
+      const chunks: string[] = [];
+      for (let i = 0; i < args.inner.length; i++) {
+        if (args.inner[i] === '[') {
+          const m = matchBracket(args.inner, i, '[', ']');
+          if (m) { chunks.push(...splitDesignChunks(m.inner)); i = m.end - 1; }
+        } else if (args.inner[i] === '(') {
+          // skip nested call args (e.g. rect(…)) so their brackets don't count
+          const m = matchBracket(args.inner, i, '(', ')');
+          if (m) i = m.end - 1;
+        }
+      }
+      if (chunks.length) return { kind: 'designText', alignment: null, chunks };
+    }
+    return { kind: 'skip' };
   }
 
   // Pure layout/design code → drop silently (never leak as monospace).
@@ -1513,9 +1740,27 @@ async function buildExportContext(
     bibStyleMatch && NUMERIC_BIB_STYLES.has(bibStyleMatch[1].toLowerCase()) ? 'numeric' : 'author-year';
 
   let figureN = 0, tableN = 0, equationN = 0;
+  const headingCounters = [0, 0, 0, 0, 0, 0];
   const renderQueue: string[] = [];
 
   for (const node of doc.content ?? []) {
+    if (node.type === 'heading') {
+      // Mirror the section numbering Word will produce so `@sec:…` refs can
+      // resolve to "Section 2.1".
+      const level = Math.min(6, Math.max(1, (node.attrs?.level as number) ?? 1));
+      headingCounters[level - 1]++;
+      for (let l = level; l < 6; l++) headingCounters[l] = 0;
+      const { title, label: headingLabel } = splitHeadingLabel(node);
+      if (headingLabel) {
+        labelMap.set(headingLabel, {
+          kind: 'heading',
+          n: headingCounters[0],
+          numberText: headingCounters.slice(0, level).join('.'),
+          title,
+        });
+      }
+      continue;
+    }
     if (node.type === 'typstRawBlock') {
       const content = (node.attrs?.content as string) ?? '';
       const blockType = (node.attrs?.blockType as string) ?? '';
@@ -1677,8 +1922,11 @@ function renderRawBlock(
       const isTable = desc.variant === 'table';
       const numWord = isTable ? words.table : words.figure;
       const num = target?.n ?? '';
-      const captionRuns = desc.caption
-        ? parseInlineTypst(desc.caption, { italics: true, size: Math.max(18, (activeCtx?.resolved.bodySize ?? 22) - 2), color: '666666' }, fn)
+      const captionSrc = desc.caption
+        ? desc.caption + (desc.credit ? `${activeCtx?.resolved.creditSeparator ?? ' — '}${activeCtx?.resolved.creditLabel ?? 'Photo: '}${desc.credit}` : '')
+        : undefined;
+      const captionRuns = captionSrc
+        ? parseInlineTypst(captionSrc, { italics: true, size: Math.max(18, (activeCtx?.resolved.bodySize ?? 22) - 2), color: '666666' }, fn)
         : [];
       const captionPara = new Paragraph({
         style: 'Caption',
@@ -1705,19 +1953,40 @@ function renderRawBlock(
     }
 
     case 'prose': {
-      // Drop fragments that carry no real words once function calls and
-      // brackets are stripped — these are layout/design tails the deserializer
-      // split off (e.g. a lone `]` plus `#v()` / `#line()`), not prose.
-      const stripped = desc.content
-        .replace(/#[a-zA-Z][\w.-]*(\([^)]*\))?(\[[^\]]*\])?/g, ' ')
-        .replace(/[[\]{}()]/g, ' ')
-        .replace(/[^a-zA-Z0-9]+/g, '');
-      if (stripped.length < 2) return { elements: [], nextFootnoteId: fn.id };
-      const runs = parseInlineTypst(desc.content, {}, fn);
-      if (!runs.some((r) => r instanceof TextRun)) return { elements: [], nextFootnoteId: fn.id };
-      return { elements: [new Paragraph({ children: runs })], nextFootnoteId: fn.id };
+      // Standalone `#v(…)` spacer lines separate logical paragraphs (the
+      // article-opener pattern: kicker / headline / standfirst / byline).
+      const els = renderTextChunks(splitDesignChunks(desc.content), null, fn);
+      return { elements: els, nextFootnoteId: fn.id };
+    }
+
+    case 'designText': {
+      const els = renderTextChunks(desc.chunks, desc.alignment, fn);
+      return { elements: els, nextFootnoteId: fn.id };
     }
   }
+}
+
+/**
+ * Renders design/prose chunks as paragraphs. Chunks whose produced runs carry
+ * no real words (pure layout tails — a lone `]`, `#line()` dividers, `* * *`
+ * ornaments) are dropped instead of leaking as empty paragraphs.
+ */
+function renderTextChunks(chunks: string[], alignment: string | null, fn: FnState): Paragraph[] {
+  const out: Paragraph[] = [];
+  const align = alignment ? mapAlignment(alignment) : undefined;
+  for (const chunk of chunks) {
+    // Collapse source-indentation newlines — Word paragraphs reflow anyway.
+    const src = chunk.replace(/\s+/g, ' ').trim();
+    const collect: string[] = [];
+    const runs = parseInlineTypst(src, {}, fn, collect);
+    const visible = collect.join('').replace(/[^\p{L}\p{N}]+/gu, '');
+    if (visible.length < 2) continue;
+    out.push(new Paragraph({
+      children: runs,
+      ...(align ? { alignment: align } : {}),
+    }));
+  }
+  return out;
 }
 
 /** Renders a gentle-clues callout as a shaded, left-bordered single-cell box. */
@@ -1803,10 +2072,10 @@ type InlineRun = TextRun | ExternalHyperlink | FootnoteReferenceRun;
  * design calls are dropped (their bracket content is discarded) so design
  * noise never leaks as text.
  */
-function parseInlineTypst(text: string, base: IRunOptions, fn: FnState): InlineRun[] {
+function parseInlineTypst(text: string, base: IRunOptions, fn: FnState, collect?: string[]): InlineRun[] {
   const runs: InlineRun[] = [];
   let buf = '';
-  const flush = () => { if (buf) { runs.push(new TextRun({ ...base, text: buf })); buf = ''; } };
+  const flush = () => { if (buf) { runs.push(new TextRun({ ...base, text: buf })); collect?.push(buf); buf = ''; } };
 
   let i = 0;
   while (i < text.length) {
@@ -1824,7 +2093,7 @@ function parseInlineTypst(text: string, base: IRunOptions, fn: FnState): InlineR
         let inner: string | null = null;
         if (text[j] === '[') { const mb = matchBracket(text, j, '[', ']'); if (mb) { inner = mb.inner; j = mb.end; } }
         flush();
-        const produced = handleInlineFunc(name, args, inner, base, fn);
+        const produced = handleInlineFunc(name, args, inner, base, fn, collect);
         if (produced) runs.push(...produced);
         i = j;
         continue;
@@ -1832,21 +2101,30 @@ function parseInlineTypst(text: string, base: IRunOptions, fn: FnState): InlineR
     }
 
     if (ch === '@') {
-      const m = text.slice(i).match(/^@([a-zA-Z0-9_:.-]+)/);
-      if (m) { flush(); runs.push(...renderAtRef(m[1])); i += m[0].length; continue; }
+      const m = text.slice(i).match(/^@([a-zA-Z][\w:.-]*)/);
+      if (m) {
+        // Trailing `.`/`:` is sentence punctuation, not part of the name
+        // (matches Typst's own parsing).
+        const name = m[1].replace(/[.:]+$/, '');
+        flush();
+        runs.push(...renderAtRef(name));
+        collect?.push(name);
+        i += 1 + name.length;
+        continue;
+      }
     }
 
     if (ch === '*') {
       const close = findMarkupClose(text, i + 1, '*');
-      if (close > i) { flush(); runs.push(...parseInlineTypst(text.slice(i + 1, close), { ...base, bold: true }, fn)); i = close + 1; continue; }
+      if (close > i) { flush(); runs.push(...parseInlineTypst(text.slice(i + 1, close), { ...base, bold: true }, fn, collect)); i = close + 1; continue; }
     }
     if (ch === '_') {
       const close = findMarkupClose(text, i + 1, '_');
-      if (close > i) { flush(); runs.push(...parseInlineTypst(text.slice(i + 1, close), { ...base, italics: true }, fn)); i = close + 1; continue; }
+      if (close > i) { flush(); runs.push(...parseInlineTypst(text.slice(i + 1, close), { ...base, italics: true }, fn, collect)); i = close + 1; continue; }
     }
     if (ch === '`') {
       const close = text.indexOf('`', i + 1);
-      if (close > i) { flush(); runs.push(new TextRun({ ...base, text: text.slice(i + 1, close), font: 'Consolas' })); i = close + 1; continue; }
+      if (close > i) { const code = text.slice(i + 1, close); flush(); runs.push(new TextRun({ ...base, text: code, font: 'Consolas' })); collect?.push(code); i = close + 1; continue; }
     }
 
     buf += ch;
@@ -1865,23 +2143,49 @@ function findMarkupClose(text: string, from: number, delim: string): number {
   return -1;
 }
 
-function handleInlineFunc(name: string, args: string, inner: string | null, base: IRunOptions, fn: FnState): InlineRun[] | null {
+function handleInlineFunc(name: string, args: string, inner: string | null, base: IRunOptions, fn: FnState, collect?: string[]): InlineRun[] | null {
   switch (name) {
     case 'emph':
-      return inner !== null ? parseInlineTypst(inner, { ...base, italics: true }, fn) : null;
+      return inner !== null ? parseInlineTypst(inner, { ...base, italics: true }, fn, collect) : null;
     case 'strong':
-      return inner !== null ? parseInlineTypst(inner, { ...base, bold: true }, fn) : null;
-    case 'text':
+      return inner !== null ? parseInlineTypst(inner, { ...base, bold: true }, fn, collect) : null;
+    case 'text': {
+      if (inner === null) return null;
+      // Carry visible styling so title heroes / pull-quotes keep their
+      // weight and (relative) size in Word: `#text(size: 2.2em,
+      // weight: "bold", style: "italic")[…]`. Colors are skipped — they
+      // reference style-colors.* slots we can't resolve here.
+      const styled: IRunOptions = { ...base };
+      const sizeM = args.match(/size:\s*([\d.]+)\s*(em|pt)\b/);
+      if (sizeM) {
+        const v = parseFloat(sizeM[1]);
+        const bodySize = activeCtx?.resolved.bodySize ?? 22;
+        const half = sizeM[2] === 'em' ? Math.round(bodySize * v) : Math.round(v * 2);
+        if (isFinite(half) && half > 0) (styled as { size?: number }).size = half;
+      }
+      if (/weight:\s*"(bold|semibold|extrabold|black)"/.test(args)) (styled as { bold?: boolean }).bold = true;
+      if (/style:\s*"italic"/.test(args)) (styled as { italics?: boolean }).italics = true;
+      return parseInlineTypst(inner, styled, fn, collect);
+    }
     case 'smallcaps':
     case 'underline':
-      return inner !== null ? parseInlineTypst(inner, base, fn) : null;
+      return inner !== null ? parseInlineTypst(inner, base, fn, collect) : null;
+    case 'align':
+    case 'block':
+    case 'box':
+    case 'quote':
+    case 'dropcap':
+      // Inline containers — keep their visible content (alignment/framing
+      // can't be represented mid-paragraph).
+      return inner !== null ? parseInlineTypst(inner, base, fn, collect) : null;
     case 'super':
-      return inner !== null ? parseInlineTypst(inner, { ...base, superScript: true }, fn) : null;
+      return inner !== null ? parseInlineTypst(inner, { ...base, superScript: true }, fn, collect) : null;
     case 'sub':
-      return inner !== null ? parseInlineTypst(inner, { ...base, subScript: true }, fn) : null;
+      return inner !== null ? parseInlineTypst(inner, { ...base, subScript: true }, fn, collect) : null;
     case 'raw': {
       const m = args.match(/"((?:[^"\\]|\\.)*)"/);
       const code = m ? m[1].replace(/\\"/g, '"') : (inner ?? '');
+      collect?.push(code);
       return [new TextRun({ ...base, text: code, font: 'Consolas' })];
     }
     case 'footnote': {
@@ -1895,11 +2199,14 @@ function handleInlineFunc(name: string, args: string, inner: string | null, base
       const m = args.match(/"([^"]+)"/);
       const href = m ? m[1] : '';
       const label = inner ?? href;
+      collect?.push(label);
       return [new ExternalHyperlink({ link: href, children: [new TextRun({ text: label, style: 'Hyperlink' })] })];
     }
     case 'cite': {
       const m = args.match(/"?<?([a-zA-Z0-9_:.-]+)>?"?/);
-      return m ? renderAtRef(m[1]) : null;
+      if (!m) return null;
+      collect?.push(m[1]);
+      return renderAtRef(m[1].replace(/[.:]+$/, ''));
     }
     default:
       // Unknown function (design / layout) — drop it and its bracket content.
@@ -1925,7 +2232,8 @@ function renderReference(label: string, _refType: string): TextRun[] {
   const t = ctx?.labelMap.get(label);
   if (t) {
     if (t.kind === 'equation') return [new TextRun({ text: t.numberText ?? `(${t.n})` })];
-    const word = t.kind === 'figure' ? w.figure : t.kind === 'table' ? w.table : t.kind === 'heading' ? w.section : '';
+    if (t.kind === 'heading') return [new TextRun({ text: `${w.section} ${t.numberText ?? t.n}`.trim() })];
+    const word = t.kind === 'figure' ? w.figure : t.kind === 'table' ? w.table : '';
     return [new TextRun({ text: `${word} ${t.n}`.trim() })];
   }
   // Unknown label → readable fallback (strip the prefix).
