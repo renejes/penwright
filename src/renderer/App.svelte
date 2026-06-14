@@ -106,10 +106,11 @@
     loadedPrefsForProject = projectDir;
     try {
       const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
-      const prefs = await api.invoke('project:getPreferences') as { editorZoom?: number; pdfZoom?: number } | null;
+      const prefs = await api.invoke('project:getPreferences') as { editorZoom?: number; pdfZoom?: number; pdfSpread?: boolean } | null;
       if (prefs) {
         if (typeof prefs.editorZoom === 'number') zoomState.editor = prefs.editorZoom;
         if (typeof prefs.pdfZoom === 'number') zoomState.pdf = prefs.pdfZoom;
+        zoomState.spread = prefs.pdfSpread === true;
       }
     } catch (err) {
       console.warn('[penwright] loadProjectPreferences failed:', err);
@@ -118,7 +119,7 @@
 
   // Debounced save: any change to either zoom persists to the current project.
   $effect(() => {
-    const snapshot = { editorZoom: zoomState.editor, pdfZoom: zoomState.pdf };
+    const snapshot = { editorZoom: zoomState.editor, pdfZoom: zoomState.pdf, pdfSpread: zoomState.spread };
     if (!loadedPrefsForProject) return;
     clearTimeout(prefsSaveTimer);
     prefsSaveTimer = setTimeout(() => {

@@ -17,6 +17,8 @@ import { styleTemplates } from '../shared/styleTemplates';
 import { findRootFile } from '../shared/rootFinder';
 import { resolveIncludes } from '../shared/mergeDocument';
 import { parseBibFile } from '../shared/bibParser';
+import { generateStyleTypst } from '../shared/styleParser';
+import { sanitizeProjectStyle, DEFAULT_PROJECT_STYLE } from '../shared/styleTypes';
 import { appState } from './appState';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
@@ -42,12 +44,27 @@ export interface ExportableChapter {
   title: string;
 }
 
+/**
+ * Print ("Für den Druck") options. When present on an ExportConfig (PDF only)
+ * the export writes a temporary print-style.typ with an oversized page +
+ * bleed-aware margins + (optional) crop marks, and compiles that. `bleed` and
+ * `binding` are Typst lengths ("" disables). See styleParser print mode.
+ */
+export interface PrintExportConfig {
+  bleed: string;
+  cropMarks: boolean;
+  facingPages: boolean;
+  binding: string;
+}
+
 export interface ExportableSections {
   /** Whether the project consists of multiple chapters (#include lines). */
   multiChapter: boolean;
   rootFile: string;
   chapters: ExportableChapter[];
   hasBibliography: boolean;
+  /** Persisted print defaults from style.json, to pre-fill the export dialog. */
+  printDefaults: PrintExportConfig;
 }
 
 const INCLUDE_RE = /^#include\s+"([^"]+)"\s*$/gm;
@@ -77,11 +94,18 @@ export function getExportableSections(): ExportableSections | null {
     chapters.push({ includePath, title: chapterTitle(rootDir, includePath) });
   }
 
+  const style = appState.projectDir ? getProjectStyle(appState.projectDir) : null;
   return {
     multiChapter: chapters.length > 0,
     rootFile,
     chapters,
     hasBibliography: BIB_RE.test(rootContent),
+    printDefaults: {
+      bleed:       style?.layout.bleed ?? '',
+      cropMarks:   style?.layout.cropMarks ?? false,
+      facingPages: style?.layout.facingPages ?? false,
+      binding:     style?.layout.binding ?? '',
+    },
   };
 }
 
@@ -134,6 +158,138 @@ function pngDimensions(buf: Buffer): { width: number; height: number } | null {
   return null;
 }
 
+// ─── Print export ("Für den Druck") ──────────────────────
+// A separate, export-only transform (no safe-apply): write a temp print
+// style.typ (oversized page + bleed + crop marks) and a temp root whose style
+// import is repointed at it, compile that, then delete both. The real
+// style.typ / project is never touched.
+
+const TEMP_STYLE_PRINT_BASENAME = '.penwright-style-print.typ';
+
+/**
+ * Stages the print-export temp files next to the root and returns the temp
+ * root + a cleanup that removes both temp files. Reuses the chapter /
+ * bibliography filter so a print export can also pick chapters.
+ */
+function writePrintExportTemp(rootFile: string, config: ExportConfig): { tempRoot: string; cleanup: () => void } {
+  const rootDir = path.dirname(rootFile);
+  const print = config.print!;
+
+  // Merge the per-export print overrides over the project style, re-sanitise,
+  // and generate the oversized print style.typ.
+  const base = appState.projectDir ? getProjectStyle(appState.projectDir) : DEFAULT_PROJECT_STYLE;
+  const printStyle = sanitizeProjectStyle({
+    ...base,
+    layout: {
+      ...base.layout,
+      bleed:       print.bleed,
+      cropMarks:   print.cropMarks,
+      facingPages: print.facingPages,
+      binding:     print.binding,
+    },
+  });
+  const stylePrintPath = path.join(rootDir, TEMP_STYLE_PRINT_BASENAME);
+  fs.writeFileSync(stylePrintPath, generateStyleTypst(printStyle, { print: true }), 'utf-8');
+
+  // Filter chapters/bibliography, then repoint the root's style import at the
+  // temp print style. If the root never imported style.typ (e.g. a magazine-
+  // pipeline project that ships without one), inject the print style so it
+  // still gets bleed + marks.
+  const original = fs.readFileSync(rootFile, 'utf-8');
+  let rootContent = buildFilteredRoot(original, config.selectedIncludes, config.includeBibliography);
+  const hadStyleImport = /#import\s+"style\.typ"/.test(original);
+  rootContent = rootContent.replace(/#import\s+"style\.typ"/g, `#import "${TEMP_STYLE_PRINT_BASENAME}"`);
+  if (!hadStyleImport && !rootContent.includes('#show: apply-style')) {
+    rootContent = `#import "${TEMP_STYLE_PRINT_BASENAME}": *\n#show: apply-style\n\n${rootContent}`;
+  }
+  const tempRoot = path.join(rootDir, TEMP_EXPORT_BASENAME);
+  fs.writeFileSync(tempRoot, rootContent, 'utf-8');
+
+  return {
+    tempRoot,
+    cleanup: () => {
+      try { fs.unlinkSync(tempRoot); } catch {}
+      try { fs.unlinkSync(stylePrintPath); } catch {}
+    },
+  };
+}
+
+/** Reads JPEG width/height from the first SOFn frame marker (big-endian). */
+function jpegDimensions(buf: Buffer): { width: number; height: number } | null {
+  if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+  let off = 2;
+  while (off + 9 < buf.length) {
+    if (buf[off] !== 0xff) { off++; continue; }
+    const marker = buf[off + 1];
+    // SOF0–SOF15 carry the frame size; skip DHT(c4)/JPG(c8)/DAC(cc).
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: buf.readUInt16BE(off + 5), width: buf.readUInt16BE(off + 7) };
+    }
+    if (off + 3 >= buf.length) break;
+    off += 2 + buf.readUInt16BE(off + 2);
+  }
+  return null;
+}
+
+/** Best-effort pixel dimensions from a PNG/JPEG header (no dependency). */
+function imageDimensions(absPath: string): { width: number; height: number } | null {
+  try {
+    const fd = fs.openSync(absPath, 'r');
+    const buf = Buffer.alloc(65536);
+    const read = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    const slice = buf.subarray(0, read);
+    return pngDimensions(slice) ?? jpegDimensions(slice);
+  } catch {
+    return null;
+  }
+}
+
+const IMAGE_REF_RE = /image\(\s*"([^"]+)"/g;
+/** Below this edge length a raster image is unlikely to hit 300 dpi at A4 width. */
+const MIN_PRINT_EDGE_PX = 1500;
+
+/**
+ * Heuristic dpi pre-flight: scans the in-scope .typ files for `image("…")`
+ * references and flags raster images that are likely too low-res for print
+ * (< ~1500 px on the short edge). Vector/unreadable images are skipped — the
+ * placement size is compile-time, so this is a coarse warning, not exact dpi.
+ * Returns "relpath — W×H px" lines; empty = nothing to warn about.
+ */
+export function preflightPrintImages(config: ExportConfig): string[] {
+  if (!appState.currentFilePath) return [];
+  const rootFile = findRootFile(appState.currentFilePath);
+  const rootDir = path.dirname(rootFile);
+
+  const files = new Set<string>([rootFile]);
+  let rootContent = '';
+  try { rootContent = fs.readFileSync(rootFile, 'utf-8'); } catch { return []; }
+  for (const m of rootContent.matchAll(INCLUDE_RE)) {
+    const inc = m[1];
+    if (config.selectedIncludes === null || config.selectedIncludes.includes(inc)) {
+      files.add(path.resolve(rootDir, inc));
+    }
+  }
+
+  const warnings: string[] = [];
+  const seen = new Set<string>();
+  for (const f of files) {
+    let content: string;
+    try { content = fs.readFileSync(f, 'utf-8'); } catch { continue; }
+    for (const m of content.matchAll(IMAGE_REF_RE)) {
+      const rel = m[1];
+      if (seen.has(rel)) continue;
+      seen.add(rel);
+      const dim = imageDimensions(path.resolve(path.dirname(f), rel));
+      if (!dim) continue;
+      if (Math.min(dim.width, dim.height) < MIN_PRINT_EDGE_PX) {
+        warnings.push(`${rel} — ${dim.width}×${dim.height} px`);
+      }
+    }
+  }
+  return warnings;
+}
+
 /**
  * Builds the Typst-snippet renderer the DOCX serializer uses to rasterise
  * display-math and SVG figures (which have no native Word representation).
@@ -170,6 +326,11 @@ export interface ExportConfig {
   /** null → everything; otherwise list of include paths to keep. */
   selectedIncludes: string[] | null;
   includeBibliography: boolean;
+  /**
+   * Present when the user chose "Für den Druck" (print) mode — PDF only.
+   * Routes through the print-export transform (oversized page + bleed + marks).
+   */
+  print?: PrintExportConfig;
 }
 
 /**
@@ -198,8 +359,21 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
   });
   if (result.canceled || !result.filePath) return null;
 
-  const useFilter = config.selectedIncludes !== null || !config.includeBibliography;
-  const sourceFile = useFilter ? writeExportTemp(rootFile, config.selectedIncludes, config.includeBibliography) : rootFile;
+  // Print export (PDF only): stage a temp print-style + temp root and compile
+  // that. Otherwise the regular filtered/whole-document path. Either way the
+  // chosen `cleanup` runs in `finally`.
+  const isPrint = config.format === 'pdf' && !!config.print;
+  let sourceFile: string;
+  let cleanup: () => void = () => {};
+  if (isPrint) {
+    const staged = writePrintExportTemp(rootFile, config);
+    sourceFile = staged.tempRoot;
+    cleanup = staged.cleanup;
+  } else {
+    const useFilter = config.selectedIncludes !== null || !config.includeBibliography;
+    sourceFile = useFilter ? writeExportTemp(rootFile, config.selectedIncludes, config.includeBibliography) : rootFile;
+    if (useFilter) cleanup = () => cleanupExportTemp(rootDir);
+  }
 
   appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: true, format: config.format });
   try {
@@ -236,7 +410,7 @@ export async function runFilteredExport(config: ExportConfig): Promise<string | 
     );
     return null;
   } finally {
-    if (useFilter) cleanupExportTemp(rootDir);
+    cleanup();
   }
 }
 
@@ -253,7 +427,10 @@ async function startExport(format: 'pdf' | 'docx'): Promise<void> {
   }
 
   const sections = getExportableSections();
-  if (sections && sections.multiChapter) {
+  // PDF always goes through the dialog so the "Für den Druck" (print) options
+  // are reachable even for a single-file project; DOCX only needs the dialog
+  // when there are chapters to pick from.
+  if (sections && (sections.multiChapter || format === 'pdf')) {
     appState.mainWindow?.webContents.send('penwright', {
       type: 'showExportDialog',
       format,
@@ -262,7 +439,7 @@ async function startExport(format: 'pdf' | 'docx'): Promise<void> {
     return;
   }
 
-  // Single-file project — just export everything directly.
+  // Single-file DOCX — just export everything directly.
   await runFilteredExport({ format, selectedIncludes: null, includeBibliography: true });
 }
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T20:09:43.188Z",
+  "generatedAt": "2026-06-14T12:26:11.160Z",
   "packages": [
     {
       "name": "wrap-it",
@@ -85,7 +85,8 @@
       "version": "1.0.0",
       "license": "MIT",
       "tier": "transitive",
-      "notes": "required by cetz"
+      "notes": "required by cetz; upstream tarball ships only \"MIT OR Apache-2.0\" placeholder",
+      "licenseFetch": "https://raw.githubusercontent.com/PgBiel/typst-oxifmt/master/LICENSE-MIT"
     },
     {
       "name": "cetz",
@@ -106,7 +107,8 @@
       "version": "1.1.1",
       "license": "MIT",
       "tier": "transitive",
-      "notes": "required by lilaq"
+      "notes": "required by lilaq; upstream tarball ships only \"MIT OR Apache-2.0\" placeholder",
+      "licenseFetch": "https://raw.githubusercontent.com/PgBiel/elembic/main/LICENSE-MIT"
     },
     {
       "name": "komet",
@@ -134,7 +136,8 @@
       "version": "0.4.0",
       "license": "MIT",
       "tier": "transitive",
-      "notes": "required by lilaq"
+      "notes": "required by lilaq",
+      "licenseFetch": "https://raw.githubusercontent.com/Mc-Zen/tiptoe/main/LICENSE.txt"
     },
     {
       "name": "zero",

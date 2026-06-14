@@ -57,6 +57,9 @@ export const ZOOM_STEP = 0.1;
 export let zoomState = $state({
   editor: 1.0,
   pdf: 1.0,
+  // PDF preview view mode: false = single page, true = 2-up facing-pages
+  // spread (page 1 alone, then 2–3, 4–5 …). Persisted per project like zoom.
+  spread: false,
 });
 
 function clampZoom(v: number): number {
@@ -73,6 +76,7 @@ export function resetEditorZoom() { setEditorZoom(1.0); }
 export function zoomPdfIn() { setPdfZoom(zoomState.pdf + ZOOM_STEP); }
 export function zoomPdfOut() { setPdfZoom(zoomState.pdf - ZOOM_STEP); }
 export function resetPdfZoom() { setPdfZoom(1.0); }
+export function togglePdfSpread() { zoomState.spread = !zoomState.spread; }
 
 // ─── Preview State ──────────────────────────────
 export let previewState = $state({
@@ -123,11 +127,13 @@ export let projectSearchPreset = $state({
 
 // ─── Export Dialog ───────────────────────────────
 interface ExportChapter { includePath: string; title: string; }
+interface ExportPrintDefaults { bleed: string; cropMarks: boolean; facingPages: boolean; binding: string; }
 interface ExportSections {
   multiChapter: boolean;
   rootFile: string;
   chapters: ExportChapter[];
   hasBibliography: boolean;
+  printDefaults: ExportPrintDefaults;
 }
 
 export let exportDialogState = $state({

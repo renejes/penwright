@@ -74,6 +74,26 @@ export interface StyleLayout {
    * dropdown without us round-tripping it through hex.
    */
   pageFill: string;
+
+  // ─── Print / prepress (Print-Export, see styleParser print mode) ─────────
+  // These four are OPTIONAL (an additive, print-only concern) so the existing
+  // full layout-preset literals don't all have to be touched; `sanitizeProjectStyle`
+  // fills them from the defaults and the generator guards every read. `bleed`
+  // + `cropMarks` are export-only (never emitted by the live `apply-style`),
+  // `facingPages` + `binding` shape the page geometry and apply on screen too.
+  /**
+   * Print bleed — Typst length (e.g. "3mm", "5mm") for randabfallende motives
+   * past the trim edge on all sides. "" / undefined = no bleed (screen output).
+   * Only the print-export transform (`generateStyleTypst(style, { print: true })`)
+   * acts on it: it makes the physical page = trim + 2×bleed.
+   */
+  bleed?: string;
+  /** Draw corner crop / trim marks in the bleed. Only takes effect in the print export when `bleed` > 0. */
+  cropMarks?: boolean;
+  /** Facing pages: derive inner/outer margins (binding gutter) from `margin` instead of a uniform margin. Live (screen + print). */
+  facingPages?: boolean;
+  /** Extra inner (binding) gutter added to the inside margin when `facingPages` is on — Typst length. "" / undefined = none. */
+  binding?: string;
 }
 
 export interface StyleHeading {
@@ -285,6 +305,10 @@ export const DEFAULT_PROJECT_STYLE: ProjectStyle = {
     pageHeader: '',
     pageFooter: '',
     pageFill: '',
+    bleed: '',
+    cropMarks: false,
+    facingPages: false,
+    binding: '',
   },
   headings: {
     h1: { size: '24pt', weight: 'bold',     color: 'primary', marginTop: '2em'   },
@@ -600,6 +624,11 @@ export function sanitizeProjectStyle(raw: unknown): ProjectStyle {
       pageHeader:    pickFreeString(layout.pageHeader, D.layout.pageHeader),
       pageFooter:    pickFreeString(layout.pageFooter, D.layout.pageFooter),
       pageFill:      pickFreeString(layout.pageFill, D.layout.pageFill, 100),
+      // Print / prepress (optional in the type → default-coerced fallbacks).
+      bleed:         pickLenOrEmpty(layout.bleed, D.layout.bleed ?? ''),
+      cropMarks:     pickBool(layout.cropMarks, D.layout.cropMarks ?? false),
+      facingPages:   pickBool(layout.facingPages, D.layout.facingPages ?? false),
+      binding:       pickLenOrEmpty(layout.binding, D.layout.binding ?? ''),
     },
     headings: {
       h1:        sanitizeHeading(headings.h1, D.headings.h1),

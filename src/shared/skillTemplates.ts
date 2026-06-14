@@ -1568,4 +1568,10 @@ Don't combine contradictory presets. "Thesis theme" + "A2 poster layout" is tech
 - **Don't hard-code colors in the design-element library.** Elements should always reference \`style-colors.<slot>\` so they re-theme automatically when the palette changes.
 - **Don't use design elements as headings.** A Banner element is for visual emphasis, not for hierarchy. Headings should stay headings — that's what the H1–H6 surface is for.
 - **Don't apply contradictory presets in sequence.** "Marketing Brochure theme" + "A2 Poster layout" works if intentional; "Thesis theme" + "Brochure layout" usually doesn't. The presets are starting points, not building blocks.
+
+## Print & spreads (magazines / brochures going to a printer)
+
+- **Set up the print project once.** Apply the **"Magazin (Druck) · A4 + 5 mm Beschnitt"** layout preset (or set \`layout.bleed\`/\`cropMarks\`/\`facingPages\`/\`binding\` via \`penwright_update_style\`). Bleed + crop marks only show in the **print export** ("Für den Druck" / \`penwright_export_print\`) — the editing preview stays clean. \`facingPages\` (inner/outer margins + binding gutter) IS shown live, because a bound heft genuinely looks different.
+- **Spread images (\`spread-image\`, "double truck").** Use for a single photo running across two facing pages over the fold. It emits two pages and forces an even/left start (may insert a blank page), so place it where a spread belongs, not mid-flow. **Keep faces, text and key subjects away from the centre** — a few mm vanish into the binding (gutter creep). Needs a wide, high-res image (≈ 2× a page) and a project whose \`style.typ\` exports \`style-bleed\` (re-save the design once on old projects).
+- **CMYK is a print-shop step, not in-app.** Penwright delivers a print-ready **RGB** PDF with bleed + crop marks; the drawn crop marks ARE the trim definition. Tell the user their printer (or Acrobat/Ghostscript) converts to CMYK/PDF-X — don't promise colour-accurate offset output from the app alone.
 `;

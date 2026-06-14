@@ -590,11 +590,14 @@ export function checkForFileRecovery(
 export interface ProjectPreferences {
   editorZoom: number;
   pdfZoom: number;
+  /** PDF preview view mode: false = single page, true = 2-up facing-pages spread. */
+  pdfSpread: boolean;
 }
 
 const DEFAULT_PROJECT_PREFERENCES: ProjectPreferences = {
   editorZoom: 1.0,
   pdfZoom: 1.0,
+  pdfSpread: false,
 };
 
 function preferencesPath(projectDir: string): string {
@@ -614,6 +617,7 @@ export function getProjectPreferences(projectDir: string): ProjectPreferences {
     return {
       editorZoom: clampZoom(raw?.editorZoom),
       pdfZoom: clampZoom(raw?.pdfZoom),
+      pdfSpread: raw?.pdfSpread === true,
     };
   } catch {
     return { ...DEFAULT_PROJECT_PREFERENCES };
@@ -626,6 +630,7 @@ export function saveProjectPreferences(projectDir: string, prefs: ProjectPrefere
   const sanitized: ProjectPreferences = {
     editorZoom: clampZoom(prefs.editorZoom),
     pdfZoom: clampZoom(prefs.pdfZoom),
+    pdfSpread: prefs.pdfSpread === true,
   };
   try {
     fs.writeFileSync(preferencesPath(projectDir), JSON.stringify(sanitized, null, 2), 'utf-8');

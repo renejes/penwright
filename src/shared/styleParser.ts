@@ -51,6 +51,19 @@ export const CUSTOM_BLOCK_START = '// ─── penwright:custom — your free-f
 export const CUSTOM_BLOCK_END   = '// ─── penwright:custom-end ───';
 
 /**
+ * Trim sizes in millimetres (portrait W×H) for the print-export oversized-page
+ * computation. Typst's `paper:` string gives the trim size, but bleed needs an
+ * explicit `width`/`height` = trim + 2×bleed, so the numbers must be known here.
+ * Unknown paper names fall back to A4 (the print presets ship A4). Extend as
+ * the layout presets gain new sizes.
+ */
+export const PAPER_MM: Record<string, [number, number]> = {
+  a2: [420, 594], a3: [297, 420], a4: [210, 297], a5: [148, 210], a6: [105, 148],
+  b4: [250, 353], b5: [176, 250], b6: [125, 176],
+  'us-letter': [216, 279], 'us-legal': [216, 356], 'us-tabloid': [279, 432],
+};
+
+/**
  * Quotes a font name for Typst. Phase A keeps this single-string — Typst's
  * `text(font: ...)` accepts a tuple for explicit fallbacks (e.g.
  * `("Inter", "Helvetica")`), but CSS-style generic-family aliases like
@@ -209,10 +222,29 @@ export function mergeSectionStyle(base: ProjectStyle, s: SectionStyle): ProjectS
   return m;
 }
 
-export function generateStyleTypst(style: ProjectStyle): string {
+/**
+ * Generates the contents of `<project>/style.typ`.
+ *
+ * `opts.print` switches on the print-export transform (used by the Print-Export
+ * path, which writes a temporary `style-print.typ` — it never touches the real
+ * `style.typ`): the page becomes oversized (trim + 2×bleed), the content margin
+ * grows by the bleed so it stays put relative to the trim, and — when
+ * `layout.cropMarks` is set — corner crop marks are drawn in the foreground.
+ * `bleed` + `cropMarks` are deliberately export-only; `facingPages` + `binding`
+ * shape the geometry and apply on screen too (so a bound heft looks right while
+ * editing).
+ */
+export function generateStyleTypst(style: ProjectStyle, opts: { print?: boolean } = {}): string {
   // Module-level lines (palette + apply-style function definition).
   const lines: string[] = [];
   const push = (s: string = '') => lines.push(s);
+
+  // ─── Print / prepress flags (export-only) ───
+  // The bleed string is only honoured in print mode; everything guards `?? ''`
+  // because the four print fields are optional in the schema.
+  const printMode = opts.print === true;
+  const bleedTrim = (printMode ? (style.layout.bleed ?? '').trim() : '');
+  const hasBleed = bleedTrim !== '';
 
   push(STYLE_TYPST_MARKER);
   push('//');
@@ -248,6 +280,34 @@ export function generateStyleTypst(style: ProjectStyle): string {
   push(`  code:    ${fontLiteral(style.fonts.code)},`);
   push(')');
   push();
+
+  // ─── Bleed (module level — full-bleed design elements + custom code can read
+  // this). 0mm for screen output; the configured bleed only in the print-export
+  // transform (generateStyleTypst(style, { print: true })). Full-bleed elements
+  // already overflow via the oversized page they inherit, so this is exposed
+  // mainly for explicit bleed-aware snippets (e.g. spread-image). ──
+  push(`#let style-bleed = ${hasBleed ? bleedTrim : '0mm'}`);
+  push();
+
+  // ─── crop-marks(bleed): eight corner trim-mark segments drawn in the page
+  // foreground. Each mark spans exactly the bleed zone (from the physical edge
+  // to the trim corner) so it never clips, whatever the bleed value. Emitted +
+  // wired into `set page(foreground: …)` only in print mode with crop marks on. ──
+  if (hasBleed && style.layout.cropMarks === true) {
+    push('#let crop-marks(bleed) = context {');
+    push('  let b = bleed');
+    push('  set line(stroke: 0.3pt + black)');
+    push('  place(top + left, dx: b, line(end: (0pt, b)))');
+    push('  place(top + left, dy: b, line(end: (b, 0pt)))');
+    push('  place(top + right, dx: -b, line(end: (0pt, b)))');
+    push('  place(top + right, dy: b, line(end: (-b, 0pt)))');
+    push('  place(bottom + left, dx: b, line(end: (0pt, -b)))');
+    push('  place(bottom + left, dy: -b, line(end: (b, 0pt)))');
+    push('  place(bottom + right, dx: -b, line(end: (0pt, -b)))');
+    push('  place(bottom + right, dy: -b, line(end: (-b, 0pt)))');
+    push('}');
+    push();
+  }
 
   // ─── figure-caption-credit helper (module level so chapter files that
   // #import it via "style.typ" can use it). Concatenates a caption with
@@ -291,25 +351,56 @@ export function generateStyleTypst(style: ProjectStyle): string {
   const bpush = (s: string = '') => body.push(s);
 
   // ─── Page ───
-  const pageProps: string[] = [
-    `paper: "${style.layout.paper}"`,
-    `margin: ${style.layout.margin}`,
-  ];
-  if (style.layout.orientation === 'landscape') pageProps.push(`flipped: true`);
-  if (style.layout.columns > 1) pageProps.push(`columns: ${style.layout.columns}`);
-  if (style.layout.pageFill.trim()) {
-    pageProps.push(`fill: ${style.layout.pageFill.trim()}`);
+  const L = style.layout;
+  const facing = L.facingPages === true;
+  const bind = (facing && (L.binding ?? '').trim()) ? (L.binding ?? '').trim() : '';
+  // Physical margin offset for the bleed (print-only — empty on screen).
+  const bleedAdd = hasBleed ? ` + ${bleedTrim}` : '';
+
+  const pageProps: string[] = [];
+  if (hasBleed) {
+    // Oversized physical page = trim + 2×bleed. Emitted as a Typst expression
+    // (e.g. `210mm + 2 * 5mm`) so the bleed unit never has to be parsed here.
+    // Landscape swaps the trim dims (we set explicit width/height, not flipped).
+    const dims = PAPER_MM[L.paper] ?? PAPER_MM['a4'];
+    const [tw, th] = L.orientation === 'landscape' ? [dims[1], dims[0]] : [dims[0], dims[1]];
+    pageProps.push(`width: (${tw}mm + 2 * ${bleedTrim})`);
+    pageProps.push(`height: (${th}mm + 2 * ${bleedTrim})`);
+  } else {
+    pageProps.push(`paper: "${L.paper}"`);
+    if (L.orientation === 'landscape') pageProps.push(`flipped: true`);
+  }
+
+  // Margins. Content sits `margin` from the trim edge → physical margin =
+  // margin + bleed (so it stays put relative to the trim). Facing-pages derives
+  // inner/outer from the same base and adds the binding gutter to the inside;
+  // it's a design choice, so it applies on screen too (bleedAdd is empty there).
+  if (facing) {
+    pageProps.push(`margin: (inside: (${L.margin}${bleedAdd}${bind ? ` + ${bind}` : ''}), outside: (${L.margin}${bleedAdd}), top: (${L.margin}${bleedAdd}), bottom: (${L.margin}${bleedAdd}))`);
+  } else if (hasBleed) {
+    pageProps.push(`margin: (${L.margin}${bleedAdd})`);
+  } else {
+    pageProps.push(`margin: ${L.margin}`);
+  }
+
+  if (L.columns > 1) pageProps.push(`columns: ${L.columns}`);
+  if (L.pageFill.trim()) {
+    pageProps.push(`fill: ${L.pageFill.trim()}`);
   } else {
     pageProps.push(`fill: style-colors.background`);
   }
-  if (style.layout.pageNumbering.trim()) {
-    pageProps.push(`numbering: "${escapeQuotedString(style.layout.pageNumbering)}"`);
+  if (L.pageNumbering.trim()) {
+    pageProps.push(`numbering: "${escapeQuotedString(L.pageNumbering)}"`);
   }
-  if (style.layout.pageHeader.trim()) {
-    pageProps.push(`header: [${substituteRunningHeadPlaceholders(style.layout.pageHeader)}]`);
+  if (L.pageHeader.trim()) {
+    pageProps.push(`header: [${substituteRunningHeadPlaceholders(L.pageHeader)}]`);
   }
-  if (style.layout.pageFooter.trim()) {
-    pageProps.push(`footer: [${substituteRunningHeadPlaceholders(style.layout.pageFooter)}]`);
+  if (L.pageFooter.trim()) {
+    pageProps.push(`footer: [${substituteRunningHeadPlaceholders(L.pageFooter)}]`);
+  }
+  // Crop marks last so they paint over any full-bleed background (foreground).
+  if (hasBleed && L.cropMarks === true) {
+    pageProps.push(`foreground: crop-marks(style-bleed)`);
   }
   bpush(`  set page(${pageProps.join(', ')})`);
 

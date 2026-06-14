@@ -23,7 +23,7 @@ function isPathWithinProject(filePath: string): boolean {
   const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
   return isPathWithin(filePath, projectRoot);
 }
-import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, type ExportConfig } from './importExport';
+import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, preflightPrintImages, type ExportConfig } from './importExport';
 import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
 import {
   getPanelState,
@@ -1355,6 +1355,15 @@ export function setupIPC(): void {
   ipcMain.handle('export:run', async (_event, config: ExportConfig) => {
     const written = await runFilteredExport(config);
     return { ok: !!written, path: written };
+  });
+
+  // dpi pre-flight for the print export — coarse low-resolution-image warning.
+  ipcMain.handle('export:preflightImages', (_event, config: ExportConfig) => {
+    try {
+      return { warnings: preflightPrintImages(config) };
+    } catch {
+      return { warnings: [] as string[] };
+    }
   });
 
   // ─── Project-wide Search & Replace ──────────────

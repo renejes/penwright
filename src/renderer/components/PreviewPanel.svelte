@@ -1,6 +1,6 @@
 <script lang="ts">
   import PdfPreviewPanel from './PdfPreviewPanel.svelte';
-  import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom } from '../appState.svelte';
+  import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom, togglePdfSpread } from '../appState.svelte';
   import { t } from '@shared/i18n/store.svelte';
 
   let {
@@ -40,6 +40,14 @@
         title={t().pickers.previewRefresh}
         aria-label={t().pickers.previewRefresh}
       >↻</button>
+      <button
+        class="spread-btn"
+        class:active={zoomState.spread}
+        onclick={togglePdfSpread}
+        title={zoomState.spread ? t().pickers.previewSpreadOff : t().pickers.previewSpreadOn}
+        aria-label={zoomState.spread ? t().pickers.previewSpreadOff : t().pickers.previewSpreadOn}
+        aria-pressed={zoomState.spread}
+      >▭▭</button>
       <div class="zoom-controls" role="group" aria-label={t().pickers.previewLabel}>
         <button class="zoom-btn" onclick={zoomPdfOut} title={t().pickers.previewZoomOut} aria-label={t().pickers.previewZoomOut}>−</button>
         <button class="zoom-percent" onclick={resetPdfZoom} title={t().pickers.previewResetZoom} aria-label={t().pickers.previewResetZoom}>{Math.round(zoomState.pdf * 100)}%</button>
@@ -48,7 +56,7 @@
     </div>
   </div>
 
-  <PdfPreviewPanel {pdfData} {error} {compiling} {scrollTarget} />
+  <PdfPreviewPanel {pdfData} {error} {compiling} {scrollTarget} spread={zoomState.spread} />
 </div>
 
 <style>
@@ -103,6 +111,22 @@
   }
   .refresh-btn:hover { background: #f0f0f0; color: #444; }
   .refresh-btn.attention { color: #a8503a; }
+
+  .spread-btn {
+    height: 22px;
+    min-width: 30px;
+    border: none;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: -2px;
+    border-radius: 4px;
+    padding: 0 5px;
+    line-height: 1;
+  }
+  .spread-btn:hover { background: #f0f0f0; color: #444; }
+  .spread-btn.active { color: #4f7df9; background: #eef3ff; }
 
   .zoom-controls {
     display: flex;

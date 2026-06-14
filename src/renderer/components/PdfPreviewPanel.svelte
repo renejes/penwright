@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
   import * as pdfjsLib from 'pdfjs-dist';
   import { TextLayer } from 'pdfjs-dist';
   import { zoomState } from '../appState.svelte';
@@ -16,11 +16,14 @@
     error = '',
     compiling = false,
     scrollTarget = '',
+    spread = false,
   }: {
     pdfData: Uint8Array | null;
     error: string;
     compiling: boolean;
     scrollTarget?: string;
+    /** 2-up facing-pages view: page 1 alone, then 2–3, 4–5 … side by side. */
+    spread?: boolean;
   } = $props();
 
   let scrollContainer: HTMLDivElement;
@@ -56,13 +59,17 @@
   // just rebuild placeholders (with the new width) — the IntersectionObserver
   // re-renders visible pages at the new viewport scale.
   let lastZoom = zoomState.pdf;
+  let lastSpread = untrack(() => spread);
   $effect(() => {
     const z = zoomState.pdf;
-    if (z !== lastZoom && currentPdf) {
+    const sp = spread;
+    if ((z !== lastZoom || sp !== lastSpread) && currentPdf) {
       lastZoom = z;
+      lastSpread = sp;
       void rebuildAtCurrentZoom();
     } else {
       lastZoom = z;
+      lastSpread = sp;
     }
   });
 
@@ -177,6 +184,8 @@
     }
   }
 
+  const SPREAD_GAP = 14;
+
   function setupPlaceholders() {
     if (!canvasContainer || !currentPdf) return;
 
@@ -185,26 +194,56 @@
     pageElements = [];
 
     // Width fills the scroll container at 100% zoom; higher zoom grows
-    // beyond it (horizontal scroll kicks in via the parent's overflow).
-    const baseWidth = Math.max(120, canvasContainer.clientWidth - 32);
-    const width = Math.round(baseWidth * zoomState.pdf);
+    // beyond it (horizontal scroll kicks in via the parent's overflow). In
+    // spread mode two pages share the width, so each page is ~half as wide.
+    const avail = Math.max(120, canvasContainer.clientWidth - 32);
+    const perPage = spread
+      ? Math.round(((avail - SPREAD_GAP) / 2) * zoomState.pdf)
+      : Math.round(avail * zoomState.pdf);
 
-    for (let i = 0; i < pageCount; i++) {
+    const makePage = (i: number): HTMLDivElement => {
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-page';
       wrapper.dataset.pageIndex = String(i);
-
-      // Set a placeholder height based on A4 ratio (1:1.414)
-      wrapper.style.width = `${width}px`;
-      wrapper.style.height = `${Math.round(width * 1.414)}px`;
+      // Placeholder height based on A4 ratio (1:1.414) until the real page renders.
+      wrapper.style.width = `${perPage}px`;
+      wrapper.style.height = `${Math.round(perPage * 1.414)}px`;
       wrapper.style.background = '#fff';
-      wrapper.style.marginBottom = '16px';
+      wrapper.style.marginBottom = spread ? '0' : '16px';
       wrapper.style.boxShadow = '0 1px 6px rgba(0,0,0,0.08)';
       wrapper.style.borderRadius = '4px';
       wrapper.style.overflow = 'hidden';
-
-      canvasContainer.appendChild(wrapper);
       pageElements.push(wrapper);
+      return wrapper;
+    };
+
+    if (!spread) {
+      for (let i = 0; i < pageCount; i++) canvasContainer.appendChild(makePage(i));
+      return;
+    }
+
+    // Spread layout: page 1 alone on the right (like an opened magazine), then
+    // 2–3, 4–5 … as facing pairs. Each row is a flex container; a hidden ghost
+    // keeps the lone first page on the right half.
+    const addRow = (children: HTMLElement[]) => {
+      const row = document.createElement('div');
+      row.className = 'pdf-spread-row';
+      for (const c of children) row.appendChild(c);
+      canvasContainer.appendChild(row);
+    };
+    const ghost = () => {
+      const g = document.createElement('div');
+      g.className = 'pdf-page-ghost';
+      g.style.width = `${perPage}px`;
+      return g;
+    };
+
+    if (pageCount > 0) addRow([ghost(), makePage(0)]);
+    for (let i = 1; i < pageCount; i += 2) {
+      const row: HTMLElement[] = [makePage(i)];
+      if (i + 1 < pageCount) row.push(makePage(i + 1));
+      else row.push(ghost());
+      addRow(row);
     }
   }
 
@@ -352,6 +391,19 @@
     flex-direction: column;
     align-items: center;
     min-width: min-content;
+  }
+
+  /* 2-up spread rows (built imperatively, so target via :global). */
+  .pdf-pages :global(.pdf-spread-row) {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .pdf-pages :global(.pdf-page-ghost) {
+    flex: 0 0 auto;
+    visibility: hidden;
   }
 
   .pdf-empty {

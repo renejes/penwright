@@ -140,6 +140,27 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
     },
     baseSize: '14pt',
   },
+  {
+    id: 'magazine-print-a4',
+    name: 'Magazin (Druck) · A4 + 5 mm Beschnitt',
+    description: 'A4 portrait, two columns, set up for a print shop: 5 mm bleed, corner crop marks, facing pages with an inner binding gutter. The bleed + marks only appear in the “Für den Druck” export — the editing preview stays clean.',
+    bestFor: 'Magazines, brochures, anything going to a commercial printer',
+    layout: {
+      paper: 'a4',
+      orientation: 'portrait',
+      margin: '2cm',
+      columns: 2,
+      pageNumbering: '1',
+      pageHeader: '#text(size: 0.85em, tracking: 0.1em, fill: style-colors.muted)[{chapter}  ·  ISSUE 1] #h(1fr) #line(length: 1.5cm, stroke: 0.5pt + style-colors.accent)',
+      pageFooter: '',
+      pageFill: '',
+      bleed: '5mm',
+      cropMarks: true,
+      facingPages: true,
+      binding: '5mm',
+    },
+    baseSize: '10.5pt',
+  },
 ];
 
 /** Returns a deep copy of the named preset's layout, or null. */

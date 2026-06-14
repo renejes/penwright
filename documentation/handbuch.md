@@ -399,6 +399,7 @@ In beiden Faellen ist die Suche eine ganz normale [Find-in-Project](#suche-im-pr
 - **Fehleranzeige:** Typst-Fehler werden im Preview Panel ausgegeben
 - **Aktualisierungs-Modus (auto / manuell):** standardmäßig aktualisiert sich die Vorschau live beim Tippen (400 ms Debounce). Für lange Dokumente kannst du unter **Document → Document Settings → Vorschau** auf **manuell** umstellen — dann wird weiterhin automatisch gespeichert, die Vorschau kompiliert aber nur, wenn du den **↻ Aktualisieren**-Button in der Vorschau-Leiste klickst. Ein „Veraltet"-Hinweis + ein hervorgehobenes ↻ zeigen, wenn die Vorschau hinterherhinkt.
 - **Folgt dem aktiven Kapitel:** wechselst du zu einer Kapiteldatei, scrollt die Vorschau zur ersten Seite dieses Kapitels (über die PDF-Lesezeichen gematcht). Der Sprung passiert nur beim *Wechsel*, nie beim Tippen.
+- **Einzelseite oder Doppelseite:** ein kleiner `▭▭`-Schalter in der Vorschau-Leiste wechselt zwischen Einzelseiten-Scrollen und einer **2-up-Doppelseiten-Ansicht** — Seite 1 allein, dann 2–3, 4–5 … nebeneinander, so wie ein Magazin aufgeschlagen wird. Praktisch für Doppelseiten und Full-Bleed-Layouts. Pro Projekt gespeichert (zusammen mit den Zoom-Stufen).
 
 ---
 
@@ -442,6 +443,22 @@ Titelseite, Abstract und alles ausserhalb von `#include` werden immer mit-export
 ### PDF Export
 
 Nutzt die gebundelte Typst-CLI fuer das (ggf. gefilterte) Projekt. Das PDF entspricht 1:1 der Vorschau.
+
+### Für den Druck (Print-Export)
+
+Beim PDF-Export zeigt der Dialog jetzt eine Option **„Für den Druck"**, die aus dem Bildschirm-PDF eine **druckerei-taugliche** Datei macht — komplett in Typst, ohne externes Tool:
+
+- **Beschnitt (Bleed)** (3 mm / 5 mm / frei): die physische Seite wird auf allen Seiten über das Endformat hinaus vergrößert, damit randabfallende Bilder nach dem Schneiden keinen weißen Blitzer hinterlassen.
+- **Schnittmarken:** Eckwinkel im Beschnitt — *diese Marken sind die Trim-Definition* (siehe Hinweis unten).
+- **Doppelseiten + Bundzuwachs:** Innen-/Außenstege je nach Seitenparität, mit Extra-Platz am Bund. Anders als der Beschnitt werden Doppelseiten **auch beim Schreiben** angezeigt, weil ein gebundenes Heft sich tatsächlich anders liest.
+- **dpi-Preflight:** ein nicht-blockierender Hinweis listet Bilder, die wahrscheinlich zu niedrig aufgelöst für den Druck sind (unter ~1500 px an der kurzen Kante).
+- **„Als Standard merken":** speichert die Druckeinstellungen im Projekt-Design, sodass der Dialog beim nächsten Mal vorbelegt ist.
+
+Schnellster Weg: **File → Export PDF → „Für den Druck" anhaken**. Um ein Projekt einmalig als Druckprojekt einzurichten, im Design-Tab das Layout-Preset **„Magazin (Druck) · A4 + 5 mm Beschnitt"** anwenden — dann ist der Dialog vorbelegt und Doppelseiten erscheinen schon beim Schreiben.
+
+Ein **Doppelseiten-Bild** („Double-Truck" — ein Foto über zwei gegenüberliegende Seiten und über den Bund) gibt es als Design-Element; im Druck-Export blutet es automatisch an die physischen Ränder. Zum Beurteilen die **Doppelseiten-Vorschau** nutzen (siehe Live-Preview).
+
+> **RGB, nicht CMYK.** Penwright liefert ein druckfertiges **RGB**-PDF mit Beschnitt + Schnittmarken. Typst kann weder ein ICC-Profil einbetten noch PDF/X-Boxen (Trim/Bleed) setzen, daher **sind die gezeichneten Schnittmarken die Trim-Definition** — die CMYK-/PDF-X-Umwandlung ist ein Nachschritt (die Druckerei mit ihrem kalibrierten Profil, oder Acrobat / Ghostscript). Für farbverbindlichen Offsetdruck die Druckerei konvertieren lassen.
 
 ### DOCX Export
 

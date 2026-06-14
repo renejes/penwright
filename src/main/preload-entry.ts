@@ -77,6 +77,7 @@ const INVOKE_CHANNELS = [
   'project:addAssets',
   'export:getSections',
   'export:run',
+  'export:preflightImages',
   'project:search',
   'project:replaceAll',
   'project:listLabels',

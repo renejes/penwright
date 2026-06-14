@@ -817,6 +817,71 @@ server.tool(
   },
 );
 
+// ─── Tool: penwright_export_print ──────────────────────
+// Print-shop PDF: a separate export-only transform (never touches style.typ).
+// Writes a temp print-style.typ (oversized page = trim + 2×bleed, bleed-aware
+// margins, optional corner crop marks) + a temp root whose style import is
+// repointed at it, compiles that, then deletes both temp files.
+
+server.tool(
+  'penwright_export_print',
+  'Export a print-ready PDF for a print shop: oversized page with bleed + corner crop marks, in RGB (the shop converts to CMYK/PDF-X). Output path must be inside the project (convention: exports/<name>.pdf). Exports the whole document — for chapter selection use the in-app export dialog.',
+  {
+    outputPath: z.string().describe('Path for the PDF, relative to the project (e.g. "exports/magazine-print.pdf").'),
+    bleed: z.string().optional().describe('Bleed length, e.g. "3mm" or "5mm" (default "5mm"; magazines often want 5mm). "" disables the oversized page.'),
+    cropMarks: z.boolean().optional().describe('Draw corner crop / trim marks in the bleed (default true).'),
+    facingPages: z.boolean().optional().describe('Inner / outer margins with a binding gutter, per page parity (default true).'),
+    binding: z.string().optional().describe('Extra inner binding gutter length added to the inside margin, e.g. "5mm" (default "5mm").'),
+  },
+  async ({ outputPath, bleed, cropMarks, facingPages, binding }) => {
+    const cleanup: string[] = [];
+    try {
+      const { filePath } = readCurrentDocument();
+      const rootFile = findRootFile(filePath);
+      const dir = path.dirname(rootFile);
+      const absOutput = resolveInsideProject(outputPath);
+      const outDir = path.dirname(absOutput);
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+      const base = readProjectStyle(dir);
+      const printStyle = sanitizeProjectStyle({
+        ...base,
+        layout: {
+          ...base.layout,
+          bleed:       bleed ?? '5mm',
+          cropMarks:   cropMarks ?? true,
+          facingPages: facingPages ?? true,
+          binding:     binding ?? '5mm',
+        },
+      });
+
+      const STYLE_PRINT = '.penwright-style-print.typ';
+      const stylePrintAbs = path.join(dir, STYLE_PRINT);
+      fs.writeFileSync(stylePrintAbs, generateStyleTypst(printStyle, { print: true }), 'utf-8');
+      cleanup.push(stylePrintAbs);
+
+      const original = fs.readFileSync(rootFile, 'utf-8');
+      let rootContent = original.replace(/#import\s+"style\.typ"/g, `#import "${STYLE_PRINT}"`);
+      if (!/#import\s+"style\.typ"/.test(original) && !rootContent.includes('#show: apply-style')) {
+        rootContent = `#import "${STYLE_PRINT}": *\n#show: apply-style\n\n${rootContent}`;
+      }
+      const rootTempAbs = path.join(dir, '.penwright-print-root.typ');
+      fs.writeFileSync(rootTempAbs, rootContent, 'utf-8');
+      cleanup.push(rootTempAbs);
+
+      await execFileAsync(typstBinary(), typstCompileArgs([rootTempAbs, absOutput]), { cwd: dir, timeout: 60000 });
+      const stat = fs.statSync(absOutput);
+      const marks = (cropMarks ?? true) ? ' + crop marks' : '';
+      return { content: [{ type: 'text' as const, text: `Print PDF exported to ${absOutput} (${(stat.size / 1024).toFixed(1)} KB) — oversized page + ${bleed ?? '5mm'} bleed${marks}, RGB. The print shop converts to CMYK/PDF-X.` }] };
+    } catch (err: unknown) {
+      const stderr = (err as { stderr?: string }).stderr || (err instanceof Error ? err.message : String(err));
+      return { content: [{ type: 'text' as const, text: `Print export failed:\n${stderr}` }], isError: true };
+    } finally {
+      for (const f of cleanup) { try { fs.unlinkSync(f); } catch {} }
+    }
+  },
+);
+
 // ═══════════════════════════════════════════════════════
 // Phase 3 Tools
 // ═══════════════════════════════════════════════════════
@@ -862,8 +927,20 @@ server.tool(
     }
     const current = readProjectStyle(state.projectDir);
     // Preserve project-specific data a theme doesn't carry: the custom-code
-    // escape hatch and the per-chapter section styles (Phase E).
-    const next = sanitizeProjectStyle({ ...t.style, sections: current.sections, custom: { preamble: current.custom?.preamble ?? '' } });
+    // escape hatch, the per-chapter section styles (Phase E), and the print /
+    // prepress setup (bleed / crop marks / facing pages / binding).
+    const next = sanitizeProjectStyle({
+      ...t.style,
+      sections: current.sections,
+      custom: { preamble: current.custom?.preamble ?? '' },
+      layout: {
+        ...t.style.layout,
+        bleed:       current.layout.bleed ?? '',
+        cropMarks:   current.layout.cropMarks ?? false,
+        facingPages: current.layout.facingPages ?? false,
+        binding:     current.layout.binding ?? '',
+      },
+    });
     writeProjectStyleAndRegenerate(state.projectDir, next);
     return { content: [{ type: 'text' as const, text: `Applied theme "${t.name}" — style.json + style.typ regenerated. Run penwright_compile to verify.` }] };
   },

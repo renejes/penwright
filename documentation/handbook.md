@@ -399,6 +399,7 @@ Both triggers feed into the standard [Find in Project](#find-in-project), so the
 - **Error display:** Typst errors show up in the preview panel
 - **Update mode (auto / manual):** by default the preview updates live as you type (400 ms debounce). For long documents you can switch to **manual** under **Document → Document Settings → Preview** — then saving still happens automatically, but the preview only recompiles when you click the **↻ Refresh** button in the preview header. An "Outdated" hint + a highlighted ↻ tell you when the preview is behind.
 - **Follows the chapter you're editing:** when you switch to a chapter file, the preview scrolls to that chapter's first page (matched via the PDF's bookmarks). It only jumps on a *switch*, never while you type.
+- **Single page or double-page spread:** a small `▭▭` toggle in the preview bar switches between single-page scrolling and a **2-up facing-pages** view — page 1 on its own, then 2–3, 4–5 … side by side, the way a magazine opens. Handy for spreads and full-bleed layouts. Saved per project alongside the zoom levels.
 
 ---
 
@@ -442,6 +443,22 @@ The title page, abstract and anything else outside `#include` is always part of 
 ### PDF export
 
 Uses the bundled Typst CLI to render the (filtered) project. PDF reflects exactly what you see in the preview.
+
+### Print export ("For print")
+
+When you export a PDF, the dialog now shows a **"For print"** option that turns the on-screen PDF into a **print-shop-ready** file — entirely inside Typst, no external tool:
+
+- **Bleed** (3 mm / 5 mm / custom): the physical page grows beyond the trim on all sides so full-bleed images leave no white edge after cutting.
+- **Crop marks:** corner trim marks drawn in the bleed — *these marks are the trim definition* (see the note below).
+- **Facing pages + binding gutter:** inner/outer margins per page parity, with extra room at the spine. Unlike bleed, facing pages are **also shown while you edit**, because a bound booklet genuinely looks different.
+- **dpi pre-flight:** a non-blocking note lists images that are probably too low-resolution for print (under ~1500 px on the short edge).
+- **"Remember as default":** stores the print settings in the project's design, so the dialog comes pre-filled next time.
+
+Fastest way: **File → Export PDF → tick "For print"**. To set a project up as a print project once, apply the **"Magazine (Print) · A4 + 5 mm bleed"** layout preset in the Design tab — then the dialog is pre-filled and facing pages show live while editing.
+
+A **spread image** ("double-truck" — one photo running across two facing pages over the gutter) is available as a design element; it bleeds to the physical edges automatically in the print export. Use the **double-page preview** (see Live Preview) to judge it.
+
+> **RGB, not CMYK.** Penwright delivers a print-ready **RGB** PDF with bleed + crop marks. Typst cannot embed an ICC profile or set PDF/X trim/bleed boxes, so the **drawn crop marks are the trim definition** — the CMYK / PDF-X conversion is a downstream step (the print shop with their calibrated profile, or Acrobat / Ghostscript). For colour-accurate offset printing, let the print shop convert.
 
 ### DOCX export
 

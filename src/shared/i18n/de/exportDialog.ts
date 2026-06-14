@@ -16,4 +16,18 @@ export const exportDialog: ExportDialogMessages = {
   exporting: 'Exportiere…',
   exportAs: (format: string) => `Als ${format} exportieren`,
   failed: (message: string) => `Export fehlgeschlagen: ${message}`,
+
+  print: {
+    label: 'Für den Druck',
+    toggle: 'Für eine Druckerei aufbereiten (Beschnitt + Schnittmarken)',
+    bleedLabel: 'Beschnitt',
+    bleedNone: 'kein',
+    bleedCustom: 'eigener…',
+    cropMarks: 'Schnittmarken',
+    facingPages: 'Doppelseiten (Innen-/Außenstege)',
+    bindingLabel: 'Bundzuwachs',
+    rememberDefault: 'Als Projekt-Standard merken',
+    hint: 'Erzeugt ein druckerei-taugliches PDF mit Beschnitt + Schnittmarken in RGB. Für farbverbindlichen Offsetdruck konvertiert die Druckerei (oder ein Nachschritt) nach CMYK / PDF-X.',
+    lowResTitle: (n: number): string => `${n} Bild${n === 1 ? '' : 'er'} evtl. zu niedrig aufgelöst für den Druck:`,
+  },
 };

@@ -39,7 +39,8 @@ export type DesignElementId =
   | 'magazine-cover'
   | 'full-bleed-image'
   | 'spread-opener'
-  | 'margin-note';
+  | 'margin-note'
+  | 'spread-image';
 
 export interface DesignElementParam {
   /** Field name in the params object the caller passes. */
@@ -561,6 +562,30 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
     ],
     template: `#margin-note(stroke: none, side: {side})[#text(size: 0.78em, fill: style-colors.muted, font: style-fonts.body)[#line(length: 0.7cm, stroke: 0.6pt + style-colors.accent) #v(0.25em) {note}]]`,
   },
+  {
+    id: 'spread-image',
+    name: 'Spread Image (Double-Truck)',
+    description: 'A single image running across two facing pages — over the gutter — the classic magazine "double truck". Emits TWO pages: the left (verso) half and the right (recto) half, split exactly down the image\'s centre so it reads continuously across the fold. Forces the spread to start on an even/left page (`#pagebreak(to: "even")`, which may insert one blank page before it), and bleeds to all physical edges via the exported `style-bleed` (0 on screen, the real bleed in the print export). REQUIRES a current `style.typ` that exports `style-bleed` — if the project predates print support, re-save the design once (any Design-panel tweak) first. Keep faces / text away from the centre — a few mm vanish into the binding (gutter creep). Use a wide, high-resolution image (≈ 2× a single page).',
+    params: [
+      { name: 'image', description: 'Relative path to the image (e.g. "../assets/landscape.jpg"). Should be roughly 2:1 wide — it is scaled to cover the full spread.', required: true, defaultValue: 'assets/spread.jpg' },
+      { name: 'credit', description: 'Optional small photographer / source credit, shown bottom-right of the right page. Empty = none.', required: false, defaultValue: '' },
+    ],
+    template: `
+#pagebreak(to: "even")
+#page(margin: 0pt, header: none, footer: none, numbering: none)[
+  #box(width: 100%, height: 100%, clip: true)[
+    #place(left + top, dx: -style-bleed, dy: -style-bleed, image("{image}", width: 200% + 2 * style-bleed, height: 100% + 2 * style-bleed, fit: "cover"))
+  ]
+]
+#page(margin: 0pt, header: none, footer: none, numbering: none)[
+  #box(width: 100%, height: 100%, clip: true)[
+    #place(left + top, dx: -100% - style-bleed, dy: -style-bleed, image("{image}", width: 200% + 2 * style-bleed, height: 100% + 2 * style-bleed, fit: "cover"))
+  ]
+  {credit-block}
+]
+#pagebreak(weak: true)
+`.trim(),
+  },
 ];
 
 /** Get a single element by id. */
@@ -717,6 +742,14 @@ export function renderDesignElement(
         : '',
     },
     'margin-note': {},
+    'spread-image': {
+      // Small credit in the bottom-right of the right page. Offset includes
+      // style-bleed so it sits the same distance from the trim in the print
+      // export as on screen.
+      'credit-block': values.credit
+        ? `#place(bottom + right, dx: -(1.5cm + style-bleed), dy: -(1.5cm + style-bleed), text(size: 0.78em, fill: white.transparentize(15%), font: style-fonts.body)[${values.credit}])`
+        : '',
+    },
   };
 
   // Substitute conditional blocks first (some contain {placeholder}-style

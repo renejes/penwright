@@ -279,10 +279,20 @@
     // Preserve project-specific data the theme doesn't carry: the custom-code
     // escape hatch and the per-chapter section styles (Phase E).
     const preservedSections = style.sections ?? [];
+    // Preserve the print / prepress setup (bleed, crop marks, facing pages,
+    // binding gutter) — a theme is colour + typography, not a print decision.
+    const p = style.layout;
     style = cloneProjectStyle({
       ...theme.style,
       sections: preservedSections,
       custom: { preamble: preservedCustom },
+      layout: {
+        ...theme.style.layout,
+        bleed: p.bleed ?? '',
+        cropMarks: p.cropMarks ?? false,
+        facingPages: p.facingPages ?? false,
+        binding: p.binding ?? '',
+      },
     });
   }
 

@@ -94,6 +94,8 @@ export const pickers = {
   previewZoomOut: 'Zoom Out',
   previewZoomIn: 'Zoom In',
   previewResetZoom: 'Reset zoom',
+  previewSpreadOn: 'Double-page spread',
+  previewSpreadOff: 'Single page',
   previewNoPreview: 'No preview',
   previewNoPreviewHint: 'Save a .typ file to see the PDF preview',
 

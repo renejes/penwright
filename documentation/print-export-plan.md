@@ -1,9 +1,27 @@
 # Penwright — Plan: „Für den Druck exportieren" (Print-Export)
 
-> **Status:** geplant (post-launch), noch nicht implementiert.
+> **Status:** ✅ **MVP + 2-up-Vorschau + Doppelseiten-Bild (`spread-image`) implementiert (2026-06-14).** Nur CMYK/PDF-X (§7) bleibt bewusst draußen (Engine-Grenze).
 > **Erstellt:** 2026-06-13. **Autor:** René + Claude (Recherche + Architektur-Grounding gegen den Code).
 > **Zweck:** Penwright vom „schönen Bildschirm-PDF" auf „an eine Druckerei lieferbar" heben — für hochwertige Magazine (z. B. Garten-/Landschaftsbau-Magazin einer Agentur-Kundin), Broschüren, Flyer.
 > **Lesereihenfolge vorab:** `CLAUDE.md` (Safe-Apply-Invariante, Persistenz-Schichten → **Style**), dann dieses Dokument.
+
+---
+
+## ✅ Implementiert (2026-06-14) — was gebaut wurde
+
+Alle MVP-Schritte (§4.1–4.7) **plus** die 2-up-Doppelseiten-Vorschau (§6). Empirisch verifiziert (A4 + 5 mm → MediaBox 220×307 mm, Schnittmarken + Full-Bleed gerendert, Bildschirm-Build bleibt exakt A4); `tsc --noEmit` + `electron-vite build` + `build:mcp` grün; adversarialer Multi-Agent-Review = 0 echte Bugs.
+
+- **Schema** (`styleTypes.ts`): `StyleLayout.bleed/cropMarks/facingPages/binding` — **optional** (additiv, Sanitizer-gefüllt, rückwärtskompatibel; die 7 Layout-Preset-Literale mussten nicht angefasst werden).
+- **Generator** (`styleParser.ts`): `generateStyleTypst(style, { print: true })` — oversized `width`/`height` (Trim + 2×Bleed) via Typst-Ausdruck statt mm-Parsing, `PAPER_MM`-Tabelle, Bleed-Margen, Facing-Pages-Innen/Außenstege + Bundzuwachs (**live** im Bildschirm-Modus, nur der Bleed-Überlauf ist export-only), `#let style-bleed` (0mm Bildschirm / Bleed im Druck), `crop-marks(bleed)`-Helper im `foreground` (Markenlänge = Bleed → kein Clipping bei 3 mm). **Full-Bleed-Elemente brauchten KEINE Änderung** — sie bluten korrekt über die geerbte oversized Seite (`#page(margin: 0pt, background: image(width:100%,height:100%))`); `style-bleed` ist für künftige explizite Snippets (`spread-image`) exportiert.
+- **Export** (`importExport.ts`): `ExportConfig.print`; `writePrintExportTemp()` schreibt temp `.penwright-style-print.typ` + temp Root (Style-Import umgebogen, Inject-Fallback für style-lose Projekte), kompiliert, räumt **beide** Temp-Dateien in `finally` auf — **kein safe-apply** (mutiert das Projekt nicht). `getExportableSections().printDefaults` belegt den Dialog vor. **PDF öffnet jetzt immer den Dialog** (auch Single-File) damit die Druckoptionen erreichbar sind. dpi-Preflight (`preflightPrintImages` + PNG/JPEG-Header-Parsing ohne Dependency, Schwelle ~1500 px) → IPC `export:preflightImages`.
+- **UI** (`ExportDialog.svelte`): „Für den Druck"-Block (Bleed 3/5 mm/frei, Schnittmarken, Doppelseiten + Bundzuwachs, „Als Standard merken" → `style:save`-Pfad, RGB-Hinweis, Niedrigauflösungs-Warnung).
+- **Layout-Preset** „Magazin (Druck) · A4 + 5 mm Beschnitt" (`layoutPresets.ts`); Theme-Apply (Renderer + MCP) erhält die Print-Felder.
+- **MCP** (`server.ts`): `penwright_export_print({ outputPath, bleed?, cropMarks?, facingPages?, binding? })`; `MCP_SETUP_VERSION` 0.12.0 → **0.13.0** (Binary bei nächstem `package:mac`-Lauf neu bauen).
+- **2-up-Vorschau** (§6): `zoomState.spread` + Toggle in der Vorschau-Leiste; `PdfPreviewPanel` rendert Seite 1 allein, dann 2–3, 4–5 … als Flex-Rows (pdf.js pro Seite, kein Re-`getDocument`); per-Projekt persistiert in `preferences.json` (`pdfSpread`).
+
+- **Doppelseiten-Bild** (§5, `spread-image` — 23. Design-Element in `designElements.ts`): emittiert zwei Seiten (linke/rechte Hälfte), erzwingt Start auf gerader/linker Seite (`#pagebreak(to: "even")`), splittet das Bild **exakt mittig** über den Bund (beide Seiten rendern dasselbe `cover`-skalierte Bild, nur per `dx` versetzt → nahtlos), blutet über `style-bleed` an alle physischen Ränder. Empirisch verifiziert (Richtungs-Testbild: Bänder 3-4-5 | 6-7-8 laufen lückenlos über die Naht; Parität korrekt; optionaler Credit unten rechts im Beschnitt). Über MCP `penwright_insert_design_element({ elementId: "spread-image" })` nutzbar; `DESIGN_SKILL` um Print/Spread/Gutter-Creep-Hinweise ergänzt. **Voraussetzung:** `style.typ` muss `style-bleed` exportieren (alte Projekte einmal neu speichern).
+
+**Bewusst offen:** nur noch §7 CMYK/PDF-X (Engine-Grenze, Nachschritt). Test-Checkliste §8 bleibt für manuelles QA gültig.
 
 ---
 
@@ -198,9 +216,9 @@ Vor dem Druck-Export einen **Pre-Check** laufen lassen, der alle im Projekt refe
 
 ---
 
-## 5. Stretch: Doppelseiten-Bilder („double truck")
+## 5. Doppelseiten-Bilder („double truck") — ✅ implementiert (2026-06-14)
 
-Ein Bild, das über zwei gegenüberliegende Seiten **über den Bund** läuft — klassisches Magazin-Element. **Eigenes Feature, baut auf MVP (Bleed + Facing-Pages) auf.**
+Ein Bild, das über zwei gegenüberliegende Seiten **über den Bund** läuft — klassisches Magazin-Element. Gebaut als 23. Design-Element `spread-image` (siehe Implementierungs-Summary oben). Die unten beschriebene Mechanik + Fallstricke wurden umgesetzt; die folgenden Notizen bleiben als Referenz.
 
 ### Mechanik
 Typst rendert **eine Seite pro `page`** — es gibt kein natives „dieses Bild über zwei Seiten". Lösung: ein Macro `spread-image(path, ..)`, das **zwei Seiten** emittiert:

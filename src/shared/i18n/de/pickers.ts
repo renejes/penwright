@@ -90,6 +90,8 @@ export const pickers: PickersMessages = {
   previewZoomOut: 'Verkleinern',
   previewZoomIn: 'Vergrößern',
   previewResetZoom: 'Zoom zurücksetzen',
+  previewSpreadOn: 'Doppelseite',
+  previewSpreadOff: 'Einzelseite',
   previewNoPreview: 'Keine Vorschau',
   previewNoPreviewHint: 'Speichere eine .typ-Datei, um die PDF-Vorschau zu sehen',
 
