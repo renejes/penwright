@@ -20,7 +20,7 @@
 > - **macOS „just works" bewiesen:** notarisiertes + gestapeltes DMG gebaut (`spctl: Notarized Developer ID`). `TYPST_BIN`/Package/Font-Path für MCP, Notarize-Dedup, Identity-Präfix-Fix, Electron-Fuses, Typst+MCP signiert.
 > - **Härtung:** Security (dropImage-Traversal, tote URL, Fuses) + Performance (wordStats/Kommentar-Dekorationen/Compile-Cancel/async-Backup). **Onboarding-Wizard.** **Windows-Scaffolding** (ungetestet).
 > - Davor Session 26: **Phase E — Per-Chapter Section Styles**; Session 25: **DOCX-Overhaul**.
-> **Version:** 0.7.0 (Pre-Release) — package.json + Doku synchron. **Nächste Aufgabe:** Launch-Vorbereitung (`penwright.online` registrieren, Smoke-Tests v. a. „von außen geöffnetes Projekt", Showcase-Projekte, Windows) — siehe `handover.md`.
+> **Version:** 0.8.0 (Pre-Release) — package.json + Doku synchron. **Nächste Aufgabe:** Launch-Vorbereitung (`penwright.online` registrieren, Smoke-Tests v. a. „von außen geöffnetes Projekt", Showcase-Projekte, Windows) — siehe `handover.md`.
 
 ---
 

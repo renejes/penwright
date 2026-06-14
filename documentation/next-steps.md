@@ -1,6 +1,6 @@
 # Penwright Desktop — Next Steps bis zum Release
 
-> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-06-05 | App-Version: **0.7.0** (package.json + Doku synchron)
+> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-06-14 | App-Version: **0.8.0** (package.json + Doku synchron)
 >
 > **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (57 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / Penwright / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (22 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets, 5 Section-Style-Rubriken), Per-Chapter Section Styles (Phase E), DOCX-Overhaul (journal-submission-tauglich), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
 
@@ -422,7 +422,7 @@ Der In-App-Link zeigt aktuell statisch auf `/de/docs`. Sobald die UI-i18n eingef
 - [ ] Symlink-Angriffs-Test: Symlink `/project/x.typ -> /etc/passwd` setzen, sicherstellen dass Open/Write rejecten
 - [ ] Lizenz-Tampering-Test: electron-store JSON editieren, Pro vortaeuschen, App sollte zurueck auf "Unlicensed" fallen
 - [ ] DMG auf sauberem Mac (ohne Developer Tools) testen — Gatekeeper
-- [ ] Git-Tag `v0.7.0` erstellen
+- [ ] Git-Tag `v0.8.0` erstellen
 
 #### Writer-Features (Sessions 11–15)
 
