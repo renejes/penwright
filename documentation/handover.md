@@ -15,6 +15,7 @@
 - Produkt **Penwright** (Rebrand komplett). Lizenz: Einmalkauf **59 €**, 14-Tage-Trial → `LicenseGate`, ein `pw_LIC…`-Key schaltet alles frei; **die 14-Tage-Demo schaltet seit Session 32 auch den MCP-Server voll frei** (via `PENWRIGHT_TRIAL_UNTIL`, s. „Status Session 32"). Offline-Grace 7 Tage. In-App-Handbuch (`HandbookViewer`, EN/DE via `?raw`).
 - **macOS „just works" ist bewiesen:** ein **notarisiertes, gestapeltes DMG** wurde gebaut + verifiziert (`spctl: accepted, source=Notarized Developer ID`). Typst-Binary + Fonts + Packages + MCP-Binary sind gebündelt **und** signiert/hardened. Du kannst **jederzeit** per `source build/notarize.env.local && npm run package:mac` ein fertiges DMG bauen. **v1 = nur Apple Silicon.**
 - **Kanonische Domain:** `penwright.online` — **muss noch registriert werden** (Launch-Blocker für Website/Pricing/Support-Links).
+- **Letzte Session (35):** Round-trip-**Escaping-Fix** + **bidirektionale Preview↔Source-Navigation** (Klick im PDF → Kapitel/Stelle; Cursor → Vorschau folgt). Typst-source-first-Umbau evaluiert + **bewusst verworfen**. **v0.9.0** committet, getaggt, gepusht (kein GitHub-Release). **→ Nächster Schritt: 🚀 RELEASE-SPRINT** (siehe „Nächste Session — Fokus").
 
 ---
 
@@ -95,6 +96,21 @@ Auf Produkt-Feedback hin wurde Wartungs-/Identitäts-Ballast entfernt (Ziel: ruh
 - **Focus / Typewriter / Reading Mode** komplett raus: Funktionen, `uiState`-Felder, Toolbar-Buttons, Focus-Exit-Button, `scrollCursorToCenter`, Shortcuts (`Cmd+\``, `Cmd+Alt+R`, `Esc`-Exit), View-Menü-Einträge, ~120 Z. CSS in `App.svelte` + `editor/style.css`.
 - **Spuren bereinigt:** ShortcutCheatsheet, StartScreen (Block „Terminal/AI" → reine KI-Anbindung), `skillTemplates` (Mode-Toggles-Sektion), ~16 verwaiste i18n-Keys (en+de), Doku (CLAUDE.md, Handbuch EN/DE, project_status, next-steps). `tsc` + Build grün.
 - **Status:** uncommittet im Working-Tree (auf `main`).
+
+---
+
+## Status Session 35 (Escaping-Fix + bidirektionale Preview↔Source-Navigation + Release v0.9.0)
+
+> **Verifikation:** `electron-vite build` grün (0 Fehler/Warnungen); Round-Trip-Regressionstest `scripts/roundtrip-test.mts` (`npx tsx`, 30/30). Die interaktiven Nav-Verhalten (Klick→Kapitel, Cursor→Vorschau) vom User im laufenden Build bestätigt.
+
+**Kontext:** Ausgangsfrage war „kann man Text direkt in der Design-Vorschau editieren?" → Multi-Agent-Analyse (Codebase + Web + adversariale Kritik): echtes In-Preview-**Editing** ist mit dem gebündelten `typst 0.14.2` nicht machbar (SVG/PDF tragen keine Source-Spans, kein `jump`-Subcommand) und ein **Typst-source-first-Umbau wurde bewusst verworfen** (Parser ≠ Renderer → Design-Makros sind ohne Compiler-Lauf nicht editierbar darstellbar; 30–50 % eines Magazins wären Makro-Totzone; Engine-Versions-Skew Vorschau≠Export; Session-9-Perf; 40–60 PW ohne echten Gewinn). Entscheidung im Memory `decision-no-source-first`. **Stattdessen zwei fokussierte Features auf dem bestehenden TipTap-Pfad:**
+
+1. **Escaping-Fix (Korrektheit, round-trip-kritisch).** `serializer.ts`: neue `escapeTypstText()` maskiert Typst-Sonderzeichen (`\ * _ ` `` ` `` ` # @ $ < > ~ [ ]`) in Fließtext-Runs + `escapeLeadingBlockMarker()` für führende `= - + / 1.`; **Code-Marks ausgenommen** (Typst-Raw un-escapet nicht). `deserializer.ts` ist jetzt **escape-aware** (`splitInlineConstructs` + `stripKnownInlines` überspringen `\x`; `parseFormattedText` neu geschrieben mit `unescapeLiteral`/`findClosingDelim`) → exakte Umkehrung. Vorher: literale `*`/`@wort`/`#x`/`$` wurden still zu Markup/Zitat/Code/Mathe (Kompilier- **und** Reopen-Korruption). **Nebenbei gefixt:** Code-Blöcke akkumulierten bei jedem Speichern einen `\n` (`parseBlock` strippt jetzt den Fence-Newline). Test: `scripts/roundtrip-test.mts`.
+2. **Bidirektionale Navigation (additiv, kein neuer Editor).** *Preview→Source:* `PdfPreviewPanel.svelte` `onPreviewClick` (imperativ am Scroll-Container) baut aus den pdf.js-Text-Spans eine Phrase + nächstes Heading (`headingForPage` via `getOutline()`) → `penwright:preview-jump`-Event; `App.svelte` `handlePreviewJump` sucht per `project:search` die Datei (Heading-Disambiguierung + -Fallback), öffnet sie + springt (reuse `penwright:project-search-jump`/TreeWalker). Plain-Click navigiert, Drag-Select bleibt Copy (`getSelection().isCollapsed`). *Source→Preview:* `App.svelte` `nearestHeadingTitle`/`scheduleHeadingFollow` in `onTransaction` → setzt `previewState.scrollTarget` aufs Heading am Cursor (debounced; vorhandene `scrollToChapter`-Maschinerie scrollt nur bei Heading-Wechsel → kein Jank). Plan: `documentation/preview-sync-and-escaping-plan.md`.
+
+**Release v0.9.0:** Version gebumpt (package.json, README-Badge+Text, next-steps, project_status-Changelog Session 35). Zwei Commits (`feat:` + `chore: release v0.9.0`) auf `main` gepusht, annotierter Tag `v0.9.0` gepusht. **Kein GitHub-Release** (privates Repo → kein Kunden-Kanal; Distribution noch offen — siehe Release-Sprint). `scripts/reset-trial.mjs` (lokales Trial-Reset-Tool) bewusst **untracked** gelassen. Release-Workflow-Präferenz im Memory `feedback-release-workflow`.
+
+**Offen:** der ganze Release-Sprint (siehe „Nächste Session — Fokus"). Manuelle QA der zwei Nav-Features in echten Multi-Kapitel-/Magazin-Projekten.
 
 ---
 
@@ -189,15 +205,19 @@ Auf Produkt-Feedback hin wurde Wartungs-/Identitäts-Ballast entfernt (Ziel: ruh
 
 ---
 
-## Nächste Session — Fokus
+## Nächste Session — Fokus: 🚀 RELEASE-SPRINT
 
-**Die App ist inhaltlich fertig — der nächste Schritt ist der Launch, keine neuen Features.** (MCP Apps + Design-Vorher/Nachher wurden in Session 31 evaluiert und bewusst verworfen — siehe oben + §2.) Reihenfolge:
+**Entscheidung 2026-06-27 (Session 35): Wir releasen jetzt — „einfach mal raus damit".** Die App ist inhaltlich fertig; **v0.9.0** ist committet/getaggt/gepusht (kein GitHub-Release, bewusst). Der nächste Chat ist der **Launch**, keine neuen Features. (MCP Apps + Design-Vorher/Nachher + Typst-source-first wurden alle evaluiert + bewusst verworfen.) Themen (Details auch in `next-steps.md` §0 „🚀 Nächste Session: Release-Sprint"):
 
-1. **`penwright.online` registrieren** (Launch-Blocker — Website/Pricing/Support-Links lösen sonst nicht auf). Marken-Recherche (DPMA/EUIPO, Klasse 9) steht aus.
-2. **Manuelle Smoke-Tests** (headless nicht prüfbar) — Priorität auf dem **„von außen geöffnetes Projekt"-Pfad** (s. „Status Session 31"): beide Bugs dieser Session lebten dort. Dazu die Restposten: History-Hub (Versionen/Backups/KI-Undo) + a11y-Modale (Esc/Backdrop) aus Session 30; Design-with-AI-E2E mit Claude Desktop; Safe-Apply-Rollback.
-3. **Showcase-Projekte** für die Homepage (Thesis / Magazin-Spread / Brochure / CV / Report / Newsletter — Auszüge + Screenshots) und **Windows-Verifikation** (Scaffolding steht; Typst-`.exe` + Test fehlen).
+1. **Release planen** — konkrete Schritte + Reihenfolge bis zum ersten öffentlichen Release.
+2. **`penwright.online` registrieren** (Launch-Blocker — Website/Pricing/Support-Links lösen sonst nicht auf; Marken-Recherche DPMA/EUIPO Klasse 9 steht aus).
+3. **Homepage** — fertigstellen ODER **grundlegend neu vom Design her** überarbeiten; Showcase-Projekte (Thesis / Magazin-Spread / Brochure / CV / Report / Newsletter) als Auszüge/Screenshots einbauen.
+4. **Newsletter** — Anbieter + Einbettung auf der Homepage + Double-Opt-in (Updates laufen per „Newsletter + manueller Download", Auto-Updater ist gestrichen).
+5. **Download-Distribution** — wo/wie die notarisierte DMG gehostet wird. **Tendenz: Dropbox** (René hat ein großes Abo) statt Firebase Hosting (`next-steps.md` §3.3) oder GitHub-Releases (privat → kein Kunden-Kanal). Klären: stabile Public-Download-Links, Datei-Versionierung, Checksumme/SHA auf der Seite.
+6. **DMG bauen** — `source build/notarize.env.local && npm run package:mac` (notarisiert, Apple Silicon) für die zu verteilende Version.
+7. **Manuelle Smoke-Tests / QA** (headless nicht prüfbar) — v. a. **„von außen geöffnetes Projekt"-Pfad**; die zwei neuen Nav-Features (Klick→Kapitel, Cursor→Vorschau) in echten Multi-Kapitel-/Magazin-Projekten; Design-with-AI-E2E mit Claude Desktop; Safe-Apply-Rollback. **Windows** bleibt Fast-Follow (Scaffolding steht; Typst-`.exe` + Test fehlen).
 
-> Falls doch noch UI-Politur ansteht: konsistente Hover-/Focus-/Disabled-/Empty-States, Microcopy, Abstände — beim Durchgehen sammeln. Aber nicht launch-blocking.
+> Falls UI-Politur dazwischenkommt (Hover-/Focus-/Empty-States, Microcopy, Abstände): mitnehmen, aber nicht launch-blocking.
 
 ---
 

@@ -23,6 +23,17 @@ Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist
 
 Reihenfolge der verbleibenden Arbeit: **`penwright.online` registrieren → QA → Windows-Fast-Follow.**
 
+### 🚀 Nächste Session: Release-Sprint (neuer Chat)
+
+**Entscheidung 2026-06-27:** Wir releasen die Software jetzt wirklich — „einfach mal raus damit". In der nächsten Session (frischer Chat) planen + erledigen wir den eigentlichen Launch. Stand: **v0.9.0 ist committet, getaggt und gepusht** (bewusst **kein** GitHub-Release — Distribution war noch offen). Themen für die Release-Session:
+
+- **Release planen** — konkrete Schritte + Reihenfolge bis zum ersten öffentlichen Release.
+- **Homepage `penwright.online`** — fertigstellen ODER ggf. **grundlegend neu vom Design her** überarbeiten (Showcase-Projekte aus der Post-Launch-Liste einbauen).
+- **Newsletter** — Anbindung klären (Anbieter, Einbettung auf der Homepage, Double-Opt-in), da Updates per „Newsletter + manueller Download" laufen (Auto-Updater ist gestrichen, §3.4).
+- **Download-Distribution** — wie/wo die notarisierte DMG gehostet wird. **Aktuelle Tendenz: Dropbox** (René hat bereits ein großes Dropbox-Abo) statt Firebase Hosting (§3.3) oder GitHub-Releases (privates Repo → kein Kunden-Kanal). Zu klären: stabile Public-Download-Links, Datei-Versionierung, ggf. Checksumme/SHA auf der Seite.
+- **DMG bauen** — `npm run package:mac` lokal mit Zertifikaten (notarisiert) für die zu verteilende Version.
+- etc. — der Rest in der nächsten Session.
+
 ### Post-Launch / Marketing & Roadmap (nach v1.0)
 
 - ~~**🆕 „Für den Druck exportieren" (Print-Export)**~~ — **✅ erledigt 2026-06-14** (MVP §4.1–4.7 **+** 2-up-Doppelseiten-Vorschau §6). Voller Plan + Implementierungs-Summary in [print-export-plan.md](print-export-plan.md). Beschnitt (Bleed) + Schnittmarken + Innen-/Außenstege (Bundzuwachs) + dpi-Preflight als eigener Export-Transform (temp `style-print.typ`, kein safe-apply); `StyleLayout` um `bleed`/`cropMarks`/`facingPages`/`binding` (optional); Generator-Print-Modus (oversized `width`/`height` + `PAPER_MM` + `crop-marks()`-Helper + `style-bleed`-Export); ExportDialog-Print-Block + Layout-Preset „Magazin (Druck)" + MCP-Tool `penwright_export_print` (`MCP_SETUP_VERSION` → 0.13.0); 2-up-Vorschau via `zoomState.spread` (per-Projekt persistiert). **Full-Bleed-Elemente brauchten keine Änderung** (bluten via geerbter oversized Seite). **Bewusst offen:** `spread-image` (Doppelseiten-Bild über den Bund) + CMYK/PDF-X (Engine-Grenze [#3143](https://github.com/typst/typst/issues/3143) — die gezeichneten Schnittmarken SIND die Trim-Definition, CMYK bleibt Druckerei-/Acrobat-/Ghostscript-Nachschritt). MCP-Binary beim nächsten `package:mac` neu bauen.
