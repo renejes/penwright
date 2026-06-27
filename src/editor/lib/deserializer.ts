@@ -146,12 +146,14 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
   // 1. Code block: ```...```
   const codeBlockMatch = block.match(/^```(\w*)\n?([\s\S]*?)```$/);
   if (codeBlockMatch) {
+    // Strip the single trailing newline that precedes the closing ``` fence —
+    // it is the delimiter, not part of the code. Without this the serializer's
+    // own `\n` before the fence accumulates one blank line per round-trip.
+    const codeText = codeBlockMatch[2].replace(/\n$/, '');
     return {
       type: 'codeBlock',
       attrs: { language: codeBlockMatch[1] || null },
-      content: codeBlockMatch[2]
-        ? [{ type: 'text', text: codeBlockMatch[2] }]
-        : undefined,
+      content: codeText ? [{ type: 'text', text: codeText }] : undefined,
     };
   }
 
@@ -298,6 +300,13 @@ function stripKnownInlines(text: string): string {
   let i = 0;
 
   while (i < text.length) {
+    // Escaped chars (`\x`) are literal — drop them from the stripped output so a
+    // prose block with a literal `\$` or `\#word` isn't misclassified as raw.
+    if (text[i] === '\\') {
+      i += 2;
+      continue;
+    }
+
     let matched = false;
 
     // Check simple #func[content] patterns
@@ -920,6 +929,14 @@ function splitInlineConstructs(text: string): InlineSegment[] {
   let textStart = 0;
 
   while (i < text.length) {
+    // Honor backslash escapes: a `\x` can never start an inline construct and
+    // stays part of the surrounding text run (unescaped later in
+    // parseFormattedText). Skip both characters.
+    if (text[i] === '\\') {
+      i += 2;
+      continue;
+    }
+
     let matched = false;
 
     // Check simple #func[content] patterns
@@ -1110,47 +1127,91 @@ function extractArgAndBracket(
 }
 
 /**
- * Parses formatting marks (*bold*, _italic_, `code`) in a text segment.
+ * Parses formatting marks (*bold*, _italic_, `code`) in a text segment, while
+ * honoring backslash escapes. Only UNESCAPED `*` / `_` / `` ` `` act as
+ * delimiters; a `\x` is the literal character x. Literal text and the inner
+ * text of `*`/`_` marks are unescaped (`\x` → `x`); `code` spans are kept raw
+ * (Typst raw text does not process escapes), mirroring the serializer.
  */
 function parseFormattedText(text: string): TipTapNode[] {
   if (!text) return [];
 
   const result: TipTapNode[] = [];
-  const pattern = /(\*([^*]+)\*)|(_([^_]+)_)|(`([^`]+)`)/g;
-  let lastIndex = 0;
-  let match;
+  let buf = '';
+  const flush = () => {
+    if (buf) {
+      result.push({ type: 'text', text: buf });
+      buf = '';
+    }
+  };
 
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      result.push({ type: 'text', text: text.slice(lastIndex, match.index) });
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+
+    // Escape → unescape into the literal buffer.
+    if (ch === '\\' && i + 1 < text.length) {
+      buf += text[i + 1];
+      i += 2;
+      continue;
     }
 
-    if (match[2] !== undefined) {
-      result.push({
-        type: 'text',
-        text: match[2],
-        marks: [{ type: 'bold' }],
-      });
-    } else if (match[4] !== undefined) {
-      result.push({
-        type: 'text',
-        text: match[4],
-        marks: [{ type: 'italic' }],
-      });
-    } else if (match[6] !== undefined) {
-      result.push({
-        type: 'text',
-        text: match[6],
-        marks: [{ type: 'code' }],
-      });
+    if (ch === '*' || ch === '_' || ch === '`') {
+      const close = findClosingDelim(text, i + 1, ch);
+      // Require a non-empty body (matches the old `[^x]+` patterns).
+      if (close > i + 1) {
+        flush();
+        const rawInner = text.slice(i + 1, close);
+        if (ch === '`') {
+          result.push({ type: 'text', text: rawInner, marks: [{ type: 'code' }] });
+        } else {
+          const markType = ch === '*' ? 'bold' : 'italic';
+          result.push({
+            type: 'text',
+            text: unescapeLiteral(rawInner),
+            marks: [{ type: markType }],
+          });
+        }
+        i = close + 1;
+        continue;
+      }
     }
 
-    lastIndex = match.index + match[0].length;
+    buf += ch;
+    i++;
   }
-
-  if (lastIndex < text.length) {
-    result.push({ type: 'text', text: text.slice(lastIndex) });
-  }
+  flush();
 
   return result.length > 0 ? result : [{ type: 'text', text }];
+}
+
+/**
+ * Finds the next closing delimiter at or after `from`. For `*`/`_` an escaped
+ * delimiter (`\*`) is skipped; for `` ` `` (raw) the next backtick always closes
+ * (Typst raw doesn't process escapes).
+ */
+function findClosingDelim(text: string, from: number, delim: string): number {
+  const honorEscape = delim !== '`';
+  for (let j = from; j < text.length; j++) {
+    if (honorEscape && text[j] === '\\') {
+      j++;
+      continue;
+    }
+    if (text[j] === delim) return j;
+  }
+  return -1;
+}
+
+/** Unescapes `\x` → `x` across a literal string. */
+function unescapeLiteral(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\\' && i + 1 < text.length) {
+      out += text[i + 1];
+      i++;
+    } else {
+      out += text[i];
+    }
+  }
+  return out;
 }

@@ -53,6 +53,16 @@
     }
   });
 
+  // Preview → Source: a plain click on a rendered word jumps the editor to its
+  // source. Attached imperatively (the pages/text layers are built imperatively)
+  // to avoid an a11y lint on a non-interactive container.
+  $effect(() => {
+    const el = scrollContainer;
+    if (!el) return;
+    el.addEventListener('click', onPreviewClick);
+    return () => el.removeEventListener('click', onPreviewClick);
+  });
+
   // Re-render whenever the PDF zoom changes. We MUST NOT re-call
   // pdfjsLib.getDocument(): the ArrayBuffer was transferred to the worker on
   // first load and is detached. Instead, keep the loaded `currentPdf` and
@@ -182,6 +192,69 @@
     } catch {
       // outline missing / destination unresolvable → leave the scroll as-is
     }
+  }
+
+  // ─── Preview → Source (click a word to jump to the .typ) ──────────────
+  // The deepest outline bookmark whose page is at or above `pageIndex` — used
+  // as section context to disambiguate / fall back when the clicked phrase
+  // isn't found verbatim in the source.
+  async function headingForPage(pageIndex: number): Promise<string> {
+    const pdf = currentPdf;
+    if (!pdf || pageIndex < 0) return '';
+    try {
+      const outline = (await pdf.getOutline()) as OutlineNode[] | null;
+      if (!outline) return '';
+      const flat: OutlineNode[] = [];
+      const walk = (items: OutlineNode[]) => {
+        for (const it of items) { flat.push(it); if (it.items?.length) walk(it.items); }
+      };
+      walk(outline);
+      let best = '';
+      let bestPage = -1;
+      for (const it of flat) {
+        let dest = it.dest;
+        if (typeof dest === 'string') dest = ((await pdf.getDestination(dest)) as unknown[] | null) ?? [];
+        if (!Array.isArray(dest) || dest.length === 0) continue;
+        const pg = await pdf.getPageIndex(dest[0] as Parameters<typeof pdf.getPageIndex>[0]);
+        if (pg <= pageIndex && pg >= bestPage) { bestPage = pg; best = it.title; }
+      }
+      return best;
+    } catch {
+      return '';
+    }
+  }
+
+  function onPreviewClick(e: MouseEvent) {
+    // Only a plain click navigates. If the user drag-selected text (to copy),
+    // leave the selection alone.
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return;
+
+    const target = e.target as HTMLElement | null;
+    const span = target?.closest('.textLayer span') as HTMLElement | null;
+    const layer = span?.parentElement;
+    if (!span || !layer) return;
+
+    // Build a short, contextual phrase from the clicked span + following ones,
+    // so the source lookup is unique enough (a single word often isn't).
+    const spans = Array.from(layer.children) as HTMLElement[];
+    const idx = spans.indexOf(span);
+    let phrase = '';
+    for (let i = idx; i < spans.length && phrase.length < 45; i++) {
+      phrase += spans[i].textContent || '';
+    }
+    phrase = phrase.replace(/\s+/g, ' ').trim().slice(0, 60);
+    // Need some real letters/digits — ignore clicks on pure punctuation/space.
+    if (phrase.replace(/[^\p{L}\p{N}]/gu, '').length < 3) return;
+
+    const wrapper = span.closest('.pdf-page') as HTMLElement | null;
+    const pageIndex = wrapper ? Number(wrapper.dataset.pageIndex) : -1;
+
+    void headingForPage(pageIndex).then((heading) => {
+      window.dispatchEvent(
+        new CustomEvent('penwright:preview-jump', { detail: { text: phrase, heading } }),
+      );
+    });
   }
 
   const SPREAD_GAP = 14;
@@ -457,6 +530,11 @@
     position: absolute;
     white-space: pre;
     transform-origin: 0% 0%;
+  }
+
+  /* Click a word to jump to its source location (Preview → Source). */
+  .pdf-pages :global(.textLayer span) {
+    cursor: pointer;
   }
 
   .pdf-pages :global(.textLayer span::selection) {

@@ -67,7 +67,7 @@ function serializeNode(node: TipTapNode): string {
     }
 
     case 'paragraph': {
-      const paraText = serializeInline(node.content ?? []);
+      const paraText = escapeLeadingBlockMarker(serializeInline(node.content ?? []));
       return wrapWithAlign(paraText, node.attrs?.textAlign as string);
     }
 
@@ -102,7 +102,8 @@ function serializeNode(node: TipTapNode): string {
 
     case 'codeBlock': {
       const lang = (node.attrs?.language as string) ?? '';
-      const text = serializeInline(node.content ?? []);
+      // Code is literal: never escape or apply marks inside a code block.
+      const text = (node.content ?? []).map((n) => n.text ?? '').join('');
       return '```' + lang + '\n' + text + '\n```';
     }
 
@@ -160,6 +161,36 @@ function wrapWithAlign(content: string, align: string | undefined | null): strin
   return `#align(${align})[${content}]`;
 }
 
+/**
+ * Backslash-escapes Typst markup-significant characters in a plain text run so
+ * that literal `*`, `#`, `@`, `$`, … typed by the user compile verbatim and do
+ * NOT get re-parsed as markup/citations/code on the next open.
+ *
+ * Backslash itself is in the class, so it is escaped in the same single pass
+ * (a literal `\` becomes `\\`) — there is no double-escaping. The deserializer
+ * is the exact inverse: it skips escaped characters when scanning for inline
+ * constructs and unescapes `\x` → `x` when building text nodes.
+ *
+ * NOTE: mark delimiters (`*…*`, `_…_`, …) are added by the caller AFTER this,
+ * so they stay live; only the user's inner text is escaped. Code blocks and
+ * raw/bibliography passthrough bypass this (they are literal Typst).
+ */
+function escapeTypstText(text: string): string {
+  return text.replace(/[\\`*_#@$<>~[\]]/g, (ch) => '\\' + ch);
+}
+
+/**
+ * A paragraph whose visible text starts with a Typst block marker (`= ` heading,
+ * `- `/`+ ` list, `/ ` term list, or `1. ` enum) would be re-parsed as that
+ * block on the next open. Escape only the leading marker; mid-line dashes etc.
+ * stay untouched.
+ */
+function escapeLeadingBlockMarker(text: string): string {
+  return text
+    .replace(/^(\s*)([=\-+/])(\s)/, '$1\\$2$3')
+    .replace(/^(\s*)(\d+)\.(\s)/, '$1$2\\.$3');
+}
+
 function serializeTable(node: TipTapNode): string {
   const rows = node.content ?? [];
   if (rows.length === 0) return '#table(columns: 1)';
@@ -213,8 +244,11 @@ function serializeInline(nodes: TipTapNode[]): string {
   return nodes
     .map((node) => {
       if (node.type === 'text') {
-        let text = node.text ?? '';
         const marks = node.marks ?? [];
+        // Code marks become Typst raw spans (`…`), which are literal and do NOT
+        // process backslash escapes — so leave their text un-escaped.
+        const isCode = marks.some((m) => m.type === 'code');
+        let text = isCode ? (node.text ?? '') : escapeTypstText(node.text ?? '');
 
         // Apply marks inside-out
         for (const mark of marks) {

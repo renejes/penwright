@@ -262,6 +262,10 @@
       onTransaction({ docChanged }) {
         editorVersion.value++;
         if (docChanged) docVersion++;
+        // Preview follows the cursor: as the caret moves across heading
+        // boundaries, scroll the PDF to that section (debounced; skipped while
+        // applying an external/AI edit, which already sets the scroll target).
+        if (!isUpdatingFromExtension.value) scheduleHeadingFollow();
       },
       onUpdate() {
         if (isUpdatingFromExtension.value) return;
@@ -287,6 +291,7 @@
     window.addEventListener('penwright:show-mcp-connection', () => { showMcpConnection = true; });
     window.addEventListener('penwright:show-onboarding', () => { showOnboarding = true; });
     window.addEventListener('penwright:edit-chapter-look', (e) => { editChapterLook = (e as CustomEvent).detail; });
+    window.addEventListener('penwright:preview-jump', handlePreviewJump as EventListener);
 
     // Drag & Drop images into the editor
     document.addEventListener('dragover', (e) => e.preventDefault());
@@ -746,6 +751,40 @@
     });
   }
 
+  // ─── Source → Preview (cursor-follow) ─────────────────────────
+  // The nearest heading at/above the caret, cleaned to match PDF bookmarks
+  // (same cleanup as messageHandler.firstHeadingTitle). Empty if the caret is
+  // before the first heading.
+  function nearestHeadingTitle(editor: import('@tiptap/core').Editor): string {
+    const pos = editor.state.selection.from;
+    const doc = editor.state.doc;
+    let title = '';
+    let offset = 0;
+    for (let i = 0; i < doc.childCount; i++) {
+      if (offset > pos) break;
+      const node = doc.child(i);
+      if (node.type.name === 'heading') title = node.textContent;
+      offset += node.nodeSize;
+    }
+    return title
+      .replace(/\s*<[^>]*>\s*$/, '') // drop a trailing `<label>`
+      .replace(/[*_`]/g, '')         // drop light inline markup
+      .trim();
+  }
+
+  let headingFollowTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleHeadingFollow() {
+    clearTimeout(headingFollowTimer);
+    headingFollowTimer = setTimeout(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const title = nearestHeadingTitle(editor);
+      // PdfPreviewPanel only re-scrolls when the target actually changes, so
+      // setting the same title while typing within a section is a no-op.
+      if (title) previewState.scrollTarget = title;
+    }, 200);
+  }
+
   // Project Search → after the file opens, scroll the editor to the first
   // occurrence of the match text so the user can see context. Editor mount
   // is async, so we retry a few times before giving up.
@@ -785,6 +824,76 @@
       if (attempts++ < 8) setTimeout(tryScroll, 120);
     };
     setTimeout(tryScroll, 80);
+  }
+
+  // ─── Preview → Source ─────────────────────────────────────────
+  // A click on a word in the PDF preview (dispatched by PdfPreviewPanel as
+  // `penwright:preview-jump`) opens the chapter file that contains it and jumps
+  // the editor there. Uses project-wide search on the clicked phrase; falls
+  // back to the section heading when the phrase isn't found verbatim (e.g.
+  // macro-/design-generated text).
+  type PreviewJumpFile = {
+    filePath: string;
+    matches: { line: number; col: number; matchText: string }[];
+  };
+  async function searchProjectFiles(
+    api: { invoke(channel: string, ...args: unknown[]): Promise<unknown> },
+    query: string,
+  ): Promise<PreviewJumpFile[]> {
+    const q = query.trim();
+    if (q.length < 3) return [];
+    try {
+      const res = (await api.invoke('project:search', {
+        query: q,
+        caseSensitive: false,
+        wholeWord: false,
+        regex: false,
+        includeBib: false,
+      })) as { files?: PreviewJumpFile[] };
+      return res?.files ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function handlePreviewJump(e: Event) {
+    const detail = (e as CustomEvent<{ text: string; heading: string }>).detail;
+    const phrase = (detail?.text || '').trim();
+    const heading = (detail?.heading || '').trim();
+    const api = (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+
+    let files = await searchProjectFiles(api, phrase);
+    let usedQuery = phrase;
+
+    // Disambiguate by the section heading when the phrase matches several files.
+    if (files.length > 1 && heading) {
+      const headingFiles = new Set((await searchProjectFiles(api, heading)).map((f) => f.filePath));
+      const narrowed = files.filter((f) => headingFiles.has(f.filePath));
+      if (narrowed.length) files = narrowed;
+    }
+
+    // Fallback: phrase not found verbatim (macro/design text) → jump to heading.
+    if (files.length === 0 && heading) {
+      files = await searchProjectFiles(api, heading);
+      usedQuery = heading;
+    }
+    if (files.length === 0) return;
+
+    const file = files[0];
+    const match = file.matches[0];
+    if (!match) return;
+
+    // Open the chapter if it isn't the active file already, then scroll the
+    // editor to the match (handleProjectSearchJump retries until the editor
+    // mounts the freshly-loaded content).
+    if (tabState.currentFile !== file.filePath) handleFileOpen(file.filePath);
+    window.dispatchEvent(
+      new CustomEvent('penwright:project-search-jump', {
+        detail: { matchText: match.matchText ?? usedQuery },
+      }),
+    );
   }
 
   function handleGlobalKeydown(e: KeyboardEvent) {
@@ -905,6 +1014,7 @@
     window.removeEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
     window.removeEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.removeEventListener('penwright:project-closed', onProjectClosed as EventListener);
+    window.removeEventListener('penwright:preview-jump', handlePreviewJump as EventListener);
     editorRef.current?.destroy();
   });
 </script>
