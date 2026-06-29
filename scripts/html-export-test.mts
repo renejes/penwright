@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import { serializeHtml } from '../src/shared/htmlSerializer.ts';
 import { styleToCss } from '../src/shared/styleToCss.ts';
 import { buildWebBundle, slugify, deriveTitle } from '../src/main/webExport.ts';
-import { DEFAULT_PROJECT_STYLE } from '../src/shared/styleTypes.ts';
+import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../src/shared/styleTypes.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
 
 let pass = 0;
@@ -173,6 +173,69 @@ console.log('\n── Test 6: web bundle writer (index + fragment + meta + asset
   check('deriveTitle reads the first heading', deriveTitle(doc as any) === 'Bundle Test');
 
   for (const d of [root, out, out2]) fs.rmSync(d, { recursive: true, force: true });
+}
+
+console.log('\n── Test 7: security + correctness regression guards (Phase A/B review fixes) ──');
+{
+  const rawBlock = (content: string) => ({ type: 'doc', content: [{ type: 'typstRawBlock', attrs: { content, blockType: 'raw' } }] });
+
+  // (a) Hostile style.json tokens must NOT break out of the inline <style>.
+  const hostile = sanitizeProjectStyle({
+    ...DEFAULT_PROJECT_STYLE,
+    fonts: { ...DEFAULT_PROJECT_STYLE.fonts, body: '</style><script>alert(1)</script>' },
+    elements: {
+      ...DEFAULT_PROJECT_STYLE.elements,
+      codeBlock: { ...DEFAULT_PROJECT_STYLE.elements.codeBlock, background: '#fff}</style><script>alert(2)</script>' },
+    },
+  } as any);
+  const hcss = styleToCss(hostile);
+  check('font/codeBlock tokens cannot inject </style> or <script>', !hcss.includes('</style>') && !hcss.includes('<script>'));
+  check('rendered <style> has no live <script>', !/<script\b/i.test(serializeHtml({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as any, { scopedCss: hcss })));
+
+  // (b) Dangerous URL schemes neutralized; safe ones kept.
+  const linkDoc = (href: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'here', marks: [{ type: 'link', attrs: { href } }] }] }] });
+  check('javascript: link dropped, text kept', (() => { const h = serializeHtml(linkDoc('javascript:alert(1)') as any); return !h.includes('javascript:') && h.includes('here'); })());
+  check('data:text/html link dropped', !serializeHtml(linkDoc('data:text/html,<b>x</b>') as any).includes('data:text/html'));
+  check('https link preserved', serializeHtml(linkDoc('https://example.com/a') as any).includes('href="https://example.com/a"'));
+  check('inline #link javascript: in callout dropped', (() => { const h = serializeHtml(rawBlock('#info[See #link("javascript:alert(1)")[x] now.]') as any); return !h.includes('javascript:') && h.includes('now'); })());
+
+  // (c) Callout with ')' in its title still renders (no silent total content loss).
+  const ct = serializeHtml(rawBlock('#warning(title: "Be careful (really)")[\n Body text here. \n]') as any);
+  check('callout with ) in title renders body', ct.includes('class="pw-callout"') && ct.includes('Body text here') && ct.includes('Be careful (really)'));
+
+  // (d) Drop cap with '[' inside args extracts the real body, not an arg bracket.
+  check('dropcap with [ in args keeps real body', serializeHtml(rawBlock('#dropcap(foo: (a: [x]))[The real body here.]') as any).includes('<p class="pw-dropcap">The real body here.'));
+
+  // (e) Unbalanced underscores do not cross word boundaries.
+  const em = serializeHtml(rawBlock('#info[Set my_var and your_var to zero.]') as any);
+  check('snake_case stays literal (no spurious <em>)', !em.includes('<em>') && em.includes('my_var'));
+
+  // (f) CSS-property injection via textColor/highlight is dropped.
+  const ov = serializeHtml({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x', marks: [{ type: 'textColor', attrs: { color: 'red;position:fixed;inset:0' } }] }] }] } as any);
+  check('textColor overlay payload dropped', !ov.includes('position:fixed'));
+
+  // (g) Global img cap is emitted.
+  const css = styleToCss(DEFAULT_PROJECT_STYLE);
+  check('styleToCss emits a global img max-width', /\.pw-article img \{[^}]*max-width: 100%/.test(css));
+
+  // (h) Asset rewriter blocks ../ traversal, absolute paths, and non-image files.
+  const troot = '/tmp/pw-trav-root', tout = '/tmp/pw-trav-out';
+  for (const d of [troot, tout]) fs.rmSync(d, { recursive: true, force: true });
+  fs.mkdirSync(troot, { recursive: true });
+  const evilPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  fs.writeFileSync('/tmp/pw-trav-evil.png', evilPng);       // valid image, OUTSIDE root
+  fs.writeFileSync(`${troot}/secret.txt`, 'SECRETDATA');     // inside root, NOT an image
+  const travDoc = { type: 'doc', content: [
+    { type: 'image', attrs: { src: '../pw-trav-evil.png' } },   // ../ traversal (image ext)
+    { type: 'image', attrs: { src: '/tmp/pw-trav-evil.png' } }, // absolute
+    { type: 'image', attrs: { src: 'secret.txt' } },            // in-root non-image
+  ] };
+  const tr = buildWebBundle({ doc: travDoc as any, style: DEFAULT_PROJECT_STYLE, meta: { title: 't' }, slug: 't', outDir: tout, rootDir: troot });
+  const thtml = fs.readFileSync(tr.indexPath, 'utf8');
+  check('no out-of-root / non-image file copied', tr.assets.length === 0 && !fs.existsSync(`${tout}/assets`));
+  check('no secret/out-of-root bytes leaked into bundle', !thtml.includes('SECRETDATA') && !thtml.includes('data:image'));
+  for (const d of [troot, tout]) fs.rmSync(d, { recursive: true, force: true });
+  fs.rmSync('/tmp/pw-trav-evil.png', { force: true });
 }
 
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);

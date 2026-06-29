@@ -29,7 +29,7 @@ export function slugify(s: string): string {
   return (s || 'article')
     .normalize('NFKD').replace(/[̀-ͯ]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    .slice(0, 60) || 'article';
+    .slice(0, 60).replace(/-+$/, '') || 'article'; // re-trim: the slice can cut just after a dash
 }
 
 /** First heading's text, used as a default article title. */
@@ -111,6 +111,13 @@ function makeAssetRewriter(rootDir: string, outDir: string, assets: string[], in
     if (!src || /^(data:|https?:|\/\/|file:|[a-z]:[\\/]|\/)/i.test(src)) return src;
     const abs = path.resolve(rootDir, src);
     if (mapped.has(abs)) return mapped.get(abs)!;
+    // Containment + type allowlist: never copy/inline a file OUTSIDE the project
+    // root (path traversal like `../../etc/passwd`) and only ever touch real
+    // image files — anything else is left as the original src (a visible broken
+    // link), never read into the shareable bundle.
+    const rel = path.relative(rootDir, abs);
+    const inside = rel !== '' && rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
+    if (!inside || !MIME[path.extname(abs).toLowerCase()]) { mapped.set(abs, src); return src; }
     if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { mapped.set(abs, src); return src; }
 
     let replacement: string;

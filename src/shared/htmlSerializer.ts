@@ -77,6 +77,49 @@ function escAttr(s: string): string {
   return esc(s).replace(/"/g, '&quot;');
 }
 
+// ─── URL / CSS-value sanitizers (the output is published HTML, embedded into
+// arbitrary host sites — so href/src schemes and inline-style values from a
+// (possibly untrusted, externally-authored) document must be neutralised). ───
+
+/**
+ * Neutralises dangerous URL schemes for an `href`. Allows http(s)/mailto/tel/ftp,
+ * in-page `#fragments`, and relative/absolute paths; `javascript:`/`data:text/html`/
+ * `vbscript:`/etc. → '' (drop). Control + whitespace chars are stripped before the
+ * scheme test so `java\tscript:` / `java\nscript:` can't slip through.
+ */
+function safeUrl(raw: unknown): string {
+  const u = String(raw ?? '').trim();
+  const probe = u.replace(/[\x00-\x20]+/g, '').toLowerCase();
+  if (/^(https?:|mailto:|tel:|ftp:)/.test(probe)) return u;   // safe explicit scheme
+  if (/^[#/]/.test(u) || /^\.{1,2}\//.test(u)) return u;      // fragment / relative / absolute path
+  if (/^[a-z][a-z0-9+.-]*:/.test(probe)) return '';           // any other scheme → drop
+  return u;                                                   // schemeless relative (e.g. assets/x.png)
+}
+
+/** Like {@link safeUrl} but additionally permits `data:image/*` (for inlined assets). */
+function safeImgSrc(raw: unknown): string {
+  const u = String(raw ?? '').trim();
+  if (/^data:image\//i.test(u.replace(/\s+/g, ''))) return u;
+  return safeUrl(u);
+}
+
+/** A CSS color safe to drop into an inline `style=`: hex / rgb()/hsl()/color-mix() /
+ *  bare named color. Anything carrying `;`/`<`/`{`/quotes (declaration- or
+ *  tag-breakout) → null (omit the style). */
+function safeCssColor(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(s)) return s;
+  if (/^(rgb|rgba|hsl|hsla|color-mix)\([^;<>{}"']*\)$/i.test(s)) return s;
+  if (/^[a-zA-Z]{1,30}$/.test(s)) return s; // named color
+  return null;
+}
+
+/** A CSS length/percentage safe for an inline `style="width:…"`, else null. */
+function safeCssLen(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  return /^\d+(\.\d+)?(px|em|rem|%|ch|vw|vh|pt|cm|mm|in)$/.test(s) ? s : null;
+}
+
 const kids = serializeChildrenToHTMLString;
 
 // ─── Raw-block reparser (Phase B slice: drop cap + callout) ────────────────
@@ -90,15 +133,47 @@ const CALLOUT_NAMES = new Set([
   'question', 'conclusion', 'important', 'abstract', 'example',
 ]);
 
-/** Depth-aware bracket match — returns the inner slice + index past the close. */
+/** Depth-aware bracket match — returns the inner slice + index past the close.
+ *  String-aware: brackets inside `"…"` (e.g. a `)` in a `title:"a (b)"` arg or a
+ *  link URL) don't affect the depth count. */
 function matchBracket(s: string, open: number, oc: string, cc: string): { inner: string; end: number } | null {
   if (s[open] !== oc) return null;
-  let depth = 0;
+  let depth = 0, inStr = false;
   for (let i = open; i < s.length; i++) {
-    if (s[i] === oc) depth++;
-    else if (s[i] === cc) { depth--; if (depth === 0) return { inner: s.slice(open + 1, i), end: i + 1 }; }
+    const c = s[i];
+    if (inStr) { if (c === '\\') i++; else if (c === '"') inStr = false; continue; }
+    if (c === '"') { inStr = true; continue; }
+    if (c === oc) depth++;
+    else if (c === cc) { depth--; if (depth === 0) return { inner: s.slice(open + 1, i), end: i + 1 }; }
   }
   return null;
+}
+
+/** For `#name(...)?[body]`, returns `{ args, body }` skipping the optional
+ *  `(...)` arg group so a `[` or `)` inside args doesn't get mistaken for the
+ *  body bracket. `nameEnd` = index just past `#name`. null if no body bracket. */
+function macroBody(t: string, nameEnd: number): { args: string; body: string } | null {
+  let j = nameEnd;
+  while (/\s/.test(t[j] ?? '')) j++;
+  let args = '';
+  if (t[j] === '(') { const a = matchBracket(t, j, '(', ')'); if (!a) return null; args = a.inner; j = a.end; }
+  while (/\s/.test(t[j] ?? '')) j++;
+  if (t[j] !== '[') return null;
+  const b = matchBracket(t, j, '[', ']');
+  return b ? { args, body: b.inner } : null;
+}
+
+const isWordChar = (c: string | undefined) => !!c && /\w/.test(c);
+
+/** Finds a closing emphasis delimiter on the same line whose preceding char is
+ *  not whitespace and which is not word-flanked on its outer side (Typst's
+ *  boundary rule). -1 if none qualifies. */
+function findEmphClose(src: string, from: number, delim: string): number {
+  for (let i = from; i < src.length; i++) {
+    if (src[i] === '\n') return -1;
+    if (src[i] === delim && !/\s/.test(src[i - 1] ?? ' ') && !isWordChar(src[i + 1])) return i;
+  }
+  return -1;
 }
 
 /** Minimal inline-Typst → HTML for reparsed bodies (text + bold/italic/code +
@@ -124,8 +199,15 @@ function inlineTypstToHtml(src: string): string {
         continue;
       }
     }
-    if (ch === '*') { const c = src.indexOf('*', i + 1); if (c > i) { flush(); out += `<strong>${inlineTypstToHtml(src.slice(i + 1, c))}</strong>`; i = c + 1; continue; } }
-    if (ch === '_') { const c = src.indexOf('_', i + 1); if (c > i) { flush(); out += `<em>${inlineTypstToHtml(src.slice(i + 1, c))}</em>`; i = c + 1; continue; } }
+    if (ch === '*' || ch === '_') {
+      // Typst boundary rule: open emphasis only when the delimiter isn't
+      // word-flanked on its inner side and the next char isn't whitespace — so
+      // `snake_case` / `my_var` and `5 * 3` stay literal, not cross-word markup.
+      if (!isWordChar(src[i - 1]) && src[i + 1] !== undefined && !/\s/.test(src[i + 1])) {
+        const c = findEmphClose(src, i + 1, ch);
+        if (c > i) { flush(); const tag = ch === '*' ? 'strong' : 'em'; out += `<${tag}>${inlineTypstToHtml(src.slice(i + 1, c))}</${tag}>`; i = c + 1; continue; }
+      }
+    }
     if (ch === '`') { const c = src.indexOf('`', i + 1); if (c > i) { flush(); out += `<code>${esc(src.slice(i + 1, c))}</code>`; i = c + 1; continue; } }
     buf += ch; i++;
   }
@@ -138,7 +220,7 @@ function inlineFunc(name: string, args: string, inner: string | null): string {
     case 'emph': return inner !== null ? `<em>${inlineTypstToHtml(inner)}</em>` : '';
     case 'strong': return inner !== null ? `<strong>${inlineTypstToHtml(inner)}</strong>` : '';
     case 'raw': { const m = args.match(/"((?:[^"\\]|\\.)*)"/); return `<code>${esc(m ? m[1].replace(/\\"/g, '"') : (inner ?? ''))}</code>`; }
-    case 'link': { const m = args.match(/"([^"]+)"/); const href = m ? m[1] : ''; return `<a href="${escAttr(href)}">${inner !== null ? inlineTypstToHtml(inner) : esc(href)}</a>`; }
+    case 'link': { const m = args.match(/"([^"]+)"/); const raw = m ? m[1] : ''; const href = safeUrl(raw); const text = inner !== null ? inlineTypstToHtml(inner) : esc(raw); return href ? `<a href="${escAttr(href)}">${text}</a>` : text; }
     case 'footnote': return ''; // footnotes inside a reparsed body are dropped in the slice
     default: return inner !== null ? inlineTypstToHtml(inner) : '';
   }
@@ -161,21 +243,24 @@ function bodyToParagraphs(body: string): string {
 function reparseRawBlock(content: string): string | null {
   const t = content.trim();
 
-  const cm = t.match(/^#([a-z][a-z0-9]*)\s*(?:\(([^)]*)\))?\s*\[/);
-  if (cm && CALLOUT_NAMES.has(cm[1])) {
-    const name = cm[1];
-    const titleM = (cm[2] ?? '').match(/title:\s*"((?:[^"\\]|\\.)*)"/);
-    const b = matchBracket(t, t.indexOf('['), '[', ']');
-    if (b) {
+  // gentle-clues callout: #info[…] / #warning(title:"x")[…]. macroBody skips the
+  // `(…)` arg group, so a `)` in the title or a `[` in the args no longer drops
+  // the whole callout / grabs the wrong body bracket.
+  const nameM = t.match(/^#([a-z][a-z0-9]*)/);
+  if (nameM && CALLOUT_NAMES.has(nameM[1])) {
+    const mb = macroBody(t, nameM[0].length);
+    if (mb) {
+      const titleM = mb.args.match(/title:\s*"((?:[^"\\]|\\.)*)"/);
       const title = titleM ? `<p class="pw-callout-title">${esc(titleM[1].replace(/\\"/g, '"'))}</p>` : '';
-      return `<aside class="pw-callout" data-tone="${escAttr(name)}">${title}${bodyToParagraphs(b.inner)}</aside>`;
+      return `<aside class="pw-callout" data-tone="${escAttr(nameM[1])}">${title}${bodyToParagraphs(mb.body)}</aside>`;
     }
   }
 
-  if (/^#(dropcap|lead)\b/.test(t)) {
-    const open = t.indexOf('[');
-    const b = open >= 0 ? matchBracket(t, open, '[', ']') : null;
-    if (b) return `<p class="pw-dropcap">${inlineTypstToHtml(b.inner.replace(/\s+/g, ' ').trim())}</p>`;
+  // drop cap: #dropcap(…)[…] (droplet) and the LANGSAM #lead[…] alias.
+  const dcM = t.match(/^#(dropcap|lead)\b/);
+  if (dcM) {
+    const mb = macroBody(t, dcM[0].length);
+    if (mb) return `<p class="pw-dropcap">${inlineTypstToHtml(mb.body.replace(/\s+/g, ' ').trim())}</p>`;
   }
 
   return null;
@@ -210,8 +295,9 @@ const renderBody = renderJSONContentToString({
     horizontalRule: () => '<hr>',
 
     image: ({ node }: any) => {
-      const src = escAttr(String(node.attrs?.src ?? ''));
-      const w = node.attrs?.width ? ` style="width:${escAttr(String(node.attrs.width))}"` : '';
+      const src = escAttr(safeImgSrc(node.attrs?.src));
+      const len = safeCssLen(node.attrs?.width);
+      const w = len ? ` style="width:${len}"` : '';
       return `<img src="${src}" alt=""${w}>`;
     },
 
@@ -255,16 +341,18 @@ const renderBody = renderJSONContentToString({
     subscript: ({ children }: any) => `<sub>${kids(children)}</sub>`,
     smallcaps: ({ children }: any) => `<span style="font-variant:small-caps">${kids(children)}</span>`,
     highlight: ({ mark, children }: any) => {
-      const c = mark.attrs?.color ? ` style="background:${escAttr(String(mark.attrs.color))}"` : '';
+      const col = safeCssColor(mark.attrs?.color);
+      const c = col ? ` style="background:${col}"` : '';
       return `<mark${c}>${kids(children)}</mark>`;
     },
     textColor: ({ mark, children }: any) => {
-      const c = mark.attrs?.color ? ` style="color:${escAttr(String(mark.attrs.color))}"` : '';
+      const col = safeCssColor(mark.attrs?.color);
+      const c = col ? ` style="color:${col}"` : '';
       return `<span${c}>${kids(children)}</span>`;
     },
     link: ({ mark, children }: any) => {
-      const href = escAttr(String(mark.attrs?.href ?? ''));
-      return `<a href="${href}">${kids(children)}</a>`;
+      const href = safeUrl(mark.attrs?.href);
+      return href ? `<a href="${escAttr(href)}">${kids(children)}</a>` : kids(children);
     },
   },
   // Never throw on an unmapped construct: degrade to its visible children
@@ -284,9 +372,10 @@ const renderBody = renderJSONContentToString({
 export function serializeHtml(doc: JSONNode, opts: SerializeHtmlOptions = {}): string {
   const body = renderBody({ content: doc as any });
   const slug = opts.slug ? ` data-article="${escAttr(opts.slug)}"` : '';
-  const style = opts.scopedCss
-    ? `\n<style>\n${opts.scopedCss}\n</style>\n`
-    : '\n<style>/* pw scoped styles — styleToCss lands in Phase B */</style>\n';
+  // Defense-in-depth: styleToCss already validates its token inputs, but never
+  // let a literal close-style tag in the CSS break out of the <style> element.
+  const css = (opts.scopedCss ?? '').replace(/<\/(style)/gi, '<\\/$1');
+  const style = css ? `\n<style>\n${css}\n</style>\n` : '\n<style></style>\n';
   const article = `<article class="pw-article"${slug}>${style}${body}</article>`;
   return opts.mode === 'document' ? wrapDocument(article, opts.meta) : article;
 }
@@ -306,7 +395,7 @@ function wrapDocument(article: string, meta: ArticleMeta = {}): string {
     meta.description ? `<meta name="description" content="${escAttr(String(meta.description))}">` : '',
     meta.title ? `<meta property="og:title" content="${escAttr(String(meta.title))}">` : '',
     meta.description ? `<meta property="og:description" content="${escAttr(String(meta.description))}">` : '',
-    meta.cover ? `<meta property="og:image" content="${escAttr(String(meta.cover))}">` : '',
+    meta.cover && safeUrl(meta.cover) ? `<meta property="og:image" content="${escAttr(safeUrl(meta.cover))}">` : '',
   ].filter(Boolean).join('\n  ');
   return `<!doctype html>\n<html${lang}>\n<head>\n  ${head}\n</head>\n<body>\n${article}\n</body>\n</html>\n`;
 }

@@ -77,13 +77,18 @@ function basePt(style: ProjectStyle): number {
 }
 
 /** A web-safe font stack: the configured name + a generic that matches its
- *  apparent classification (cheap heuristic; faithful enough for a fallback). */
+ *  apparent classification (cheap heuristic; faithful enough for a fallback).
+ *  The name is stripped of CSS/HTML metacharacters and always quoted, so a
+ *  hostile style.json font value (e.g. `x}</style><script>…`) can never break
+ *  out of the inline <style> block (it would otherwise be interpolated raw). */
 function fontStack(name: string, kind: 'body' | 'heading' | 'code'): string {
-  const n = (name || '').trim();
-  const quoted = /\s/.test(n) ? `"${n}"` : n;
-  if (kind === 'code') return `${quoted}, ui-monospace, "Cascadia Code", Menlo, Consolas, monospace`;
-  const sans = /(sans|inter|helvetica|arial|roboto|grotesk|segoe|system|plex sans|figtree|work)/i.test(n);
-  return sans ? `${quoted}, system-ui, sans-serif` : `${quoted}, Georgia, "Times New Roman", serif`;
+  const generic = kind === 'code'
+    ? 'ui-monospace, "Cascadia Code", Menlo, Consolas, monospace'
+    : /(sans|inter|helvetica|arial|roboto|grotesk|segoe|system|plex sans|figtree|work)/i.test(name)
+      ? 'system-ui, sans-serif'
+      : 'Georgia, "Times New Roman", serif';
+  const safe = (name || '').replace(/["'<>;{}()\\]/g, '').trim().slice(0, 60);
+  return safe ? `"${safe}", ${generic}` : generic;
 }
 
 /** color slot → the CSS custom-property reference. */
@@ -164,8 +169,11 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
     const decls = [`font-family: var(--pw-font-code)`, `overflow: auto`];
     // Typst color expressions like luma(245) have no CSS form; only pass a
     // raw hex/rgb/CSS color through, else fall back to a subtle tint.
+    // Validate the FULL value (not just the prefix) so a token like
+    // `#fff}</style>…` from a hostile style.json can't ride into the <style>.
     const bg = cb.background.trim();
-    decls.push(`background: ${/^#|^rgb|^hsl/i.test(bg) ? bg : 'color-mix(in srgb, var(--pw-muted) 12%, transparent)'}`);
+    const safeBg = /^#[0-9a-fA-F]{3,8}$/.test(bg) || /^(rgb|rgba|hsl|hsla)\([0-9.,%\s/]*\)$/i.test(bg);
+    decls.push(`background: ${safeBg ? bg : 'color-mix(in srgb, var(--pw-muted) 12%, transparent)'}`);
     if (cb.borderRadius.trim()) decls.push(`border-radius: ${cb.borderRadius.trim()}`);
     const px = cb.paddingX.trim() || '1em';
     const py = cb.paddingY.trim() || '0.6em';
@@ -175,8 +183,10 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   }
   {
     const fig = e.figure;
+    // Global image cap so a full-res photo never overflows the reading measure
+    // (whether or not it's wrapped in a <figure>).
+    out.push(`img { max-width: 100%; height: auto; }`);
     out.push(`figure { margin-inline: 0; }`);
-    out.push(`figure img { max-width: 100%; height: auto; }`);
     const sizeEm = lenToEm(fig.captionSize, bpt);
     const capDecls = [
       `color: ${cvar(fig.captionColor)}`,
@@ -240,6 +250,24 @@ function prefixRule(rule: string): string {
   const selector = rule.slice(0, braceIdx).trim();
   const body = rule.slice(braceIdx);
   if (selector === '') return `.pw-article ${body}`; // root declarations block
-  const scoped = selector.split(',').map((s) => `.pw-article ${s.trim()}`).join(', ');
+  // Split on TOP-LEVEL commas only, so a comma inside :is(a, b) / [x="a,b"] /
+  // a quoted string isn't mistaken for a selector-list separator.
+  const scoped = splitTopLevel(selector).map((s) => `.pw-article ${s.trim()}`).join(', ');
   return `${scoped} ${body}`;
+}
+
+/** Splits a selector on commas that sit outside (), [], and quotes. */
+function splitTopLevel(selector: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, quote = '', start = 0;
+  for (let i = 0; i < selector.length; i++) {
+    const ch = selector[i];
+    if (quote) { if (ch === quote) quote = ''; continue; }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    else if (ch === ',' && depth === 0) { parts.push(selector.slice(start, i)); start = i + 1; }
+  }
+  parts.push(selector.slice(start));
+  return parts;
 }
