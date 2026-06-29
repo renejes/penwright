@@ -12,6 +12,7 @@ export const menu = {
   saveAs: 'Save As…',
   exportPdf: 'Export as PDF…',
   exportDocx: 'Export as DOCX…',
+  exportWeb: 'Export to Web (HTML)…',
   importMarkdown: 'Import Markdown…',
   linkZotero: 'Link Zotero Library…',
   openSources: 'Open Sources Folder',

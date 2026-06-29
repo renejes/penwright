@@ -24,6 +24,8 @@ import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
 import { saveZoteroBibPath, getProjectStyle, getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
+import { buildWebBundle, slugify, deriveTitle } from './webExport';
+import type { ArticleMeta } from '../shared/htmlSerializer';
 
 let zoteroWatcher: FSWatcher | null = null;
 
@@ -449,6 +451,79 @@ export function handleExportPdf(): Promise<void> {
 
 export function handleExportDocx(): Promise<void> {
   return startExport('docx');
+}
+
+/**
+ * Web (HTML) export — writes a self-contained, framework-agnostic bundle
+ * (`<slug>/index.html` + `fragment.html` + `meta.json` + `assets/`) via the
+ * electron-free {@link buildWebBundle}. Mirrors the DOCX path
+ * (resolveIncludes → deserialize → serialize) but the output is a directory,
+ * so it uses a folder save dialog instead of a file one.
+ */
+export async function runWebExport(config: {
+  selectedIncludes: string[] | null;
+  includeBibliography: boolean;
+  inlineAssets?: boolean;
+}): Promise<string | null> {
+  const md = resolveDict(getLocale()).mainDialogs;
+  if (!appState.currentFilePath) {
+    dialog.showErrorBox(md.exportFailedTitle, md.openProjectFirst);
+    return null;
+  }
+
+  const { saveFile } = await import('./fileManager');
+  await saveFile();
+
+  const rootFile = findRootFile(appState.currentFilePath);
+  const rootDir = path.dirname(rootFile);
+
+  const useFilter = config.selectedIncludes !== null || !config.includeBibliography;
+  const sourceFile = useFilter
+    ? writeExportTemp(rootFile, config.selectedIncludes, config.includeBibliography)
+    : rootFile;
+
+  try {
+    const mergedContent = resolveIncludes(sourceFile);
+    const doc = deserializeTypst(mergedContent);
+    const style = (appState.projectDir ? getProjectStyle(appState.projectDir) : null) ?? DEFAULT_PROJECT_STYLE;
+    const title = deriveTitle(doc as { content?: unknown[] });
+    const slug = slugify(title);
+    const meta: ArticleMeta = { title, locale: getLocale() };
+
+    const result = await dialog.showSaveDialog(appState.mainWindow!, {
+      defaultPath: path.join(rootDir, slug),
+    });
+    if (result.canceled || !result.filePath) return null;
+
+    appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: true, format: 'web' });
+    const bundle = buildWebBundle({
+      doc, style, meta, slug,
+      outDir: result.filePath,
+      rootDir,
+      inlineAssets: config.inlineAssets,
+    });
+    appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: 'web' });
+
+    await dialog.showMessageBox(appState.mainWindow!, {
+      type: 'info',
+      buttons: [md.ok],
+      message: md.exportedTo('HTML', path.basename(bundle.dir)),
+    });
+    shell.showItemInFolder(bundle.indexPath);
+    return bundle.dir;
+  } catch (err) {
+    appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: 'web' });
+    dialog.showErrorBox(md.exportFailedFmt('HTML'), `${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  } finally {
+    if (useFilter) cleanupExportTemp(rootDir);
+  }
+}
+
+export function handleExportWeb(): Promise<void> {
+  // The slice exports the whole document; chapter selection / inline-asset
+  // options can route through the export dialog later.
+  return runWebExport({ selectedIncludes: null, includeBibliography: true }).then(() => {});
 }
 
 export async function handleImportMarkdown(): Promise<void> {

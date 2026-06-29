@@ -17,7 +17,7 @@ import { releaseLock } from './lockManager';
 import { getWindowBounds, saveWindowBounds, getLocale, getMcpTarget, setMcpTarget } from './persistenceManager';
 import { ensureMcpTarget, probeMetaMcp } from './mcpRegistration';
 import { resolveDict } from '../shared/i18n';
-import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
+import { handleExportPdf, handleExportDocx, handleExportWeb, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
 import { getTypstFontPath } from './typstPath';
 import { setupCrashCapture, addBreadcrumb } from './crashReporter';
@@ -199,6 +199,7 @@ appState.closeProject = closeProjectInteractive;
 appState.openProject = async () => { await openProject(); };
 appState.handleExportPdf = handleExportPdf;
 appState.handleExportDocx = handleExportDocx;
+appState.handleExportWeb = handleExportWeb;
 appState.handleImportMarkdown = handleImportMarkdown;
 appState.handleLinkZotero = handleLinkZotero;
 

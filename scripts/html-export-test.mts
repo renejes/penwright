@@ -11,6 +11,9 @@
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { serializeHtml } from '../src/shared/htmlSerializer.ts';
+import { styleToCss } from '../src/shared/styleToCss.ts';
+import { buildWebBundle, slugify, deriveTitle } from '../src/main/webExport.ts';
+import { DEFAULT_PROJECT_STYLE } from '../src/shared/styleTypes.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
 
 let pass = 0;
@@ -68,6 +71,108 @@ console.log('\n── Test 2: a real sample chapter renders without throwing / l
   check('contains at least one paragraph', html.includes('<p>'));
   fs.writeFileSync('/tmp/pw-introduction.html', `<!doctype html><meta charset="utf-8">\n${html}\n`);
   console.log('    wrote /tmp/pw-introduction.html for eyeballing');
+}
+
+console.log('\n── Test 3: agnostic output modes (fragment vs standalone document) ──');
+{
+  const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hi' }] }] };
+
+  const fragment = serializeHtml(doc as any, { slug: 'x', mode: 'fragment' });
+  check('fragment starts with <article> (embeddable, no page shell)', fragment.trimStart().startsWith('<article class="pw-article"'));
+  check('fragment has NO <!doctype>', !/<!doctype/i.test(fragment));
+
+  const document = serializeHtml(doc as any, {
+    slug: 'x',
+    mode: 'document',
+    meta: { title: 'My <Article>', description: 'A test & demo', locale: 'de', cover: 'assets/cover.jpg' },
+  });
+  check('document is a full HTML5 page', /^<!doctype html>/i.test(document.trimStart()));
+  check('document carries lang from meta.locale', document.includes('<html lang="de">'));
+  check('document <title> is HTML-escaped', document.includes('<title>My &lt;Article&gt;</title>'));
+  check('document has description meta', document.includes('name="description" content="A test &amp; demo"'));
+  check('document has Open Graph image (shareable)', document.includes('property="og:image" content="assets/cover.jpg"'));
+  check('document still embeds the self-contained <article>', document.includes('<article class="pw-article" data-article="x">'));
+
+  // Default mode is the embeddable fragment.
+  const def = serializeHtml(doc as any, {});
+  check('default mode is fragment', def.trimStart().startsWith('<article') && !/<!doctype/i.test(def));
+}
+
+console.log('\n── Test 4: styleToCss — tokens → scoped CSS (no global leak) ──');
+{
+  const css = styleToCss(DEFAULT_PROJECT_STYLE);
+  check('exposes color custom properties on the root', css.includes('.pw-article {') && css.includes('--pw-accent:'));
+  check('font + measure on root', css.includes('--pw-font-body:') && css.includes('max-width: 70ch'));
+  check('headings ratio-scaled with em + token color', /\.pw-article h1 \{[^}]*font-size: [\d.]+em/.test(css) && /\.pw-article h1 \{[^}]*color: var\(--pw-/.test(css));
+  check('blockquote uses border-inline-start + token color', /\.pw-article blockquote \{[^}]*border-inline-start/.test(css));
+  // The scoping-leak guard: every comma-separated selector must carry the prefix.
+  check('comma selectors fully scoped (th, td)', css.includes('.pw-article th, .pw-article td {'));
+  check('helper classes fully scoped (.pw-cite, .pw-ref)', css.includes('.pw-article .pw-cite, .pw-article .pw-ref'));
+  check('no bare global "td {" leaked', !/(^|[^-\w]),?\s*td\s*\{/m.test(css.replace(/\.pw-article td/g, '')));
+  // Print-only fields must NOT appear.
+  check('no print-only paper/bleed in CSS', !/bleed|crop|a4|us-letter/i.test(css));
+
+  const styled = serializeHtml(deserializeTypst('= Title\n\nHello world.') as any, { scopedCss: css });
+  check('rendered article inlines the scoped CSS', styled.includes('<style>') && styled.includes('--pw-accent'));
+}
+
+console.log('\n── Test 5: design elements (drop cap + callout) reparsed to real HTML ──');
+{
+  const dc = serializeHtml(deserializeTypst('#dropcap(height: 3, fill: style-colors.primary)[This is the opener with a *bold* word.]') as any);
+  check('drop cap → <p class="pw-dropcap">', dc.includes('<p class="pw-dropcap">'));
+  check('drop-cap body + inline markup survive', dc.includes('This is the opener with a <strong>bold</strong> word.'));
+
+  const co = serializeHtml(deserializeTypst('#warning(title: "Careful")[\n  *Heavy* callout use looks amateurish.\n]') as any);
+  check('callout → <aside class="pw-callout" data-tone="warning">', co.includes('<aside class="pw-callout" data-tone="warning">'));
+  check('callout title rendered', co.includes('<p class="pw-callout-title">Careful</p>'));
+  check('callout body survives', co.includes('<strong>Heavy</strong> callout use looks amateurish.'));
+
+  const css = styleToCss(DEFAULT_PROJECT_STYLE);
+  check('CSS: initial-letter + permanent Firefox float fallback', css.includes('initial-letter: 3') && css.includes('@supports not (initial-letter: 3) {'));
+  check('CSS: @supports passed through unprefixed (not broken)', !css.includes('.pw-article @supports'));
+  check('CSS: callout box uses color-mix tint', css.includes('.pw-article .pw-callout {') && css.includes('color-mix(in srgb, var(--pw-accent)'));
+
+  // The real shipped showcase uses #dropcap + #info/#tip/#warning/#memo.
+  const showcase = fs.readFileSync(fileURLToPath(new URL('../resources/sample-project/chapters/07-design-showcase.typ', import.meta.url)), 'utf8');
+  const sc = serializeHtml(deserializeTypst(showcase) as any, { scopedCss: css, mode: 'document', meta: { title: 'Design Showcase', locale: 'en' } });
+  check('real showcase: drop cap reparsed', sc.includes('<p class="pw-dropcap">'));
+  check('real showcase: ≥3 callouts reparsed', (sc.match(/<aside class="pw-callout"/g) ?? []).length >= 3);
+  check('real showcase: a callout body phrase survives', sc.includes('amateurish'));
+  fs.writeFileSync('/tmp/pw-showcase.html', sc);
+  console.log('    wrote /tmp/pw-showcase.html for eyeballing');
+}
+
+console.log('\n── Test 6: web bundle writer (index + fragment + meta + assets) ──');
+{
+  const root = '/tmp/pw-bundle-root';
+  const out = '/tmp/pw-bundle-out';
+  const out2 = '/tmp/pw-bundle-inline';
+  for (const d of [root, out, out2]) fs.rmSync(d, { recursive: true, force: true });
+  fs.mkdirSync(`${root}/assets`, { recursive: true });
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  fs.writeFileSync(`${root}/assets/pix.png`, png);
+
+  const doc = { type: 'doc', content: [
+    { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Bundle Test' }] },
+    { type: 'paragraph', content: [{ type: 'text', text: 'Body.' }] },
+    { type: 'image', attrs: { src: 'assets/pix.png' } },
+  ] };
+
+  const r = buildWebBundle({ doc: doc as any, style: DEFAULT_PROJECT_STYLE, meta: { title: 'Bundle Test', locale: 'en' }, slug: 'bundle-test', outDir: out, rootDir: root });
+  check('index.html written as a standalone document', fs.existsSync(r.indexPath) && /^<!doctype html>/i.test(fs.readFileSync(r.indexPath, 'utf8')));
+  check('fragment.html written as an <article> fragment', fs.existsSync(r.fragmentPath) && fs.readFileSync(r.fragmentPath, 'utf8').trimStart().startsWith('<article'));
+  check('meta.json written + parses with slug + assets', (() => { const m = JSON.parse(fs.readFileSync(r.metaPath, 'utf8')); return m.slug === 'bundle-test' && Array.isArray(m.assets); })());
+  check('image copied into assets/', fs.existsSync(`${out}/assets/pix.png`) && r.assets.includes('assets/pix.png'));
+  check('img src rewritten to relative assets path', fs.readFileSync(r.indexPath, 'utf8').includes('<img src="assets/pix.png"'));
+
+  const r2 = buildWebBundle({ doc: doc as any, style: DEFAULT_PROJECT_STYLE, meta: { title: 'X' }, slug: 'x', outDir: out2, rootDir: root, inlineAssets: true });
+  check('inline mode: img becomes a data: URI', fs.readFileSync(r2.indexPath, 'utf8').includes('<img src="data:image/png;base64,'));
+  check('inline mode: nothing copied to assets', r2.assets.length === 0 && !fs.existsSync(`${out2}/assets`));
+
+  check('slugify kebab-cases', slugify('Hello World 123!') === 'hello-world-123');
+  check('deriveTitle reads the first heading', deriveTitle(doc as any) === 'Bundle Test');
+
+  for (const d of [root, out, out2]) fs.rmSync(d, { recursive: true, force: true });
 }
 
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);

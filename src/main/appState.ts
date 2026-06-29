@@ -26,6 +26,7 @@ export interface AppState {
   openProject: () => Promise<void>;
   handleExportPdf: () => void;
   handleExportDocx: () => void;
+  handleExportWeb: () => void;
   handleImportMarkdown: () => void;
   handleLinkZotero: () => void;
 }
@@ -47,6 +48,7 @@ export const appState: AppState = {
   openProject: async () => {},
   handleExportPdf: () => {},
   handleExportDocx: () => {},
+  handleExportWeb: () => {},
   handleImportMarkdown: () => {},
   handleLinkZotero: () => {},
 };

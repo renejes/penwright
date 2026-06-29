@@ -11,6 +11,7 @@ export const menu: MenuMessages = {
   saveAs: 'Speichern unter…',
   exportPdf: 'Als PDF exportieren…',
   exportDocx: 'Als DOCX exportieren…',
+  exportWeb: 'Ins Web exportieren (HTML)…',
   importMarkdown: 'Markdown importieren…',
   linkZotero: 'Zotero-Bibliothek verknüpfen…',
   openSources: 'Quellen-Ordner öffnen',

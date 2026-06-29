@@ -79,6 +79,10 @@ export function buildMenu(state: AppState): void {
           label: m.exportDocx,
           click: () => state.handleExportDocx(),
         },
+        {
+          label: m.exportWeb,
+          click: () => state.handleExportWeb(),
+        },
         { type: 'separator' },
         {
           label: m.importMarkdown,
