@@ -104,6 +104,13 @@ Resolve the two traps that would otherwise detonate mid-build, with **zero core-
 2. **Container format** (C2): switch the default from `.mdx` to **pure self-contained `.html` via Astro `<Fragment set:html>`**; confirm with the website repo; **lock the frontmatter field names** (the only cross-repo contract — §12 of the original).
 3. **Deliverable:** `serializeHtml` renders a trivial doc (paragraphs + one mark + one atom) end-to-end through an `export:web` IPC into a self-contained file that opens in a browser **and** loads in the site. Proves the pipe.
 
+**✅ Phase A status (2026-06-29, branch `feat/web-export`).**
+- **Dependency locked & verified:** `@tiptap/static-renderer@3.20.5` installed (exact pin); `@tiptap/core`/`@tiptap/pm` **stayed at 3.20.5** (the C1 trap avoided). react/react-dom added as **devDeps** (the non-optional peer) — not imported at runtime by the chosen entry.
+- **Entry chosen:** `@tiptap/static-renderer/json/html-string` → `renderJSONContentToString({ nodeMapping, markMapping, unhandledNode, unhandledMark })`. Pure JSON→string, **no schema/extensions, no DOM/jsdom, no react** — the dependency-light fit for `shared/` and the exact docxSerializer mapping pattern. (The `pm/html-string` entry, which needs the editor extensions, was rejected to keep `shared/` clean.)
+- **Render PROVEN server-side:** new [htmlSerializer.ts](../src/shared/htmlSerializer.ts) (`serializeHtml(doc, opts)` → self-contained `<article class="pw-article">` + inline scoped `<style>` placeholder). Smoke test [scripts/html-export-test.mts](../scripts/html-export-test.mts) = 14/14: trivial doc (heading-label→`id`, escaping, marks, citation/image atoms) **and** a real sample chapter render with no throw / no leaked macro source. `tsc` + `electron-vite build` + the 37/37 round-trip all stay green.
+- **Container DECIDED: pure self-contained `.html`** (not `.mdx`). MDX is JSX → a raw `<style>` block breaks the Acorn parser (C2); the article carries its own scoped CSS, so the site embeds it via Astro `<Fragment set:html>`. Frontmatter contract (`title/date/summary/tags/locale/cover/accent`) to confirm with the website repo before Phase B wires the bundle writer.
+- **NOT yet wired (next):** the `export:web` IPC + ExportDialog option + bundle writer (`<slug>/index.html` + `assets/`) — deferred to the start of Phase B so the slice ships UI + tokens + 2 design elements together. The design constructs (drop-cap/columns/callout/…) still emit placeholders until Phase B/C/D.
+
 ### Phase B — Smallest end-to-end vertical slice that proves value · ~5–7 days
 Exactly **two design elements + the typography tokens**, validated on a **real LANGSAM chapter**:
 - **Callout** — "the most faithful part": `color-mix()` tint, **zero fallback**, and `classifyRawBlock` already recognizes gentle-clues callouts **by name** → ships via the raw-block reparser **without any keystone/editor change**.
@@ -150,7 +157,7 @@ Print-only re-design (`aufmacher`/`doppelseite`/cover → hero/article-header, *
 
 ## 7. Open decisions for René
 1. **Timing:** ~~decouple~~ → **DECIDED 2026-06-29: build pre-launch.** Fixes first (§3), then the full Editorial Web Pack, then launch. The release is intentionally delayed ~6–7 weeks so "print + web" is the launch story. (Research had recommended decoupling for lower risk; René chose pre-launch for the stronger launch narrative.)
-2. **Container format:** confirm pure `.html` via Astro `set:html` with the `show-your-work` repo (vs. wrestling `.mdx`); lock frontmatter field names.
+2. **Container format:** ~~confirm pure `.html`~~ → **DECIDED 2026-06-29: pure self-contained `.html`** (MDX rejected — raw `<style>` breaks the JSX/Acorn parser). Still to confirm with the `show-your-work` repo: the embed mechanism (Astro `<Fragment set:html>`) and the frontmatter field names.
 3. **Recognition strategy:** hybrid marker-comment + name-heuristic (recommended) vs. marker-only.
 4. **Scope of the keystone for v1.1:** the 7 LANGSAM nodes only, or also a generic `#grid` 2-up → responsive-stack fallback for the interview-head case.
 
