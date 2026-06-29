@@ -62,7 +62,12 @@ function serializeNode(node: TipTapNode): string {
       const level = (node.attrs?.level as number) ?? 1;
       const prefix = '='.repeat(level);
       const text = serializeInline(node.content ?? []);
-      const headingText = `${prefix} ${text}`;
+      // A Typst label (`<sec:x>`) is emitted from the attr, NOT through the
+      // text run, so it stays unescaped — escaping it to `\<sec:x\>` would
+      // destroy the label and every `@sec:x` cross-reference into it.
+      const label = node.attrs?.label as string | undefined;
+      const labelSuffix = label ? ` <${label}>` : '';
+      const headingText = `${prefix} ${text}${labelSuffix}`;
       return wrapWithAlign(headingText, node.attrs?.textAlign as string);
     }
 

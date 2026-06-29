@@ -132,5 +132,42 @@ console.log('\n── Test H: real sample chapters reach a fixed point (no accum
   }
 }
 
+console.log('\n── Test I: heading labels round-trip unescaped (cross-refs survive) ──');
+{
+  // `= Title <sec:x>` must keep its label, not become `= Title \<sec:x\>`
+  // (which would break the label and every @sec:x reference into it).
+  const src = '= Design Showcase <sec:design-showcase>';
+  const de = deserializeTypst(src);
+  const h = de.content[0];
+  check('heading parsed at level 1', h.type === 'heading' && h.attrs?.level === 1, h);
+  check('label captured as attr', h.attrs?.label === 'sec:design-showcase', h.attrs);
+  check('heading text excludes the label', plainText(de) === 'Design Showcase', plainText(de));
+  check('re-serializes byte-identical (label NOT escaped)', serializeTypst(de as any) === src, {
+    got: serializeTypst(de as any),
+    want: src,
+  });
+
+  // Subheading label too.
+  const src2 = '== Methods <sec:methods>';
+  check('subheading label round-trips', serializeTypst(deserializeTypst(src2) as any) === src2, {
+    got: serializeTypst(deserializeTypst(src2) as any),
+    want: src2,
+  });
+
+  // A heading with NO label is unchanged.
+  const src3 = '= Plain Heading';
+  check('label-less heading unchanged', serializeTypst(deserializeTypst(src3) as any) === src3, {
+    got: serializeTypst(deserializeTypst(src3) as any),
+    want: src3,
+  });
+
+  // An escaped literal `\<x\>` at the end is NOT mistaken for a label.
+  const src4 = '= Heading ending with \\<notalabel\\>';
+  check('escaped <…> stays a literal (not a label)', serializeTypst(deserializeTypst(src4) as any) === src4, {
+    got: serializeTypst(deserializeTypst(src4) as any),
+    want: src4,
+  });
+}
+
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);
 process.exit(fail > 0 ? 1 : 0);

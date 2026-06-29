@@ -13,6 +13,7 @@ import { TypstPagebreak } from './typstPagebreak';
 import { CitationSuggestion } from './citationSuggestion';
 import { TextColor, Highlight, Underline, Superscript, Subscript, Smallcaps } from './typstMarks';
 import { TextAlign } from './typstTextAlign';
+import { HeadingLabel } from './typstHeadingLabel';
 import { SlashCommands } from './slashCommands';
 import { CommentDecorations } from './commentDecorations';
 import { t } from '../../shared/i18n/store.svelte';
@@ -203,6 +204,7 @@ export function createEditor(
       Subscript,
       Smallcaps,
       TextAlign,
+      HeadingLabel,
       ImageDropHandler,
       CommentDecorations,
     ],

@@ -1486,10 +1486,13 @@ const CALLOUT_NAMES = new Set([
 ]);
 
 /** Leading layout/design functions that carry no manuscript content.
- *  `#align` / `#block` / `#dropcap` / `#wrap-content` are NOT in this list —
- *  they are containers whose visible text (title pages, pull-quotes, drop-cap
- *  paragraphs, wrapped prose) must survive the export; see classifyRawBlock. */
-const SKIP_LEADERS = /^#(grid|stack|place|box|rect|line|image|colbreak|columns|pad|move|scale|rotate|polygon|path|square|circle|ellipse|diagram|cetz|fletcher|highlight|stroke|raw)\b|^#[vh]\(/;
+ *  `#align` / `#block` / `#dropcap` / `#wrap-content` / `#columns` are NOT in
+ *  this list — they are containers whose visible text (title pages, pull-quotes,
+ *  drop-cap paragraphs, wrapped prose, multi-column sections) must survive the
+ *  export; see classifyRawBlock. (`#columns` used to be here, which silently
+ *  dropped entire two-column sections — e.g. half of a magazine interview — from
+ *  the DOCX export; it is now routed through the designText text-preserving path.) */
+const SKIP_LEADERS = /^#(grid|stack|place|box|rect|line|image|colbreak|pad|move|scale|rotate|polygon|path|square|circle|ellipse|diagram|cetz|fletcher|highlight|stroke|raw)\b|^#[vh]\(/;
 
 /** A line that is pure vertical/horizontal spacing (or empty). */
 const SPACER_LINE = /^\s*(#[vh]\([^)]*\))?\s*$/;
@@ -1650,8 +1653,16 @@ function classifyRawBlock(content: string, blockType: string): RawDesc {
     return { kind: 'designText', alignment, chunks: splitDesignChunks(alignC.body) };
   }
 
-  // #block(args)[ … ] / #dropcap(args)[ … ] → unaligned text chunks.
-  for (const name of ['block', 'dropcap']) {
+  // #block(args)[ … ] / #dropcap(args)[ … ] / #columns(n)[ … ] → unaligned
+  // text chunks. (#columns wraps multi-column manuscript prose — e.g. a
+  // magazine interview's two-column second half; without this its whole text
+  // was silently dropped. KNOWN LIMITATION, resolved by the keystone (Phase C
+  // in documentation/web-export-feasibility-and-plan.md): user macros nested
+  // inside the columns body — e.g. #frage[…] interview questions, #lead[…] —
+  // are still DROPPED here, because handleInlineFunc discards unknown
+  // lowercase macro calls. Only the surrounding plain prose (the answers)
+  // survives today; full fidelity needs those macros to become real AST nodes.)
+  for (const name of ['block', 'dropcap', 'columns']) {
     if (new RegExp(`^#${name}\\b`).test(trimmed)) {
       const c = parseContainer(trimmed, name);
       if (c) return { kind: 'designText', alignment: null, chunks: splitDesignChunks(c.body) };

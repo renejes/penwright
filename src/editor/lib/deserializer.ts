@@ -160,10 +160,26 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
   // 2. Heading: = Title, == Title, etc.
   const headingMatch = block.match(/^(={1,6})\s+(.+)$/);
   if (headingMatch) {
+    // A trailing Typst label (`= Title <sec:x>`) is element syntax, not
+    // heading text. Split it into a `label` attr so it round-trips as a real
+    // label instead of being escaped to `\<sec:x\>` on save (which silently
+    // breaks the label and every `@sec:x` cross-reference into it). Guard
+    // against an escaped literal `\<x\>`: the label name excludes `\`, and the
+    // `<` must not be backslash-escaped.
+    let headingText = headingMatch[2];
+    let label: string | undefined;
+    const labelMatch = headingText.match(/<([^<>\s\\]+)>\s*$/);
+    const idx = labelMatch?.index ?? -1;
+    if (labelMatch && idx >= 0 && headingText[idx - 1] !== '\\') {
+      label = labelMatch[1];
+      headingText = headingText.slice(0, idx).trimEnd();
+    }
+    const attrs: Record<string, unknown> = { level: headingMatch[1].length };
+    if (label) attrs.label = label;
     return {
       type: 'heading',
-      attrs: { level: headingMatch[1].length },
-      content: parseInline(headingMatch[2]),
+      attrs,
+      content: parseInline(headingText),
     };
   }
 
