@@ -18,6 +18,7 @@
 // phases plug into.
 
 import { renderJSONContentToString, serializeChildrenToHTMLString } from '@tiptap/static-renderer/json/html-string';
+import { parseTypstGrid, type GridItem } from './typstGrid';
 
 interface JSONNode {
   type: string;
@@ -263,7 +264,37 @@ function reparseRawBlock(content: string): string | null {
     if (mb) return `<p class="pw-dropcap">${inlineTypstToHtml(mb.body.replace(/\s+/g, ' ').trim())}</p>`;
   }
 
+  // Generic #grid(...) two-up (interview head etc., §7.4): reinterpret the cells
+  // as a responsive stacked grid (content-complete). The grid stays a raw block
+  // for PDF; this is the web view of it.
+  const grid = parseTypstGrid(content);
+  if (grid) return renderGridHtml(grid);
+
   return null;
+}
+
+/** Renders a parsed `#grid` as a responsive `.pw-grid` of `.pw-grid-cell`s. */
+function renderGridHtml(grid: { cells: GridItem[][] }): string {
+  const cell = (items: GridItem[]) =>
+    `<div class="pw-grid-cell">${items.map(renderGridItem).join('')}</div>`;
+  return `<div class="pw-grid" style="--pw-grid-cols:${grid.cells.length}">${grid.cells.map(cell).join('')}</div>`;
+}
+
+function renderGridItem(it: GridItem): string {
+  switch (it.kind) {
+    case 'question':
+      return `<p class="pw-question">${inlineTypstToHtml((it.body ?? '').replace(/\s+/g, ' ').trim())}</p>`;
+    case 'box': {
+      const title = it.title ? `<p class="pw-callout-title">${esc(it.title)}</p>` : '';
+      return `<aside class="pw-callout">${title}${bodyToParagraphs(it.body ?? '')}</aside>`;
+    }
+    case 'image':
+      return it.path ? `<img class="pw-fp-img" src="${escAttr(safeImgSrc(it.path))}" alt="">` : '';
+    case 'caption':
+      return `<p class="pw-fp-caption">${inlineTypstToHtml((it.body ?? '').replace(/\s+/g, ' ').trim())}</p>`;
+    default:
+      return bodyToParagraphs(it.body ?? '');
+  }
 }
 
 const renderBody = renderJSONContentToString({
@@ -317,6 +348,52 @@ const renderBody = renderJSONContentToString({
     },
     footnote: ({ node }: any) =>
       `<sup class="pw-fn" title="${escAttr(String(node.attrs?.content ?? ''))}">*</sup>`,
+
+    // Magazine AST nodes (Phase C keystone) — real, themeable semantic HTML.
+    // These replace the opaque-raw-block placeholders for the load-bearing
+    // magazine constructs (opener / lead / pull / frage / notiz / bildtafel /
+    // randnotiz + #columns). Styled by styleToCss's `.pw-*` rules.
+    articleHeader: ({ node }: any) => {
+      const a = node.attrs ?? {};
+      const id = a.label ? ` id="${escAttr(String(a.label))}"` : '';
+      const parts = ['<header class="pw-opener">'];
+      if (a.kicker) parts.push(`<p class="pw-opener-kicker">${esc(String(a.kicker))}</p>`);
+      parts.push(`<h1 class="pw-opener-title"${id}>${esc(String(a.title ?? ''))}</h1>`);
+      if (a.standfirst) parts.push(`<p class="pw-opener-standfirst">${esc(String(a.standfirst))}</p>`);
+      if (a.byline) parts.push(`<p class="pw-opener-byline">${esc(String(a.byline))}</p>`);
+      parts.push('</header>');
+      return parts.join('');
+    },
+    dropCap: ({ children }: any) => `<p class="pw-dropcap">${kids(children)}</p>`,
+    question: ({ children }: any) => `<p class="pw-question">${kids(children)}</p>`,
+    pullQuote: ({ node, children }: any) => {
+      const who = node.attrs?.who ? `<cite class="pw-pull-who">${esc(String(node.attrs.who))}</cite>` : '';
+      return `<blockquote class="pw-pull"><p class="pw-pull-body">${kids(children)}</p>${who}</blockquote>`;
+    },
+    callout: ({ node, children }: any) => {
+      const title = node.attrs?.title ? `<p class="pw-callout-title">${esc(String(node.attrs.title))}</p>` : '';
+      return `<aside class="pw-callout">${title}${kids(children)}</aside>`;
+    },
+    figurePanel: ({ node, children }: any) => {
+      const a = node.attrs ?? {};
+      const src = a.path ? `<img class="pw-fp-img" src="${escAttr(safeImgSrc(a.path))}" alt="">` : '';
+      const cap = a.caption ? `<figcaption class="pw-fp-caption">${inlineTypstToHtml(String(a.caption))}</figcaption>` : '';
+      const title = a.title ? `<p class="pw-fp-title">${esc(String(a.title))}</p>` : '';
+      return `<figure class="pw-figure-panel"><div class="pw-fp-media">${src}${cap}</div><aside class="pw-fp-note">${title}${kids(children)}</aside></figure>`;
+    },
+    interlude: () => '<hr class="pw-interlude">',
+    columns: ({ node, children }: any) => {
+      const cols = Math.min(Math.max(Number(node.attrs?.cols) || 2, 1), 6);
+      const gap = safeCssLen(node.attrs?.gutter);
+      // Custom props (not direct column-count) so the responsive @media rule in
+      // styleToCss can collapse to a single column on narrow screens — an inline
+      // `column-count` would win over any stylesheet rule.
+      const style = ` style="--pw-cols:${cols}${gap ? `;--pw-gap:${gap}` : ''}"`;
+      return `<div class="pw-columns"${style}>${kids(children)}</div>`;
+    },
+    // marginNote is an inline atom (raw-string body) — reparse its body to HTML.
+    marginNote: ({ node }: any) =>
+      `<aside class="pw-margin-note">${inlineTypstToHtml(String(node.attrs?.body ?? ''))}</aside>`,
 
     // Block atoms — placeholders until the later phases fill them in ----------
     // Web has no page break; drop it from the reading flow.

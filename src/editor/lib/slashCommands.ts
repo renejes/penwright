@@ -2,6 +2,7 @@ import { Extension, type Editor } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import { insertFootnoteWithEditor } from './typstFootnote';
+import { insertArticleHeaderWithEditor, insertMarginNoteWithEditor } from './typstMagazine';
 import { t } from '../../shared/i18n/store.svelte';
 
 /** Logical grouping for the toolbar "Insert" dropdown (the slash menu ignores it). */
@@ -183,6 +184,74 @@ export function getCommands(): SlashItem[] {
           vscodeApi.postMessage({ type: 'pickImage' });
         }
       },
+    },
+
+    // ─── Magazine building blocks (Phase C keystone) ──────────────────────
+    {
+      title: m.slashOpenerTitle,
+      description: m.slashOpenerDesc,
+      icon: '◆',
+      group: 'blocks',
+      command: (e) => insertArticleHeaderWithEditor(e),
+    },
+    {
+      title: m.slashDropCapTitle,
+      description: m.slashDropCapDesc,
+      icon: 'A',
+      group: 'blocks',
+      command: (e) => e.chain().focus().insertContent({ type: 'dropCap' }).run(),
+    },
+    {
+      title: m.slashPullQuoteTitle,
+      description: m.slashPullQuoteDesc,
+      icon: '❝',
+      group: 'blocks',
+      command: (e) => e.chain().focus().insertContent({ type: 'pullQuote', attrs: { who: '' } }).run(),
+    },
+    {
+      title: m.slashQuestionTitle,
+      description: m.slashQuestionDesc,
+      icon: '?',
+      group: 'blocks',
+      command: (e) => e.chain().focus().insertContent({ type: 'question' }).run(),
+    },
+    {
+      title: m.slashCalloutTitle,
+      description: m.slashCalloutDesc,
+      icon: '▤',
+      group: 'blocks',
+      command: (e) =>
+        e.chain().focus().insertContent({ type: 'callout', attrs: { title: '' }, content: [{ type: 'paragraph' }] }).run(),
+    },
+    {
+      title: m.slashFigurePanelTitle,
+      description: m.slashFigurePanelDesc,
+      icon: '▦',
+      group: 'blocks',
+      command: (e) =>
+        e.chain().focus().insertContent({ type: 'figurePanel', attrs: { path: '', caption: '', title: '' }, content: [{ type: 'paragraph' }] }).run(),
+    },
+    {
+      title: m.slashColumnsTitle,
+      description: m.slashColumnsDesc,
+      icon: '⌗',
+      group: 'blocks',
+      command: (e) =>
+        e.chain().focus().insertContent({ type: 'columns', attrs: { cols: 2 }, content: [{ type: 'paragraph' }] }).run(),
+    },
+    {
+      title: m.slashInterludeTitle,
+      description: m.slashInterludeDesc,
+      icon: '❧',
+      group: 'blocks',
+      command: (e) => e.chain().focus().insertContent({ type: 'interlude' }).run(),
+    },
+    {
+      title: m.slashMarginNoteTitle,
+      description: m.slashMarginNoteDesc,
+      icon: '⌧',
+      group: 'refs',
+      command: (e) => insertMarginNoteWithEditor(e),
     },
   ];
 }

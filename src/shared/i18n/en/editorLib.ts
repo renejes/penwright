@@ -42,6 +42,37 @@ export const editorLib = {
   slashImageTitle: 'Image',
   slashImageDesc: 'Insert image from file',
 
+  // Magazine building blocks (Phase C)
+  slashOpenerTitle: 'Article Opener',
+  slashOpenerDesc: 'Kicker, title, standfirst & byline',
+  slashDropCapTitle: 'Drop Cap',
+  slashDropCapDesc: 'Opening paragraph with a dropped initial',
+  slashPullQuoteTitle: 'Pull Quote',
+  slashPullQuoteDesc: 'Large centered quote with attribution',
+  slashQuestionTitle: 'Interview Question',
+  slashQuestionDesc: 'Bold question for a Q&A',
+  slashCalloutTitle: 'Note Box',
+  slashCalloutDesc: 'Framed note with a title',
+  slashFigurePanelTitle: 'Figure Panel',
+  slashFigurePanelDesc: 'Photo with a framed side note',
+  slashMarginNoteTitle: 'Margin Note',
+  slashMarginNoteDesc: 'Quiet note in the margin',
+  slashInterludeTitle: 'Interlude',
+  slashInterludeDesc: 'Quiet centered divider',
+  slashColumnsTitle: 'Columns',
+  slashColumnsDesc: 'Multi-column section',
+
+  // Magazine node editors (popups)
+  macroEditHint: 'Esc or Cmd+Enter to close',
+  macroLabelKicker: 'Kicker',
+  macroLabelTitle: 'Title',
+  macroLabelStandfirst: 'Standfirst',
+  macroLabelByline: 'Byline',
+  macroLabelNote: 'Note',
+  macroOpenerEditTitle: 'Edit article opener',
+  macroMarginNoteEditTitle: 'Edit margin note',
+  macroOpenerEmpty: 'Untitled article — click to edit',
+
   // Image dialog
   imageWidthLabel: 'Width',
   imageCustomLabel: 'Custom',

@@ -2017,3 +2017,201 @@ mark.search-current {
 .penwright-comment-mark.penwright-comment-active {
   background: rgba(255, 184, 28, 0.6);
 }
+
+/* ─── Magazine AST nodes (Phase C keystone) ──────────────────
+ * The hand-written magazine macros (opener / lead / pull / frage / notiz /
+ * bildtafel / randnotiz / interlude + #columns) are now real nodes. Content
+ * nodes are edited inline (the body is a content hole); atoms show their attrs.
+ * A warm terracotta accent (the Penwright brand) evokes the editorial look in
+ * the editor; the EXPORT styling comes from styleToCss / the project style.
+ */
+:root {
+  --pw-mag-accent: #a8503a;
+  --pw-mag-muted: #8a8174;
+}
+
+.pw-node { position: relative; }
+
+/* articleHeader (← opener) — atom: styled, read-only display of the fields. */
+.pw-opener {
+  margin: 0.4em 0 1.6em;
+  padding: 0.2em 0 0.8em;
+  border-bottom: 1px solid var(--border-color);
+}
+.pw-opener-kicker {
+  font-weight: 700;
+  font-size: 0.78em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pw-mag-accent);
+  margin-bottom: 0.5em;
+}
+.pw-opener-title {
+  font-size: 1.9em;
+  font-weight: 600;
+  line-height: 1.12;
+  color: var(--text-color);
+}
+.pw-opener-standfirst {
+  font-style: italic;
+  font-size: 1.2em;
+  line-height: 1.35;
+  color: var(--pw-mag-muted);
+  margin-top: 0.5em;
+}
+.pw-opener-byline {
+  font-size: 0.82em;
+  letter-spacing: 0.05em;
+  color: var(--pw-mag-muted);
+  margin-top: 0.6em;
+}
+
+/* dropCap (← lead) — content: editable prose with a dropped first letter. */
+.pw-dropcap { margin: 0.6em 0; }
+.pw-dropcap::first-letter {
+  float: left;
+  font-size: 3em;
+  line-height: 0.78;
+  font-weight: 700;
+  color: var(--pw-mag-accent);
+  padding: 0.04em 0.08em 0 0;
+}
+
+/* question (← frage) — content: editable, bold accent. */
+.pw-question {
+  font-weight: 700;
+  color: var(--pw-mag-accent);
+  margin: 0.9em 0 0.2em;
+}
+
+/* pullQuote (← pull) — content: large centered italic quote + attribution. */
+.pw-pull {
+  margin: 1.4em 0;
+  padding: 0.2em 1em;
+  text-align: center;
+  font-style: italic;
+  font-size: 1.35em;
+  line-height: 1.3;
+  color: var(--pw-mag-accent);
+  border: none;
+}
+.pw-pull[data-who]::after {
+  content: "— " attr(data-who);
+  display: block;
+  margin-top: 0.5em;
+  font-style: normal;
+  font-size: 0.6em;
+  letter-spacing: 0.06em;
+  color: var(--pw-mag-muted);
+  user-select: none;
+}
+
+/* callout (← notiz) — content: framed note box, optional title. */
+.pw-callout {
+  margin: 1.2em 0;
+  padding: 0.8em 1em;
+  border: 1px solid color-mix(in srgb, var(--pw-mag-muted) 40%, transparent);
+  border-radius: 4px;
+}
+.pw-callout[data-title]::before {
+  content: attr(data-title);
+  display: block;
+  font-weight: 700;
+  font-size: 0.74em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pw-mag-accent);
+  margin-bottom: 0.4em;
+  user-select: none;
+}
+.pw-callout > p:last-child { margin-bottom: 0; }
+
+/* figurePanel (← bildtafel) — content: image + framed note side by side. */
+.pw-figure-panel {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 1em;
+  align-items: start;
+  margin: 1.3em 0;
+}
+.pw-fp-img { width: 100%; height: auto; display: block; }
+.pw-fp-caption {
+  font-size: 0.8em;
+  font-style: italic;
+  color: var(--pw-mag-muted);
+  margin-top: 0.4em;
+}
+.pw-fp-note {
+  border: 1px solid color-mix(in srgb, var(--pw-mag-muted) 35%, transparent);
+  padding: 0.7em 0.9em;
+  font-size: 0.9em;
+}
+.pw-fp-note[data-title]::before {
+  content: attr(data-title);
+  display: block;
+  font-weight: 700;
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pw-mag-accent);
+  margin-bottom: 0.4em;
+  user-select: none;
+}
+
+/* marginNote (← randnotiz) — inline atom: a small accent-marked side note. */
+.pw-margin-note {
+  display: inline;
+  font-size: 0.82em;
+  color: var(--pw-mag-muted);
+  border-bottom: 1px dotted var(--pw-mag-accent);
+  cursor: default;
+}
+.pw-margin-note-marker {
+  color: var(--pw-mag-accent);
+  font-size: 0.85em;
+  vertical-align: super;
+  margin: 0 0.1em;
+}
+
+/* interlude (← interlude()) — atom: a quiet centered divider. */
+.pw-interlude {
+  margin: 1.4em 0;
+  display: flex;
+  justify-content: center;
+}
+.pw-interlude-line {
+  width: 1.4em;
+  border: none;
+  border-top: 1px solid var(--pw-mag-accent);
+}
+
+/* columns (← #columns) — content: editable single-column flow in the editor
+ * (true multicol is applied in PDF/HTML export); a left rule marks the span. */
+.pw-columns {
+  margin: 1.2em 0;
+  padding: 0.4em 0 0.4em 0.9em;
+  border-left: 3px solid color-mix(in srgb, var(--pw-mag-accent) 50%, transparent);
+}
+.pw-columns::before {
+  content: "⌗ " attr(data-cols) " Spalten";
+  display: block;
+  font-size: 0.66em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pw-mag-muted);
+  margin-bottom: 0.4em;
+  user-select: none;
+}
+
+/* Magazine node editor popups (articleHeader / marginNote field editors). */
+.pw-macro-popup { min-width: 280px; max-width: 360px; }
+.pw-macro-popup-field-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pw-mag-muted);
+  margin: 0.5em 0 0.2em;
+}
+.pw-opener-empty { color: var(--pw-mag-muted); font-style: italic; font-weight: 400; }

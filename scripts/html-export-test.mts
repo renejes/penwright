@@ -238,5 +238,131 @@ console.log('\n── Test 7: security + correctness regression guards (Phase A/
   fs.rmSync('/tmp/pw-trav-evil.png', { force: true });
 }
 
+console.log('\n── Test 8: magazine AST nodes → semantic, themeable HTML (Phase C) ──');
+{
+  const html = (src: string) => serializeHtml(deserializeTypst(src) as any);
+  const css = styleToCss(DEFAULT_PROJECT_STYLE);
+
+  // opener → <header class="pw-opener"> with kicker / h1 / standfirst / byline.
+  {
+    const h = html('#opener(kicker: "Reportage", title: "Der untätige Geist", standfirst: "Über die Stille.", byline: "Von Mara Lindqvist")');
+    check('opener → <header class="pw-opener">', h.includes('<header class="pw-opener">'));
+    check('opener kicker + h1 + standfirst + byline', h.includes('pw-opener-kicker">Reportage') && h.includes('<h1 class="pw-opener-title">Der untätige Geist</h1>') && h.includes('pw-opener-standfirst">Über die Stille.') && h.includes('pw-opener-byline">Von Mara Lindqvist'));
+    check('opener no leaked placeholder', !h.includes('pw:typst-raw') && !h.includes('pw:unhandled'));
+  }
+
+  // lead → drop cap (reuses the Phase-B .pw-dropcap CSS).
+  check('lead → <p class="pw-dropcap">', html('#lead[Der Müßiggang hat einen schlechten Ruf.]').includes('<p class="pw-dropcap">Der Müßiggang hat einen schlechten Ruf.</p>'));
+
+  // pull (+ who) → blockquote with body + cite.
+  {
+    const h = html('#pull(who: "Blaise Pascal")[Das ganze Unglück der Menschen.]');
+    check('pull → <blockquote class="pw-pull"> + body + cite', h.includes('<blockquote class="pw-pull"><p class="pw-pull-body">Das ganze Unglück der Menschen.</p>') && h.includes('<cite class="pw-pull-who">Blaise Pascal</cite>'));
+  }
+
+  // frage → <p class="pw-question">.
+  check('frage → <p class="pw-question">', html('#frage[Frau Sandberg?]').includes('<p class="pw-question">Frau Sandberg?</p>'));
+
+  // notiz → <aside class="pw-callout"> with title + multi-paragraph body.
+  {
+    const h = html('#notiz(title: "Drei Räume")[\nErster Absatz.\n\nZweiter Absatz.\n]');
+    check('notiz → callout + title + 2 paragraphs', h.includes('<aside class="pw-callout">') && h.includes('<p class="pw-callout-title">Drei Räume</p>') && (h.match(/<p>/g) ?? []).length >= 2);
+  }
+
+  // bildtafel → <figure class="pw-figure-panel"> with img + caption + note.
+  {
+    const h = html('#bildtafel("assets/feature.png", caption: [Eine Stunde.], title: "Das Netzwerk", [Es ist aktiv.])');
+    check('bildtafel → figure-panel with img/caption/title/note', h.includes('<figure class="pw-figure-panel">') && h.includes('<img class="pw-fp-img" src="assets/feature.png"') && h.includes('pw-fp-caption">Eine Stunde.') && h.includes('pw-fp-title">Das Netzwerk') && h.includes('Es ist aktiv.'));
+  }
+
+  // #columns → multicol div using --pw-cols (responsive-collapsible), with the
+  // nested #frage surviving as a real <p class="pw-question"> (the B1 win).
+  {
+    const h = html('#columns(2, gutter: 1.5em)[\n#frage[Apropos Telefon?]\n\nDas Telefon ist eine Maschine.\n]');
+    check('columns → multicol div w/ --pw-cols + --pw-gap', h.includes('class="pw-columns"') && h.includes('--pw-cols:2') && h.includes('--pw-gap:1.5em'));
+    check('columns: nested question survives as HTML (B1 web win)', h.includes('<p class="pw-question">Apropos Telefon?</p>') && h.includes('Das Telefon ist eine Maschine.'));
+  }
+
+  // interlude → quiet divider.
+  check('interlude → <hr class="pw-interlude">', html('#interlude()').includes('<hr class="pw-interlude">'));
+
+  // randnotiz (inline) → side note <aside>.
+  check('randnotiz → inline <aside class="pw-margin-note">', html('Bei den Griechen.#randnotiz[Josef Pieper: Wurzel der Kultur.]').includes('<aside class="pw-margin-note">Josef Pieper: Wurzel der Kultur.</aside>'));
+
+  // CSS rules for the new elements are emitted + scoped.
+  check('CSS: .pw-opener / .pw-pull / .pw-question scoped', css.includes('.pw-article .pw-opener {') && css.includes('.pw-article .pw-pull {') && css.includes('.pw-article .pw-question {'));
+  check('CSS: .pw-figure-panel grid + responsive @media', css.includes('.pw-article .pw-figure-panel {') && /@media[^{]*\{\s*\.pw-article \.pw-figure-panel/.test(css));
+  check('CSS: .pw-columns uses var(--pw-cols) + collapses @media', css.includes('column-count: var(--pw-cols') && /@media[^{]*\{\s*\.pw-article \.pw-columns \{ column-count: 1/.test(css));
+  check('CSS: .pw-margin-note + .pw-interlude emitted', css.includes('.pw-article .pw-margin-note {') && css.includes('.pw-article .pw-interlude {'));
+
+  // The full feature chapter (opener + lead + prose + bildtafel + pull +
+  // interlude) renders with NO leftover macro placeholders.
+  const feature = [
+    '#opener(kicker: "Reportage", title: "Der untätige Geist", byline: "Von Mara Lindqvist")',
+    '#lead[Eva Holm sitzt am Fenster und tut nichts.]',
+    'Was wie Leerlauf aussieht, ist keiner.',
+    '#bildtafel("assets/feature.png", caption: [Eine Stunde am Fenster.], title: "Das Ruhezustandsnetzwerk", [Es ist am aktivsten, wenn wir nichts vorhaben.])',
+    '#pull[Nicht das viele Tun erschöpft den Kopf.]',
+    '#interlude()',
+    'Am späten Nachmittag steht Eva Holm auf.',
+  ].join('\n\n');
+  const fh = serializeHtml(deserializeTypst(feature) as any, { scopedCss: css, mode: 'document', meta: { title: 'Der untätige Geist', locale: 'de' } });
+  check('full feature chapter: no leftover macro placeholders', !fh.includes('pw:typst-raw') && !fh.includes('pw:unhandled'));
+  check('full feature chapter: all 6 magazine constructs present', fh.includes('pw-opener') && fh.includes('pw-dropcap') && fh.includes('pw-figure-panel') && fh.includes('pw-pull') && fh.includes('pw-interlude'));
+  fs.writeFileSync('/tmp/pw-feature.html', fh);
+  console.log('    wrote /tmp/pw-feature.html for eyeballing');
+}
+
+console.log('\n── Test 9: generic #grid two-up reinterpreted to a responsive grid (§7.4) ──');
+{
+  const css = styleToCss(DEFAULT_PROJECT_STYLE);
+  const src = [
+    '// Kopf: links Kasten + erste Fragen, rechts das Porträt.',
+    '#grid(',
+    '  columns: (1fr, 0.78fr), column-gutter: 1.4em, align: top,',
+    '  {',
+    '    block(inset: (x: 1em, y: 0.85em), stroke: 0.6pt + style-colors.muted)[',
+    '      #set par(justify: false)',
+    '      #text(size: 0.74em, weight: "bold", fill: style-colors.accent)[#upper("Zur Person")]',
+    '      #v(0.5em)',
+    '      #set text(size: 0.88em)',
+    '      Henrike Sandberg, 61, lehrt Philosophie der Muße.',
+    '    ]',
+    '',
+    '    frage[Frau Sandberg, Müßiggang gilt als Laster?]',
+    '',
+    '    [Weil wir zwei Dinge verwechseln. Faulheit ist Flucht.]',
+    '  },',
+    '  {',
+    '    image("../assets/portrait.png", width: 100%)',
+    '    v(0.45em)',
+    '    text(size: 0.8em, style: "italic", fill: style-colors.muted)[Henrike in ihrem Arbeitszimmer.]',
+    '    v(0.7em)',
+    '    frage[Viele halten das Nichtstun keine fünf Minuten aus?]',
+    '    [Weil sich Leere wie Langeweile anfühlt.]',
+    '  },',
+    ')',
+  ].join('\n');
+  const h = serializeHtml(deserializeTypst(src) as any, { scopedCss: css });
+  check('grid → <div class="pw-grid"> with 2 cells', h.includes('class="pw-grid"') && (h.match(/class="pw-grid-cell"/g) ?? []).length === 2);
+  check('grid: "Zur Person" box survives (title + prose)', h.includes('>ZUR PERSON</p>') && h.includes('lehrt Philosophie der Muße'));
+  check('grid: both questions survive', h.includes('Müßiggang gilt als Laster') && h.includes('keine fünf Minuten aus'));
+  check('grid: both answers survive', h.includes('Faulheit ist Flucht') && h.includes('wie Langeweile anfühlt'));
+  check('grid: portrait image + caption survive', h.includes('<img class="pw-fp-img" src="../assets/portrait.png"') && h.includes('Arbeitszimmer'));
+  check('grid: no leftover macro placeholder', !h.includes('pw:typst-raw') && !h.includes('pw:unhandled'));
+  check('CSS: .pw-grid responsive (repeat + collapse @media)', css.includes('grid-template-columns: repeat(var(--pw-grid-cols') && /@media[^{]*\{\s*\.pw-article \.pw-grid \{ grid-template-columns: 1fr/.test(css));
+
+  // Adversarial-review robustness fixes (typstGrid):
+  // (a) an escaped quote in a cell must NOT drop the whole grid.
+  const esc = serializeHtml(deserializeTypst('#grid(columns: 2, { block[ #text[a \\" b] body ] frage[Q?] }, { [Answer] })') as any);
+  check('grid: escaped quote in cell does not drop the grid', esc.includes('class="pw-grid"') && esc.includes('Answer'));
+  // (b) positional function-call cells (LANGSAM cover form) survive.
+  const pos = serializeHtml(deserializeTypst('#grid(columns: 2, text(size: 0.85em)[Reportage], text(size: 0.85em)[Essay])') as any);
+  check('grid: positional text() cells survive', pos.includes('class="pw-grid"') && pos.includes('Reportage') && pos.includes('Essay'));
+  // (c) content cells AFTER the paren survive.
+  const ap = serializeHtml(deserializeTypst('#grid(columns: 2)[Left side][Right side]') as any);
+  check('grid: after-paren [cells] survive', ap.includes('class="pw-grid"') && ap.includes('Left side') && ap.includes('Right side'));
+}
+
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);
 process.exit(fail > 0 ? 1 : 0);

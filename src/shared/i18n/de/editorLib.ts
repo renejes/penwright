@@ -42,6 +42,37 @@ export const editorLib: EditorLibMessages = {
   slashImageTitle: 'Bild',
   slashImageDesc: 'Bild aus Datei einfügen',
 
+  // Magazin-Bausteine (Phase C)
+  slashOpenerTitle: 'Artikel-Auftakt',
+  slashOpenerDesc: 'Kicker, Titel, Vorspann & Byline',
+  slashDropCapTitle: 'Initial',
+  slashDropCapDesc: 'Erster Absatz mit Initialbuchstaben',
+  slashPullQuoteTitle: 'Pull-Quote',
+  slashPullQuoteDesc: 'Großes zentriertes Zitat mit Quelle',
+  slashQuestionTitle: 'Interview-Frage',
+  slashQuestionDesc: 'Fette Frage für ein Interview',
+  slashCalloutTitle: 'Notizkasten',
+  slashCalloutDesc: 'Gerahmte Notiz mit Titel',
+  slashFigurePanelTitle: 'Bildtafel',
+  slashFigurePanelDesc: 'Foto mit gerahmter Anmerkung',
+  slashMarginNoteTitle: 'Randnotiz',
+  slashMarginNoteDesc: 'Stille Notiz im Außenrand',
+  slashInterludeTitle: 'Zwischenstück',
+  slashInterludeDesc: 'Stiller zentrierter Trenner',
+  slashColumnsTitle: 'Spalten',
+  slashColumnsDesc: 'Mehrspaltiger Abschnitt',
+
+  // Magazin-Node-Editoren (Popups)
+  macroEditHint: 'Esc oder Cmd+Enter zum Schließen',
+  macroLabelKicker: 'Kicker',
+  macroLabelTitle: 'Titel',
+  macroLabelStandfirst: 'Vorspann',
+  macroLabelByline: 'Byline',
+  macroLabelNote: 'Notiz',
+  macroOpenerEditTitle: 'Artikel-Auftakt bearbeiten',
+  macroMarginNoteEditTitle: 'Randnotiz bearbeiten',
+  macroOpenerEmpty: 'Artikel ohne Titel — zum Bearbeiten klicken',
+
   // Image dialog
   imageWidthLabel: 'Breite',
   imageCustomLabel: 'Eigene',

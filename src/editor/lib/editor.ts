@@ -14,6 +14,7 @@ import { CitationSuggestion } from './citationSuggestion';
 import { TextColor, Highlight, Underline, Superscript, Subscript, Smallcaps } from './typstMarks';
 import { TextAlign } from './typstTextAlign';
 import { HeadingLabel } from './typstHeadingLabel';
+import { MAGAZINE_NODES } from './typstMagazine';
 import { SlashCommands } from './slashCommands';
 import { CommentDecorations } from './commentDecorations';
 import { t } from '../../shared/i18n/store.svelte';
@@ -205,6 +206,7 @@ export function createEditor(
       Smallcaps,
       TextAlign,
       HeadingLabel,
+      ...MAGAZINE_NODES,
       ImageDropHandler,
       CommentDecorations,
     ],

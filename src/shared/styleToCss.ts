@@ -226,6 +226,54 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-callout > :last-child { margin-bottom: 0; }`);
   out.push(`.pw-callout-title {\n  font-weight: 700;\n  color: var(--pw-accent);\n  font-family: var(--pw-font-heading);\n  margin: 0 0 0.3em;\n}`);
 
+  // --- magazine AST nodes (Phase C keystone) -------------------------------
+  // The load-bearing macros, retargeted to CSS that preserves the magazine's
+  // character while reflowing responsively (the plan's "translate, don't copy").
+
+  // articleHeader (← opener): kicker / title (H1) / standfirst / byline.
+  out.push(`.pw-opener { margin: 0 0 2em; }`);
+  out.push(`.pw-opener-kicker {\n  font-family: var(--pw-font-heading);\n  font-weight: 700;\n  font-size: 0.8em;\n  letter-spacing: 0.2em;\n  text-transform: uppercase;\n  color: var(--pw-accent);\n  margin: 0 0 0.7em;\n}`);
+  out.push(`.pw-opener-title { margin: 0; }`);
+  out.push(`.pw-opener-standfirst {\n  font-family: var(--pw-font-heading);\n  font-style: italic;\n  font-size: 1.3em;\n  line-height: 1.35;\n  color: var(--pw-muted);\n  text-indent: 0;\n  margin: 0.5em 0 0;\n}`);
+  out.push(`.pw-opener-byline {\n  font-size: 0.82em;\n  letter-spacing: 0.06em;\n  color: var(--pw-muted);\n  text-indent: 0;\n  margin: 0.85em 0 0;\n}`);
+
+  // pullQuote (← pull): large centered italic accent quote + short rule + cite.
+  out.push(`.pw-pull {\n  margin: 1.6em 0;\n  text-align: center;\n  border: none;\n  padding: 0;\n}`);
+  out.push(`.pw-pull-body {\n  font-family: var(--pw-font-heading);\n  font-style: italic;\n  font-size: 1.5em;\n  line-height: 1.3;\n  color: var(--pw-accent);\n  text-indent: 0;\n  margin: 0;\n}`);
+  out.push(`.pw-pull-body::after {\n  content: "";\n  display: block;\n  width: 1.1em;\n  border-top: 1px solid var(--pw-accent);\n  margin: 0.6em auto 0;\n}`);
+  out.push(`.pw-pull-who {\n  display: block;\n  font-style: normal;\n  font-size: 0.82em;\n  letter-spacing: 0.08em;\n  color: var(--pw-muted);\n  margin-top: 0.55em;\n}`);
+
+  // question (← frage): bold accent question, tighter to its answer.
+  out.push(`.pw-question {\n  font-family: var(--pw-font-heading);\n  font-weight: 700;\n  color: var(--pw-accent);\n  text-indent: 0;\n  margin: 1em 0 0.3em;\n}`);
+
+  // figurePanel (← bildtafel): photo + framed note, side-by-side, stacks narrow.
+  out.push(`.pw-figure-panel {\n  display: grid;\n  grid-template-columns: 1.45fr 1fr;\n  gap: 1.1em;\n  align-items: start;\n  margin: 1.4em 0;\n}`);
+  out.push(`.pw-fp-media { margin: 0; }`);
+  out.push(`.pw-fp-caption {\n  font-size: 0.8em;\n  font-style: italic;\n  color: var(--pw-muted);\n  margin-top: 0.45em;\n}`);
+  out.push(`.pw-fp-note {\n  border: 1px solid color-mix(in srgb, var(--pw-muted) 35%, transparent);\n  padding: 0.9em 1em;\n  font-size: 0.9em;\n}`);
+  out.push(`.pw-fp-note > :first-child { margin-top: 0; }`);
+  out.push(`.pw-fp-note > :last-child { margin-bottom: 0; }`);
+  out.push(`.pw-fp-title {\n  font-family: var(--pw-font-heading);\n  font-weight: 700;\n  font-size: 0.8em;\n  letter-spacing: 0.1em;\n  text-transform: uppercase;\n  color: var(--pw-accent);\n  margin: 0 0 0.5em;\n}`);
+  out.push(`@media (max-width: 38rem) {\n  .pw-article .pw-figure-panel { grid-template-columns: 1fr; }\n}`);
+
+  // marginNote (← randnotiz): a quiet side note (floats wide; inline narrow).
+  out.push(`.pw-margin-note {\n  float: right;\n  clear: right;\n  width: 11em;\n  margin: 0.2em 0 0.6em 1.4em;\n  padding-top: 0.3em;\n  border-top: 1px solid var(--pw-accent);\n  font-size: 0.78em;\n  line-height: 1.4;\n  color: var(--pw-muted);\n}`);
+  out.push(`@media (max-width: 50rem) {\n  .pw-article .pw-margin-note { float: none; width: auto; margin-inline: 0; }\n}`);
+
+  // interlude (← interlude()): a quiet centered divider (≠ the full-width hr).
+  out.push(`.pw-interlude {\n  border: none;\n  border-top: 1px solid var(--pw-accent);\n  width: 1.4em;\n  margin: 2em auto;\n}`);
+
+  // columns (← #columns): multicol, collapsing to one column on narrow screens.
+  out.push(`.pw-columns {\n  column-count: var(--pw-cols, 2);\n  column-gap: var(--pw-gap, 1.5em);\n}`);
+  out.push(`.pw-columns > * { break-inside: avoid-column; }`);
+  out.push(`@media (max-width: 40rem) {\n  .pw-article .pw-columns { column-count: 1; }\n}`);
+
+  // grid (← generic #grid two-up, §7.4): a side-by-side cell layout that stacks
+  // to a single column on narrow screens (content-complete, not pixel-faithful).
+  out.push(`.pw-grid {\n  display: grid;\n  grid-template-columns: repeat(var(--pw-grid-cols, 2), 1fr);\n  gap: 1.4em;\n  align-items: start;\n  margin: 1.4em 0;\n}`);
+  out.push(`.pw-grid-cell > :first-child { margin-top: 0; }`);
+  out.push(`@media (max-width: 44rem) {\n  .pw-article .pw-grid { grid-template-columns: 1fr; }\n}`);
+
   // --- scope every rule under .pw-article ----------------------------------
   return scopeRules(out, opts.scope ?? 'prefix');
 }

@@ -283,6 +283,23 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
     };
   }
 
+  // 7.8. Magazine macros (Phase C keystone) → real AST nodes.
+  //      MUST run BEFORE isRawBlock: these blocks start with `#opener` / `#frage`
+  //      / … which the raw-block `#[a-zA-Z]` test would otherwise claim, and a
+  //      leading `// penwright:node=…` marker would force them to typstRawBlock.
+  const magazineNode = parseMagazineMacro(block);
+  if (magazineNode) return magazineNode;
+
+  // 7.9. A whole-block `#text(…)[…]` styling call carrying non-`fill` args
+  //      (size / weight / style / font / tracking) → raw block (preserved
+  //      verbatim). A `fill`-only span is faithfully a textColor paragraph, but
+  //      multi-arg styling can't be represented as a single mark, so keep it 1:1
+  //      instead of dropping the other args (which broke compile / changed the
+  //      rendered page). Inline `#text(fill: …)[word]` inside prose is untouched.
+  if (isWholeBlockStyledText(block)) {
+    return { type: 'typstRawBlock', attrs: { content: block, blockType: classifyRawBlock(block) } };
+  }
+
   // 8. Raw block check — if block contains code we can't render as WYSIWYG
   if (isRawBlock(block)) {
     return {
@@ -294,13 +311,42 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
     };
   }
 
-  // 9. Default: paragraph with inline formatting
-  const text = lines.join(' ');
-  const inlineContent = parseInline(text);
+  // 9. Default: paragraph with inline formatting (Typst trailing-`\` → hardBreak)
   return {
     type: 'paragraph',
-    content: inlineContent.length > 0 ? inlineContent : undefined,
+    content: paragraphInline(lines),
   };
+}
+
+/**
+ * Builds a paragraph's inline content. A line ending in a lone `\` is a Typst
+ * forced line break (`linebreak()`) → a `hardBreak` node; every other newline
+ * is a soft break → a single joining space. Without this, `A \` + newline + `B`
+ * collapsed to `A  B` (the line break was silently lost, reflowing the text).
+ */
+function paragraphInline(lines: string[]): TipTapNode[] | undefined {
+  const out: TipTapNode[] = [];
+  let buf: string[] = [];
+  const flush = () => {
+    const text = buf.join(' ');
+    if (text) out.push(...parseInline(text));
+    buf = [];
+  };
+  for (const line of lines) {
+    const m = line.match(/\\\s*$/);
+    // A trailing `\` is a linebreak — but not an escaped literal `\\`.
+    if (m && (m.index === 0 || line[m.index! - 1] !== '\\')) {
+      buf.push(line.slice(0, m.index).replace(/\s+$/, ''));
+      flush();
+      out.push({ type: 'hardBreak' });
+    } else {
+      buf.push(line);
+    }
+  }
+  flush();
+  // A paragraph shouldn't end on a dangling break (keeps the round-trip a fixed point).
+  while (out.length && out[out.length - 1].type === 'hardBreak') out.pop();
+  return out.length > 0 ? out : undefined;
 }
 
 // ─── Raw Block Detection ─────────────────────────────────────
@@ -739,6 +785,10 @@ function extractBracketContent(text: string, start: number): { content: string; 
   let i = start + 1;
 
   while (i < text.length && depth > 0) {
+    // An escaped `\]` / `\[` is literal, not a delimiter — skip both chars so
+    // the body isn't truncated at an escaped bracket. Content is kept verbatim
+    // (these bodies are raw Typst that must round-trip including the escape).
+    if (text[i] === '\\') { i += 2; continue; }
     if (text[i] === '[') depth++;
     if (text[i] === ']') depth--;
     i++;
@@ -758,6 +808,7 @@ function extractBracketContent(text: string, start: number): { content: string; 
 type InlineSegType =
   | 'text'
   | 'footnote'
+  | 'marginNote'
   | 'emphasis'
   | 'strong'
   | 'rawInline'
@@ -829,6 +880,9 @@ function parseInline(text: string): TipTapNode[] {
     switch (seg.type) {
       case 'footnote':
         result.push({ type: 'footnote', attrs: { content: seg.content } });
+        break;
+      case 'marginNote':
+        result.push({ type: 'marginNote', attrs: { body: seg.content } });
         break;
       case 'emphasis':
         result.push(
@@ -925,6 +979,7 @@ function parseInline(text: string): TipTapNode[] {
 /** Simple inline constructs: #func[content] */
 const SIMPLE_INLINE = [
   { prefix: '#footnote[', type: 'footnote' as const },
+  { prefix: '#randnotiz[', type: 'marginNote' as const },
   { prefix: '#emph[', type: 'emphasis' as const },
   { prefix: '#strong[', type: 'strong' as const },
   { prefix: '#underline[', type: 'underline' as const },
@@ -1100,6 +1155,9 @@ function extractInlineBrackets(
   let depth = 1;
   let j = start + 1;
   while (j < text.length && depth > 0) {
+    // Escaped `\]` / `\[` is literal — skip both chars (verbatim content), so an
+    // inline `#footnote[…\]…]` / `#randnotiz[…\]…]` body isn't truncated at it.
+    if (text[j] === '\\') { j += 2; continue; }
     if (text[j] === '[') depth++;
     if (text[j] === ']') depth--;
     j++;
@@ -1129,9 +1187,15 @@ function extractArgAndBracket(
 
   const argsStr = text.slice(argsStart, j - 1);
 
-  // Extract the specific arg value
-  const argMatch = argsStr.match(new RegExp(`${argKey}\\s*:\\s*([^,)]+)`));
-  const argValue = argMatch ? argMatch[1].trim() : '';
+  // Extract the specific named arg via the nesting-aware parser (NOT a
+  // `[^,)]+` regex, which truncated `fill: rgb(255, 0, 0)` at the first comma →
+  // `rgb(255` → a broken `#text(fill: rgb(255)[…]` on re-serialize). If the key
+  // is ABSENT this isn't the construct we map (e.g. `#text(weight: "bold")[…]`
+  // has no `fill:`): return null so the caller leaves it intact → the block is
+  // classified raw and round-trips verbatim, not mis-written as `#text(fill: )`.
+  const { named } = parseTypstArgs(argsStr);
+  const argValue = named[argKey];
+  if (argValue === undefined) return null;
 
   // Expect '[' immediately after ')'
   if (j >= text.length || text[j] !== '[') return null;
@@ -1230,4 +1294,299 @@ function unescapeLiteral(text: string): string {
     }
   }
   return out;
+}
+
+// ─── Magazine macro recognition (Phase C keystone) ───────────────────────────
+//
+// The hand-written magazine macros become real AST nodes (typstMagazine.ts).
+// Recognition is HYBRID: a leading `// penwright:node=…` marker (for
+// Penwright-generated blocks) is tolerated + stripped, then dispatch is by macro
+// NAME (the LANGSAM-convention; legacy chapters carry no marker). The serializer
+// re-emits the exact macro call → the round-trip is compile-stable (identical
+// PDF), not necessarily byte-identical (plan §6.2 / C9).
+//
+// Only the REFLOWABLE macros are converted; the print-only page-design macros
+// (`#aufmacher`, `#doppelseite`, the cover) have no reflow analogue and stay raw
+// blocks (handled by Phase E).
+
+/** True when the whole block is a single `#text(args)[body]` styling call whose
+ *  args carry a non-`fill` style property (size/weight/style/font/tracking/…) —
+ *  a design block we can't represent as a single mark, so it stays raw/verbatim. */
+function isWholeBlockStyledText(block: string): boolean {
+  const t = block.trim();
+  if (!/^#text\s*\(/.test(t)) return false;
+  const open = t.indexOf('(');
+  const a = matchTypstParens(t, open);
+  if (!a) return false;
+  let k = a.end;
+  while (/\s/.test(t[k] ?? '')) k++;
+  if (t[k] !== '[') return false;
+  const b = extractBracketContent(t, k);
+  if (!b || t.slice(b.end).trim() !== '') return false;
+  return /\b(size|weight|style|font|tracking|spacing|baseline|features|stylistic-set|fallback)\s*:/.test(a.inner);
+}
+
+/** String-aware `(` … `)` matcher (code mode: `"…"` strings are skipped). */
+function matchTypstParens(s: string, open: number): { inner: string; end: number } | null {
+  if (s[open] !== '(') return null;
+  let depth = 0;
+  let inStr = false;
+  for (let i = open; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (c === '\\') i++;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '(') depth++;
+    else if (c === ')') {
+      depth--;
+      if (depth === 0) return { inner: s.slice(open + 1, i), end: i + 1 };
+    }
+  }
+  return null;
+}
+
+/** Splits a Typst argument list on top-level commas (respecting "", [], (), {}). */
+function splitTopLevelArgs(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let inStr = false;
+  let start = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (c === '\\') i++;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
+    else if (c === ',' && depth === 0) {
+      parts.push(s.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (start <= s.length) parts.push(s.slice(start));
+  return parts.map((p) => p.trim()).filter((p) => p.length > 0);
+}
+
+/** Parses a Typst call arg list into positional values + named values (raw slices). */
+function parseTypstArgs(argStr: string): { positional: string[]; named: Record<string, string> } {
+  const positional: string[] = [];
+  const named: Record<string, string> = {};
+  for (const part of splitTopLevelArgs(argStr)) {
+    // Find a TOP-LEVEL `:` (a `key: value` separator), not one inside a value.
+    let depth = 0;
+    let inStr = false;
+    let colon = -1;
+    for (let i = 0; i < part.length; i++) {
+      const c = part[i];
+      if (inStr) {
+        if (c === '\\') i++;
+        else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') inStr = true;
+      else if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') depth--;
+      else if (c === ':' && depth === 0) { colon = i; break; }
+    }
+    const key = colon > 0 ? part.slice(0, colon).trim() : '';
+    if (colon > 0 && /^[a-zA-Z][\w-]*$/.test(key)) {
+      named[key] = part.slice(colon + 1).trim();
+    } else {
+      positional.push(part);
+    }
+  }
+  return { positional, named };
+}
+
+/** Strips a surrounding `"…"` and unescapes `\"` / `\\`. Bare values pass through. */
+function unquoteTypstString(s: string): string {
+  const t = s.trim();
+  if (t.length >= 2 && t[0] === '"' && t[t.length - 1] === '"') {
+    return t.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  }
+  return t;
+}
+
+/** Strips a surrounding `[…]` content bracket, returning the inner verbatim. */
+function stripContentBrackets(s: string): string {
+  const t = s.trim();
+  if (t.length >= 2 && t[0] === '[' && t[t.length - 1] === ']') return t.slice(1, -1);
+  return t;
+}
+
+/** Recursively parses a content-block body into child nodes (mirrors the
+ *  top-level deserialize loop). Used for `#columns` / `#notiz` / `#bildtafel`
+ *  bodies whose children must become real nodes (questions, paragraphs, …). */
+function parseBlocks(inner: string): TipTapNode[] {
+  const out: TipTapNode[] = [];
+  for (const block of splitIntoBlocks(inner)) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+    try {
+      const nodes = parseBlock(trimmed);
+      if (Array.isArray(nodes)) out.push(...nodes);
+      else if (nodes) out.push(nodes);
+    } catch {
+      out.push({ type: 'typstRawBlock', attrs: { content: trimmed, blockType: 'error' } });
+    }
+  }
+  return out;
+}
+
+/** Matches a macro name at the start of `t` at a word boundary (so `#frage`
+ *  matches `#frage[` but not `#fragefoo`). Returns the index past the name. */
+function macroNameEnd(t: string, name: string): number {
+  if (!t.startsWith('#' + name)) return -1;
+  const after = t[name.length + 1];
+  // next char must be `(`, `[`, whitespace, or end — i.e. a non-word char.
+  if (after === undefined || /[([\s]/.test(after)) return name.length + 1;
+  return -1;
+}
+
+/** `#name[body]` or `#name(args)[body]` spanning the whole block; null otherwise. */
+function readMacroCall(
+  t: string,
+  nameEnd: number,
+): { args: string; body: string | null } | null {
+  let j = nameEnd;
+  while (/\s/.test(t[j] ?? '')) j++;
+  let args = '';
+  if (t[j] === '(') {
+    const a = matchTypstParens(t, j);
+    if (!a) return null;
+    args = a.inner;
+    j = a.end;
+    while (/\s/.test(t[j] ?? '')) j++;
+  }
+  let body: string | null = null;
+  if (t[j] === '[') {
+    const b = extractBracketContent(t, j);
+    if (!b) return null;
+    body = b.content;
+    j = b.end;
+  }
+  // The macro must span the ENTIRE block — trailing content → not our node.
+  if (t.slice(j).trim() !== '') return null;
+  return { args, body };
+}
+
+/**
+ * Recognises a reflowable magazine macro block and returns its AST node, or null
+ * (→ the block falls through to isRawBlock / paragraph).
+ */
+function parseMagazineMacro(block: string): TipTapNode | null {
+  // Tolerate (and drop) leading `// penwright:node=…` marker comment lines.
+  let b = block;
+  for (;;) {
+    const m = b.match(/^[ \t]*\/\/[^\n]*\n/);
+    if (m && /penwright:node=/.test(m[0])) b = b.slice(m[0].length);
+    else break;
+  }
+  const t = b.trim();
+  if (t[0] !== '#') return null;
+
+  // interlude() — no args, no body.
+  if (/^#interlude\s*\(\s*\)\s*$/.test(t)) return { type: 'interlude' };
+
+  // opener(...) — all named string args; produces the outline H1 (title).
+  let ne = macroNameEnd(t, 'opener');
+  if (ne > 0) {
+    const call = readMacroCall(t, ne);
+    if (!call || call.body !== null) return null; // opener takes no body bracket
+    const { named } = parseTypstArgs(call.args);
+    const attrs: Record<string, unknown> = { title: named.title ? unquoteTypstString(named.title) : '' };
+    if (named.kicker) attrs.kicker = unquoteTypstString(named.kicker);
+    if (named.standfirst) attrs.standfirst = unquoteTypstString(named.standfirst);
+    if (named.byline) attrs.byline = unquoteTypstString(named.byline);
+    return { type: 'articleHeader', attrs };
+  }
+
+  // lead[body] → dropCap (editable inline prose).
+  ne = macroNameEnd(t, 'lead');
+  if (ne > 0) {
+    const call = readMacroCall(t, ne);
+    if (call && call.body !== null) return { type: 'dropCap', content: parseInline(call.body) };
+    return null;
+  }
+
+  // frage[body] → question (editable inline prose).
+  ne = macroNameEnd(t, 'frage');
+  if (ne > 0) {
+    const call = readMacroCall(t, ne);
+    if (call && call.body !== null) return { type: 'question', content: parseInline(call.body) };
+    return null;
+  }
+
+  // pull[body] / pull(who: "X")[body] → pullQuote.
+  ne = macroNameEnd(t, 'pull');
+  if (ne > 0) {
+    const call = readMacroCall(t, ne);
+    if (call && call.body !== null) {
+      const { named } = parseTypstArgs(call.args);
+      const attrs = named.who ? { who: unquoteTypstString(named.who) } : {};
+      return { type: 'pullQuote', attrs, content: parseInline(call.body) };
+    }
+    return null;
+  }
+
+  // notiz[body] / notiz(title: "X")[body] → callout (multi-paragraph body).
+  ne = macroNameEnd(t, 'notiz');
+  if (ne > 0) {
+    const call = readMacroCall(t, ne);
+    if (call && call.body !== null) {
+      const { named } = parseTypstArgs(call.args);
+      const attrs = named.title ? { title: unquoteTypstString(named.title) } : {};
+      const children = parseBlocks(call.body);
+      return { type: 'callout', attrs, content: children.length ? children : [{ type: 'paragraph' }] };
+    }
+    return null;
+  }
+
+  // bildtafel("path", caption: [..], title: "..", [body]) → figurePanel.
+  ne = macroNameEnd(t, 'bildtafel');
+  if (ne > 0) {
+    let j = ne;
+    while (/\s/.test(t[j] ?? '')) j++;
+    if (t[j] !== '(') return null;
+    const a = matchTypstParens(t, j);
+    if (!a || t.slice(a.end).trim() !== '') return null;
+    const { positional, named } = parseTypstArgs(a.inner);
+    const path = positional[0] ? unquoteTypstString(positional[0]) : '';
+    const bodyRaw = positional[1] ?? '';
+    const attrs: Record<string, unknown> = { path };
+    if (named.caption) attrs.caption = stripContentBrackets(named.caption);
+    if (named.title) attrs.title = unquoteTypstString(named.title);
+    const children = parseBlocks(stripContentBrackets(bodyRaw));
+    return { type: 'figurePanel', attrs, content: children.length ? children : [{ type: 'paragraph' }] };
+  }
+
+  // columns(n, gutter: g)[…] → columns (recursively-parsed block children).
+  ne = macroNameEnd(t, 'columns');
+  if (ne > 0) {
+    let j = ne;
+    while (/\s/.test(t[j] ?? '')) j++;
+    if (t[j] !== '(') return null;
+    const a = matchTypstParens(t, j);
+    if (!a) return null;
+    const { positional, named } = parseTypstArgs(a.inner);
+    const cols = parseInt(positional[0] ?? '2', 10) || 2;
+    const gutter = named.gutter ? named.gutter.trim() : '';
+    j = a.end;
+    while (/\s/.test(t[j] ?? '')) j++;
+    if (t[j] !== '[') return null;
+    const body = extractBracketContent(t, j);
+    if (!body || t.slice(body.end).trim() !== '') return null;
+    const children = parseBlocks(body.content);
+    const attrs: Record<string, unknown> = { cols };
+    if (gutter) attrs.gutter = gutter;
+    return { type: 'columns', attrs, content: children.length ? children : [{ type: 'paragraph' }] };
+  }
+
+  return null;
 }

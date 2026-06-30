@@ -48,6 +48,7 @@ import * as path from 'path';
 import { parseBibFile, type BibEntry } from './bibParser';
 import { parseSettings, type DocumentSettings } from './settingsParser';
 import { type ProjectStyle } from './styleTypes';
+import { parseTypstGrid, type ParsedGrid } from './typstGrid';
 
 // ─── Types (mirrors deserializer output) ─────────────────────
 
@@ -1027,6 +1028,138 @@ function convertNode(
       break;
     }
 
+    // ─── Magazine AST nodes (Phase C keystone) ─────────────────────────────
+    // These render as real Word content instead of being dropped/placeholdered.
+    // For `#columns` this is the B1 fix: the column flow (incl. nested #frage
+    // questions) is structured content that reaches Word, no longer a raw block.
+    case 'articleHeader': {
+      const a = node.attrs ?? {};
+      if (a.kicker) {
+        elements.push(new Paragraph({
+          spacing: { after: 60 },
+          children: [new TextRun({ text: String(a.kicker).toUpperCase(), bold: true, size: 18, color: '777777' })],
+        }));
+      }
+      // The opener title is the outline-visible H1 (Word TOC + nav), matching
+      // the PDF outline — unnumbered (articles aren't auto-numbered).
+      elements.push(new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        children: [new TextRun({ text: String(a.title ?? '') })],
+      }));
+      if (a.standfirst) {
+        elements.push(new Paragraph({
+          spacing: { before: 60, after: 60 },
+          children: [new TextRun({ text: String(a.standfirst), italics: true, color: '666666', size: Math.round((activeCtx?.resolved.bodySize ?? 22) * 1.15) })],
+        }));
+      }
+      if (a.byline) {
+        elements.push(new Paragraph({
+          spacing: { after: 160 },
+          children: [new TextRun({ text: String(a.byline), color: '777777', size: 18 })],
+        }));
+      }
+      break;
+    }
+
+    case 'dropCap': {
+      const runs = convertInlineContent(node.content ?? [], baseDir, footnotes, footnoteId, bibEntries);
+      footnoteId = runs.nextFootnoteId;
+      elements.push(new Paragraph({ children: runs.children }));
+      break;
+    }
+
+    case 'question': {
+      // The interview question — bold (matches the accent #frage styling).
+      const boldContent = (node.content ?? []).map((n) =>
+        n.type === 'text' ? { ...n, marks: [...(n.marks ?? []), { type: 'bold' }] } : n);
+      const runs = convertInlineContent(boldContent, baseDir, footnotes, footnoteId, bibEntries);
+      footnoteId = runs.nextFootnoteId;
+      elements.push(new Paragraph({ spacing: { before: 120, after: 40 }, children: runs.children }));
+      break;
+    }
+
+    case 'pullQuote': {
+      const runs = convertInlineContent(node.content ?? [], baseDir, footnotes, footnoteId, bibEntries);
+      footnoteId = runs.nextFootnoteId;
+      elements.push(new Paragraph({ style: 'Quote', alignment: AlignmentType.CENTER, children: runs.children }));
+      const who = node.attrs?.who as string | undefined;
+      if (who) {
+        elements.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 120 },
+          children: [new TextRun({ text: `— ${who}`, color: '777777', size: 18 })],
+        }));
+      }
+      break;
+    }
+
+    case 'callout': {
+      // Shaded, left-bordered box (mirrors renderCallout) over block children.
+      const title = node.attrs?.title as string | undefined;
+      const fill = 'F4F5F7';
+      const accent = '6B7280';
+      const boxPara = (children: TextRun[], spacing: Record<string, number>) =>
+        new Paragraph({
+          shading: { type: ShadingType.SOLID, color: fill },
+          border: { left: { style: BorderStyle.SINGLE, size: 18, color: accent, space: 10 } },
+          spacing: { line: 260, ...spacing },
+          children,
+        });
+      if (title) elements.push(boxPara([new TextRun({ text: title, bold: true, color: accent })], { before: 120, after: 0 }));
+      const kids = node.content ?? [];
+      kids.forEach((child, i) => {
+        const last = i === kids.length - 1;
+        if (child.type === 'paragraph') {
+          const runs = convertInlineContent(child.content ?? [], baseDir, footnotes, footnoteId, bibEntries);
+          footnoteId = runs.nextFootnoteId;
+          elements.push(boxPara(runs.children as TextRun[], { before: 0, after: last ? 120 : 0 }));
+        } else {
+          const r = convertNode(child, baseDir, footnotes, footnoteId, hasNumbering, bibEntries);
+          elements.push(...r.elements);
+          footnoteId = r.nextFootnoteId;
+        }
+      });
+      break;
+    }
+
+    case 'figurePanel': {
+      const a = node.attrs ?? {};
+      const fn: FnState = { footnotes, id: footnoteId };
+      if (a.path) elements.push(buildImageParagraph(resolveImagePath(baseDir, String(a.path)), null, 'center'));
+      if (a.caption) {
+        const capRuns = parseInlineTypst(String(a.caption), { italics: true, color: '666666', size: Math.max(18, (activeCtx?.resolved.bodySize ?? 22) - 2) }, fn);
+        elements.push(new Paragraph({ style: 'Caption', alignment: AlignmentType.CENTER, children: capRuns.length ? capRuns : [new TextRun({ text: String(a.caption), italics: true })] }));
+      }
+      footnoteId = fn.id;
+      if (a.title) elements.push(new Paragraph({ spacing: { before: 80 }, children: [new TextRun({ text: String(a.title).toUpperCase(), bold: true, color: '6B7280', size: 18 })] }));
+      for (const child of node.content ?? []) {
+        const r = convertNode(child, baseDir, footnotes, footnoteId, hasNumbering, bibEntries);
+        elements.push(...r.elements);
+        footnoteId = r.nextFootnoteId;
+      }
+      break;
+    }
+
+    case 'interlude': {
+      elements.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 160, after: 160 },
+        children: [new TextRun({ text: '* * *', color: '999999' })],
+      }));
+      break;
+    }
+
+    case 'columns': {
+      // Linear flow (Word multicol via section breaks is fragile; the silent
+      // drop is what mattered). The nested questions/prose now reach Word.
+      for (const child of node.content ?? []) {
+        const r = convertNode(child, baseDir, footnotes, footnoteId, hasNumbering, bibEntries);
+        elements.push(...r.elements);
+        footnoteId = r.nextFootnoteId;
+      }
+      break;
+    }
+
     default: {
       if (node.content) {
         const runs = convertInlineContent(
@@ -1170,6 +1303,18 @@ function convertInlineContent(
             children: bodyRuns.length ? bodyRuns : [new TextRun({ text: noteContent, size: 20 })],
           }),
         ],
+      };
+      children.push(new FootnoteReferenceRun(currentId));
+    } else if (node.type === 'marginNote') {
+      // A margin note has no Word analogue → render it as a footnote (a side
+      // annotation), so its content survives instead of being dropped.
+      const noteContent = (node.attrs?.body as string) ?? '';
+      const currentId = footnoteId++;
+      const fn: FnState = { footnotes, id: footnoteId };
+      const bodyRuns = parseInlineTypst(noteContent, { size: 20 }, fn);
+      footnoteId = fn.id;
+      footnotes[currentId] = {
+        children: [new Paragraph({ children: bodyRuns.length ? bodyRuns : [new TextRun({ text: noteContent, size: 20 })] })],
       };
       children.push(new FootnoteReferenceRun(currentId));
     } else if (node.type === 'reference') {
@@ -1478,6 +1623,7 @@ type RawDesc =
   /** A design container (#align / #block / #dropcap / #wrap-content) whose
    *  visible text is worth keeping — chunks become individual paragraphs. */
   | { kind: 'designText'; alignment: string | null; chunks: string[] }
+  | { kind: 'grid'; parsed: ParsedGrid }
   | { kind: 'skip' };
 
 const CALLOUT_NAMES = new Set([
@@ -1567,6 +1713,12 @@ function classifyRawBlock(content: string, blockType: string): RawDesc {
   if (isConfigBlock(content, blockType)) return { kind: 'skip' };
   const trimmed = stripSpacerLines(content.trim());
   if (!trimmed) return { kind: 'skip' };
+
+  // Generic #grid(...) two-up (§7.4) — reinterpret the cells as stacked content.
+  // MUST precede the SKIP_LEADERS `#grid` drop; parseTypstGrid tolerates a
+  // leading `// …` comment (the LANGSAM interview head) + returns null otherwise.
+  const grid = parseTypstGrid(content);
+  if (grid) return { kind: 'grid', parsed: grid };
 
   // Display math — must be *only* `$ … $` (optionally + a trailing label).
   // The deserializer sometimes tags prose-with-inline-math blocks `'math'`
@@ -1974,6 +2126,38 @@ function renderRawBlock(
       const els = renderTextChunks(desc.chunks, desc.alignment, fn);
       return { elements: els, nextFootnoteId: fn.id };
     }
+
+    case 'grid': {
+      // Stack the cells linearly (Word has no fragile 2-up; the words are what
+      // matter — this rescues the interview head from being dropped).
+      const els: (Paragraph | Table)[] = [];
+      for (const cellItems of desc.parsed.cells) {
+        for (const it of cellItems) {
+          switch (it.kind) {
+            case 'question': {
+              const runs = parseInlineTypst((it.body ?? '').replace(/\s+/g, ' ').trim(), { bold: true }, fn);
+              els.push(new Paragraph({ spacing: { before: 120, after: 40 }, children: runs.length ? runs : [] }));
+              break;
+            }
+            case 'box':
+              els.push(...renderCallout('note', it.title, (it.body ?? '').trim(), fn));
+              break;
+            case 'image':
+              if (it.path) els.push(buildImageParagraph(resolveImagePath(baseDir, it.path), it.width ?? null, 'center'));
+              break;
+            case 'caption': {
+              const runs = parseInlineTypst((it.body ?? '').replace(/\s+/g, ' ').trim(), { italics: true, color: '666666', size: Math.max(18, (activeCtx?.resolved.bodySize ?? 22) - 2) }, fn);
+              if (runs.length) els.push(new Paragraph({ style: 'Caption', children: runs }));
+              break;
+            }
+            default:
+              els.push(...renderTextChunks(splitDesignChunks(it.body ?? ''), null, fn));
+              break;
+          }
+        }
+      }
+      return { elements: els, nextFootnoteId: fn.id };
+    }
   }
 }
 
@@ -2220,8 +2404,13 @@ function handleInlineFunc(name: string, args: string, inner: string | null, base
       return renderAtRef(m[1].replace(/[.:]+$/, ''));
     }
     default:
-      // Unknown function (design / layout) — drop it and its bracket content.
-      return inner !== null && /^[a-z]/.test(name) === false ? [new TextRun({ ...base, text: inner })] : null;
+      // Unknown function. If it carries bracket content (e.g. a user macro like
+      // #frage[…] / #lead[…] nested in a raw block the keystone didn't convert —
+      // the interview's ad-hoc #grid head), KEEP that content: the web/Word
+      // export wants the words, not a silent drop (the B1 safety net — the
+      // primary fix is turning these into AST nodes; this catches the remainder).
+      // Pure no-content layout calls (inner === null) still drop.
+      return inner !== null ? parseInlineTypst(inner, base, fn, collect) : null;
   }
 }
 

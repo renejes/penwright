@@ -150,9 +150,73 @@ function serializeNode(node: TipTapNode): string {
       return (node.attrs?.content as string) ?? '';
     }
 
+    // ─── Magazine nodes (Phase C keystone) ─────────────────────────────────
+    // Each re-emits the exact `#macro(…)` call so the round-trip compiles to an
+    // identical PDF (compile-stability, not byte-identity — plan §6.2).
+    case 'articleHeader': {
+      const a = node.attrs ?? {};
+      const parts: string[] = [];
+      if (a.kicker) parts.push(`kicker: ${typstStr(a.kicker as string)}`);
+      parts.push(`title: ${typstStr((a.title as string) ?? '')}`);
+      if (a.standfirst) parts.push(`standfirst: ${typstStr(a.standfirst as string)}`);
+      if (a.byline) parts.push(`byline: ${typstStr(a.byline as string)}`);
+      return `#opener(${parts.join(', ')})`;
+    }
+
+    case 'interlude': {
+      return '#interlude()';
+    }
+
+    case 'dropCap': {
+      return `#lead[${serializeInline(node.content ?? [])}]`;
+    }
+
+    case 'question': {
+      return `#frage[${serializeInline(node.content ?? [])}]`;
+    }
+
+    case 'pullQuote': {
+      const who = node.attrs?.who as string | undefined;
+      const args = who ? `(who: ${typstStr(who)})` : '';
+      return `#pull${args}[${serializeInline(node.content ?? [])}]`;
+    }
+
+    case 'callout': {
+      const title = node.attrs?.title as string | undefined;
+      const args = title ? `(title: ${typstStr(title)})` : '';
+      return `#notiz${args}[\n${serializeBlockBody(node.content ?? [])}\n]`;
+    }
+
+    case 'figurePanel': {
+      const a = node.attrs ?? {};
+      const parts: string[] = [typstStr((a.path as string) ?? '')];
+      if (a.caption) parts.push(`caption: [${a.caption as string}]`);
+      if (a.title) parts.push(`title: ${typstStr(a.title as string)}`);
+      parts.push(`[\n${serializeBlockBody(node.content ?? [])}\n]`);
+      return `#bildtafel(${parts.join(', ')})`;
+    }
+
+    case 'columns': {
+      const cols = (node.attrs?.cols as number) ?? 2;
+      const gutter = node.attrs?.gutter as string | undefined;
+      const args = gutter ? `${cols}, gutter: ${gutter}` : `${cols}`;
+      return `#columns(${args})[\n${serializeBlockBody(node.content ?? [])}\n]`;
+    }
+
     default:
       return serializeInline(node.content ?? []);
   }
+}
+
+/** Quotes + escapes a string for a Typst string argument (`"…"`). */
+function typstStr(s: string): string {
+  return `"${(s ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/** Serializes a content-node's block children, blank-line separated, so the
+ *  deserializer's block splitter recovers them on re-open. */
+function serializeBlockBody(nodes: TipTapNode[]): string {
+  return nodes.map((n) => serializeNode(n)).join('\n\n');
 }
 
 /**
@@ -271,7 +335,9 @@ function serializeInline(nodes: TipTapNode[]): string {
               text = `~${text}~`;
               break;
             case 'link':
-              text = `#link("${mark.attrs?.href ?? ''}")[${text}]`;
+              // Quote+escape the href so a `"` or `\` in the URL can't break the
+              // string (matches the deserializer, which reads a quoted string).
+              text = `#link(${typstStr(String(mark.attrs?.href ?? ''))})[${text}]`;
               break;
             case 'textColor':
               text = `#text(fill: ${mark.attrs?.color ?? 'black'})[${text}]`;
@@ -301,6 +367,10 @@ function serializeInline(nodes: TipTapNode[]): string {
         return `#footnote[${node.attrs?.content ?? ''}]`;
       }
 
+      if (node.type === 'marginNote') {
+        return `#randnotiz[${node.attrs?.body ?? ''}]`;
+      }
+
       if (node.type === 'citation') {
         return `@${node.attrs?.citekey ?? ''}`;
       }
@@ -310,7 +380,9 @@ function serializeInline(nodes: TipTapNode[]): string {
       }
 
       if (node.type === 'hardBreak') {
-        return '\n';
+        // A Typst forced line break is a trailing `\`, NOT a bare newline (which
+        // is only a soft break = space). Emitting `\n` lost the break on compile.
+        return ' \\\n';
       }
 
       return '';
