@@ -49,6 +49,25 @@ import { parseBibFile, type BibEntry } from './bibParser';
 import { parseSettings, type DocumentSettings } from './settingsParser';
 import { type ProjectStyle } from './styleTypes';
 import { parseTypstGrid, type ParsedGrid } from './typstGrid';
+import {
+  type RefTarget,
+  type RawDesc,
+  matchBracket,
+  classifyRawBlock,
+  splitDesignChunks,
+  splitHeadingLabel,
+  stripHeadingLabelContent,
+  getPlainText,
+  refWords,
+  NUMERIC_BIB_STYLES,
+  citationInner,
+  cleanBibText,
+  formatBibAuthors,
+  collectCitekeysInOrder,
+  renderEqNumber,
+  mathSnippet,
+  svgSnippet,
+} from './exportContext';
 
 // ─── Types (mirrors deserializer output) ─────────────────────
 
@@ -113,47 +132,6 @@ export interface SerializeDocxOptions {
    * raw Typst source into the document.
    */
   renderTypstSnippet?: (snippet: string) => Promise<RenderedSnippet | null>;
-}
-
-/** A cross-reference target discovered in the pre-pass. */
-interface RefTarget {
-  kind: 'figure' | 'table' | 'equation' | 'heading' | 'other';
-  /** 1-based sequence number within its kind. */
-  n: number;
-  /** For equations/headings: the rendered number string, e.g. "(1)" / "2.1". */
-  numberText?: string;
-  /** Heading title text, for section references. */
-  title?: string;
-}
-
-/**
- * Headings arrive from the deserializer with their Typst label still embedded
- * in the text ("Introduction <sec:introduction>"). Extracts the label and the
- * clean title.
- */
-function splitHeadingLabel(node: TipTapNode): { title: string; label?: string } {
-  const text = getPlainText(node.content ?? []);
-  const m = text.match(/\s*<([^<>\s]+)>\s*$/);
-  if (!m) return { title: text.trim() };
-  return { title: text.slice(0, m.index).trim(), label: m[1] };
-}
-
-/** Returns the heading's inline content with a trailing `<label>` removed. */
-function stripHeadingLabelContent(content: TipTapNode[]): TipTapNode[] {
-  const out = content.map((n) => ({ ...n }));
-  for (let i = out.length - 1; i >= 0; i--) {
-    const n = out[i];
-    if (n.type !== 'text') break;
-    const t = n.text ?? '';
-    const stripped = t.replace(/\s*<[^<>\s]+>\s*$/, '');
-    if (stripped !== t) {
-      if (stripped) { out[i] = { ...n, text: stripped }; }
-      else { out.splice(i, 1); }
-      break;
-    }
-    if (t.trim() !== '') break;
-  }
-  return out;
 }
 
 /**
@@ -823,17 +801,6 @@ function renderBibliography(entries: BibEntry[], lang: string, ctx: DocxCtx): Pa
   return paragraphs;
 }
 
-/** BibTeX `--` page/number ranges → en-dash; strip protective braces. */
-function cleanBibText(s: string): string {
-  return s.replace(/--/g, '–').replace(/[{}]/g, '');
-}
-
-/** "A, B. and C, D. and others" → "A, B., C, D., et al." */
-function formatBibAuthors(author: string): string {
-  const names = author.split(/\s+and\s+/).map(n => cleanBibText(n.trim())).filter(Boolean);
-  return names.map(n => (/^others$/i.test(n) ? 'et al.' : n)).join(', ');
-}
-
 /**
  * Author–year reference entry, loosely APA-shaped:
  * Authors (Year). Title. Venue, Volume(Issue), Pages. DOI/URL.
@@ -1330,20 +1297,6 @@ function convertInlineContent(
 }
 
 /**
- * Inner text of an author-year citation: "Bender et al., 2021" /
- * "Smith, 2020". Returns null when the citekey has no bib entry.
- */
-function citationInner(citekey: string, entries: BibEntry[]): string | null {
-  const entry = entries.find(e => e.citekey === citekey);
-  if (!entry) return null;
-  const author = entry.author || '';
-  const surname = author.split(',')[0].split('&')[0].split(' and ')[0].trim() || citekey;
-  const multi = / and |&|\bothers\b|et al\./.test(author.slice(surname.length));
-  const name = multi ? `${surname} et al.` : surname;
-  return entry.year ? `${name}, ${entry.year}` : name;
-}
-
-/**
  * Render a citation as `(Author et al., Year)` when the entry is known,
  * otherwise fall back to `[citekey]`. Produces readable inline cites instead
  * of the opaque `[smith2024]` placeholder users were seeing before.
@@ -1522,26 +1475,6 @@ function getBlockContent(node: TipTapNode): TipTapNode[] {
   return inlineNodes;
 }
 
-function getPlainText(nodes: TipTapNode[]): string {
-  return nodes.map((n) => n.text ?? '').join('');
-}
-
-function isConfigBlock(content: string, blockType: string): boolean {
-  if (blockType === 'config') return true;
-  const trimmed = content.trim();
-  if (/^#(set|show|import)\s/.test(trimmed)) return true;
-  if (trimmed.startsWith('#show ')) return true;
-  if (/^\/\/\s*─/.test(trimmed)) return true;
-  // All lines are comments or preamble directives → no manuscript content.
-  if (trimmed.split('\n').every((line) => {
-    const t = line.trim();
-    return t === '' || t.startsWith('//') || /^#(set|show|import|let)\b/.test(t);
-  })) return true;
-  if (/^#outline\b/.test(trimmed)) return true;
-  if (trimmed === '#pagebreak()') return true;
-  return false;
-}
-
 function colorToHex(color: string | undefined): string {
   if (!color) return '000000';
   const typstMatch = color.match(/^rgb\("([^"]+)"\)$/);
@@ -1560,307 +1493,7 @@ function colorToHex(color: string | undefined): string {
   return '000000';
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Raw-block intelligence (Stage A overhaul)
-//
-//  The deserializer leaves figures, display-math, #quote, gentle-clues
-//  callouts and any prose paragraph that contains an inline Typst call
-//  (#emph / #footnote / #raw / …) as `typstRawBlock` nodes. The old
-//  serializer dumped every one of them as monospace code. The functions
-//  below recognise the meaningful ones and render proper Word content,
-//  and *skip* pure layout/design code instead of leaking it.
-// ═══════════════════════════════════════════════════════════════
 
-const REF_WORDS: Record<string, { figure: string; table: string; equation: string; section: string }> = {
-  en: { figure: 'Figure',    table: 'Table',   equation: 'Equation',     section: 'Section'   },
-  de: { figure: 'Abbildung', table: 'Tabelle', equation: 'Gleichung',    section: 'Abschnitt' },
-  fr: { figure: 'Figure',    table: 'Tableau', equation: 'Équation',     section: 'Section'   },
-  es: { figure: 'Figura',    table: 'Tabla',   equation: 'Ecuación',     section: 'Sección'  },
-  it: { figure: 'Figura',    table: 'Tabella', equation: 'Equazione',    section: 'Sezione'  },
-  pt: { figure: 'Figura',    table: 'Tabela',  equation: 'Equação',      section: 'Seção'    },
-  nl: { figure: 'Figuur',    table: 'Tabel',   equation: 'Vergelijking', section: 'Sectie'   },
-};
-function refWords(lang: string) {
-  return REF_WORDS[lang.slice(0, 2).toLowerCase()] ?? REF_WORDS.en;
-}
-
-/** Known numeric (citation-number) bibliography styles. Everything else → author-year. */
-const NUMERIC_BIB_STYLES = new Set([
-  'ieee', 'vancouver', 'numeric', 'american-physics-society', 'nature',
-  'american-medical-association', 'american-chemical-society', 'institute-of-physics-numeric',
-  'springer-basic', 'elsevier-vancouver', 'iso-690-numeric',
-]);
-
-/**
- * Balanced-bracket extraction. `s[openIdx]` must be `open`; returns the inner
- * content (exclusive of the brackets) and the index just past the matching
- * close, honouring nesting. Returns null on imbalance.
- */
-function matchBracket(s: string, openIdx: number, open: string, close: string): { inner: string; end: number } | null {
-  if (s[openIdx] !== open) return null;
-  let depth = 0;
-  let inStr = false;
-  for (let i = openIdx; i < s.length; i++) {
-    const ch = s[i];
-    if (ch === '"' && s[i - 1] !== '\\') inStr = !inStr;
-    if (inStr) continue;
-    if (ch === open) depth++;
-    else if (ch === close) { depth--; if (depth === 0) return { inner: s.slice(openIdx + 1, i), end: i + 1 }; }
-  }
-  return null;
-}
-
-// ─── Raw-block classification ────────────────────────────────
-
-type RawDesc =
-  | { kind: 'math'; tex: string; label?: string }
-  | { kind: 'heading'; level: number; text: string }
-  | { kind: 'figure'; variant: 'image'; imagePath?: string; width?: string | null; caption?: string; credit?: string; label?: string }
-  | { kind: 'figure'; variant: 'table'; tableSrc: string; caption?: string; credit?: string; label?: string }
-  | { kind: 'quote'; body: string }
-  | { kind: 'callout'; variant: string; title?: string; body: string }
-  | { kind: 'prose'; content: string }
-  /** A design container (#align / #block / #dropcap / #wrap-content) whose
-   *  visible text is worth keeping — chunks become individual paragraphs. */
-  | { kind: 'designText'; alignment: string | null; chunks: string[] }
-  | { kind: 'grid'; parsed: ParsedGrid }
-  | { kind: 'skip' };
-
-const CALLOUT_NAMES = new Set([
-  'info', 'tip', 'warning', 'note', 'memo', 'success', 'error', 'task',
-  'question', 'conclusion', 'important', 'abstract', 'example',
-]);
-
-/** Leading layout/design functions that carry no manuscript content.
- *  `#align` / `#block` / `#dropcap` / `#wrap-content` / `#columns` are NOT in
- *  this list — they are containers whose visible text (title pages, pull-quotes,
- *  drop-cap paragraphs, wrapped prose, multi-column sections) must survive the
- *  export; see classifyRawBlock. (`#columns` used to be here, which silently
- *  dropped entire two-column sections — e.g. half of a magazine interview — from
- *  the DOCX export; it is now routed through the designText text-preserving path.) */
-const SKIP_LEADERS = /^#(grid|stack|place|box|rect|line|image|colbreak|pad|move|scale|rotate|polygon|path|square|circle|ellipse|diagram|cetz|fletcher|highlight|stroke|raw)\b|^#[vh]\(/;
-
-/** A line that is pure vertical/horizontal spacing (or empty). */
-const SPACER_LINE = /^\s*(#[vh]\([^)]*\))?\s*$/;
-
-function extractTrailingLabel(s: string): string | undefined {
-  const m = s.trim().match(/<([^>\s]+)>\s*$/);
-  return m ? m[1] : undefined;
-}
-
-/**
- * Splits a design-container body into paragraph chunks at blank lines and
- * standalone `#v(…)` spacer lines — depth-aware, so blank lines inside a
- * nested `#text[…]` bracket don't split.
- */
-function splitDesignChunks(src: string): string[] {
-  const chunks: string[] = [];
-  let cur: string[] = [];
-  let depth = 0;
-  let inStr = false;
-  for (const line of src.split('\n')) {
-    if (depth === 0 && SPACER_LINE.test(line)) {
-      if (cur.length) { chunks.push(cur.join('\n').trim()); cur = []; }
-      continue;
-    }
-    cur.push(line);
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"' && line[i - 1] !== '\\') inStr = !inStr;
-      if (inStr) continue;
-      if (ch === '[' || ch === '(' || ch === '{') depth++;
-      else if (ch === ']' || ch === ')' || ch === '}') depth = Math.max(0, depth - 1);
-    }
-    inStr = false;
-  }
-  if (cur.length) chunks.push(cur.join('\n').trim());
-  return chunks.filter(Boolean);
-}
-
-/**
- * Parses `#name(args)[body]` (args optional) that spans the entire string.
- * Returns null if the shape doesn't match or trailing content follows.
- */
-function parseContainer(trimmed: string, name: string): { args: string; body: string } | null {
-  const m = trimmed.match(new RegExp(`^#${name}\\s*`));
-  if (!m) return null;
-  let pos = m[0].length;
-  let args = '';
-  if (trimmed[pos] === '(') {
-    const a = matchBracket(trimmed, pos, '(', ')');
-    if (!a) return null;
-    args = a.inner;
-    pos = a.end;
-    while (/\s/.test(trimmed[pos] ?? '')) pos++;
-  }
-  if (trimmed[pos] !== '[') return null;
-  const b = matchBracket(trimmed, pos, '[', ']');
-  if (!b || trimmed.slice(b.end).trim() !== '') return null;
-  return { args, body: b.inner };
-}
-
-/** Strips leading/trailing spacer-only lines so a `#v(2em)` prefix doesn't
- *  hide the real content (title heroes, pull-quotes) from classification. */
-function stripSpacerLines(content: string): string {
-  const lines = content.split('\n');
-  let a = 0, b = lines.length;
-  while (a < b && SPACER_LINE.test(lines[a])) a++;
-  while (b > a && SPACER_LINE.test(lines[b - 1])) b--;
-  return lines.slice(a, b).join('\n').trim();
-}
-
-function classifyRawBlock(content: string, blockType: string): RawDesc {
-  if (isConfigBlock(content, blockType)) return { kind: 'skip' };
-  const trimmed = stripSpacerLines(content.trim());
-  if (!trimmed) return { kind: 'skip' };
-
-  // Generic #grid(...) two-up (§7.4) — reinterpret the cells as stacked content.
-  // MUST precede the SKIP_LEADERS `#grid` drop; parseTypstGrid tolerates a
-  // leading `// …` comment (the LANGSAM interview head) + returns null otherwise.
-  const grid = parseTypstGrid(content);
-  if (grid) return { kind: 'grid', parsed: grid };
-
-  // Display math — must be *only* `$ … $` (optionally + a trailing label).
-  // The deserializer sometimes tags prose-with-inline-math blocks `'math'`
-  // too, so the shape check (not blockType alone) is what gates this.
-  if (/^\$[\s\S]*\$\s*(<[^>]+>)?\s*$/.test(trimmed)) {
-    const label = extractTrailingLabel(trimmed);
-    const tex = trimmed.replace(/<[^>\s]+>\s*$/, '').trim();
-    return { kind: 'math', tex, label };
-  }
-
-  // #heading(...)[Text] — e.g. an unnumbered "Abstract".
-  if (trimmed.startsWith('#heading')) {
-    const lvlMatch = trimmed.match(/level:\s*(\d+)/);
-    const level = lvlMatch ? parseInt(lvlMatch[1]) : 1;
-    const br = trimmed.indexOf('[');
-    const inner = br >= 0 ? matchBracket(trimmed, br, '[', ']') : null;
-    return { kind: 'heading', level, text: inner ? inner.inner.trim() : trimmed.replace(/^#heading[^[]*\[?/, '').replace(/\]$/, '') };
-  }
-
-  // #figure(...) — image figure or table figure.
-  if (trimmed.startsWith('#figure')) {
-    const open = trimmed.indexOf('(');
-    const fig = open >= 0 ? matchBracket(trimmed, open, '(', ')') : null;
-    const inner = fig ? fig.inner : trimmed;
-    const label = extractTrailingLabel(trimmed.slice(fig ? fig.end : 0)) ?? extractTrailingLabel(trimmed);
-    // caption: [ ... ]  |  caption: "…"  |  caption: figure-caption-credit("…", "…")
-    let caption: string | undefined;
-    let credit: string | undefined;
-    const capIdx = inner.search(/caption:\s*\[/);
-    if (capIdx >= 0) {
-      const br = inner.indexOf('[', capIdx);
-      const cap = matchBracket(inner, br, '[', ']');
-      if (cap) caption = cap.inner.trim();
-    } else {
-      const creditIdx = inner.search(/caption:\s*figure-caption-credit\s*\(/);
-      if (creditIdx >= 0) {
-        const pOpen = inner.indexOf('(', inner.indexOf('figure-caption-credit', creditIdx));
-        const args = matchBracket(inner, pOpen, '(', ')');
-        const strs = args ? [...args.inner.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m => m[1].replace(/\\"/g, '"')) : [];
-        if (strs[0]) caption = strs[0];
-        if (strs[1]) credit = strs[1];
-      } else {
-        const strCap = inner.match(/caption:\s*"((?:[^"\\]|\\.)*)"/);
-        if (strCap) caption = strCap[1].replace(/\\"/g, '"');
-      }
-    }
-    if (/\btable\s*\(/.test(inner) && !/\bimage\s*\(/.test(inner.slice(0, inner.search(/\btable\s*\(/)))) {
-      const tIdx = inner.search(/\btable\s*\(/);
-      const tOpen = inner.indexOf('(', tIdx);
-      const tbl = matchBracket(inner, tOpen, '(', ')');
-      return { kind: 'figure', variant: 'table', tableSrc: tbl ? tbl.inner : inner, caption, credit, label };
-    }
-    const imgMatch = inner.match(/image\(\s*"([^"]+)"/);
-    const widthMatch = inner.match(/image\([^)]*width:\s*([^,)\s]+)/);
-    return { kind: 'figure', variant: 'image', imagePath: imgMatch ? imgMatch[1] : undefined, width: widthMatch ? widthMatch[1] : null, caption, credit, label };
-  }
-
-  // #quote(block: true)[ ... ]
-  if (/^#quote\s*\(/.test(trimmed)) {
-    const br = trimmed.indexOf('[');
-    const inner = br >= 0 ? matchBracket(trimmed, br, '[', ']') : null;
-    if (inner) return { kind: 'quote', body: inner.inner.trim() };
-  }
-
-  // gentle-clues callouts — #info[...] / #warning(title: "x")[...] / …
-  const calloutMatch = trimmed.match(/^#([a-z]+)\s*(\(([^)]*)\))?\s*\[/);
-  if (calloutMatch && CALLOUT_NAMES.has(calloutMatch[1])) {
-    const variant = calloutMatch[1];
-    const argStr = calloutMatch[3] ?? '';
-    const titleM = argStr.match(/title:\s*"([^"]*)"/);
-    const br = trimmed.indexOf('[');
-    const inner = matchBracket(trimmed, br, '[', ']');
-    return { kind: 'callout', variant, title: titleM ? titleM[1] : undefined, body: inner ? inner.inner.trim() : '' };
-  }
-
-  // Design containers whose visible text must survive (title heroes,
-  // pull-quotes, drop-cap paragraphs, wrap-it prose). The PDF shows this
-  // text, so dropping it would be content loss.
-
-  // #align(spec)[ … ] spanning the whole block → aligned text chunks.
-  const alignC = parseContainer(trimmed, 'align');
-  if (alignC) {
-    const alignment = /\bright\b/.test(alignC.args) ? 'right' : /\bleft\b/.test(alignC.args) ? 'left' : 'center';
-    return { kind: 'designText', alignment, chunks: splitDesignChunks(alignC.body) };
-  }
-
-  // #block(args)[ … ] / #dropcap(args)[ … ] / #columns(n)[ … ] → unaligned
-  // text chunks. (#columns wraps multi-column manuscript prose — e.g. a
-  // magazine interview's two-column second half; without this its whole text
-  // was silently dropped. KNOWN LIMITATION, resolved by the keystone (Phase C
-  // in documentation/web-export-feasibility-and-plan.md): user macros nested
-  // inside the columns body — e.g. #frage[…] interview questions, #lead[…] —
-  // are still DROPPED here, because handleInlineFunc discards unknown
-  // lowercase macro calls. Only the surrounding plain prose (the answers)
-  // survives today; full fidelity needs those macros to become real AST nodes.)
-  for (const name of ['block', 'dropcap', 'columns']) {
-    if (new RegExp(`^#${name}\\b`).test(trimmed)) {
-      const c = parseContainer(trimmed, name);
-      if (c) return { kind: 'designText', alignment: null, chunks: splitDesignChunks(c.body) };
-      return { kind: 'skip' };
-    }
-  }
-
-  // #wrap-content(float, [body]) → the bracketed content args hold the prose.
-  if (/^#wrap-content\s*\(/.test(trimmed)) {
-    const args = matchBracket(trimmed, trimmed.indexOf('('), '(', ')');
-    if (args) {
-      const chunks: string[] = [];
-      for (let i = 0; i < args.inner.length; i++) {
-        if (args.inner[i] === '[') {
-          const m = matchBracket(args.inner, i, '[', ']');
-          if (m) { chunks.push(...splitDesignChunks(m.inner)); i = m.end - 1; }
-        } else if (args.inner[i] === '(') {
-          // skip nested call args (e.g. rect(…)) so their brackets don't count
-          const m = matchBracket(args.inner, i, '(', ')');
-          if (m) i = m.end - 1;
-        }
-      }
-      if (chunks.length) return { kind: 'designText', alignment: null, chunks };
-    }
-    return { kind: 'skip' };
-  }
-
-  // Pure layout/design code → drop silently (never leak as monospace).
-  if (SKIP_LEADERS.test(trimmed)) return { kind: 'skip' };
-
-  // Everything else is prose (possibly with inline Typst calls).
-  return { kind: 'prose', content };
-}
-
-// ─── Snippet keys (must be identical in pre-pass and render pass) ──
-
-function mathSnippet(tex: string): string {
-  return `#set page(width: auto, height: auto, margin: (x: 2pt, y: 3pt), fill: white)\n#set text(size: 11pt)\n${tex}\n`;
-}
-/** SVG path must be baseDir-relative: Typst treats a leading `/` as
- *  root-relative (not filesystem-absolute), and the renderer compiles with
- *  `--root baseDir`. */
-function svgSnippet(relPath: string): string {
-  const p = relPath.replace(/\\/g, '/').replace(/"/g, '\\"');
-  return `#set page(width: auto, height: auto, margin: 0pt, fill: white)\n#image("${p}")\n`;
-}
 /** baseDir-relative POSIX path for use inside a Typst snippet. */
 function toTypstRel(baseDir: string, absPath: string): string {
   return path.relative(baseDir, absPath).split(path.sep).join('/');
@@ -1913,13 +1546,18 @@ async function buildExportContext(
       const level = Math.min(6, Math.max(1, (node.attrs?.level as number) ?? 1));
       headingCounters[level - 1]++;
       for (let l = level; l < 6; l++) headingCounters[l] = 0;
-      const { title, label: headingLabel } = splitHeadingLabel(node);
+      const split = splitHeadingLabel(node);
+      // The deserializer moves a trailing `<label>` into attrs.label and strips
+      // it from the heading text (B2), so a text-only read misses it; prefer the
+      // attr and fall back to an inline label. Without this `@sec:…` refs never
+      // resolve to "Section N.M".
+      const headingLabel = (node.attrs?.label as string | undefined) ?? split.label;
       if (headingLabel) {
         labelMap.set(headingLabel, {
           kind: 'heading',
           n: headingCounters[0],
           numberText: headingCounters.slice(0, level).join('.'),
-          title,
+          title: split.title,
         });
       }
       continue;
@@ -1967,20 +1605,6 @@ async function buildExportContext(
     baseDir, resolved, bibEntries, labelMap, rendered,
     equationNumbering, citationMode, numericOrder, orderedInstance: 1,
   };
-}
-
-function collectCitekeysInOrder(node: TipTapNode | TipTapDoc, out: string[]): void {
-  const n = node as TipTapNode;
-  if (n.type === 'citation') {
-    const key = (n.attrs?.citekey as string) ?? '';
-    if (key && !out.includes(key)) out.push(key);
-  }
-  for (const c of (n.content ?? [])) collectCitekeysInOrder(c, out);
-}
-
-/** Renders a Typst equation-number pattern like "(1)" with the counter value. */
-function renderEqNumber(pattern: string, n: number): string {
-  return pattern.replace(/1/, String(n));
 }
 
 // ─── Rendering rasterised snippets ───────────────────────────

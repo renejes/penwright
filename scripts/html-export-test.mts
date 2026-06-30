@@ -10,11 +10,24 @@
  */
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
-import { serializeHtml } from '../src/shared/htmlSerializer.ts';
+import { serializeHtml, type HtmlExportContext } from '../src/shared/htmlSerializer.ts';
 import { styleToCss } from '../src/shared/styleToCss.ts';
 import { buildWebBundle, slugify, deriveTitle } from '../src/main/webExport.ts';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../src/shared/styleTypes.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
+import { buildExportModel, parseBibDirective } from '../src/shared/exportContext.ts';
+import { parseBibFile } from '../src/shared/bibParser.ts';
+
+/** Builds an HtmlExportContext the way main's buildHtmlExportContext does, but
+ *  with a stub math renderer (no Typst in the test harness). */
+function makeContext(src: string, bib = '', mathStub = true, lang = 'en'): HtmlExportContext {
+  const doc = deserializeTypst(src);
+  const model = buildExportModel(doc as any, src);
+  const mathSvg = new Map<string, string>();
+  if (mathStub) for (const m of model.mathBlocks) mathSvg.set(m.tex, '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="14"><text>math</text></svg>');
+  const bibTitle = src.match(/#bibliography\([^)]*title:\s*"([^"]*)"/)?.[1];
+  return { ...model, bibEntries: bib ? parseBibFile(bib) : [], bibTitle, mathSvg, lang };
+}
 
 let pass = 0;
 let fail = 0;
@@ -362,6 +375,175 @@ console.log('\n── Test 9: generic #grid two-up reinterpreted to a responsive
   // (c) content cells AFTER the paren survive.
   const ap = serializeHtml(deserializeTypst('#grid(columns: 2)[Left side][Right side]') as any);
   check('grid: after-paren [cells] survive', ap.includes('class="pw-grid"') && ap.includes('Left side') && ap.includes('Right side'));
+}
+
+console.log('\n── Test 10: Phase D — cross-refs / citations / footnotes / bibliography / math resolved via context ──');
+{
+  const BIB =
+    '@article{bender2021, author={Bender, E. and Gebru, T. and others}, title={On Parrots}, year={2021}, journal={FAccT}, doi={10.1/x}}\n' +
+    '@inproceedings{chen2021, author={Chen, M. and others}, title={Codex}, year={2021}, booktitle={NeurIPS}}\n' +
+    '@book{smith2020, author={Smith, J.}, title={A Book}, year={2020}, publisher={MIT}}';
+  const src = [
+    '#set math.equation(numbering: "(1)")',
+    '= Methods <sec:methods>',
+    '',
+    'As shown in @fig:flow and @eq:loss, models learn.',
+    '',
+    'Recent work @bender2021 @chen2021 surveys this.',
+    '',
+    'A claim#footnote[A note with _emphasis_.] needs support @smith2020.',
+    '',
+    '#figure(image("assets/flow.png"), caption: [The pipeline.]) <fig:flow>',
+    '',
+    '$ cal(L) = - sum log p $ <eq:loss>',
+    '',
+    '#bibliography("references.bib", style: "apa", title: "References")',
+  ].join('\n');
+  const ctx = makeContext(src, BIB);
+  const h = serializeHtml(deserializeTypst(src) as any, { context: ctx, scopedCss: styleToCss(DEFAULT_PROJECT_STYLE) });
+
+  // cross-references resolved to numbered targets + linked to the in-page id.
+  check('reference @fig:flow → "Figure 1" linked', h.includes('<a class="pw-ref" href="#fig:flow">Figure 1</a>'));
+  check('reference @eq:loss → "(1)" linked', h.includes('<a class="pw-ref" href="#eq:loss">(1)</a>'));
+  check('reference @sec is resolvable (heading id present)', h.includes('<h1 id="sec:methods">'));
+  // adjacent citations collapse into one author-year group, each linked.
+  check('adjacent citations grouped (Bender et al., 2021; Chen et al., 2021)',
+    h.includes('(<a class="pw-cite" href="#cite-bender2021">Bender et al., 2021</a>; <a class="pw-cite" href="#cite-chen2021">Chen et al., 2021</a>)'));
+  // single citation resolved.
+  check('single citation @smith2020 → (Smith, 2020) linked', h.includes('<a class="pw-cite" href="#cite-smith2020">Smith, 2020</a>'));
+  // footnote: in-text ref + collected endnote with backlink.
+  check('footnote → numbered <sup> ref', h.includes('<sup class="pw-fn" id="fnref-1"><a href="#fn-1">1</a></sup>'));
+  check('footnotes section with body + backlink', h.includes('<section class="pw-footnotes"') && h.includes('<li id="fn-1">A note with <em>emphasis</em>.') && h.includes('href="#fnref-1"'));
+  // figure: numbered, id = label, caption rendered.
+  check('figure → numbered <figure id="fig:flow"> + caption', h.includes('<figure class="pw-figure" id="fig:flow">') && h.includes('<img src="assets/flow.png"') && h.includes('Figure 1</span>: The pipeline.'));
+  // math: inline SVG + equation number + id.
+  check('math → <figure class="pw-math" id="eq:loss"> with inline <svg> + eqno', h.includes('<figure class="pw-math" id="eq:loss">') && h.includes('<svg') && h.includes('<span class="pw-eqno">(1)</span>'));
+  check('math SVG xml prolog/doctype stripped (none injected here, but sanitizer ran)', !h.includes('<?xml') && !h.includes('<!DOCTYPE'));
+  // bibliography section, alphabetical, anchored ids.
+  check('bibliography section with custom title', h.includes('<section class="pw-bibliography" id="pw-bibliography">') && h.includes('>References</h2>'));
+  check('bib entries anchored by citekey', h.includes('id="cite-bender2021"') && h.includes('id="cite-chen2021"') && h.includes('id="cite-smith2020"'));
+  check('bib entry APA-shaped (et al., year, italic venue, doi link)', h.includes('Bender, E., Gebru, T., et al. (2021).') && h.includes('<em>FAccT</em>') && h.includes('href="https://doi.org/10.1/x"'));
+  check('bib alphabetical (Bender before Smith)', h.indexOf('cite-bender2021') < h.indexOf('cite-smith2020'));
+  check('no leftover macro placeholders', !h.includes('pw:typst-raw') && !h.includes('pw:unhandled') && !h.includes('Phase D'));
+  fs.writeFileSync('/tmp/pw-phase-d.html', `<!doctype html><meta charset=utf-8>\n${h}\n`);
+  console.log('    wrote /tmp/pw-phase-d.html for eyeballing');
+}
+
+console.log('\n── Test 11: numeric citation style → [1, 2] + numbered bibliography ──');
+{
+  const BIB = '@article{a2021, author={Alpha, A.}, title={A}, year={2021}}\n@article{b2020, author={Beta, B.}, title={B}, year={2020}}';
+  const src = [
+    'First @b2020 then both @a2021 @b2020.',
+    '',
+    '#bibliography("r.bib", style: "ieee")',
+  ].join('\n');
+  const ctx = makeContext(src, BIB);
+  const h = serializeHtml(deserializeTypst(src) as any, { context: ctx });
+  check('numeric mode detected (ieee)', ctx.citationMode === 'numeric');
+  check('numeric order is first-citation order (b2020=1, a2021=2)', ctx.numericOrder[0] === 'b2020' && ctx.numericOrder[1] === 'a2021');
+  check('single numeric citation → [1]', h.includes('[<a class="pw-cite" href="#cite-b2020">1</a>]'));
+  check('grouped numeric citations → [2, 1]', h.includes('[<a class="pw-cite" href="#cite-a2021">2</a>, <a class="pw-cite" href="#cite-b2020">1</a>]'));
+  check('bibliography numbered by citation order', h.includes('id="cite-b2020">[1] ') && h.includes('id="cite-a2021">[2] '));
+  check('numeric bib default title "References"', h.includes('>References</h2>'));
+}
+
+console.log('\n── Test 12: table figure + block quote → real HTML ──');
+{
+  const src = [
+    '#figure(table(columns: 2, [*Method*], [*Score*], [Baseline], [0.71], [Ours], [0.88]), caption: [Results.]) <tbl:res>',
+    '',
+    '#quote(block: true)[The unexamined life is not worth living.]',
+  ].join('\n');
+  const ctx = makeContext(src);
+  const h = serializeHtml(deserializeTypst(src) as any, { context: ctx });
+  check('table figure → <figure class="pw-table-figure" id="tbl:res">', h.includes('<figure class="pw-table-figure" id="tbl:res">'));
+  check('table header cells (bold stripped) + body cells', h.includes('<th>Method</th><th>Score</th>') && h.includes('<td>Baseline</td><td>0.71</td>'));
+  check('table caption "Table 1: Results."', h.includes('Table 1</span>: Results.'));
+  check('block quote → <blockquote>', h.includes('<blockquote><p>The unexamined life is not worth living.</p></blockquote>'));
+}
+
+console.log('\n── Test 13: graceful degradation without a context (no Typst pre-pass) ──');
+{
+  const mathDoc = deserializeTypst('$ E = m c^2 $');
+  const h = serializeHtml(mathDoc as any, {});
+  check('math without context → readable inline-TeX fallback (no SVG)', h.includes('<span class="pw-math-tex">') && !h.includes('<svg'));
+  const refDoc = deserializeTypst('See @fig:x and cite @smith2020.');
+  const hr = serializeHtml(refDoc as any, {});
+  check('reference without context → bare label fallback', hr.includes('<a class="pw-ref" href="#fig:x">x</a>'));
+  check('citation without context → [citekey] fallback', hr.includes('href="#cite-smith2020">[smith2020]</a>'));
+  check('no bibliography section emitted without entries', !h.includes('pw-bibliography') && !hr.includes('pw-bibliography'));
+  // styleToCss emits the Phase-D element rules, scoped.
+  const css = styleToCss(DEFAULT_PROJECT_STYLE);
+  check('CSS: .pw-math / .pw-footnotes / .pw-bibliography scoped', css.includes('.pw-article .pw-math {') && css.includes('.pw-article .pw-footnotes {') && css.includes('.pw-article .pw-bibliography {'));
+  check('CSS: .pw-math svg capped to max-width', /\.pw-article \.pw-math-svg svg \{[^}]*max-width: 100%/.test(css));
+}
+
+console.log('\n── Test 14: a real sample chapter (math + cross-refs + citations) renders fully ──');
+{
+  const file = fileURLToPath(new URL('../resources/sample-project/chapters/03-ai-as-assistant.typ', import.meta.url));
+  const src = fs.readFileSync(file, 'utf8');
+  const ctx = makeContext(src, '@article{bender2021parrots, author={Bender, E. and others}, title={Parrots}, year={2021}}\n@article{liu2023chatgpt, author={Liu, P. and others}, title={ChatGPT}, year={2023}}');
+  const h = serializeHtml(deserializeTypst(src) as any, { context: ctx, scopedCss: styleToCss(DEFAULT_PROJECT_STYLE) });
+  check('sample chapter renders without placeholders', !h.includes('pw:typst-raw') && !h.includes('pw:unhandled'));
+  check('sample chapter: figure present', h.includes('<figure class="pw-figure"') && h.includes('Figure 1'));
+  check('sample chapter: display math rendered (svg stub)', h.includes('<figure class="pw-math"') && h.includes('<svg'));
+  check('sample chapter: @eq:mle reference resolved (not raw)', !h.includes('>eq:mle<') && h.includes('class="pw-ref"'));
+  check('sample chapter: citations rendered as author-year', h.includes('class="pw-cite"'));
+}
+
+console.log('\n── Test 15: adversarial-review fixes (nested-figure numbering, SVG XSS, section refs, footnote chunk, bib title) ──');
+{
+  // #1/#3/#4 — a figure + display-math NESTED in #columns must be counted by the
+  // pre-pass (so caption numbers match cross-refs, and nested math gets an SVG).
+  const nestedSrc = [
+    '#set math.equation(numbering: "(1)")',
+    '',
+    '#columns(2)[',
+    '#figure(image("a.png"), caption: [Inside.]) <fig:a>',
+    '',
+    '$ a^2 + b^2 = c^2 $ <eq:in>',
+    ']',
+    '',
+    '#figure(image("b.png"), caption: [Outside.]) <fig:b>',
+    '',
+    'See @fig:a, @fig:b and @eq:in.',
+  ].join('\n');
+  const nctx = makeContext(nestedSrc);
+  check('pre-pass counts the NESTED figure (fig:a=1, fig:b=2)', nctx.labelMap.get('fig:a')?.n === 1 && nctx.labelMap.get('fig:b')?.n === 2);
+  check('pre-pass registers the NESTED equation label', nctx.labelMap.has('eq:in'));
+  check('pre-pass collected the NESTED math block for SVG render', nctx.mathSvg.has('$ a^2 + b^2 = c^2 $'));
+  const nh = serializeHtml(deserializeTypst(nestedSrc) as any, { context: nctx });
+  check('nested figure caption "Figure 1" inside columns', /class="pw-columns"[\s\S]*Figure 1<\/span>: Inside\./.test(nh));
+  check('top-level figure caption "Figure 2"', nh.includes('Figure 2</span>: Outside.'));
+  check('cross-refs match captions (no desync): @fig:a→1, @fig:b→2', nh.includes('href="#fig:a">Figure 1</a>') && nh.includes('href="#fig:b">Figure 2</a>'));
+  check('nested display-math rendered as SVG (not text fallback)', (nh.match(/class="pw-math-svg"/g) ?? []).length === 1 && !nh.includes('pw-math-tex'));
+
+  // #2 — a hostile (author-controlled) math SVG must be neutralised when inlined.
+  const evilCtx = makeContext('$ x $');
+  evilCtx.mathSvg.set('$ x $', '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)" onclick="steal()"><text>x</text></a><use href="#glyph-g1"/><foreignObject><div><script>bad()</script></div></foreignObject></svg>');
+  const eh = serializeHtml(deserializeTypst('$ x $') as any, { context: evilCtx });
+  check('SVG: javascript: href neutralised', !eh.includes('javascript:'));
+  check('SVG: on*-handler stripped', !/\bonclick\b/.test(eh));
+  check('SVG: <foreignObject> + nested <script> stripped', !eh.includes('<foreignObject') && !eh.includes('bad()'));
+  check('SVG: glyph #fragment <use> ref preserved', eh.includes('href="#glyph-g1"'));
+
+  // #5 — a design chunk that is ONLY a footnote keeps its in-text marker (no orphan).
+  const fnDoc = { type: 'doc', content: [{ type: 'typstRawBlock', attrs: { content: '#block[\n#footnote[Lone note.]\n]', blockType: 'raw' } }] };
+  const fh = serializeHtml(fnDoc as any, { context: makeContext('') });
+  check('lone-footnote chunk keeps its <sup> marker', fh.includes('id="fnref-1"'));
+  check('lone-footnote endnote present with live backlink target', fh.includes('id="fn-1">Lone note.') && fh.includes('href="#fnref-1"'));
+
+  // #6 — bib title survives a ')' inside the path.
+  const dir = parseBibDirective('#bibliography("refs (2020).bib", title: "Quellen")');
+  check('bib title preserved despite ) in path', dir?.title === 'Quellen' && dir?.path === 'refs (2020).bib');
+
+  // #7 — section cross-references resolve (heading label lives in attrs.label).
+  const secSrc = '= Intro <sec:intro>\n\n== Sub <sec:sub>\n\nSee @sec:intro and @sec:sub.';
+  const sctx = makeContext(secSrc);
+  check('pre-pass registers heading labels from attrs.label', sctx.labelMap.get('sec:intro')?.numberText === '1' && sctx.labelMap.get('sec:sub')?.numberText === '1.1');
+  const sh = serializeHtml(deserializeTypst(secSrc) as any, { context: sctx });
+  check('@sec:intro → "Section 1" linked', sh.includes('<a class="pw-ref" href="#sec:intro">Section 1</a>'));
+  check('@sec:sub → "Section 1.1" linked', sh.includes('<a class="pw-ref" href="#sec:sub">Section 1.1</a>'));
 }
 
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);

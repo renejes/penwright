@@ -15,7 +15,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { serializeHtml, type ArticleMeta } from '../shared/htmlSerializer';
+import { serializeHtml, type ArticleMeta, type HtmlExportContext } from '../shared/htmlSerializer';
 import { styleToCss } from '../shared/styleToCss';
 import type { ProjectStyle } from '../shared/styleTypes';
 
@@ -55,6 +55,8 @@ export interface BuildWebBundleArgs {
   rootDir: string;
   /** Inline every image as a data: URI (→ a single paste-able file, no assets/). */
   inlineAssets?: boolean;
+  /** Resolved cross-refs / citations / footnotes / bibliography / math (Phase D). */
+  context?: HtmlExportContext;
 }
 
 export interface WebBundleResult {
@@ -73,8 +75,8 @@ export interface WebBundleResult {
  */
 export function buildWebBundle(args: BuildWebBundleArgs): WebBundleResult {
   const css = styleToCss(args.style);
-  const fragment = serializeHtml(args.doc, { slug: args.slug, scopedCss: css, mode: 'fragment' });
-  const document = serializeHtml(args.doc, { slug: args.slug, scopedCss: css, mode: 'document', meta: args.meta });
+  const fragment = serializeHtml(args.doc, { slug: args.slug, scopedCss: css, mode: 'fragment', context: args.context });
+  const document = serializeHtml(args.doc, { slug: args.slug, scopedCss: css, mode: 'document', meta: args.meta, context: args.context });
 
   fs.mkdirSync(args.outDir, { recursive: true });
 
@@ -109,16 +111,24 @@ function makeAssetRewriter(rootDir: string, outDir: string, assets: string[], in
 
   const resolveOne = (src: string): string => {
     if (!src || /^(data:|https?:|\/\/|file:|[a-z]:[\\/]|\/)/i.test(src)) return src;
-    const abs = path.resolve(rootDir, src);
-    if (mapped.has(abs)) return mapped.get(abs)!;
     // Containment + type allowlist: never copy/inline a file OUTSIDE the project
     // root (path traversal like `../../etc/passwd`) and only ever touch real
     // image files — anything else is left as the original src (a visible broken
     // link), never read into the shareable bundle.
-    const rel = path.relative(rootDir, abs);
-    const inside = rel !== '' && rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
-    if (!inside || !MIME[path.extname(abs).toLowerCase()]) { mapped.set(abs, src); return src; }
-    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { mapped.set(abs, src); return src; }
+    //
+    // resolveIncludes merges chapters in place without rewriting image paths, so
+    // a chapter figure still says `image("../assets/x.png")`. The direct resolve
+    // then points OUTSIDE the root; retry by stripping leading `../` and
+    // resolving from the root (mirrors docxSerializer.resolveImagePath) — still
+    // only ever landing on an IN-ROOT file, so the traversal guard holds.
+    let abs: string | null = null;
+    for (const c of [path.resolve(rootDir, src), path.resolve(rootDir, src.replace(/^(\.\.[\\/])+/, ''))]) {
+      const rel = path.relative(rootDir, c);
+      const inside = rel !== '' && rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
+      if (inside && MIME[path.extname(c).toLowerCase()] && fs.existsSync(c) && fs.statSync(c).isFile()) { abs = c; break; }
+    }
+    if (!abs) return src;
+    if (mapped.has(abs)) return mapped.get(abs)!;
 
     let replacement: string;
     if (inline) {

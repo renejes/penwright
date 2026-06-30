@@ -274,6 +274,36 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-grid-cell > :first-child { margin-top: 0; }`);
   out.push(`@media (max-width: 44rem) {\n  .pw-article .pw-grid { grid-template-columns: 1fr; }\n}`);
 
+  // --- academic content (Phase D: figures / math / footnotes / bibliography) ---
+
+  // numbered figure + table (← #figure(...) / #figure(table(...))).
+  out.push(`.pw-figure, .pw-table-figure { margin: 1.6em 0; text-align: center; }`);
+  out.push(`.pw-fig-label { font-weight: 700; color: ${cvar('text')}; }`);
+  out.push(`.pw-credit {\n  font-style: normal;\n  color: ${cvar('muted')};\n}`);
+
+  // display math (← `$ … $` rendered to inline SVG by the Typst pre-pass).
+  out.push(`.pw-math {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 1.2em;\n  margin: 1.3em 0;\n  text-indent: 0;\n}`);
+  out.push(`.pw-math-svg { display: inline-flex; }`);
+  out.push(`.pw-math-svg svg { max-width: 100%; height: auto; }`);
+  out.push(`.pw-math-tex {\n  font-family: var(--pw-font-code);\n  font-style: italic;\n  white-space: pre-wrap;\n}`);
+  out.push(`.pw-eqno { color: ${cvar('muted')}; font-variant-numeric: tabular-nums; }`);
+
+  // in-text footnote reference + the endnotes section.
+  out.push(`.pw-fn { line-height: 0; }`);
+  out.push(`.pw-fn a { text-decoration: none; }`);
+  out.push(`.pw-cite-missing { color: ${cvar('muted')}; }`);
+  out.push(`.pw-footnotes {\n  margin-top: 2.5em;\n  font-size: 0.85em;\n  color: ${cvar('muted')};\n}`);
+  out.push(`.pw-footnotes-rule {\n  border: none;\n  border-top: 1px solid color-mix(in srgb, var(--pw-muted) 40%, transparent);\n  width: 8em;\n  margin: 0 0 1em;\n}`);
+  out.push(`.pw-footnotes ol { padding-inline-start: 1.4em; }`);
+  out.push(`.pw-footnotes li { margin: 0.3em 0; }`);
+  out.push(`.pw-fn-back { text-decoration: none; margin-inline-start: 0.3em; }`);
+
+  // bibliography / references section.
+  out.push(`.pw-bibliography { margin-top: 2.5em; }`);
+  out.push(`.pw-bibliography-title { font-family: var(--pw-font-heading); }`);
+  out.push(`.pw-bib-entry {\n  padding-inline-start: 1.6em;\n  text-indent: -1.6em;\n  margin: 0 0 0.6em;\n  font-size: 0.92em;\n}`);
+  out.push(`.pw-bib-link { word-break: break-word; }`);
+
   // --- scope every rule under .pw-article ----------------------------------
   return scopeRules(out, opts.scope ?? 'prefix');
 }

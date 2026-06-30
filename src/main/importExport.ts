@@ -17,6 +17,7 @@ import { styleTemplates } from '../shared/styleTemplates';
 import { findRootFile } from '../shared/rootFinder';
 import { resolveIncludes } from '../shared/mergeDocument';
 import { parseBibFile } from '../shared/bibParser';
+import { buildExportModel, parseBibDirective, mathSnippet } from '../shared/exportContext';
 import { generateStyleTypst } from '../shared/styleParser';
 import { sanitizeProjectStyle, DEFAULT_PROJECT_STYLE } from '../shared/styleTypes';
 import { appState } from './appState';
@@ -25,7 +26,7 @@ import { ensureClaudeSkills } from './projectManager';
 import { saveZoteroBibPath, getProjectStyle, getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
 import { buildWebBundle, slugify, deriveTitle } from './webExport';
-import type { ArticleMeta } from '../shared/htmlSerializer';
+import type { ArticleMeta, HtmlExportContext } from '../shared/htmlSerializer';
 
 let zoteroWatcher: FSWatcher | null = null;
 
@@ -323,6 +324,74 @@ function createTypstSnippetRenderer(baseDir: string): (snippet: string) => Promi
   };
 }
 
+/**
+ * Renders a self-contained Typst snippet (display math) to an SVG STRING for
+ * the web export — sharp, scalable, themeable, no KaTeX dependency (plan §C8).
+ * Mirrors {@link createTypstSnippetRenderer} but compiles with `--format svg`
+ * and reads the text output. Returns null on failure → the HTML serializer
+ * falls back to a readable inline-TeX placeholder.
+ */
+function createTypstSvgRenderer(baseDir: string): (snippet: string) => Promise<string | null> {
+  return async (snippet: string) => {
+    const stamp = `${process.pid}-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const inFile = path.join(baseDir, `.penwright-svg-${stamp}.typ`);
+    const outFile = path.join(os.tmpdir(), `penwright-svg-${stamp}.svg`);
+    try {
+      fs.writeFileSync(inFile, snippet, 'utf-8');
+      execFileSync(getTypstPath(), buildTypstCompileArgs(['--format', 'svg', '--root', baseDir, inFile, outFile]), { stdio: 'ignore' });
+      return fs.readFileSync(outFile, 'utf-8');
+    } catch {
+      return null;
+    } finally {
+      try { fs.unlinkSync(inFile); } catch {}
+      try { fs.unlinkSync(outFile); } catch {}
+    }
+  };
+}
+
+/**
+ * Builds the resolved {@link HtmlExportContext} for the web export: the
+ * cross-reference numbering + citation style (shared pre-pass), the loaded
+ * bibliography, and the display-math rendered to SVG by the bundled Typst.
+ * The async/Typst/fs work lives here (main); the serializer stays pure.
+ */
+async function buildHtmlExportContext(doc: unknown, mergedContent: string, rootDir: string): Promise<HtmlExportContext> {
+  const model = buildExportModel(doc as { content?: unknown[] } as never, mergedContent);
+
+  // Bibliography: resolve the #bibliography("path") against the project root.
+  let bibEntries: ReturnType<typeof parseBibFile> = [];
+  const bibDir = parseBibDirective(mergedContent);
+  if (bibDir?.path) {
+    try {
+      const abs = path.resolve(rootDir, bibDir.path);
+      if (fs.existsSync(abs)) bibEntries = parseBibFile(fs.readFileSync(abs, 'utf-8'));
+    } catch { /* leave empty */ }
+  }
+
+  // Document language for the localized reference words ("Figure"/"Abbildung").
+  const langM = mergedContent.match(/#set\s+text\([^)]*lang:\s*"([a-zA-Z-]+)"/);
+  const lang = (langM ? langM[1] : getLocale()).slice(0, 2).toLowerCase() || 'en';
+
+  // Render each unique display-math block to an SVG via the bundled Typst.
+  const mathSvg = new Map<string, string>();
+  const render = createTypstSvgRenderer(rootDir);
+  const uniqueTex = [...new Set(model.mathBlocks.map((m) => m.tex))];
+  const svgs = await Promise.all(uniqueTex.map((tex) => render(mathSnippet(tex)).catch(() => null)));
+  uniqueTex.forEach((tex, i) => { const s = svgs[i]; if (s) mathSvg.set(tex, s); });
+
+  return {
+    labelMap: model.labelMap,
+    citationMode: model.citationMode,
+    numericOrder: model.numericOrder,
+    equationNumbering: model.equationNumbering,
+    eqPattern: model.eqPattern,
+    bibEntries,
+    bibTitle: bibDir?.title,
+    mathSvg,
+    lang,
+  };
+}
+
 export interface ExportConfig {
   format: 'pdf' | 'docx';
   /** null → everything; otherwise list of include paths to keep. */
@@ -488,7 +557,6 @@ export async function runWebExport(config: {
     const style = (appState.projectDir ? getProjectStyle(appState.projectDir) : null) ?? DEFAULT_PROJECT_STYLE;
     const title = deriveTitle(doc as { content?: unknown[] });
     const slug = slugify(title);
-    const meta: ArticleMeta = { title, locale: getLocale() };
 
     const result = await dialog.showSaveDialog(appState.mainWindow!, {
       defaultPath: path.join(rootDir, slug),
@@ -496,11 +564,17 @@ export async function runWebExport(config: {
     if (result.canceled || !result.filePath) return null;
 
     appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: true, format: 'web' });
+    // Pre-pass (async, in main): resolve cross-refs / citations / bibliography +
+    // render display-math to SVG with the bundled Typst, so serializeHtml (pure)
+    // only reads finished maps. The article language drives <html lang> + words.
+    const context = await buildHtmlExportContext(doc, mergedContent, rootDir);
+    const meta: ArticleMeta = { title, locale: context.lang };
     const bundle = buildWebBundle({
       doc, style, meta, slug,
       outDir: result.filePath,
       rootDir,
       inlineAssets: config.inlineAssets,
+      context,
     });
     appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: 'web' });
 
