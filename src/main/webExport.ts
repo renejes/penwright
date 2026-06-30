@@ -18,6 +18,7 @@ import path from 'node:path';
 import { serializeHtml, type ArticleMeta, type HtmlExportContext } from '../shared/htmlSerializer';
 import { styleToCss } from '../shared/styleToCss';
 import type { ProjectStyle } from '../shared/styleTypes';
+import type { MagazineArticle } from '../shared/magazineSplit';
 
 const MIME: Record<string, string> = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
@@ -76,7 +77,7 @@ export interface WebBundleResult {
 export function buildWebBundle(args: BuildWebBundleArgs): WebBundleResult {
   const css = styleToCss(args.style);
   const fragment = serializeHtml(args.doc, { slug: args.slug, scopedCss: css, mode: 'fragment', context: args.context });
-  const document = serializeHtml(args.doc, { slug: args.slug, scopedCss: css, mode: 'document', meta: args.meta, context: args.context });
+  const document = serializeHtml(args.doc, { slug: args.slug, scopedCss: css, mode: 'document', meta: args.meta, context: args.context, pageBackground: args.style.colors.background });
 
   fs.mkdirSync(args.outDir, { recursive: true });
 
@@ -94,6 +95,107 @@ export function buildWebBundle(args: BuildWebBundleArgs): WebBundleResult {
   fs.writeFileSync(metaPath, JSON.stringify({ slug: args.slug, ...args.meta, assets }, null, 2), 'utf-8');
 
   return { dir: args.outDir, indexPath, fragmentPath, metaPath, assets };
+}
+
+export interface BuildWebSiteArgs {
+  /** Articles from splitIntoArticles (one is the cover → index.html). */
+  articles: MagazineArticle[];
+  style: ProjectStyle;
+  /** Issue-level metadata (title / locale) for the index page + meta.json. */
+  meta: ArticleMeta;
+  outDir: string;
+  rootDir: string;
+  /** Shared, issue-wide resolved context (cross-refs / citations / math). */
+  context?: HtmlExportContext;
+  inlineAssets?: boolean;
+}
+
+export interface WebSiteResult {
+  dir: string;
+  indexPath: string;
+  /** Relative filenames written (index.html + one per article). */
+  pages: string[];
+  assets: string[];
+}
+
+/**
+ * Builds a magazine MINI-SITE: an issue index (cover + table of contents) plus
+ * one self-contained HTML page per article, each with up/prev/next navigation —
+ * the web-native model where every article has its own URL. Cross-refs /
+ * citations / math share the issue-wide `context`; footnotes are collected
+ * per-page (each article serialized independently). Assets are deduped across
+ * all pages by a single shared rewriter.
+ */
+export function buildWebSite(args: BuildWebSiteArgs): WebSiteResult {
+  const css = styleToCss(args.style);
+  const bg = args.style.colors.background;
+  const locale = args.meta.locale;
+
+  // Assign unique filenames. The cover → index.html; the rest → <slug>.html.
+  const used = new Set<string>(['index.html']);
+  const reading = args.articles.filter((a) => !a.isCover);
+  const fileOf = new Map<MagazineArticle, string>();
+  for (const a of args.articles) {
+    if (a.isCover) { fileOf.set(a, 'index.html'); continue; }
+    let f = `${a.slug}.html`;
+    if (used.has(f)) { let i = 2; while (used.has(`${a.slug}-${i}.html`)) i++; f = `${a.slug}-${i}.html`; }
+    used.add(f); fileOf.set(a, f);
+  }
+
+  const tocItems = reading.map((a) => ({ href: fileOf.get(a)!, title: a.title, kicker: a.kicker, byline: a.byline }));
+
+  const pages: { filename: string; html: string }[] = [];
+
+  // Index page: the cover (if any) + the table of contents.
+  const cover = args.articles.find((a) => a.isCover);
+  const indexBlocks: any[] = cover
+    ? [...cover.blocks]
+    : [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: String(args.meta.title ?? 'Contents') }] }];
+  indexBlocks.push({ type: 'magazineToc', attrs: { items: tocItems } });
+  pages.push({
+    filename: 'index.html',
+    html: serializeHtml({ type: 'doc', content: indexBlocks } as any, {
+      slug: 'index', scopedCss: css, mode: 'document', meta: args.meta, context: args.context, pageBackground: bg,
+    }),
+  });
+
+  // One page per reading article, with navigation.
+  reading.forEach((a, i) => {
+    const prev = reading[i - 1];
+    const next = reading[i + 1];
+    const topNav = { type: 'magazineNav', attrs: { upHref: 'index.html', upLabel: '‹ ' + String(args.meta.title ?? 'Contents') } };
+    const botNav = {
+      type: 'magazineNav',
+      attrs: {
+        upHref: 'index.html', upLabel: '‹ ' + String(args.meta.title ?? 'Contents'),
+        prevHref: prev ? fileOf.get(prev) : undefined, prevTitle: prev?.title,
+        nextHref: next ? fileOf.get(next) : undefined, nextTitle: next?.title,
+      },
+    };
+    const subDoc = { type: 'doc', content: [topNav, ...a.blocks, botNav] };
+    pages.push({
+      filename: fileOf.get(a)!,
+      html: serializeHtml(subDoc as any, {
+        slug: a.slug, scopedCss: css, mode: 'document',
+        meta: { title: a.title, locale }, context: args.context, pageBackground: bg,
+      }),
+    });
+  });
+
+  fs.mkdirSync(args.outDir, { recursive: true });
+  const assets: string[] = [];
+  const rewrite = makeAssetRewriter(args.rootDir, args.outDir, assets, !!args.inlineAssets);
+  for (const p of pages) fs.writeFileSync(path.join(args.outDir, p.filename), rewrite(p.html), 'utf-8');
+
+  const metaPath = path.join(args.outDir, 'meta.json');
+  fs.writeFileSync(metaPath, JSON.stringify({
+    ...args.meta,
+    kind: 'magazine',
+    articles: reading.map((a) => ({ slug: a.slug, file: fileOf.get(a), title: a.title, kicker: a.kicker, byline: a.byline })),
+    assets,
+  }, null, 2), 'utf-8');
+
+  return { dir: args.outDir, indexPath: path.join(args.outDir, 'index.html'), pages: pages.map((p) => p.filename), assets };
 }
 
 /**

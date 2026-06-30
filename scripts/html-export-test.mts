@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { serializeHtml, type HtmlExportContext } from '../src/shared/htmlSerializer.ts';
 import { styleToCss } from '../src/shared/styleToCss.ts';
-import { buildWebBundle, slugify, deriveTitle } from '../src/main/webExport.ts';
+import { buildWebBundle, buildWebSite, slugify, deriveTitle } from '../src/main/webExport.ts';
+import { splitIntoArticles, isMagazineSite } from '../src/shared/magazineSplit.ts';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../src/shared/styleTypes.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
 import { buildExportModel, parseBibDirective } from '../src/shared/exportContext.ts';
@@ -104,7 +105,8 @@ console.log('\n── Test 3: agnostic output modes (fragment vs standalone docu
   check('document <title> is HTML-escaped', document.includes('<title>My &lt;Article&gt;</title>'));
   check('document has description meta', document.includes('name="description" content="A test &amp; demo"'));
   check('document has Open Graph image (shareable)', document.includes('property="og:image" content="assets/cover.jpg"'));
-  check('document still embeds the self-contained <article>', document.includes('<article class="pw-article" data-article="x">'));
+  check('document still embeds the self-contained <article>', /<article class="pw-article"[^>]* data-article="x">/.test(document));
+  check('article carries lang from meta.locale (hyphenation)', document.includes('<article class="pw-article" lang="de"'));
 
   // Default mode is the embeddable fragment.
   const def = serializeHtml(doc as any, {});
@@ -544,6 +546,135 @@ console.log('\n── Test 15: adversarial-review fixes (nested-figure numbering
   const sh = serializeHtml(deserializeTypst(secSrc) as any, { context: sctx });
   check('@sec:intro → "Section 1" linked', sh.includes('<a class="pw-ref" href="#sec:intro">Section 1</a>'));
   check('@sec:sub → "Section 1.1" linked', sh.includes('<a class="pw-ref" href="#sec:sub">Section 1.1</a>'));
+}
+
+console.log('\n── Test 16: Phase E heroes (cover / aufmacher / spread) + justify + #text styling ──');
+{
+  const raw = (content: string, blockType = 'raw') => ({ type: 'doc', content: [{ type: 'typstRawBlock', attrs: { content, blockType } }] });
+
+  // #aufmacher (comment-led, blockType 'comment' — the real LANGSAM shape) →
+  // a full-width hero image + the opener text (kicker / H1 / standfirst).
+  const auf = [
+    '// Aufmacher-Doppelseite: das breite Bild läuft über die Doppelseite.',
+    '#aufmacher(',
+    '  "assets/spread.png",',
+    '  credit: "Foto: Platzhalter",',
+    ')[',
+    '  #text(size: 0.82em, weight: "bold", tracking: 0.2em, fill: style-colors.accent)[#upper("Feature")]',
+    '  #v(0.9em)',
+    '  #heading(level: 1, outlined: true, numbering: none)[Die Architektur der Muße]',
+    '  #v(0.6em)',
+    '  #text(size: 1.18em, style: "italic", fill: style-colors.muted)[Müßiggang braucht einen Ort.]',
+    ']',
+  ].join('\n');
+  const ah = serializeHtml(raw(auf, 'comment') as any, { context: makeContext('') });
+  check('aufmacher → <header class="pw-hero pw-hero-aufmacher"> with the spread image', ah.includes('class="pw-hero pw-hero-aufmacher"') && ah.includes('<img class="pw-hero-img" src="assets/spread.png"'));
+  check('aufmacher credit kept', ah.includes('class="pw-hero-credit">Foto: Platzhalter'));
+  check('aufmacher H1 is a real heading (outline title)', ah.includes('<h1 class="pw-hero-title">Die Architektur der Muße</h1>'));
+  check('aufmacher kicker keeps uppercase + accent color via #text/#upper', /pw-hero-line[^>]*>.*text-transform:uppercase.*Feature/i.test(ah) && ah.includes('color:var(--pw-accent)'));
+  check('aufmacher standfirst keeps italic', ah.includes('font-style:italic') && ah.includes('Müßiggang braucht einen Ort.'));
+  check('aufmacher no leaked macro/comment', !ah.includes('#aufmacher') && !ah.includes('Aufmacher-Doppelseite') && !ah.includes('pw:typst-raw'));
+
+  // #page(...)[…] cover (blockType 'config' — would otherwise be skipped) →
+  // a centered title hero; `\` forced breaks become <br>.
+  const cover = [
+    '#page(header: none, margin: (x: 3cm))[',
+    '  #text(font: style-fonts.heading, size: 46pt, weight: "medium", fill: style-colors.text)[LANGSAM]',
+    '  #v(0.55em)',
+    '  #text(size: 0.92em, fill: style-colors.muted)[MAGAZIN FÜR MUSSE]',
+    '  #v(2.4fr)',
+    '  #text(size: 42pt, fill: style-colors.text)[',
+    '    Die Kunst,\\',
+    '    nichts zu tun',
+    '  ]',
+    ']',
+  ].join('\n');
+  const ch = serializeHtml(raw(cover, 'config') as any, { context: makeContext('') });
+  check('cover → <header class="pw-cover"> (NOT skipped despite blockType config)', ch.includes('<header class="pw-cover">'));
+  check('cover magazine title rendered big via #text size', /font-size:4\.\d+em[^>]*>LANGSAM|LANGSAM/.test(ch) && ch.includes('LANGSAM'));
+  check('cover forced break \\\\ → <br>', ch.includes('Die Kunst,<br>') || ch.includes('Die Kunst,</span>') || /Die Kunst,\s*<br>/.test(ch));
+  check('cover no leaked #page/#text/#set/comment source', !ch.includes('#page') && !ch.includes('#text') && !ch.includes('par(justify') && !ch.includes('// ') && !ch.includes('pw:typst-raw'));
+
+  // #doppelseite → full-width spread figure.
+  const sp = serializeHtml(raw('#doppelseite("assets/wide.png", title: "Kapitel", credit: "Foto: Y")') as any, { context: makeContext('') });
+  check('doppelseite → <figure class="pw-hero pw-hero-spread"> + img + credit', sp.includes('class="pw-hero pw-hero-spread"') && sp.includes('src="assets/wide.png"') && sp.includes('Foto: Y'));
+
+  // Blocksatz: justify in custom.preamble → translated to CSS (not dropped).
+  const justifyStyle = { ...DEFAULT_PROJECT_STYLE, custom: { ...(DEFAULT_PROJECT_STYLE as any).custom, preamble: '#set page(margin: (left: 3cm))\n#set par(justify: true)' } };
+  const jcss = styleToCss(justifyStyle as any);
+  check('justify from preamble → text-align:justify + hyphens (article)', /\.pw-article \{[^}]*text-align: justify/.test(jcss) && jcss.includes('hyphens: auto'));
+  check('justify NOT emitted when preamble lacks it', !/text-align: justify/.test(styleToCss(DEFAULT_PROJECT_STYLE)));
+
+  // #text(...) styling: size (em), weight, italic, themeable fill.
+  const ts = serializeHtml(raw('#block[#text(size: 2em, weight: "bold", style: "italic", fill: style-colors.accent)[Hero]]') as any);
+  check('#text → styled <span> (size/weight/italic/var-color)', /font-size:2\.00em/.test(ts) && ts.includes('font-weight:700') && ts.includes('font-style:italic') && ts.includes('color:var(--pw-accent)') && ts.includes('>Hero</span>'));
+
+  // Whole-page background in document mode (fills the viewport behind the column);
+  // fragment mode never restyles a host's <body>.
+  const docBg = serializeHtml(raw('Hi') as any, { mode: 'document', meta: { title: 'T' }, pageBackground: '#eef0ec' });
+  check('document mode: whole page gets the magazine background', docBg.includes('<style>html{background:#eef0ec') && docBg.includes('body{margin:0}'));
+  check('hostile/invalid pageBackground is dropped (no page <style>)', !serializeHtml(raw('Hi') as any, { mode: 'document', pageBackground: 'red;}</style><script>x' as any }).includes('<script>'));
+  const frag = serializeHtml(raw('Hi') as any, { mode: 'fragment', pageBackground: '#eef0ec' });
+  check('fragment mode: never restyles the host page (no html/body bg)', !frag.includes('html{background') && !frag.includes('body{margin'));
+  check('article has a padding gutter (text never touches the edge)', styleToCss(DEFAULT_PROJECT_STYLE).includes('padding: 2.5rem 1.25rem') && styleToCss(DEFAULT_PROJECT_STYLE).includes('box-sizing: border-box'));
+}
+
+console.log('\n── Test 17: magazine mini-site (split → index + per-article pages + nav + shared assets) ──');
+{
+  const src = [
+    '// ─── 00-cover.typ ───',
+    '',
+    '#page(margin: (x: 3cm))[',
+    '  #text(font: style-fonts.heading, size: 40pt, fill: style-colors.text)[TESTMAG]',
+    '  #text(size: 0.9em, fill: style-colors.muted)[EIN PROBEHEFT]',
+    ']',
+    '',
+    '// ─── 01-editorial.typ ───',
+    '',
+    '#opener(kicker: "Editorial", title: "Vom Anfang", byline: "Von A. Autor")',
+    '',
+    'Erster Absatz des Editorials.',
+    '',
+    '// ─── 02-feature.typ ───',
+    '',
+    '#opener(kicker: "Reportage", title: "Die große Geschichte", byline: "Von B. Autor")',
+    '',
+    'Die Reportage verweist auf @fig:x.',
+    '',
+    '#figure(image("assets/x.png"), caption: [Ein Bild.]) <fig:x>',
+  ].join('\n');
+  const doc = deserializeTypst(src);
+
+  // split
+  const articles = splitIntoArticles(doc as any)!;
+  check('split → 3 articles (cover + 2)', !!articles && articles.length === 3);
+  check('cover detected + slug "index"', articles[0].isCover && articles[0].slug === 'index');
+  check('article titles + kickers from openers', articles[1].title === 'Vom Anfang' && articles[1].kicker === 'Editorial' && articles[2].title === 'Die große Geschichte');
+  check('isMagazineSite true (cover + openers)', isMagazineSite(articles, doc as any));
+  check('isMagazineSite false for a plain multi-heading doc', !isMagazineSite(splitIntoArticles(deserializeTypst('= A\n\nx\n\n= B\n\ny') as any), deserializeTypst('= A\n\nx\n\n= B\n\ny') as any));
+
+  // build the site
+  const root = '/tmp/pw-site-root', out = '/tmp/pw-site-out';
+  for (const d of [root, out]) fs.rmSync(d, { recursive: true, force: true });
+  fs.mkdirSync(`${root}/assets`, { recursive: true });
+  fs.writeFileSync(`${root}/assets/x.png`, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
+  const r = buildWebSite({ articles, style: DEFAULT_PROJECT_STYLE, meta: { title: 'TESTMAG', locale: 'de' }, outDir: out, rootDir: root, context: makeContext(src) });
+
+  check('index.html + 2 article pages written', fs.existsSync(`${out}/index.html`) && fs.existsSync(`${out}/editorial.html`) && fs.existsSync(`${out}/feature.html`) && r.pages.length === 3);
+  const idx = fs.readFileSync(`${out}/index.html`, 'utf8');
+  check('index = cover hero + TOC', idx.includes('<header class="pw-cover">') && idx.includes('class="pw-toc"') && idx.includes('>TESTMAG<'));
+  check('TOC links both articles with kicker + title', idx.includes('href="editorial.html"') && idx.includes('>Editorial</span>') && idx.includes('href="feature.html"') && idx.includes('>Die große Geschichte</span>'));
+
+  const feat = fs.readFileSync(`${out}/feature.html`, 'utf8');
+  check('article page is a standalone document w/ the opener', /^<!doctype html>/i.test(feat.trimStart()) && feat.includes('class="pw-opener"') && feat.includes('Die große Geschichte'));
+  check('article nav: up to index + prev to editorial', feat.includes('class="pw-nav-up" href="index.html"') && feat.includes('class="pw-nav-prev" href="editorial.html"'));
+  check('editorial nav: next to feature, no prev', (() => { const e = fs.readFileSync(`${out}/editorial.html`, 'utf8'); return e.includes('class="pw-nav-next" href="feature.html"') && !e.includes('class="pw-nav-prev"'); })());
+  check('within-article cross-ref resolves on its own page (@fig:x → Figure 1 + target)', feat.includes('href="#fig:x">Figure 1</a>') && feat.includes('id="fig:x"'));
+  check('shared asset copied once', fs.existsSync(`${out}/assets/x.png`) && r.assets.filter((a) => a === 'assets/x.png').length === 1);
+  check('meta.json is a magazine issue w/ article list', (() => { const m = JSON.parse(fs.readFileSync(`${out}/meta.json`, 'utf8')); return m.kind === 'magazine' && m.articles.length === 2 && m.articles[0].file === 'editorial.html'; })());
+  check('CSS: .pw-toc + .pw-nav scoped', styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-article .pw-toc {') && styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-article .pw-nav {'));
+
+  for (const d of [root, out]) fs.rmSync(d, { recursive: true, force: true });
 }
 
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);

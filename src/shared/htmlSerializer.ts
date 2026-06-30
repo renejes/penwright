@@ -16,7 +16,8 @@
 // `exportContext.ts`, the single source of truth shared with the DOCX export.
 
 import { renderJSONContentToString, serializeChildrenToHTMLString } from '@tiptap/static-renderer/json/html-string';
-import { type GridItem } from './typstGrid';
+import { parseTypstGrid, type GridItem } from './typstGrid';
+import { parseHero, type HeroSpec } from './typstHero';
 import {
   classifyRawBlock,
   splitDesignChunks,
@@ -98,6 +99,12 @@ export interface SerializeHtmlOptions {
   meta?: ArticleMeta;
   /** Resolved cross-refs / citations / footnotes / bibliography / math (Phase D). */
   context?: HtmlExportContext;
+  /**
+   * Page background for 'document' mode — fills the WHOLE standalone page (the
+   * viewport behind the centered article), not just the article column. Only
+   * applied in 'document' mode; 'fragment' mode never touches the host's page.
+   */
+  pageBackground?: string;
 }
 
 /** HTML-escapes a text run (the static renderer does NOT auto-escape text). */
@@ -235,7 +242,12 @@ function inlineTypstToHtml(src: string, rc?: RenderCtx): string {
   const flush = () => { out += esc(buf); buf = ''; };
   while (i < src.length) {
     const ch = src[i];
-    if (ch === '\\' && i + 1 < src.length) { buf += src[i + 1]; i += 2; continue; }
+    if (ch === '\\') {
+      const next = src[i + 1];
+      // Typst forced line break: `\` at end-of-line / before whitespace → <br>.
+      if (next === undefined || /\s/.test(next)) { flush(); out += '<br>'; i += next === undefined ? 1 : 2; continue; }
+      buf += next; i += 2; continue; // otherwise an escaped literal char
+    }
     if (ch === '#') {
       const m = src.slice(i).match(/^#([a-zA-Z][\w.-]*)/);
       if (m) {
@@ -277,6 +289,44 @@ function inlineTypstToHtml(src: string, rc?: RenderCtx): string {
   return out;
 }
 
+const WEIGHT_NAMES: Record<string, string> = {
+  thin: '100', extralight: '200', light: '300', regular: '400', normal: '400',
+  medium: '500', semibold: '600', bold: '700', extrabold: '800', black: '900',
+};
+
+/** Maps a Typst color expression to a CSS color. `style-colors.<slot>` →
+ *  `var(--pw-<slot>)` (re-themeable, the vars styleToCss defines); a literal
+ *  hex/rgb passes through the safe-color filter; anything else → null. */
+function mapTypstColor(expr: string): string | null {
+  const slot = expr.match(/^style-colors\.([a-z]+)$/);
+  if (slot && ['primary', 'accent', 'text', 'background', 'muted'].includes(slot[1])) return `var(--pw-${slot[1]})`;
+  const rgb = expr.match(/^rgb\(\s*"([^"]+)"\s*\)$/);
+  if (rgb) return safeCssColor(rgb[1]);
+  return safeCssColor(expr);
+}
+
+/** Translates the visible bits of `#text(size:…, weight:…, style:…, fill:…)`
+ *  args into an inline CSS `style=""` (re-themeable color, em/pt size, weight,
+ *  italic). Returns '' if nothing visible. */
+function typstTextStyle(args: string): string {
+  const decls: string[] = [];
+  const sizeM = args.match(/size:\s*([\d.]+)\s*(em|pt)\b/);
+  if (sizeM) {
+    const v = parseFloat(sizeM[1]);
+    // pt → em relative to a magazine body of ~11pt; clamp so a hero size can't explode.
+    const em = sizeM[2] === 'em' ? v : v / 11;
+    if (isFinite(em) && em > 0) decls.push(`font-size:${Math.min(em, 6).toFixed(2)}em`);
+  }
+  const weightM = args.match(/weight:\s*"?([a-z]+|\d{3})"?/);
+  if (weightM) { const w = WEIGHT_NAMES[weightM[1]] ?? (/^\d{3}$/.test(weightM[1]) ? weightM[1] : ''); if (w) decls.push(`font-weight:${w}`); }
+  if (/style:\s*"italic"/.test(args)) decls.push('font-style:italic');
+  const fillM = args.match(/fill:\s*([^,]+?)(?:,|$)/);
+  if (fillM) { const c = mapTypstColor(fillM[1].trim()); if (c) decls.push(`color:${c}`); }
+  const fontM = args.match(/font:\s*style-fonts\.(heading|body|code)\b/);
+  if (fontM) decls.push(`font-family:var(--pw-font-${fontM[1]})`);
+  return decls.join(';');
+}
+
 function inlineFunc(name: string, args: string, inner: string | null, rc?: RenderCtx): string {
   switch (name) {
     case 'emph': return inner !== null ? `<em>${inlineTypstToHtml(inner, rc)}</em>` : '';
@@ -284,6 +334,15 @@ function inlineFunc(name: string, args: string, inner: string | null, rc?: Rende
     case 'super': return inner !== null ? `<sup>${inlineTypstToHtml(inner, rc)}</sup>` : '';
     case 'sub': return inner !== null ? `<sub>${inlineTypstToHtml(inner, rc)}</sub>` : '';
     case 'smallcaps': return inner !== null ? `<span style="font-variant:small-caps">${inlineTypstToHtml(inner, rc)}</span>` : '';
+    case 'upper': { const m = args.match(/"((?:[^"\\]|\\.)*)"/); const txt = m ? m[1].replace(/\\"/g, '"') : (inner ?? ''); return `<span style="text-transform:uppercase">${inlineTypstToHtml(txt, rc)}</span>`; }
+    case 'text': {
+      // Carry the visible styling of `#text(size/weight/style/fill/font)[…]` so
+      // title heroes / cover lines / pull-quotes keep their look on the web.
+      if (inner === null) return '';
+      const style = typstTextStyle(args);
+      const body = inlineTypstToHtml(inner, rc);
+      return style ? `<span style="${escAttr(style)}">${body}</span>` : body;
+    }
     case 'raw': { const m = args.match(/"((?:[^"\\]|\\.)*)"/); return `<code>${esc(m ? m[1].replace(/\\"/g, '"') : (inner ?? ''))}</code>`; }
     case 'link': { const m = args.match(/"((?:[^"\\]|\\.)*)"/); const raw = m ? m[1].replace(/\\"/g, '"') : ''; const href = safeUrl(raw); const text = inner !== null ? inlineTypstToHtml(inner, rc) : esc(raw); return href ? `<a href="${escAttr(href)}">${text}</a>` : text; }
     case 'footnote': return inner !== null && rc ? addFootnote(rc, inlineTypstToHtml(inner, rc)) : '';
@@ -518,6 +577,59 @@ function isBibliographyContent(t: string): boolean {
   return /^#bibliography\b/.test(t) || t.includes('#bibliography(');
 }
 
+// ─── Print-only HERO reinterpretation (cover / aufmacher / doppelseite) ──────
+
+/** Splits a trailing `<label>` off a heading body. */
+function splitLabel(s: string): { clean: string; label?: string } {
+  const m = s.match(/\s*<([^<>\s]+)>\s*$/);
+  return m ? { clean: s.slice(0, m.index), label: m[1] } : { clean: s };
+}
+
+/** Renders an opener/title-page body: `#heading[…]` → a real `<hN>` (so it stays
+ *  the outline title), a footer `#grid(…)` → the responsive grid, everything
+ *  else → a styled hero line (the `#text(…)` runs carry their look via inlineFunc). */
+function renderHeroBody(body: string, rc: RenderCtx): string {
+  // Drop full-line config directives + comments (`#set par(…)`, `// …`) so they
+  // don't leak as visible text — a `#set par(…)` with no bracket body would
+  // otherwise spill its ` par(…)` tail into the page.
+  const clean = body.split('\n')
+    .filter((l) => !/^\s*(#(set|show|import|let)\b|\/\/)/.test(l))
+    .join('\n');
+  return splitDesignChunks(clean).map((chunk) => {
+    const t = chunk.trim();
+    if (/^#heading\b/.test(t)) {
+      const lvlM = t.match(/level:\s*(\d+)/);
+      const lvl = Math.min(Math.max(lvlM ? parseInt(lvlM[1]) : 1, 1), 6);
+      const br = t.indexOf('[');
+      const inner = br >= 0 ? matchBracket(t, br, '[', ']') : null;
+      const { clean, label } = splitLabel(inner ? inner.inner : '');
+      const id = label ? ` id="${escAttr(label)}"` : '';
+      return `<h${lvl} class="pw-hero-title"${id}>${inlineTypstToHtml(clean.trim(), rc)}</h${lvl}>`;
+    }
+    const grid = parseTypstGrid(chunk);
+    if (grid) return renderGridHtml(grid, rc);
+    const html = inlineTypstToHtml(t.replace(/[ \t]*\n[ \t]*/g, ' ').trim(), rc);
+    return isInvisibleChunk(html) ? '' : `<p class="pw-hero-line">${html}</p>`;
+  }).filter(Boolean).join('');
+}
+
+function renderHero(spec: HeroSpec, rc: RenderCtx): string {
+  if (spec.kind === 'spread') {
+    const img = spec.image ? `<img class="pw-hero-img" src="${escAttr(safeImgSrc(spec.image))}" alt="">` : '';
+    const cap = (spec.title || spec.credit)
+      ? `<figcaption class="pw-hero-credit">${spec.title ? `<span class="pw-hero-spread-title">${esc(spec.title)}</span> ` : ''}${spec.credit ? esc(spec.credit) : ''}</figcaption>`
+      : '';
+    return `<figure class="pw-hero pw-hero-spread">${img}${cap}</figure>`;
+  }
+  if (spec.kind === 'cover') {
+    return `<header class="pw-cover">${renderHeroBody(spec.body, rc)}</header>`;
+  }
+  // aufmacher: full-width hero image + the opener text beneath/over it.
+  const img = spec.image ? `<img class="pw-hero-img" src="${escAttr(safeImgSrc(spec.image))}" alt="">` : '';
+  const credit = spec.credit ? `<p class="pw-hero-credit">${esc(spec.credit)}</p>` : '';
+  return `<header class="pw-hero pw-hero-aufmacher"><div class="pw-hero-media">${img}${credit}</div><div class="pw-hero-text">${renderHeroBody(spec.body, rc)}</div></header>`;
+}
+
 /**
  * Renders a `typstRawBlock` to real HTML. The bibliography/outline directives
  * and drop caps are special-cased; everything else goes through the shared
@@ -528,6 +640,12 @@ function renderRawBlockHtml(content: string, blockType: string, rc: RenderCtx): 
   const t = content.trim();
   if (isBibliographyContent(t)) return renderBibliographyHtml(rc);
   if (/^#outline\b/.test(t)) return ''; // page-based TOC — no web equivalent
+
+  // Print-only HERO constructs (cover / aufmacher / doppelseite) → web hero.
+  // MUST run before classifyRawBlock: the cover arrives blockType='config'
+  // (→ would be skipped) and the aufmacher is comment-led (→ would leak as prose).
+  const hero = parseHero(content);
+  if (hero) return renderHero(hero, rc);
 
   // Drop cap (droplet #dropcap / the LANGSAM #lead alias) keeps its styling.
   const dcM = t.match(/^#(dropcap|lead)\b/);
@@ -698,6 +816,29 @@ function buildRenderer(rc: RenderCtx) {
       bibliography: () => renderBibliographyHtml(rc),
       typstRawBlock: ({ node }: any) =>
         renderRawBlockHtml(String(node.attrs?.content ?? ''), String(node.attrs?.blockType ?? 'raw'), rc),
+
+      // Synthetic nodes injected by the magazine mini-site builder (webExport):
+      // an issue table of contents + per-article prev/next navigation. They
+      // render through the normal pipeline so they sit inside the reading measure
+      // and inherit the scoped styling.
+      magazineToc: ({ node }: any) => {
+        const items = (node.attrs?.items as any[]) ?? [];
+        const lis = items.map((it) =>
+          `<li class="pw-toc-item"><a href="${escAttr(String(it.href ?? ''))}">` +
+          (it.kicker ? `<span class="pw-toc-kicker">${esc(String(it.kicker))}</span>` : '') +
+          `<span class="pw-toc-title">${esc(String(it.title ?? ''))}</span>` +
+          (it.byline ? `<span class="pw-toc-byline">${esc(String(it.byline))}</span>` : '') +
+          `</a></li>`).join('');
+        return `<nav class="pw-toc" aria-label="Contents"><ol class="pw-toc-list">${lis}</ol></nav>`;
+      },
+      magazineNav: ({ node }: any) => {
+        const a = node.attrs ?? {};
+        const parts: string[] = [];
+        if (a.upHref) parts.push(`<a class="pw-nav-up" href="${escAttr(String(a.upHref))}">${esc(String(a.upLabel ?? 'Contents'))}</a>`);
+        if (a.prevHref) parts.push(`<a class="pw-nav-prev" href="${escAttr(String(a.prevHref))}"><span class="pw-nav-dir">‹</span> ${esc(String(a.prevTitle ?? ''))}</a>`);
+        if (a.nextHref) parts.push(`<a class="pw-nav-next" href="${escAttr(String(a.nextHref))}">${esc(String(a.nextTitle ?? ''))} <span class="pw-nav-dir">›</span></a>`);
+        return parts.length ? `<nav class="pw-nav">${parts.join('')}</nav>` : '';
+      },
     },
     markMapping: {
       bold: ({ children }: any) => `<strong>${kids(children)}</strong>`,
@@ -754,20 +895,30 @@ export function serializeHtml(doc: JSONNode, opts: SerializeHtmlOptions = {}): s
   if (rc.ctx?.bibEntries?.length && !rc.bibRendered) body += renderBibliographyHtml(rc);
 
   const slug = opts.slug ? ` data-article="${escAttr(opts.slug)}"` : '';
+  // lang on the article enables `hyphens: auto` (justified body) + correct
+  // language semantics even in fragment mode (no surrounding <html lang>).
+  const langCode = opts.context?.lang || (opts.meta?.locale ? String(opts.meta.locale).slice(0, 2) : '');
+  const langAttr = langCode ? ` lang="${escAttr(langCode)}"` : '';
   // Defense-in-depth: styleToCss already validates its token inputs, but never
   // let a literal close-style tag in the CSS break out of the <style> element.
   const css = (opts.scopedCss ?? '').replace(/<\/(style)/gi, '<\\/$1');
   const style = css ? `\n<style>\n${css}\n</style>\n` : '\n<style></style>\n';
-  const article = `<article class="pw-article"${slug}>${style}${body}</article>`;
-  return opts.mode === 'document' ? wrapDocument(article, opts.meta) : article;
+  const article = `<article class="pw-article"${langAttr}${slug}>${style}${body}</article>`;
+  return opts.mode === 'document' ? wrapDocument(article, opts.meta, opts.pageBackground) : article;
 }
 
 /**
  * Wraps a self-contained article in a minimal, valid HTML5 page so it opens
  * standalone in any browser and can be hosted as a plain file.
  */
-function wrapDocument(article: string, meta: ArticleMeta = {}): string {
+function wrapDocument(article: string, meta: ArticleMeta = {}, pageBackground?: string): string {
   const lang = meta.locale ? ` lang="${escAttr(String(meta.locale))}"` : '';
+  // Fill the WHOLE standalone page with the magazine background (the article's
+  // own scoped CSS only colours its 70ch column) so the cream/ink page extends
+  // edge-to-edge behind the centered article. Only in this standalone shell —
+  // the embeddable fragment never restyles a host's <body>.
+  const bg = safeCssColor(pageBackground);
+  const pageStyle = bg ? `\n  <style>html{background:${bg};-webkit-text-size-adjust:100%}body{margin:0}</style>` : '';
   const head = [
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -777,5 +928,5 @@ function wrapDocument(article: string, meta: ArticleMeta = {}): string {
     meta.description ? `<meta property="og:description" content="${escAttr(String(meta.description))}">` : '',
     meta.cover && safeUrl(meta.cover) ? `<meta property="og:image" content="${escAttr(safeUrl(meta.cover))}">` : '',
   ].filter(Boolean).join('\n  ');
-  return `<!doctype html>\n<html${lang}>\n<head>\n  ${head}\n</head>\n<body>\n${article}\n</body>\n</html>\n`;
+  return `<!doctype html>\n<html${lang}>\n<head>\n  ${head}${pageStyle}\n</head>\n<body>\n${article}\n</body>\n</html>\n`;
 }

@@ -25,7 +25,8 @@ import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
 import { saveZoteroBibPath, getProjectStyle, getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
-import { buildWebBundle, slugify, deriveTitle } from './webExport';
+import { buildWebBundle, buildWebSite, slugify, deriveTitle } from './webExport';
+import { splitIntoArticles, isMagazineSite } from '../shared/magazineSplit';
 import type { ArticleMeta, HtmlExportContext } from '../shared/htmlSerializer';
 
 let zoteroWatcher: FSWatcher | null = null;
@@ -569,22 +570,28 @@ export async function runWebExport(config: {
     // only reads finished maps. The article language drives <html lang> + words.
     const context = await buildHtmlExportContext(doc, mergedContent, rootDir);
     const meta: ArticleMeta = { title, locale: context.lang };
-    const bundle = buildWebBundle({
-      doc, style, meta, slug,
-      outDir: result.filePath,
-      rootDir,
-      inlineAssets: config.inlineAssets,
-      context,
-    });
+
+    // A multi-article magazine (a cover or ≥2 article openers) becomes a
+    // mini-site — an issue index + one page per article; everything else is a
+    // single self-contained page.
+    const articles = splitIntoArticles(doc as { content?: unknown[] } as never);
+    let dir: string, indexPath: string;
+    if (isMagazineSite(articles, doc as { content?: unknown[] } as never)) {
+      const site = buildWebSite({ articles, style, meta, outDir: result.filePath, rootDir, context, inlineAssets: config.inlineAssets });
+      dir = site.dir; indexPath = site.indexPath;
+    } else {
+      const bundle = buildWebBundle({ doc, style, meta, slug, outDir: result.filePath, rootDir, inlineAssets: config.inlineAssets, context });
+      dir = bundle.dir; indexPath = bundle.indexPath;
+    }
     appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: 'web' });
 
     await dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
       buttons: [md.ok],
-      message: md.exportedTo('HTML', path.basename(bundle.dir)),
+      message: md.exportedTo('HTML', path.basename(dir)),
     });
-    shell.showItemInFolder(bundle.indexPath);
-    return bundle.dir;
+    shell.showItemInFolder(indexPath);
+    return dir;
   } catch (err) {
     appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: 'web' });
     dialog.showErrorBox(md.exportFailedFmt('HTML'), `${err instanceof Error ? err.message : String(err)}`);

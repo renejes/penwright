@@ -119,11 +119,24 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
     `background: var(--pw-background)`,
     `font-family: var(--pw-font-body)`,
     `font-size: ${baseRem}rem`,
+    `box-sizing: border-box`,
     `max-width: 70ch`,
     `margin-inline: auto`,
+    // Breathing room + a side gutter so text never touches the screen edge on
+    // mobile; with box-sizing the measure stays 70ch.
+    `padding: 2.5rem 1.25rem`,
   ];
   const leadingEm = lenToEm(style.scale.leading, bpt);
   if (leadingEm !== null) rootDecls.push(`line-height: ${round(Math.min(Math.max(1 + leadingEm, 1.2), 2.2), 2)}`);
+  // custom.preamble is free-form Typst and is NOT executed on the web (plan C4),
+  // but a few declarations have a safe, 1:1 CSS translation — pick those out
+  // instead of dropping the whole block. Justified body is the editorial signal
+  // most magazines set here (e.g. `#set par(justify: true)`); translate it +
+  // enable hyphenation (the article carries `lang` so hyphens: auto works).
+  const preamble = style.custom?.preamble ?? '';
+  if (/\bpar\(\s*[^)]*justify:\s*true/.test(preamble)) {
+    rootDecls.push('text-align: justify', 'hyphens: auto', '-webkit-hyphens: auto');
+  }
   out.push(`{\n  ${rootDecls.join(';\n  ')};\n}`);
 
   // --- paragraphs ----------------------------------------------------------
@@ -256,9 +269,12 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-fp-title {\n  font-family: var(--pw-font-heading);\n  font-weight: 700;\n  font-size: 0.8em;\n  letter-spacing: 0.1em;\n  text-transform: uppercase;\n  color: var(--pw-accent);\n  margin: 0 0 0.5em;\n}`);
   out.push(`@media (max-width: 38rem) {\n  .pw-article .pw-figure-panel { grid-template-columns: 1fr; }\n}`);
 
-  // marginNote (← randnotiz): a quiet side note (floats wide; inline narrow).
-  out.push(`.pw-margin-note {\n  float: right;\n  clear: right;\n  width: 11em;\n  margin: 0.2em 0 0.6em 1.4em;\n  padding-top: 0.3em;\n  border-top: 1px solid var(--pw-accent);\n  font-size: 0.78em;\n  line-height: 1.4;\n  color: var(--pw-muted);\n}`);
-  out.push(`@media (max-width: 50rem) {\n  .pw-article .pw-margin-note { float: none; width: auto; margin-inline: 0; }\n}`);
+  // marginNote (← randnotiz): the editorial margin column. Mobile-first it is a
+  // quiet inline block; on wide screens it floats out into the OUTER margin
+  // (negative margin into the centered measure's whitespace) — the web analogue
+  // of the magazine's wide outer margin where the notes live.
+  out.push(`.pw-margin-note {\n  display: block;\n  margin: 0.7em 0;\n  padding-top: 0.35em;\n  border-top: 1px solid var(--pw-accent);\n  font-size: 0.82em;\n  line-height: 1.45;\n  color: var(--pw-muted);\n  text-indent: 0;\n  text-align: start;\n}`);
+  out.push(`@media (min-width: 72rem) {\n  .pw-article .pw-margin-note {\n    float: right;\n    clear: right;\n    width: 12rem;\n    margin: 0.1em 0 0.8em 0;\n    margin-right: -14rem;\n  }\n}`);
 
   // interlude (← interlude()): a quiet centered divider (≠ the full-width hr).
   out.push(`.pw-interlude {\n  border: none;\n  border-top: 1px solid var(--pw-accent);\n  width: 1.4em;\n  margin: 2em auto;\n}`);
@@ -303,6 +319,43 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-bibliography-title { font-family: var(--pw-font-heading); }`);
   out.push(`.pw-bib-entry {\n  padding-inline-start: 1.6em;\n  text-indent: -1.6em;\n  margin: 0 0 0.6em;\n  font-size: 0.92em;\n}`);
   out.push(`.pw-bib-link { word-break: break-word; }`);
+
+  // --- print-only HERO reinterpretation (Phase E: cover / aufmacher / spread) --
+  // The visually dominant magazine pieces, translated to web heroes (full-width
+  // image + opener text / a centered title page) — never a literal print spread.
+  out.push(`.pw-hero { margin: 0 0 2.4em; }`);
+  out.push(`.pw-hero-img {\n  display: block;\n  width: 100%;\n  height: auto;\n  border-radius: 2px;\n}`);
+  out.push(`.pw-hero-media { margin: 0; }`);
+  out.push(`.pw-hero-credit {\n  font-size: 0.76em;\n  color: var(--pw-muted);\n  text-align: end;\n  text-indent: 0;\n  margin: 0.5em 0 0;\n}`);
+  out.push(`.pw-hero-aufmacher .pw-hero-text { margin-top: 1.5em; }`);
+  out.push(`.pw-hero-title {\n  font-family: var(--pw-font-heading);\n  text-indent: 0;\n  margin: 0.15em 0;\n}`);
+  out.push(`.pw-hero-line {\n  text-indent: 0;\n  text-align: inherit;\n  margin: 0.35em 0;\n  line-height: 1.25;\n}`);
+  out.push(`.pw-hero-spread-title { font-style: italic; color: var(--pw-text); }`);
+  // cover / title page: centered, set apart with a rule.
+  out.push(`.pw-cover {\n  text-align: center;\n  margin: 0 0 3em;\n  padding-bottom: 2em;\n  border-bottom: 1px solid color-mix(in srgb, var(--pw-muted) 45%, transparent);\n}`);
+  out.push(`.pw-cover .pw-hero-line { text-align: center; margin: 0.5em auto; }`);
+  out.push(`.pw-cover .pw-hero-title { text-align: center; }`);
+  out.push(`.pw-cover .pw-grid { justify-items: center; margin-top: 1.6em; font-size: 0.85em; }`);
+
+  // --- mini-site: issue table of contents + per-article navigation ----------
+  out.push(`.pw-toc { margin: 2.5em 0 0; text-align: start; }`);
+  out.push(`.pw-toc-list { list-style: none; padding: 0; margin: 0; }`);
+  out.push(`.pw-toc-item { border-top: 1px solid color-mix(in srgb, var(--pw-muted) 35%, transparent); }`);
+  out.push(`.pw-toc-item:last-child { border-bottom: 1px solid color-mix(in srgb, var(--pw-muted) 35%, transparent); }`);
+  out.push(`.pw-toc-item a {\n  display: block;\n  padding: 0.85em 0;\n  text-decoration: none;\n  color: var(--pw-text);\n}`);
+  out.push(`.pw-toc-kicker {\n  display: block;\n  font-family: var(--pw-font-heading);\n  font-size: 0.72em;\n  letter-spacing: 0.18em;\n  text-transform: uppercase;\n  color: var(--pw-accent);\n}`);
+  out.push(`.pw-toc-title {\n  display: block;\n  font-family: var(--pw-font-heading);\n  font-size: 1.3em;\n  line-height: 1.2;\n  margin-top: 0.12em;\n}`);
+  out.push(`.pw-toc-byline {\n  display: block;\n  font-size: 0.82em;\n  color: var(--pw-muted);\n  margin-top: 0.2em;\n}`);
+  out.push(`.pw-toc-item a:hover .pw-toc-title { color: var(--pw-accent); }`);
+
+  out.push(`.pw-nav {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1em 1.5em;\n  align-items: baseline;\n  font-size: 0.85em;\n  text-indent: 0;\n}`);
+  out.push(`.pw-nav:first-child {\n  margin: 0 0 2.5em;\n  padding-bottom: 0.7em;\n  border-bottom: 1px solid color-mix(in srgb, var(--pw-muted) 30%, transparent);\n}`);
+  out.push(`.pw-nav:last-child {\n  margin: 3em 0 0;\n  padding-top: 1em;\n  border-top: 1px solid color-mix(in srgb, var(--pw-muted) 30%, transparent);\n}`);
+  out.push(`.pw-nav a { text-decoration: none; color: var(--pw-accent); }`);
+  out.push(`.pw-nav-up { font-family: var(--pw-font-heading); font-weight: 600; }`);
+  out.push(`.pw-nav-prev { margin-inline-start: auto; }`);
+  out.push(`.pw-nav-next { text-align: end; }`);
+  out.push(`.pw-nav-dir { color: var(--pw-muted); }`);
 
   // --- scope every rule under .pw-article ----------------------------------
   return scopeRules(out, opts.scope ?? 'prefix');
