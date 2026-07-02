@@ -1,7 +1,7 @@
 # Penwright Desktop — User Handbook
 
-> **Version:** 0.7.0 (Pre-Release)
-> **Last updated:** 2026-04-29
+> **Version:** 0.10.0 (Pre-Release)
+> **Last updated:** 2026-06-30
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
 ---
@@ -96,7 +96,7 @@ All panels are resizable by dragging their edges.
 
 All project-level and document-level actions live in the **native menu bar** (top of the screen on macOS, top of the window on Windows / Linux). Five top-level menus:
 
-- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
+- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), plus standard window/zoom roles
 - **Document** — Document Settings (**interface language** + document language + bibliography style; the document's Look lives in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
@@ -474,6 +474,35 @@ The DOCX is produced with real Word styles and now covers the rich academic cons
 - Citations render as `(Author Year)`, or as `[n]` when the bibliography style is numeric (IEEE, Vancouver, …); `#info` / `#tip` / `#warning` / … callouts become a shaded accent box
 - TOC and bibliography headings are localized to the document language (DE/EN/FR/ES/IT/PT/NL)
 - **What is intentionally dropped:** pure page-design code — full-bleed layouts, magazine openers, multi-column spreads, drop caps and other visual-only Typst — has no Word equivalent, so it is *skipped* rather than dumped as monospace source. For design-driven output the deliverable is PDF; **DOCX is the manuscript format** (prose, structure, figures, math, tables, footnotes, references).
+
+### Web export (HTML) — the Editorial Web Pack
+
+New in 0.10.0: **print *and* web from one source.** Export your document — or a whole magazine — as self-contained, responsive HTML you can put on the web. The same manuscript that becomes your print PDF becomes a live web page, with no second edit.
+
+**Do it:** **File → Export to Web (HTML)…**, then pick a folder — Penwright writes a small bundle there.
+
+**Two shapes, auto-detected from your document:**
+- A **regular document** (thesis, report, paper) → **one self-contained page** (`index.html`), plus `fragment.html` (just the article, to embed elsewhere), a neutral `meta.json`, and an `assets/` folder for images.
+- A **magazine** (a cover page, or two or more article openers) → a **mini-website**: an issue **index** (the cover + a clickable table of contents) and **one page per article**, each with a "‹ back to contents" link and previous/next navigation. Every article gets its own file, so a single article is shareable on its own.
+
+**What carries across** — everything that means something, not just prose:
+- headings, lists, quotes, code
+- **figures** and **tables** with automatic "Figure N" / "Table N" captions
+- **math** — display equations are rendered to crisp, scalable inline SVG by the bundled Typst (no blurry raster, no external math library)
+- **cross-references** — `@fig:x` becomes "Figure 1", `@sec:y` becomes "Section 2.1", linked to the target on the page
+- **citations** — grouped and formatted like the PDF (`(Bender et al., 2021; …)`, or `[1, 2]` for numeric styles) and linked into the bibliography
+- **footnotes** — numbered, collected into an endnotes section at the foot of the article with "↩" back-links
+- **bibliography** — an APA-shaped "References" section, each entry anchored so citations link straight to it
+- the **magazine design** — drop caps, pull-quotes, callouts, multi-column sections, margin notes, article openers, and the cover — as real, responsive web design; your colours and fonts come from the same design tokens as the PDF, and justified body text carries over
+
+**It's a re-interpretation, not a screenshot of the PDF.** The web is one reflowing column, so print-only geometry is *translated*, not copied: a full-bleed opener or a double-page image becomes a full-width web hero; margin notes sit in an outer column on wide screens and fold inline on a phone; multi-column sections collapse to a single column on mobile.
+
+**Framework-agnostic on purpose** — the output makes no assumptions about where it goes:
+- the article carries its own **scoped CSS**, prefixed so it never collides with a host site's styles
+- `fragment.html` is just the `<article>` — drop it into Astro, WordPress, Ghost, a static-site generator or your own CMS
+- `index.html` is a standalone page you can host as a plain file
+- `meta.json` is neutral metadata (title, language, and — for a magazine — the list of articles)
+- images are copied into `assets/` with relative links
 
 ---
 

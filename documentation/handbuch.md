@@ -1,7 +1,7 @@
 # Penwright Desktop — Handbuch
 
-> **Version:** 0.7.0 (Pre-Release)
-> **Letzte Aktualisierung:** 2026-04-29
+> **Version:** 0.10.0 (Pre-Release)
+> **Letzte Aktualisierung:** 2026-06-30
 > **English version:** [handbook.md](handbook.md)
 
 ---
@@ -96,7 +96,7 @@ Alle Panels sind per Drag resizeable.
 
 Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleiste** (oben am Bildschirm auf macOS, oben am Fenster auf Windows / Linux). Fuenf Top-Level-Menues:
 
-- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
+- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), plus Standard-Window-/Zoom-Rollen
 - **Document** — Document Settings (**Oberflächensprache** + Dokumentsprache + Zitierstil; der Look des Dokuments lebt in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
@@ -474,6 +474,35 @@ Das DOCX wird mit echten Word-Styles erzeugt und deckt jetzt die reichen akademi
 - Citations werden als `(Autor Jahr)` gerendert, oder als `[n]`, wenn der Bibliographie-Stil numerisch ist (IEEE, Vancouver, …); `#info` / `#tip` / `#warning` / …-Callouts werden zu einer schattierten Akzent-Box
 - TOC- und Bibliographie-Ueberschriften werden passend zur Dokumentsprache lokalisiert (DE/EN/FR/ES/IT/PT/NL)
 - **Was bewusst weggelassen wird:** reiner Seiten-Design-Code — Full-Bleed-Layouts, Magazin-Opener, mehrspaltige Spreads, Drop-Caps und anderes rein Visuelles — hat kein Word-Aequivalent und wird *uebersprungen* statt als Monospace-Quelltext gedumpt. Fuer design-getriebenen Output ist PDF das Liefer-Format; **DOCX ist das Manuskript-Format** (Fliesstext, Struktur, Abbildungen, Math, Tabellen, Fussnoten, Referenzen).
+
+### Web-Export (HTML) — das Editorial Web Pack
+
+Neu in 0.10.0: **Print *und* Web aus einer Quelle.** Exportiere dein Dokument — oder ein ganzes Magazin — als self-contained, responsives HTML fürs Web. Dasselbe Manuskript, aus dem dein Druck-PDF wird, wird eine echte Webseite, ohne zweites Editieren.
+
+**So geht's:** **File → Export to Web (HTML)…**, dann einen Ordner wählen — Penwright schreibt ein kleines Bundle dorthin.
+
+**Zwei Formen, automatisch aus dem Dokument erkannt:**
+- Ein **normales Dokument** (Thesis, Bericht, Paper) → **eine self-contained Seite** (`index.html`), plus `fragment.html` (nur der Artikel, zum Einbetten), eine neutrale `meta.json` und ein `assets/`-Ordner für Bilder.
+- Ein **Magazin** (eine Titelseite oder zwei bzw. mehr Artikel-Auftakte) → eine **Mini-Website**: ein Heft-**Index** (Cover + anklickbares Inhaltsverzeichnis) und **eine Seite pro Artikel**, jede mit „‹ zurück zum Inhalt" und Vor/Zurück-Navigation. Jeder Artikel bekommt eine eigene Datei — ein einzelner Artikel ist für sich teilbar.
+
+**Was mitkommt** — alles Bedeutungstragende, nicht nur Fließtext:
+- Überschriften, Listen, Zitate, Code
+- **Abbildungen** und **Tabellen** mit automatischer „Abbildung N"- / „Tabelle N"-Caption
+- **Mathe** — Display-Formeln werden vom gebündelten Typst zu scharfem, skalierbarem Inline-**SVG** gerendert (kein unscharfes Raster, keine externe Mathe-Bibliothek)
+- **Querverweise** — `@fig:x` wird zu „Figure 1", `@sec:y` zu „Section 2.1", auf das Ziel auf der Seite verlinkt
+- **Zitate** — gruppiert und formatiert wie im PDF (`(Bender et al., 2021; …)`, oder `[1, 2]` bei numerischen Stilen), in die Bibliographie verlinkt
+- **Fußnoten** — nummeriert, am Artikelende in einer Endnoten-Sektion gesammelt, mit „↩"-Rücksprung
+- **Bibliographie** — eine APA-nahe „References"-Sektion, jeder Eintrag verankert, sodass Zitate direkt darauf verlinken
+- das **Magazin-Design** — Drop-Caps, Pull-Quotes, Callouts, mehrspaltige Abschnitte, Randnotizen, Artikel-Auftakte und das Cover — als echtes, responsives Web-Design; Farben und Schriften kommen aus denselben Design-Tokens wie das PDF, und Blocksatz wird übernommen
+
+**Es ist eine Neu-Interpretation, kein Screenshot des PDFs.** Das Web ist eine umfließende Spalte, deshalb wird die Print-Geometrie *übersetzt*, nicht kopiert: ein Full-Bleed-Aufmacher oder ein Doppelseiten-Bild wird ein Vollbreiten-Web-Hero; Randnotizen sitzen auf breiten Screens in einer Außenspalte und klappen auf dem Handy inline; mehrspaltige Abschnitte fallen auf Mobil auf eine Spalte zusammen.
+
+**Bewusst framework-agnostisch** — der Output macht keine Annahmen darüber, wohin er kommt:
+- der Artikel trägt sein eigenes **scoped CSS**, präfixiert, sodass es nie mit den Styles einer Host-Seite kollidiert
+- `fragment.html` ist nur der `<article>` — einbettbar in Astro, WordPress, Ghost, einen Static-Site-Generator oder dein eigenes CMS
+- `index.html` ist eine eigenständige Seite, als reine Datei hostbar
+- `meta.json` sind neutrale Metadaten (Titel, Sprache und — beim Magazin — die Artikelliste)
+- Bilder werden mit relativen Links nach `assets/` kopiert
 
 ---
 
