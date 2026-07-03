@@ -80,6 +80,18 @@ export interface HtmlExportContext {
   mathSvg: Map<string, string>;
   /** Document language (ISO short code) for the localized reference words. */
   lang: string;
+  /**
+   * What the project's `#lead[…]` macro means (styleInference.detectLeadStyle):
+   * LANGSAM's lead is a droplet drop cap; other templates use `lead` for a
+   * standfirst/Anreißer paragraph. Default 'dropcap'.
+   */
+  leadStyle?: 'dropcap' | 'standfirst';
+  /**
+   * False when the source sets `#set figure(numbering: none)` — captions then
+   * render WITHOUT the "Figure N" / "Abbildung N" label, matching the PDF.
+   * Default true.
+   */
+  figureNumbering?: boolean;
 }
 
 export interface SerializeHtmlOptions {
@@ -105,6 +117,13 @@ export interface SerializeHtmlOptions {
    * applied in 'document' mode; 'fragment' mode never touches the host's page.
    */
   pageBackground?: string;
+  /**
+   * Section-style (Kapitel-Look) id this article opted into via
+   * `#show: <id>-style` — adds `pw-section-<id>` to the article element so the
+   * styleToCss overlay rules apply. Mini-site pages only (one page = one
+   * chapter); a merged single page keeps the global look.
+   */
+  sectionId?: string;
 }
 
 /** HTML-escapes a text run (the static renderer does NOT auto-escape text). */
@@ -347,8 +366,62 @@ function inlineFunc(name: string, args: string, inner: string | null, rc?: Rende
     case 'link': { const m = args.match(/"((?:[^"\\]|\\.)*)"/); const raw = m ? m[1].replace(/\\"/g, '"') : ''; const href = safeUrl(raw); const text = inner !== null ? inlineTypstToHtml(inner, rc) : esc(raw); return href ? `<a href="${escAttr(href)}">${text}</a>` : text; }
     case 'footnote': return inner !== null && rc ? addFootnote(rc, inlineTypstToHtml(inner, rc)) : '';
     case 'cite': { const m = args.match(/"?<?([a-zA-Z0-9_:.-]+)>?"?/); if (!m || !rc) return ''; const key = m[1].replace(/[.:]+$/, ''); return (key.includes(':') || REF_PREFIXES.test(key)) ? renderReferenceHtml(key, rc) : renderCitationGroupHtml([key], rc); }
-    default: return inner !== null ? inlineTypstToHtml(inner, rc) : '';
+    default: {
+      if (inner !== null) return inlineTypstToHtml(inner, rc);
+      // Unknown project macro with NO trailing body — its manuscript content
+      // often sits in POSITIONAL content args: `#sumrow("Ziel", [Mehr …])`.
+      // Dropping the call silently loses that text (the LM management-summary
+      // rows vanished from the web). Render the bracketed content args; a
+      // leading short positional string is the row's label → a bold prefix.
+      return renderUnknownCallArgs(args, rc);
+    }
   }
+}
+
+/** Content preservation for unknown `#macro(…)` calls (no trailing `[body]`):
+ *  renders every positional `[content]` arg, prefixed by a first positional
+ *  short-string arg as a label. Named string args (ids, paths, keys) are
+ *  config, not content — never rendered. Returns '' when nothing qualifies. */
+function renderUnknownCallArgs(args: string, rc?: RenderCtx): string {
+  const parts: string[] = [];
+  let label: string | undefined;
+  let i = 0, argStart = 0, depth = 0, inStr = false, named = false, first = true;
+  const consume = (raw: string, isNamed: boolean, isFirst: boolean) => {
+    const t = raw.trim();
+    if (!t) return;
+    if (isNamed) return; // named args are configuration
+    if (t.startsWith('[')) {
+      const b = matchBracket(t, 0, '[', ']');
+      if (b && b.inner.trim()) parts.push(inlineTypstToHtml(b.inner.replace(/\s+/g, ' ').trim(), rc));
+      return;
+    }
+    const s = t.match(/^"((?:[^"\\]|\\.)*)"$/);
+    if (s && isFirst && s[1].length >= 2 && s[1].length <= 60) label = s[1].replace(/\\"/g, '"');
+  };
+  for (; i < args.length; i++) {
+    const ch = args[i];
+    if (inStr) { if (ch === '\\') i++; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth--;
+    else if (ch === ':' && depth === 0) named = true;
+    else if (ch === ',' && depth === 0) {
+      consume(args.slice(argStart, i), named, first);
+      argStart = i + 1; named = false; first = false;
+    }
+  }
+  consume(args.slice(argStart), named, first);
+  if (!parts.length) {
+    // A LONE positional string can itself be the content (`#kicker("Management-
+    // Summary")`) — render it when it reads like prose, not like an identifier/
+    // path (`counter("lmm-chapter")`, `image("x.png")` must stay invisible).
+    if (label && (label.includes(' ') || label.length >= 12) && !/[\\/]/.test(label) && !/\.[a-z0-9]{2,4}$/i.test(label)) {
+      return esc(label);
+    }
+    return '';
+  }
+  const prefix = label ? `<strong>${esc(label)}</strong> — ` : '';
+  return prefix + parts.join(' ');
 }
 
 /** Splits a reparsed block body into <p>s at blank lines. */
@@ -551,6 +624,16 @@ function captionHtml(desc: Extract<RawDesc, { kind: 'figure' }>, rc?: RenderCtx)
   return cap;
 }
 
+/** Numbered "Figure N: …" figcaption — or, with `#set figure(numbering: none)`
+ *  in the source (ctx.figureNumbering === false), just the caption like the
+ *  PDF (no label at all; no figcaption when there is no caption either). */
+function figcaptionHtml(word: string, n: number, cap: string, rc: RenderCtx): string {
+  if (rc.ctx?.figureNumbering === false) {
+    return cap ? `<figcaption>${cap}</figcaption>` : '';
+  }
+  return `<figcaption><span class="pw-fig-label">${esc(word)} ${n}</span>${cap ? ': ' + cap : ''}</figcaption>`;
+}
+
 function renderImageFigureHtml(desc: Extract<RawDesc, { kind: 'figure'; variant: 'image' }>, rc: RenderCtx): string {
   rc.figureCounter++;
   const id = desc.label ? ` id="${escAttr(desc.label)}"` : '';
@@ -558,8 +641,7 @@ function renderImageFigureHtml(desc: Extract<RawDesc, { kind: 'figure'; variant:
   const len = safeCssLen(desc.width ?? undefined);
   const style = len ? ` style="width:${len}"` : '';
   const img = desc.imagePath ? `<img src="${escAttr(safeImgSrc(desc.imagePath))}" alt=""${style}>` : '';
-  const cap = captionHtml(desc, rc);
-  const figcap = `<figcaption><span class="pw-fig-label">${esc(w.figure)} ${rc.figureCounter}</span>${cap ? ': ' + cap : ''}</figcaption>`;
+  const figcap = figcaptionHtml(w.figure, rc.figureCounter, captionHtml(desc, rc), rc);
   return `<figure class="pw-figure"${id}>${img}${figcap}</figure>`;
 }
 
@@ -567,8 +649,7 @@ function renderTableFigureHtml(desc: Extract<RawDesc, { kind: 'figure'; variant:
   rc.tableCounter++;
   const id = desc.label ? ` id="${escAttr(desc.label)}"` : '';
   const w = refWords(rc.ctx?.lang ?? 'en');
-  const cap = captionHtml(desc, rc);
-  const figcap = `<figcaption><span class="pw-fig-label">${esc(w.table)} ${rc.tableCounter}</span>${cap ? ': ' + cap : ''}</figcaption>`;
+  const figcap = figcaptionHtml(w.table, rc.tableCounter, captionHtml(desc, rc), rc);
   return `<figure class="pw-table-figure"${id}>${typstTableToHtml(desc.tableSrc, rc)}${figcap}</figure>`;
 }
 
@@ -585,9 +666,59 @@ function splitLabel(s: string): { clean: string; label?: string } {
   return m ? { clean: s.slice(0, m.index), label: m[1] } : { clean: s };
 }
 
+/** A standalone `#v(…)` spacer's web height in em: pt/em/cm translated
+ *  relative to an ~11pt body, page-filling `fr` units → a fixed breathing gap.
+ *  Clamped so a print-page spacer can't blow up the web hero. */
+function spacerEm(line: string): number | null {
+  const m = line.match(/^\s*#v\(\s*(-?\d+(?:\.\d+)?)\s*(pt|em|mm|cm|in|fr)\s*[,)]/);
+  if (!m) return null;
+  const v = parseFloat(m[1]);
+  const em = m[2] === 'em' ? v
+    : m[2] === 'pt' ? v / 11
+    : m[2] === 'mm' ? (v * 72 / 25.4) / 11
+    : m[2] === 'cm' ? (v * 72 / 2.54) / 11
+    : m[2] === 'in' ? (v * 72) / 11
+    : 2.2 * Math.min(v, 2); // fr → page-filling → a generous fixed gap
+  return Math.min(Math.max(em, 0), 5);
+}
+
+/** Like splitDesignChunks, but keeps the `#v(…)` spacer HEIGHT between chunks —
+ *  the cover's vertical rhythm (masthead ↕ kicker ↕ title) would otherwise
+ *  collapse into a crushed stack. */
+function splitHeroChunks(src: string): { gapEm: number; chunk: string }[] {
+  const out: { gapEm: number; chunk: string }[] = [];
+  let cur: string[] = [];
+  let depth = 0;
+  let pendingGap = 0;
+  const flush = () => {
+    if (cur.length) { out.push({ gapEm: pendingGap, chunk: cur.join('\n').trim() }); cur = []; pendingGap = 0; }
+  };
+  for (const line of src.split('\n')) {
+    if (depth === 0 && (/^\s*$/.test(line) || /^\s*#v\(/.test(line) || /^\s*#h\(/.test(line))) {
+      flush();
+      const g = spacerEm(line);
+      if (g !== null) pendingGap += g;
+      continue;
+    }
+    cur.push(line);
+    let inStr = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inStr) { if (ch === '\\') i++; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === '[' || ch === '(' || ch === '{') depth++;
+      else if (ch === ']' || ch === ')' || ch === '}') depth = Math.max(0, depth - 1);
+    }
+  }
+  flush();
+  return out.filter((c) => c.chunk);
+}
+
 /** Renders an opener/title-page body: `#heading[…]` → a real `<hN>` (so it stays
  *  the outline title), a footer `#grid(…)` → the responsive grid, everything
- *  else → a styled hero line (the `#text(…)` runs carry their look via inlineFunc). */
+ *  else → a styled hero line (the `#text(…)` runs carry their look via inlineFunc).
+ *  `#v(…)` spacers between lines become proportional margins, so the cover
+ *  keeps the PDF's vertical rhythm. */
 function renderHeroBody(body: string, rc: RenderCtx): string {
   // Drop full-line config directives + comments (`#set par(…)`, `// …`) so they
   // don't leak as visible text — a `#set par(…)` with no bracket body would
@@ -595,8 +726,9 @@ function renderHeroBody(body: string, rc: RenderCtx): string {
   const clean = body.split('\n')
     .filter((l) => !/^\s*(#(set|show|import|let)\b|\/\/)/.test(l))
     .join('\n');
-  return splitDesignChunks(clean).map((chunk) => {
+  return splitHeroChunks(clean).map(({ gapEm, chunk }) => {
     const t = chunk.trim();
+    const gap = gapEm > 0.05 ? ` style="margin-top:${gapEm.toFixed(2)}em"` : '';
     if (/^#heading\b/.test(t)) {
       const lvlM = t.match(/level:\s*(\d+)/);
       const lvl = Math.min(Math.max(lvlM ? parseInt(lvlM[1]) : 1, 1), 6);
@@ -604,12 +736,12 @@ function renderHeroBody(body: string, rc: RenderCtx): string {
       const inner = br >= 0 ? matchBracket(t, br, '[', ']') : null;
       const { clean, label } = splitLabel(inner ? inner.inner : '');
       const id = label ? ` id="${escAttr(label)}"` : '';
-      return `<h${lvl} class="pw-hero-title"${id}>${inlineTypstToHtml(clean.trim(), rc)}</h${lvl}>`;
+      return `<h${lvl} class="pw-hero-title"${id}${gap}>${inlineTypstToHtml(clean.trim(), rc)}</h${lvl}>`;
     }
     const grid = parseTypstGrid(chunk);
     if (grid) return renderGridHtml(grid, rc);
     const html = inlineTypstToHtml(t.replace(/[ \t]*\n[ \t]*/g, ' ').trim(), rc);
-    return isInvisibleChunk(html) ? '' : `<p class="pw-hero-line">${html}</p>`;
+    return isInvisibleChunk(html) ? '' : `<p class="pw-hero-line"${gap}>${html}</p>`;
   }).filter(Boolean).join('');
 }
 
@@ -648,8 +780,16 @@ function renderRawBlockHtml(content: string, blockType: string, rc: RenderCtx): 
   if (hero) return renderHero(hero, rc);
 
   // Drop cap (droplet #dropcap / the LANGSAM #lead alias) keeps its styling.
+  // `#lead` only means "drop cap" when the project defines it that way — other
+  // templates use `lead` for a standfirst/Anreißer paragraph (ctx.leadStyle).
   const dcM = t.match(/^#(dropcap|lead)\b/);
-  if (dcM) { const mb = macroBody(t, dcM[0].length); if (mb) return `<p class="pw-dropcap">${inlineTypstToHtml(mb.body.replace(/\s+/g, ' ').trim(), rc)}</p>`; }
+  if (dcM) {
+    const mb = macroBody(t, dcM[0].length);
+    if (mb) {
+      const cls = dcM[1] === 'lead' && rc.ctx?.leadStyle === 'standfirst' ? 'pw-standfirst' : 'pw-dropcap';
+      return `<p class="${cls}">${inlineTypstToHtml(mb.body.replace(/\s+/g, ' ').trim(), rc)}</p>`;
+    }
+  }
 
   const desc = classifyRawBlock(content, blockType);
   switch (desc.kind) {
@@ -783,7 +923,11 @@ function buildRenderer(rc: RenderCtx) {
         parts.push('</header>');
         return parts.join('');
       },
-      dropCap: ({ children }: any) => `<p class="pw-dropcap">${kids(children)}</p>`,
+      // The deserializer maps `#lead[…]` to dropCap by NAME; whether that means
+      // a real drop cap or a standfirst paragraph is the project's definition
+      // (ctx.leadStyle — see styleInference.detectLeadStyle).
+      dropCap: ({ children }: any) =>
+        `<p class="${rc.ctx?.leadStyle === 'standfirst' ? 'pw-standfirst' : 'pw-dropcap'}">${kids(children)}</p>`,
       question: ({ children }: any) => `<p class="pw-question">${kids(children)}</p>`,
       pullQuote: ({ node, children }: any) => {
         const who = node.attrs?.who ? `<cite class="pw-pull-who">${esc(String(node.attrs.who))}</cite>` : '';
@@ -899,11 +1043,14 @@ export function serializeHtml(doc: JSONNode, opts: SerializeHtmlOptions = {}): s
   // language semantics even in fragment mode (no surrounding <html lang>).
   const langCode = opts.context?.lang || (opts.meta?.locale ? String(opts.meta.locale).slice(0, 2) : '');
   const langAttr = langCode ? ` lang="${escAttr(langCode)}"` : '';
+  // Section-style (Kapitel-Look) class — must satisfy the identifier rule so
+  // it can't smuggle attributes/classes into the markup.
+  const sec = opts.sectionId && /^[a-z][a-z0-9-]{0,40}$/.test(opts.sectionId) ? ` pw-section-${opts.sectionId}` : '';
   // Defense-in-depth: styleToCss already validates its token inputs, but never
   // let a literal close-style tag in the CSS break out of the <style> element.
   const css = (opts.scopedCss ?? '').replace(/<\/(style)/gi, '<\\/$1');
   const style = css ? `\n<style>\n${css}\n</style>\n` : '\n<style></style>\n';
-  const article = `<article class="pw-article"${langAttr}${slug}>${style}${body}</article>`;
+  const article = `<article class="pw-article${sec}"${langAttr}${slug}>${style}${body}</article>`;
   return opts.mode === 'document' ? wrapDocument(article, opts.meta, opts.pageBackground) : article;
 }
 

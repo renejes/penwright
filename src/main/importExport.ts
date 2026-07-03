@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { execFileSync } from 'child_process';
-import { getTypstPath, buildTypstCompileArgs } from './typstPath';
+import { getTypstPath, getTypstFontPath, buildTypstCompileArgs } from './typstPath';
 import { watch, type FSWatcher } from 'chokidar';
 import { deserializeTypst } from './deserializer-bridge';
 import { serializeDocx, type RenderedSnippet } from '../shared/docxSerializer';
@@ -23,10 +23,10 @@ import { sanitizeProjectStyle, DEFAULT_PROJECT_STYLE } from '../shared/styleType
 import { appState } from './appState';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
-import { saveZoteroBibPath, getProjectStyle, getLocale } from './persistenceManager';
+import { saveZoteroBibPath, getProjectStyle, hasProjectStyle, getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
-import { buildWebBundle, buildWebSite, slugify, deriveTitle } from './webExport';
-import { splitIntoArticles, isMagazineSite } from '../shared/magazineSplit';
+import { buildWebBundle, buildWebSite, prepareWebDesign, slugify, deriveTitle, type WebDesign } from './webExport';
+import { splitIntoArticles, isMagazineSite, deriveIssueTitle, deriveDocMeta } from '../shared/magazineSplit';
 import type { ArticleMeta, HtmlExportContext } from '../shared/htmlSerializer';
 
 let zoteroWatcher: FSWatcher | null = null;
@@ -356,7 +356,7 @@ function createTypstSvgRenderer(baseDir: string): (snippet: string) => Promise<s
  * bibliography, and the display-math rendered to SVG by the bundled Typst.
  * The async/Typst/fs work lives here (main); the serializer stays pure.
  */
-async function buildHtmlExportContext(doc: unknown, mergedContent: string, rootDir: string): Promise<HtmlExportContext> {
+async function buildHtmlExportContext(doc: unknown, mergedContent: string, rootDir: string, design?: WebDesign): Promise<HtmlExportContext> {
   const model = buildExportModel(doc as { content?: unknown[] } as never, mergedContent);
 
   // Bibliography: resolve the #bibliography("path") against the project root.
@@ -369,9 +369,11 @@ async function buildHtmlExportContext(doc: unknown, mergedContent: string, rootD
     } catch { /* leave empty */ }
   }
 
-  // Document language for the localized reference words ("Figure"/"Abbildung").
+  // Document language for the localized reference words ("Figure"/"Abbildung"):
+  // merged content → the style source (`lang:` usually lives in the #import'ed
+  // style.typ, which never reaches the merged content) → the UI locale.
   const langM = mergedContent.match(/#set\s+text\([^)]*lang:\s*"([a-zA-Z-]+)"/);
-  const lang = (langM ? langM[1] : getLocale()).slice(0, 2).toLowerCase() || 'en';
+  const lang = ((langM ? langM[1] : design?.langHint) ?? getLocale()).slice(0, 2).toLowerCase() || 'en';
 
   // Render each unique display-math block to an SVG via the bundled Typst.
   const mathSvg = new Map<string, string>();
@@ -390,6 +392,8 @@ async function buildHtmlExportContext(doc: unknown, mergedContent: string, rootD
     bibTitle: bibDir?.title,
     mathSvg,
     lang,
+    leadStyle: design?.leadStyle,
+    figureNumbering: design?.figureNumbering,
   };
 }
 
@@ -534,6 +538,8 @@ export async function runWebExport(config: {
   selectedIncludes: string[] | null;
   includeBibliography: boolean;
   inlineAssets?: boolean;
+  /** Page split: 'auto' (magazine → mini-site, else one page), or forced. */
+  split?: 'auto' | 'single' | 'site';
 }): Promise<string | null> {
   const md = resolveDict(getLocale()).mainDialogs;
   if (!appState.currentFilePath) {
@@ -555,8 +561,26 @@ export async function runWebExport(config: {
   try {
     const mergedContent = resolveIncludes(sourceFile);
     const doc = deserializeTypst(mergedContent);
-    const style = (appState.projectDir ? getProjectStyle(appState.projectDir) : null) ?? DEFAULT_PROJECT_STYLE;
-    const title = deriveTitle(doc as { content?: unknown[] });
+
+    // Resolve the project's DESIGN: style.json tokens when they exist, else
+    // tokens INFERRED from the hand-written style.typ/macros (styleInference)
+    // — plus the @font-face files for the winning families, so the export
+    // looks right on machines that don't have the fonts installed.
+    const styleOverride = appState.projectDir && hasProjectStyle(appState.projectDir)
+      ? getProjectStyle(appState.projectDir)
+      : null;
+    const design = prepareWebDesign({
+      rootDir,
+      mergedContent,
+      styleOverride,
+      bundledFontsDir: getTypstFontPath(),
+      inlineAssets: config.inlineAssets,
+    });
+
+    // The issue/document title: the cover masthead (`LANGSAM`, a `#cover(title:
+    // …)`) beats the first body heading.
+    const title = deriveIssueTitle(doc as { content?: unknown[] } as never)
+      ?? deriveTitle(doc as { content?: unknown[] });
     const slug = slugify(title);
 
     const result = await dialog.showSaveDialog(appState.mainWindow!, {
@@ -568,19 +592,27 @@ export async function runWebExport(config: {
     // Pre-pass (async, in main): resolve cross-refs / citations / bibliography +
     // render display-math to SVG with the bundled Typst, so serializeHtml (pure)
     // only reads finished maps. The article language drives <html lang> + words.
-    const context = await buildHtmlExportContext(doc, mergedContent, rootDir);
-    const meta: ArticleMeta = { title, locale: context.lang };
+    const context = await buildHtmlExportContext(doc, mergedContent, rootDir, design);
+    // Frontmatter: a description (standfirst / first paragraph) + cover image
+    // → <head> description/og:* and meta.json (single page; the mini-site
+    // derives them per article).
+    const docMeta = deriveDocMeta(doc as { content?: unknown[] } as never);
+    const meta: ArticleMeta = { title, locale: context.lang, description: docMeta.description, cover: docMeta.cover };
 
-    // A multi-article magazine (a cover or ≥2 article openers) becomes a
-    // mini-site — an issue index + one page per article; everything else is a
-    // single self-contained page.
+    // Page split: 'auto' → a multi-article magazine (a cover or ≥2 openers)
+    // becomes a mini-site, everything else one self-contained page. The export
+    // dialog can force either ('site' needs ≥2 chapters to split at).
     const articles = splitIntoArticles(doc as { content?: unknown[] } as never);
+    const split = config.split ?? 'auto';
+    const wantSite = split === 'site' ? !!articles
+      : split === 'single' ? false
+      : isMagazineSite(articles, doc as { content?: unknown[] } as never);
     let dir: string, indexPath: string;
-    if (isMagazineSite(articles, doc as { content?: unknown[] } as never)) {
-      const site = buildWebSite({ articles, style, meta, outDir: result.filePath, rootDir, context, inlineAssets: config.inlineAssets });
+    if (wantSite && articles) {
+      const site = buildWebSite({ articles, style: design.style, meta, outDir: result.filePath, rootDir, context, inlineAssets: config.inlineAssets, fonts: design.fonts });
       dir = site.dir; indexPath = site.indexPath;
     } else {
-      const bundle = buildWebBundle({ doc, style, meta, slug, outDir: result.filePath, rootDir, inlineAssets: config.inlineAssets, context });
+      const bundle = buildWebBundle({ doc, style: design.style, meta, slug, outDir: result.filePath, rootDir, inlineAssets: config.inlineAssets, context, fonts: design.fonts });
       dir = bundle.dir; indexPath = bundle.indexPath;
     }
     appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: 'web' });
@@ -602,8 +634,18 @@ export async function runWebExport(config: {
 }
 
 export function handleExportWeb(): Promise<void> {
-  // The slice exports the whole document; chapter selection / inline-asset
-  // options can route through the export dialog later.
+  // Multi-chapter projects go through the export dialog (chapter selection +
+  // the single-page ↔ chapter-pages split toggle); single-file projects have
+  // nothing to choose — export directly.
+  const sections = getExportableSections();
+  if (sections && sections.multiChapter) {
+    appState.mainWindow?.webContents.send('penwright', {
+      type: 'showExportDialog',
+      format: 'web',
+      sections,
+    });
+    return Promise.resolve();
+  }
   return runWebExport({ selectedIncludes: null, includeBibliography: true }).then(() => {});
 }
 

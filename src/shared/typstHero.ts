@@ -60,6 +60,52 @@ function readCall(t: string, name: string): { args: string; body?: string } | nu
   return { args, body };
 }
 
+// ─── Generic title-page macro calls (`#cover(title: …, subtitle: …)`) ───────
+
+/** Built-in / known macro names that must NEVER be mistaken for a cover call. */
+const NOT_A_COVER = /^(figure|table|image|text|grid|block|align|box|quote|cite|link|footnote|heading|page|columns|bibliography|outline|set|show|let|import|include|stack|place|pad|rect|line|circle|square|v|h)$/;
+
+/** Named args whose values are title-page content, in display order. */
+const COVER_ARG_KEYS = ['title', 'subtitle', 'claim', 'tagline', 'author', 'byline', 'date', 'meta'] as const;
+
+/** Reads a named arg's value from an arg list: `key: [content]` or `key: "str"`. */
+function namedContent(args: string, key: string): string | undefined {
+  const re = new RegExp(`(?:^|[,(\\s])${key}\\s*:\\s*`);
+  const m = re.exec(args);
+  if (!m) return undefined;
+  const at = m.index + m[0].length;
+  if (args[at] === '[') { const b = matchBracket(args, at, '[', ']'); return b ? b.inner.trim() : undefined; }
+  const s = args.slice(at).match(/^"((?:[^"\\]|\\.)*)"/);
+  return s ? s[1].replace(/\\"/g, '"') : undefined;
+}
+
+/**
+ * Recognises a hand-written TITLE-PAGE macro call — `#cover(title: […], …)`,
+ * `#titelseite(…)`, any `#<name>(… title: …)` whose definition we can't see —
+ * and synthesizes a hero body from its content args, so the document title
+ * survives to the web instead of the whole call being skipped as config.
+ * Fires only when the block IS the call (no trailing content) and the args
+ * carry a `title:` — a figure caption's `title:` can't reach here (excluded
+ * by name), prose never parses as a single call.
+ */
+export function parseCoverCall(content: string): { body: string; title?: string } | null {
+  const t = stripLeadingNoise(content);
+  const nameM = t.match(/^#([a-zA-Z][\w-]*)/);
+  if (!nameM || NOT_A_COVER.test(nameM[1])) return null;
+  const looksLikeCoverName = /cover|titel|title/i.test(nameM[1]);
+  const c = readCall(t, nameM[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!c || c.body !== undefined) return null; // body-carrying macros are handled elsewhere
+  const title = namedContent(c.args, 'title');
+  if (!title || (!looksLikeCoverName && !namedContent(c.args, 'subtitle') && !namedContent(c.args, 'claim'))) return null;
+  const lines: string[] = [`#heading(level: 1)[${title}]`];
+  for (const key of COVER_ARG_KEYS) {
+    if (key === 'title') continue;
+    const v = namedContent(c.args, key);
+    if (v) lines.push(v);
+  }
+  return { body: lines.join('\n\n'), title: title.replace(/\\\s*/g, ' ').replace(/\s+/g, ' ').trim() };
+}
+
 /**
  * Recognises a print-only hero construct in a raw block (after stripping a
  * leading comment/import preamble). Returns null for everything else.
@@ -81,5 +127,9 @@ export function parseHero(content: string): HeroSpec | null {
     const c = readCall(t, 'page');
     if (c && c.body !== undefined && c.body.trim()) return { kind: 'cover', body: c.body };
   }
+  // A hand-written title-page macro call (`#cover(title: …, subtitle: …)`) —
+  // without this the whole call is skipped and the document TITLE vanishes.
+  const cover = parseCoverCall(content);
+  if (cover) return { kind: 'cover', body: cover.body };
   return null;
 }

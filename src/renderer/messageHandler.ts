@@ -192,7 +192,7 @@ export function handleMessage(message: ExtensionMessage): void {
   // Open the Export selection dialog when the menu triggers an export on
   // a multi-chapter project.
   if (msg.type === 'showExportDialog') {
-    const data = msg as unknown as { format: 'pdf' | 'docx'; sections: typeof exportDialogState.sections };
+    const data = msg as unknown as { format: 'pdf' | 'docx' | 'web'; sections: typeof exportDialogState.sections };
     exportDialogState.format = data.format;
     exportDialogState.sections = data.sections;
     exportDialogState.show = true;

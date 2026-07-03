@@ -140,9 +140,15 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`{\n  ${rootDecls.join(';\n  ')};\n}`);
 
   // --- paragraphs ----------------------------------------------------------
+  // Typst geometry: `par.spacing` is the BASELINE gap between paragraphs
+  // (default 1.2em), `leading` the in-paragraph line gap — so the visible
+  // extra space between paragraphs is spacing − leading. A browser's default
+  // `margin: 1em` roughly doubles that (the "gappy web look" that broke the
+  // book-style indent rhythm), so always emit the translated margin.
   const pDecls: string[] = [];
-  const spacingEm = lenToEm(style.scale.paragraphSpacing, bpt);
-  if (spacingEm !== null) pDecls.push(`margin: 0 0 ${round(spacingEm)}em`);
+  const spacingEm = lenToEm(style.scale.paragraphSpacing, bpt) ?? 1.2;
+  const leadEm = leadingEm ?? 0.65;
+  pDecls.push(`margin: 0 0 ${round(Math.max(spacingEm - leadEm, 0))}em`);
   const indentEm = lenToEm(style.scale.firstLineIndent, bpt);
   if (indentEm !== null && indentEm > 0) pDecls.push(`text-indent: ${round(indentEm)}em`);
   if (pDecls.length) out.push(`p {\n  ${pDecls.join(';\n  ')};\n}`);
@@ -231,6 +237,9 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   // @supports is permanent, not temporary.
   out.push(`.pw-dropcap::first-letter {\n  -webkit-initial-letter: 3;\n  initial-letter: 3;\n  color: var(--pw-accent);\n  font-family: var(--pw-font-heading);\n  font-weight: 700;\n  margin-inline-end: 0.08em;\n}`);
   out.push(`@supports not (initial-letter: 3) {\n  .pw-article .pw-dropcap::first-letter {\n    float: left;\n    font-family: var(--pw-font-heading);\n    font-weight: 700;\n    color: var(--pw-accent);\n    font-size: 3.4em;\n    line-height: 0.78;\n    padding-inline-end: 0.08em;\n  }\n}`);
+  // Standfirst (a project's `#lead` that is an Anreißer, NOT a drop cap —
+  // ctx.leadStyle 'standfirst'): bigger, lighter intro paragraph.
+  out.push(`.pw-standfirst {\n  font-size: 1.18em;\n  font-weight: 300;\n  line-height: 1.45;\n  color: color-mix(in srgb, var(--pw-text) 72%, var(--pw-background));\n  text-indent: 0;\n  margin: 0.3em 0 1.4em;\n}`);
   // Callout: token-tinted accent box (color-mix is Baseline-Widely-Available —
   // the most faithful part, no fallback needed). data-tone is preserved for
   // future per-tone theming; the slice tints all tones with the accent.
@@ -358,7 +367,82 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-nav-dir { color: var(--pw-muted); }`);
 
   // --- scope every rule under .pw-article ----------------------------------
-  return scopeRules(out, opts.scope ?? 'prefix');
+  // Section overlays are appended AFTER scoping: their selectors target the
+  // article element itself (`.pw-article.pw-section-<id>`), which the prefix
+  // scoper would mangle into a descendant selector.
+  return scopeRules(out, opts.scope ?? 'prefix') + sectionOverlaysCss(style, baseRem, bpt);
+}
+
+/** A raw color value safe for a CSS custom property (section overlays carry
+ *  sanitized hex, but stay defensive — this lands in a <style> block). */
+function safeHex(c: string | undefined): string | null {
+  const t = (c ?? '').trim();
+  return /^#[0-9a-fA-F]{3,8}$/.test(t) ? t : null;
+}
+
+/** A CSS class-safe section id (mirrors the `<id>-style` identifier rule). */
+function safeSectionId(id: string): string | null {
+  const t = (id ?? '').trim().toLowerCase();
+  return /^[a-z][a-z0-9-]{0,40}$/.test(t) ? t : null;
+}
+
+/**
+ * Per-chapter section styles (`style.sections`, the Kapitel-Look overlays) →
+ * `.pw-article.pw-section-<id>` rule sets. The web analogue of the generated
+ * `#let <id>-style(body)`: color-slot vars, font vars, base-size ratio,
+ * leading, per-level heading overrides. Applied by the mini-site builder,
+ * which puts the class on the page whose chapter opted in via
+ * `#show: <id>-style` (one page = one chapter = one class — no fragile
+ * in-page section boundaries).
+ */
+function sectionOverlaysCss(style: ProjectStyle, baseRem: number, globalBpt: number): string {
+  const sections = style.sections ?? [];
+  if (!sections.length) return '';
+  const out: string[] = [];
+
+  for (const sec of sections) {
+    const id = safeSectionId(sec.id);
+    if (!id) continue;
+    const root = `.pw-article.pw-section-${id}`;
+    const decls: string[] = [];
+
+    // Colour-slot overrides → re-point the custom properties; every token-based
+    // rule (kickers, pull-quotes, links, callouts …) follows automatically.
+    for (const slot of ['primary', 'accent', 'text', 'background', 'muted'] as const) {
+      const v = safeHex(sec.colors?.[slot]);
+      if (v) decls.push(`--pw-${slot}: ${v}`);
+    }
+    if (sec.fonts?.body) decls.push(`--pw-font-body: ${fontStack(sec.fonts.body, 'body')}`);
+    if (sec.fonts?.heading) decls.push(`--pw-font-heading: ${fontStack(sec.fonts.heading, 'heading')}`);
+    if (sec.fonts?.code) decls.push(`--pw-font-code: ${fontStack(sec.fonts.code, 'code')}`);
+
+    // Base-size override: keep the web reading size proportional (ratio to the
+    // document base), exactly like the print generator scales the section.
+    const secBase = parseLen(sec.scaleBase ?? '');
+    const secBpt = secBase?.unit === 'pt' ? secBase.value : null;
+    if (secBpt) decls.push(`font-size: ${round(baseRem * (secBpt / globalBpt), 3)}rem`);
+    const leadEm = lenToEm(sec.scaleLeading ?? '', secBpt ?? globalBpt);
+    if (leadEm !== null) decls.push(`line-height: ${round(Math.min(Math.max(1 + leadEm, 1.2), 2.2), 2)}`);
+
+    if (decls.length) out.push(`${root} {\n  ${decls.join(';\n  ')};\n}`);
+
+    // Per-level heading overrides (sizes relative to the section's base).
+    const hBpt = secBpt ?? globalBpt;
+    for (const lvl of ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const) {
+      const h = sec.headings?.[lvl];
+      if (!h) continue;
+      const hDecls: string[] = [];
+      const sizeEm = lenToEm(h.size ?? '', hBpt);
+      if (sizeEm !== null) hDecls.push(`font-size: ${round(sizeEm, 2)}em`);
+      if (h.weight) hDecls.push(`font-weight: ${cssWeight(h.weight)}`);
+      if (h.color) hDecls.push(`color: ${cvar(h.color)}`);
+      const topEm = lenToEm(h.marginTop ?? '', hBpt);
+      if (topEm !== null) hDecls.push(`margin-top: ${round(topEm)}em`);
+      if (hDecls.length) out.push(`${root} ${lvl} {\n  ${hDecls.join(';\n  ')};\n}`);
+    }
+  }
+
+  return out.length ? '\n' + out.join('\n') : '';
 }
 
 /**

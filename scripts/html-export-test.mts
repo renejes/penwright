@@ -16,7 +16,13 @@ import { buildWebBundle, buildWebSite, slugify, deriveTitle } from '../src/main/
 import { splitIntoArticles, isMagazineSite } from '../src/shared/magazineSplit.ts';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../src/shared/styleTypes.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
-import { buildExportModel, parseBibDirective } from '../src/shared/exportContext.ts';
+import { buildExportModel, parseBibDirective, classifyRawBlock, stripNonContent } from '../src/shared/exportContext.ts';
+import { inferStyleFromTypst, detectLeadStyle } from '../src/shared/styleInference.ts';
+import { parseHero, parseCoverCall } from '../src/shared/typstHero.ts';
+import { deriveIssueTitle, deriveDocMeta } from '../src/shared/magazineSplit.ts';
+import { buildFontAssets } from '../src/main/webFonts.ts';
+import path from 'node:path';
+import os from 'node:os';
 import { parseBibFile } from '../src/shared/bibParser.ts';
 
 /** Builds an HtmlExportContext the way main's buildHtmlExportContext does, but
@@ -570,7 +576,9 @@ console.log('\n── Test 16: Phase E heroes (cover / aufmacher / spread) + jus
   const ah = serializeHtml(raw(auf, 'comment') as any, { context: makeContext('') });
   check('aufmacher → <header class="pw-hero pw-hero-aufmacher"> with the spread image', ah.includes('class="pw-hero pw-hero-aufmacher"') && ah.includes('<img class="pw-hero-img" src="assets/spread.png"'));
   check('aufmacher credit kept', ah.includes('class="pw-hero-credit">Foto: Platzhalter'));
-  check('aufmacher H1 is a real heading (outline title)', ah.includes('<h1 class="pw-hero-title">Die Architektur der Muße</h1>'));
+  // The `#v(0.9em)` before the heading becomes a margin-top gap (PDF rhythm).
+  check('aufmacher H1 is a real heading (outline title)', /<h1 class="pw-hero-title"[^>]*>Die Architektur der Muße<\/h1>/.test(ah));
+  check('aufmacher #v spacer → margin-top gap on the following line', /<h1 class="pw-hero-title" style="margin-top:0\.9\dem">/.test(ah));
   check('aufmacher kicker keeps uppercase + accent color via #text/#upper', /pw-hero-line[^>]*>.*text-transform:uppercase.*Feature/i.test(ah) && ah.includes('color:var(--pw-accent)'));
   check('aufmacher standfirst keeps italic', ah.includes('font-style:italic') && ah.includes('Müßiggang braucht einen Ort.'));
   check('aufmacher no leaked macro/comment', !ah.includes('#aufmacher') && !ah.includes('Aufmacher-Doppelseite') && !ah.includes('pw:typst-raw'));
@@ -673,6 +681,168 @@ console.log('\n── Test 17: magazine mini-site (split → index + per-article
   check('shared asset copied once', fs.existsSync(`${out}/assets/x.png`) && r.assets.filter((a) => a === 'assets/x.png').length === 1);
   check('meta.json is a magazine issue w/ article list', (() => { const m = JSON.parse(fs.readFileSync(`${out}/meta.json`, 'utf8')); return m.kind === 'magazine' && m.articles.length === 2 && m.articles[0].file === 'editorial.html'; })());
   check('CSS: .pw-toc + .pw-nav scoped', styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-article .pw-toc {') && styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-article .pw-nav {'));
+
+  for (const d of [root, out]) fs.rmSync(d, { recursive: true, force: true });
+}
+
+console.log('\n── Test 18: design fidelity round (inference / leaks / cover call / fonts) ──');
+{
+  // 17a — style inference from a hand-written style.typ (the LM shape).
+  const handStyle = [
+    '#let ink = rgb("#1a1a1a")',
+    '#let gold = rgb("#a88a5c")',
+    '#let bronze = rgb("#8a6a3a")',
+    '#let graphite = rgb("#555555")',
+    '#let pagefill = rgb("#f5f3ee")',
+    '#let sans = "Inter Tight"',
+    '#let lead(body) = block(text(size: 12.5pt, weight: 300, fill: graphite, body))',
+    '#let apply-style(body) = {',
+    '  set page(paper: "a4", fill: pagefill, margin: 2.85cm)',
+    '  set text(font: sans, size: 10pt, weight: 400, fill: ink, lang: "de", hyphenate: true)',
+    '  set par(justify: true, leading: 0.95em, spacing: 1.6em)',
+    '  show link: it => text(fill: bronze, it)',
+    '  show heading.where(level: 1): it => block(text(font: sans, weight: 600, size: 25pt, fill: ink, it.body))',
+    '  show heading.where(level: 3): it => block(text(font: sans, weight: 600, size: 9.5pt, fill: bronze, upper(it.body)))',
+    '  body',
+    '}',
+  ].join('\n');
+  const inf = inferStyleFromTypst([handStyle]);
+  check('inference: confident + page fill → background', inf.confident && inf.style.colors?.background === '#f5f3ee');
+  check('inference: text color + font + size', inf.style.colors?.text === '#1a1a1a' && inf.style.fonts?.body === 'Inter Tight' && inf.style.scale?.base === '10pt');
+  check('inference: link show-rule → accent (bronze)', inf.style.colors?.accent === '#8a6a3a');
+  check('inference: par → leading + spacing + justify + lang', inf.style.scale?.leading === '0.95em' && inf.style.scale?.paragraphSpacing === '1.6em' && inf.justify && inf.lang === 'de');
+  check('inference: h1 25pt/600 mapped to text slot; h3 → accent slot', inf.style.headings?.h1?.size === '25pt' && inf.style.headings?.h1?.weight === '600' && inf.style.headings?.h3?.color === 'accent');
+  check('inference: justify lands in custom.preamble for styleToCss', /justify:\s*true/.test(inf.style.custom?.preamble ?? ''));
+  check('lead detection: standfirst (no dropcap in definition) / dropcap (droplet)', detectLeadStyle([handStyle]) === 'standfirst' && detectLeadStyle(['#let lead(body) = dropcap(height: 3, body)']) === 'dropcap');
+
+  // 17b — comment + multi-line #let definitions never leak as prose.
+  const defBlock = [
+    '// Zeile der Management-Summary: Label + Inhalt',
+    '#let sumrow(label, body) = block(width: 100%, above: 0pt, below: 13pt)[',
+    '  #grid(columns: (78pt, 1fr), gutter: 16pt,',
+    '    text(weight: 600, fill: bronze, upper(label)),',
+    '    par(leading: 0.72em, text(size: 10pt, body)))',
+    ']',
+  ].join('\n');
+  check('multi-line #let block classifies as skip', classifyRawBlock(defBlock, 'raw').kind === 'skip');
+  check('stripNonContent keeps surrounding prose', stripNonContent('Davor.\n' + defBlock + '\nDanach.').trim() === 'Davor.\nDanach.');
+  const leakHtml = serializeHtml({ type: 'doc', content: [{ type: 'typstRawBlock', attrs: { content: defBlock + '\n\nEchter Text.', blockType: 'raw' } }] } as any, {});
+  check('serialized: definition + comment invisible, prose kept', !leakHtml.includes('sumrow') && !leakHtml.includes('Management-Summary:') && leakHtml.includes('Echter Text.'));
+
+  // 17c — unknown macro calls keep their manuscript content.
+  const callHtml = serializeHtml({ type: 'doc', content: [
+    { type: 'typstRawBlock', attrs: { content: '#sumrow("Ziel", [Mehr Bekanntheit als Person und Marke.])', blockType: 'raw' } },
+    { type: 'typstRawBlock', attrs: { content: '#kicker("Management-Summary")', blockType: 'raw' } },
+    { type: 'typstRawBlock', attrs: { content: '#chapctr.step()', blockType: 'raw' } },
+  ] } as any, {});
+  check('positional content arg survives with bold label', callHtml.includes('<strong>Ziel</strong> — Mehr Bekanntheit als Person und Marke.'));
+  check('lone prose-like string arg (kicker) survives', callHtml.includes('Management-Summary'));
+  check('identifier-ish call stays invisible', !callHtml.includes('chapctr') && !callHtml.includes('lmm'));
+
+  // 17d — a #cover(title: …) macro call becomes a title hero (not skipped).
+  const coverSrc = '#cover(\n  title: [Ludwig Maier\\ Mastering],\n  subtitle: [Ein Konzept für Sichtbarkeit.],\n  claim: [Die Kunst der Finalität.],\n  meta: [Strategiepapier · Juli 2026],\n)';
+  check('parseCoverCall extracts the title', parseCoverCall(coverSrc)?.title === 'Ludwig Maier Mastering');
+  check('parseHero classifies it as cover', parseHero(coverSrc)?.kind === 'cover');
+  const coverHtml = serializeHtml({ type: 'doc', content: [{ type: 'typstRawBlock', attrs: { content: coverSrc, blockType: 'config' } }] } as any, {});
+  check('cover hero rendered: h1 + subtitle + claim', coverHtml.includes('class="pw-cover"') && /<h1[^>]*>Ludwig Maier<br>\s*Mastering<\/h1>/.test(coverHtml) && coverHtml.includes('Ein Konzept für Sichtbarkeit.') && coverHtml.includes('Die Kunst der Finalität.'));
+  check('deriveIssueTitle: cover call beats first heading', deriveIssueTitle({ content: [{ type: 'typstRawBlock', attrs: { content: coverSrc } }] } as any) === 'Ludwig Maier Mastering');
+  const pageCover = '#page(header: none)[\n  #text(size: 46pt, weight: "medium")[LANGSAM]\n  #v(0.5em)\n  #text(size: 42pt)[Die Kunst,\\ nichts zu tun]\n]';
+  check('deriveIssueTitle: #page cover masthead = largest #text', deriveIssueTitle({ content: [{ type: 'typstRawBlock', attrs: { content: pageCover } }] } as any) === 'LANGSAM');
+  check('figure(title:) never mistaken for a cover', parseCoverCall('#figure(image("x.png"), title: [Nope])') === null);
+
+  // 17e — #lead semantics: dropCap node renders per ctx.leadStyle.
+  const leadDoc = { type: 'doc', content: [{ type: 'dropCap', content: [{ type: 'text', text: 'Anreißer.' }] }] };
+  const ctxBase = makeContext('');
+  check('leadStyle standfirst → .pw-standfirst', serializeHtml(leadDoc as any, { context: { ...ctxBase, leadStyle: 'standfirst' } }).includes('class="pw-standfirst">Anreißer.'));
+  check('leadStyle default → .pw-dropcap', serializeHtml(leadDoc as any, { context: ctxBase }).includes('class="pw-dropcap">Anreißer.'));
+  check('.pw-standfirst styled in CSS', styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-article .pw-standfirst {'));
+
+  // 17f — `#set figure(numbering: none)` → unnumbered captions like the PDF.
+  const figDoc = { type: 'doc', content: [{ type: 'typstRawBlock', attrs: { content: '#figure(\n  image("x.png"),\n  caption: [Nur die Bildzeile.],\n)', blockType: 'raw' } }] };
+  check('figureNumbering=false → caption without label', (() => { const h = serializeHtml(figDoc as any, { context: { ...ctxBase, figureNumbering: false } }); return h.includes('<figcaption>Nur die Bildzeile.</figcaption>') && !h.includes('pw-fig-label'); })());
+  check('default stays numbered', serializeHtml(figDoc as any, { context: ctxBase }).includes('pw-fig-label'));
+
+  // 17g — @font-face embedding: bundled family + project-local priority + inline.
+  const repoFonts = fileURLToPath(new URL('../resources/fonts', import.meta.url));
+  const fa = buildFontAssets({ families: ['Spectral'], fontDirs: [repoFonts] });
+  check('bundled Spectral → @font-face rules + files', fa.files.length >= 3 && /@font-face[\s\S]*font-family: "Spectral"/.test(fa.css) && fa.css.includes('assets/fonts/Spectral-Bold.ttf') && /font-weight: 700/.test(fa.css));
+  const tmpFonts = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-fonts-'));
+  fs.writeFileSync(path.join(tmpFonts, 'InterTight-SemiBold.ttf'), 'stub');
+  const fb = buildFontAssets({ families: ['Inter Tight'], fontDirs: [tmpFonts, repoFonts] });
+  check('project fonts dir matched (Inter Tight ≙ InterTight-SemiBold, weight 600)', fb.files.length === 1 && fb.files[0].weight === 600 && /font-weight: 600/.test(fb.css));
+  const fi = buildFontAssets({ families: ['Inter Tight'], fontDirs: [tmpFonts], inline: true });
+  check('inline mode → data: URI, no files', fi.files.length === 0 && fi.css.includes('data:font/ttf;base64,'));
+  check('unknown family → empty (name-only fallback)', buildFontAssets({ families: ['Helvetica Neue'], fontDirs: [repoFonts] }).css === '');
+  fs.rmSync(tmpFonts, { recursive: true, force: true });
+
+  // 17h — paragraph rhythm: spacing − leading, book-style indent stays tight.
+  const bookCss = styleToCss(sanitizeProjectStyle({ scale: { base: '12pt', leading: '0.65em', paragraphSpacing: '', firstLineIndent: '1.1em' } }));
+  check('empty spacing → margin 0 0 0.55em (Typst default 1.2em − leading)', /\.pw-article p \{\n  margin: 0 0 0\.55em/.test(bookCss));
+  check('indent carried', bookCss.includes('text-indent: 1.1em'));
+}
+
+console.log('\n── Test 19: section-overlay CSS + per-article frontmatter ──');
+{
+  // 19a — style.sections → .pw-article.pw-section-<id> overlay rules.
+  const style = sanitizeProjectStyle({
+    scale: { base: '12pt' },
+    sections: [
+      { id: 'feature', name: 'Feature', colors: { accent: '#b07a45' }, fonts: { body: 'Spectral', heading: 'Spectral' }, scaleBase: '', scaleLeading: '0.72em', columns: 0, headings: { h1: { size: '34pt', weight: 'bold', color: 'accent' } } },
+    ],
+  });
+  const css = styleToCss(style);
+  check('overlay root rule: accent var + fonts + leading', /\.pw-article\.pw-section-feature \{[^}]*--pw-accent: #b07a45/.test(css) && /--pw-font-body: "Spectral"/.test(css) && /\.pw-article\.pw-section-feature \{[^}]*line-height: 1\.72/.test(css));
+  check('overlay h1 rule: size relative to base + accent slot', /\.pw-article\.pw-section-feature h1 \{[^}]*font-size: 2\.83em/.test(css) && /\.pw-article\.pw-section-feature h1 \{[^}]*color: var\(--pw-accent\)/.test(css));
+  check('no sections → no overlay rules', !styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-section-'));
+
+  // 19b — serializeHtml sectionId → class on the article element (sanitized).
+  const tiny = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] };
+  check('sectionId → pw-section class', serializeHtml(tiny as any, { sectionId: 'feature' }).includes('<article class="pw-article pw-section-feature"'));
+  check('hostile sectionId dropped', serializeHtml(tiny as any, { sectionId: 'x" onload="alert(1)' }).includes('<article class="pw-article"'));
+
+  // 19c — mini-site end-to-end: a chapter opted into `#show: feature-style`
+  // gets the class on ITS page; frontmatter (description/cover) reaches the
+  // <head> og:* tags and meta.json, with the cover rewritten to the copied asset.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-sec-'));
+  fs.mkdirSync(path.join(root, 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'assets', 'hero.png'), Buffer.from('89504e470d0a1a0a', 'hex'));
+  const src = [
+    '// ─── 01-editorial.typ ───',
+    '',
+    '#opener(kicker: "Von der Redaktion", title: "Editorial", standfirst: "Der Anriss des Editorials für die Vorschau, lang genug für eine echte Beschreibung im Kopfbereich.")',
+    '',
+    'Absatztext des Editorials.',
+    '',
+    '// ─── 02-feature.typ ───',
+    '',
+    '#import "../style.typ": feature-style',
+    '#show: feature-style',
+    '',
+    '#opener(kicker: "Reportage", title: "Die große Geschichte", byline: "Von A. B.", standfirst: "Der Anriss der Reportage.")',
+    '',
+    '#figure(image("assets/hero.png"), caption: [Bild.])',
+    '',
+    'Fließtext der Reportage mit ausreichend Länge, damit die Beschreibung greift.',
+  ].join('\n');
+  const doc = deserializeTypst(src);
+  const articles = splitIntoArticles(doc as any)!;
+  const feature = articles.find((a) => a.name === 'feature')!;
+  check('sectionId detected from #show: feature-style', feature.sectionId === 'feature');
+  check('frontmatter derived: description from standfirst + cover from figure', feature.description === 'Der Anriss der Reportage.' && feature.cover === 'assets/hero.png');
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-sec-out-'));
+  buildWebSite({ articles, style, meta: { title: 'TESTMAG', locale: 'de' }, outDir: out, rootDir: root });
+  const feat = fs.readFileSync(path.join(out, 'feature.html'), 'utf8');
+  const edi = fs.readFileSync(path.join(out, 'editorial.html'), 'utf8');
+  check('opted-in page carries the section class', feat.includes('<article class="pw-article pw-section-feature"'));
+  check('non-opted page stays global (class only on the opted-in article)', edi.includes('<article class="pw-article"') && !edi.includes('<article class="pw-article pw-section-'));
+  check('og:description + og:image (rewritten) in the head', feat.includes('og:description" content="Der Anriss der Reportage."') && feat.includes('og:image" content="assets/hero.png"'));
+  const metaJson = JSON.parse(fs.readFileSync(path.join(out, 'meta.json'), 'utf8'));
+  const featMeta = metaJson.articles.find((a: any) => a.slug === 'feature');
+  check('meta.json article: description + cover + section', featMeta.description === 'Der Anriss der Reportage.' && featMeta.cover === 'assets/hero.png' && featMeta.section === 'feature');
+
+  // 19d — single-page frontmatter (deriveDocMeta).
+  const dm = deriveDocMeta(deserializeTypst('Ein erster Absatz, der lang genug ist, um als Beschreibung des Dokuments zu dienen.\n\n#figure(image("assets/hero.png"), caption: [x])') as any);
+  check('deriveDocMeta: first paragraph + first image', (dm.description ?? '').startsWith('Ein erster Absatz') && dm.cover === 'assets/hero.png');
 
   for (const d of [root, out]) fs.rmSync(d, { recursive: true, force: true });
 }

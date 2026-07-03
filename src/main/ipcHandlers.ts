@@ -23,7 +23,7 @@ function isPathWithinProject(filePath: string): boolean {
   const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
   return isPathWithin(filePath, projectRoot);
 }
-import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, preflightPrintImages, type ExportConfig } from './importExport';
+import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
 import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
 import {
   getPanelState,
@@ -1352,8 +1352,18 @@ export function setupIPC(): void {
     return getExportableSections();
   });
 
-  ipcMain.handle('export:run', async (_event, config: ExportConfig) => {
-    const written = await runFilteredExport(config);
+  ipcMain.handle('export:run', async (_event, config: Omit<ExportConfig, 'format'> & { format: 'pdf' | 'docx' | 'web'; split?: 'auto' | 'single' | 'site'; inlineAssets?: boolean }) => {
+    // Web (HTML) routes to the bundle/mini-site writer; PDF/DOCX compile/serialize.
+    if (config.format === 'web') {
+      const written = await runWebExport({
+        selectedIncludes: config.selectedIncludes,
+        includeBibliography: config.includeBibliography,
+        split: config.split,
+        inlineAssets: config.inlineAssets,
+      });
+      return { ok: !!written, path: written };
+    }
+    const written = await runFilteredExport({ ...config, format: config.format });
     return { ok: !!written, path: written };
   });
 

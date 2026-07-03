@@ -218,6 +218,63 @@ const SKIP_LEADERS = /^#(grid|stack|place|box|rect|line|image|colbreak|pad|move|
 /** A line that is pure vertical/horizontal spacing (or empty). */
 const SPACER_LINE = /^\s*(#[vh]\([^)]*\))?\s*$/;
 
+/**
+ * Consumes a `#let name(params)? = <expr>` RHS starting at `from` (just past
+ * the `=`): scans forward, bracket- and string-aware, until a newline at
+ * depth 0 — so a binding whose body spans lines (`= block(…)[\n …\n]`) is
+ * consumed whole, including chained `(…)[…]` groups.
+ */
+function consumeExprEnd(src: string, from: number): number {
+  let depth = 0, inStr = false;
+  for (let i = from; i < src.length; i++) {
+    const ch = src[i];
+    if (inStr) { if (ch === '\\') i++; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+    else if (ch === '\n' && depth === 0) return i + 1;
+  }
+  return src.length;
+}
+
+/**
+ * Strips the parts of a raw block that are definitions, not content: full-line
+ * `//` comments and `#let` bindings INCLUDING multi-line bodies. Without this,
+ * a chapter-local helper like
+ *
+ *   // Zeile der Management-Summary: Label + Inhalt
+ *   #let sumrow(label, body) = block(…)[
+ *     #grid(…)
+ *   ]
+ *
+ * leaked its comment + definition tail into the export as visible prose (the
+ * old line-based isConfigBlock check only recognised single-line `#let`s).
+ */
+export function stripNonContent(src: string): string {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const atLineStart = i === 0 || src[i - 1] === '\n';
+    if (atLineStart) {
+      const rest = src.slice(i);
+      // Full-line comment → drop the line.
+      const cm = rest.match(/^[ \t]*\/\/[^\n]*(\n|$)/);
+      if (cm) { i += cm[0].length; continue; }
+      // #let binding → consume through its (possibly multi-line) RHS.
+      const lm = rest.match(/^[ \t]*#let\s+[a-zA-Z_][\w-]*[ \t]*/);
+      if (lm) {
+        let j = i + lm[0].length;
+        if (src[j] === '(') { const b = matchBracket(src, j, '(', ')'); j = b ? b.end : j + 1; }
+        while (src[j] === ' ' || src[j] === '\t') j++;
+        if (src[j] === '=') { i = consumeExprEnd(src, j + 1); continue; }
+      }
+    }
+    out += src[i];
+    i++;
+  }
+  return out;
+}
+
 export function extractTrailingLabel(s: string): string | undefined {
   const m = s.trim().match(/<([^>\s]+)>\s*$/);
   return m ? m[1] : undefined;
@@ -234,6 +291,9 @@ export function splitDesignChunks(src: string): string[] {
   let depth = 0;
   let inStr = false;
   for (const line of src.split('\n')) {
+    // A full-line comment at container level is annotation, not content —
+    // rendering it would leak `// …` text into the export.
+    if (depth === 0 && /^\s*\/\//.test(line)) continue;
     if (depth === 0 && SPACER_LINE.test(line)) {
       if (cur.length) { chunks.push(cur.join('\n').trim()); cur = []; }
       continue;
@@ -291,7 +351,9 @@ export function isConfigBlock(content: string, blockType: string): boolean {
   if (trimmed.startsWith('#show ')) return true;
   if (/^\/\/\s*─/.test(trimmed)) return true;
   // All lines are comments or preamble directives → no manuscript content.
-  if (trimmed.split('\n').every((line) => {
+  // stripNonContent first, so a MULTI-LINE `#let helper(…) = block(…)[…]`
+  // (whose continuation lines aren't `#let`-led) still counts as config.
+  if (stripNonContent(trimmed).split('\n').every((line) => {
     const t = line.trim();
     return t === '' || t.startsWith('//') || /^#(set|show|import|let)\b/.test(t);
   })) return true;
@@ -430,8 +492,11 @@ export function classifyRawBlock(content: string, blockType: string): RawDesc {
   // Pure layout/design code → drop silently (never leak as monospace).
   if (SKIP_LEADERS.test(trimmed)) return { kind: 'skip' };
 
-  // Everything else is prose (possibly with inline Typst calls).
-  return { kind: 'prose', content };
+  // Everything else is prose (possibly with inline Typst calls) — minus any
+  // embedded definitions/comments, which are code, not manuscript.
+  const prose = stripNonContent(content);
+  if (!prose.trim()) return { kind: 'skip' };
+  return { kind: 'prose', content: prose };
 }
 
 // ─── Bibliography directive ──────────────────────────────────

@@ -6,6 +6,8 @@ export const exportDialog = {
   pdfDesc: 'Print-ready, with layout & fonts',
   docxName: 'Word (DOCX)',
   docxDesc: 'With Word styles & live numbering',
+  webName: 'Web (HTML)',
+  webDesc: 'Self-contained page or mini-site',
   sectionsLabel: 'What should be exported?',
   selectAll: 'all',
   selectNone: 'none',
@@ -29,6 +31,17 @@ export const exportDialog = {
     rememberDefault: 'Remember as project default',
     hint: 'Produces a print-ready PDF with bleed + crop marks in RGB. For colour-accurate offset printing the print shop (or a follow-up step) converts it to CMYK / PDF-X.',
     lowResTitle: (n: number): string => `${n} image${n === 1 ? '' : 's'} may be too low-resolution for print:`,
+  },
+
+  // Web (HTML) options.
+  web: {
+    label: 'Web output',
+    splitLabel: 'Pages',
+    splitAuto: 'Automatic (magazine → one page per article)',
+    splitSingle: 'One single page',
+    splitSite: 'One page per chapter + index',
+    inlineAssets: 'Embed images into the HTML (single shareable file)',
+    hint: 'Produces a self-contained HTML bundle: design tokens as scoped CSS, the project fonts embedded via @font-face, images under assets/. Host it as files or paste the fragment into any CMS.',
   },
 };
 

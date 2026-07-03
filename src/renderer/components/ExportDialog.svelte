@@ -23,17 +23,21 @@
   }
 
   interface Props {
-    initialFormat: 'pdf' | 'docx';
+    initialFormat: 'pdf' | 'docx' | 'web';
     sections: Sections;
     onClose: () => void;
   }
 
   let { initialFormat, sections, onClose }: Props = $props();
 
-  let format: 'pdf' | 'docx' = $state(untrack(() => initialFormat));
+  let format: 'pdf' | 'docx' | 'web' = $state(untrack(() => initialFormat));
   let selectedIncludes: Set<string> = $state(untrack(() => new Set(sections.chapters.map(c => c.includePath))));
   let includeBibliography = $state(untrack(() => sections.hasBibliography));
   let exporting = $state(false);
+
+  // ── Web (HTML) options: page split + single-file asset inlining ──
+  let webSplit: 'auto' | 'single' | 'site' = $state('auto');
+  let webInlineAssets = $state(false);
 
   // ── Print ("Für den Druck") mode — PDF only, pre-filled from style.json ──
   const pd = untrack(() => sections.printDefaults);
@@ -116,6 +120,8 @@
         selectedIncludes: allSelected ? null : Array.from(selectedIncludes),
         includeBibliography,
         print: printConfig,
+        split: format === 'web' ? webSplit : undefined,
+        inlineAssets: format === 'web' ? webInlineAssets : undefined,
       }) as { ok: boolean; path: string | null };
 
       if (result.ok) onClose();
@@ -170,6 +176,13 @@
               <div class="format-desc">{t().exportDialog.docxDesc}</div>
             </div>
           </label>
+          <label class="format-option" class:selected={format === 'web'}>
+            <input type="radio" name="format" value="web" bind:group={format} />
+            <div>
+              <div class="format-name">{t().exportDialog.webName}</div>
+              <div class="format-desc">{t().exportDialog.webDesc}</div>
+            </div>
+          </label>
         </div>
       </div>
 
@@ -217,6 +230,30 @@
           {t().exportDialog.hint}
         </div>
       </div>
+      {/if}
+
+      <!-- Web (HTML) options -->
+      {#if format === 'web'}
+        <div class="block">
+          <div class="block-label">{t().exportDialog.web.label}</div>
+          <div class="print-opts">
+            {#if sections.multiChapter}
+              <div class="print-row">
+                <span class="print-opt-label">{t().exportDialog.web.splitLabel}</span>
+                <select class="print-select" bind:value={webSplit}>
+                  <option value="auto">{t().exportDialog.web.splitAuto}</option>
+                  <option value="single">{t().exportDialog.web.splitSingle}</option>
+                  <option value="site">{t().exportDialog.web.splitSite}</option>
+                </select>
+              </div>
+            {/if}
+            <label class="print-check">
+              <input type="checkbox" bind:checked={webInlineAssets} />
+              <span>{t().exportDialog.web.inlineAssets}</span>
+            </label>
+            <div class="hint print-hint">{t().exportDialog.web.hint}</div>
+          </div>
+        </div>
       {/if}
 
       <!-- Print mode (PDF only) -->
@@ -288,7 +325,7 @@
         onclick={runExport}
         disabled={!canExport || exporting}
       >
-        {exporting ? t().exportDialog.exporting : t().exportDialog.exportAs(format.toUpperCase())}
+        {exporting ? t().exportDialog.exporting : t().exportDialog.exportAs(format === 'web' ? 'HTML' : format.toUpperCase())}
       </button>
     </div>
   </div>
@@ -374,7 +411,7 @@
 
   .format-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
   }
   .format-option {

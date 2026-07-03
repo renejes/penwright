@@ -138,7 +138,7 @@ interface ExportSections {
 
 export let exportDialogState = $state({
   show: false,
-  format: 'pdf' as 'pdf' | 'docx',
+  format: 'pdf' as 'pdf' | 'docx' | 'web',
   sections: null as ExportSections | null,
 });
 

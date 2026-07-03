@@ -7,6 +7,8 @@ export const exportDialog: ExportDialogMessages = {
   pdfDesc: 'Druckfertig, mit Layout & Schriften',
   docxName: 'Word (DOCX)',
   docxDesc: 'Mit Word-Stilen & Live-Nummerierung',
+  webName: 'Web (HTML)',
+  webDesc: 'Eigenständige Seite oder Mini-Site',
   sectionsLabel: 'Was soll exportiert werden?',
   selectAll: 'alle',
   selectNone: 'keine',
@@ -29,5 +31,15 @@ export const exportDialog: ExportDialogMessages = {
     rememberDefault: 'Als Projekt-Standard merken',
     hint: 'Erzeugt ein druckerei-taugliches PDF mit Beschnitt + Schnittmarken in RGB. Für farbverbindlichen Offsetdruck konvertiert die Druckerei (oder ein Nachschritt) nach CMYK / PDF-X.',
     lowResTitle: (n: number): string => `${n} Bild${n === 1 ? '' : 'er'} evtl. zu niedrig aufgelöst für den Druck:`,
+  },
+
+  web: {
+    label: 'Web-Ausgabe',
+    splitLabel: 'Seiten',
+    splitAuto: 'Automatisch (Magazin → eine Seite pro Artikel)',
+    splitSingle: 'Eine einzelne Seite',
+    splitSite: 'Eine Seite pro Kapitel + Index',
+    inlineAssets: 'Bilder ins HTML einbetten (eine teilbare Datei)',
+    hint: 'Erzeugt ein eigenständiges HTML-Bundle: Design-Tokens als gescopetes CSS, die Projekt-Schriften per @font-face eingebettet, Bilder unter assets/. Als Dateien hosten oder das Fragment in jedes CMS einbetten.',
   },
 };
