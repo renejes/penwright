@@ -7,7 +7,7 @@
 A standalone desktop app for WYSIWYG editing of [Typst](https://typst.app) documents —
 from academic theses to design-grade magazines, brochures and reports.
 
-![version](https://img.shields.io/badge/version-0.10.0-3b6ea5)
+![version](https://img.shields.io/badge/version-0.11.0-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
 ![Windows](https://img.shields.io/badge/Windows-fast--follow-777777)
 ![license](https://img.shields.io/badge/license-MIT-3fa45b)
@@ -76,7 +76,7 @@ npm run package:mac    # notarized DMG (needs Apple Developer credentials)
 
 ## 📦 Status
 
-Pre-release (**0.10.0** — adds the Editorial Web Pack: print **and** web from one source). macOS / Apple Silicon is built, signed and **notarized**;
+Pre-release (**0.11.0** — web-export design fidelity: embedded fonts, style inference for hand-written projects, per-chapter looks + frontmatter, single-page ↔ mini-site control). macOS / Apple Silicon is built, signed and **notarized**;
 Windows is scaffolded as a fast-follow. Updates ship via newsletter + manual download
 (no auto-updater). The app starts at a Start Screen and never auto-reopens a project.
 

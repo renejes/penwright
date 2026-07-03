@@ -1,6 +1,6 @@
 {
   "name": "penwright",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Penwright — A WYSIWYG editor for Typst documents",
   "author": "René Jesser",
   "license": "MIT",
