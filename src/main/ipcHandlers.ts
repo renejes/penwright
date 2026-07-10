@@ -25,6 +25,7 @@ function isPathWithinProject(filePath: string): boolean {
 }
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
 import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
+import { buildGallery, createFromPreset } from './presetManager';
 import {
   getPanelState,
   savePanelState,
@@ -1332,6 +1333,18 @@ export function setupIPC(): void {
 
   ipcMain.handle('project:openSample', async () => {
     const result = await openSampleProject();
+    return { ok: !!result, projectDir: result };
+  });
+
+  // Preset library: the New-Project gallery + create-from-preset (rich, bundled
+  // project folders copied verbatim). Blank starters still go through
+  // 'createProject' (handleCreateProject) above.
+  ipcMain.handle('preset:gallery', () => {
+    return buildGallery();
+  });
+
+  ipcMain.handle('preset:create', async (_event, presetId: string) => {
+    const result = await createFromPreset(presetId);
     return { ok: !!result, projectDir: result };
   });
 

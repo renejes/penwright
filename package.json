@@ -113,6 +113,14 @@
         "to": "sample-project/"
       },
       {
+        "from": "resources/presets/",
+        "to": "presets/",
+        "filter": [
+          "**/*",
+          "!**/.DS_Store"
+        ]
+      },
+      {
         "from": "dist/mcp/bin/",
         "to": "mcp/bin/",
         "filter": [

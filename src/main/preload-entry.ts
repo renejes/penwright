@@ -72,6 +72,8 @@ const INVOKE_CHANNELS = [
   'selection:clear',
   'project:open',
   'project:openSample',
+  'preset:gallery',
+  'preset:create',
   'project:close',
   'project:newFolder',
   'project:addAssets',
