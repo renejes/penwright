@@ -59,6 +59,10 @@ export function buildMenu(state: AppState): void {
           accelerator: 'CmdOrCtrl+Shift+W',
           click: () => state.closeProject(),
         },
+        {
+          label: m.saveAsPreset,
+          click: () => send('saveAsPreset'),
+        },
         { type: 'separator' },
         {
           label: m.save,

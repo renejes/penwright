@@ -16,6 +16,7 @@
   import TextFileViewer from './components/TextFileViewer.svelte';
   import PdfFileViewer from './components/PdfFileViewer.svelte';
   import NewProjectDialog from './components/NewProjectDialog.svelte';
+  import SavePresetDialog from './components/SavePresetDialog.svelte';
   import LicenseDialog from './components/LicenseDialog.svelte';
   import LicenseGate from './components/LicenseGate.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
@@ -47,6 +48,7 @@
     tabState,
     contextMenu,
     newProjectState,
+    savePresetState,
     exportDialogState,
     projectSearchPreset,
     zoomState,
@@ -1227,6 +1229,9 @@
         templates={newProjectState.templates}
         onClose={() => { newProjectState.show = false; }}
       />
+    {/if}
+    {#if savePresetState.show}
+      <SavePresetDialog onClose={() => { savePresetState.show = false; }} />
     {/if}
     {#if uiState.licenseAccess === 'expired'}
       <LicenseGate />

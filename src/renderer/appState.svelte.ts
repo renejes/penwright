@@ -115,6 +115,10 @@ export let newProjectState = $state({
   templates: [] as Array<{ id: string; label: string; description: string }>,
 });
 
+// "Save Project as Preset…" dialog (File menu) — save the open project into the
+// writable user preset library so it appears in the New-Project gallery.
+export let savePresetState = $state({ show: false });
+
 // ─── Project-Search Preset ──────────────────────
 // Set by "Find backlinks" triggers (OutlinePanel headings, citation
 // right-click, etc.). ProjectSearchPanel reads this on mount and clears it

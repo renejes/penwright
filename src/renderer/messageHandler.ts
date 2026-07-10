@@ -17,6 +17,7 @@ import {
   previewState,
   tabState,
   newProjectState,
+  savePresetState,
   panelState,
   zoomState,
   zoomEditorIn,
@@ -142,6 +143,11 @@ export function handleMessage(message: ExtensionMessage): void {
     const data = msg as unknown as { templates: Array<{ id: string; label: string; description: string }> };
     newProjectState.templates = data.templates;
     newProjectState.show = true;
+  }
+
+  // Save the open project as a reusable user preset (File menu).
+  if (msg.type === 'saveAsPreset') {
+    savePresetState.show = true;
   }
 
   // Handle panel toggles from main process menu

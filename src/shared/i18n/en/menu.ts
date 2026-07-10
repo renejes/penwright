@@ -8,6 +8,7 @@ export const menu = {
   newProject: 'New Project…',
   openProject: 'Open Project…',
   closeProject: 'Close Project',
+  saveAsPreset: 'Save Project as Preset…',
   save: 'Save',
   saveAs: 'Save As…',
   exportPdf: 'Export as PDF…',

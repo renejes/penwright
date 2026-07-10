@@ -7,6 +7,7 @@ export const menu: MenuMessages = {
   newProject: 'Neues Projekt…',
   openProject: 'Projekt öffnen…',
   closeProject: 'Projekt schließen',
+  saveAsPreset: 'Projekt als Preset speichern…',
   save: 'Speichern',
   saveAs: 'Speichern unter…',
   exportPdf: 'Als PDF exportieren…',
