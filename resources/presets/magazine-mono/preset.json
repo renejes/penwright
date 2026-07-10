@@ -1,0 +1,25 @@
+{
+  "id": "magazine-mono",
+  "type": "magazine",
+  "label": {
+    "en": "Mono / Minimal",
+    "de": "Mono / Minimal"
+  },
+  "tagline": {
+    "en": "Swiss-minimal issue — grotesk throughout, quiet greys.",
+    "de": "Swiss-minimales Heft — durchgehend Grotesk, ruhige Grautöne."
+  },
+  "highlights": {
+    "en": [
+      "6 chapters, each a different layout",
+      "Inter everywhere, generous whitespace"
+    ],
+    "de": [
+      "6 Kapitel, je ein Layout",
+      "Überall Inter, viel Weißraum"
+    ]
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-editorial.typ",
+  "order": 30
+}

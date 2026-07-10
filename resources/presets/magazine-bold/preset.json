@@ -1,0 +1,25 @@
+{
+  "id": "magazine-bold",
+  "type": "magazine",
+  "label": {
+    "en": "Bold / Contemporary",
+    "de": "Bold / Zeitgenössisch"
+  },
+  "tagline": {
+    "en": "High-contrast issue — grotesk display, crimson accent.",
+    "de": "Kontraststarkes Heft — Grotesk-Display, Karmin-Akzent."
+  },
+  "highlights": {
+    "en": [
+      "6 chapters, each a different layout",
+      "Inter display + serif body"
+    ],
+    "de": [
+      "6 Kapitel, je ein Layout",
+      "Inter-Display + Serifen-Text"
+    ]
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-editorial.typ",
+  "order": 20
+}

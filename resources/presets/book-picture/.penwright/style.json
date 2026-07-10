@@ -1,0 +1,109 @@
+{
+  "version": "1",
+  "colors": {
+    "primary": "#20504a",
+    "accent": "#e07a5f",
+    "text": "#2b2622",
+    "background": "#fefaf3",
+    "muted": "#9a8f80"
+  },
+  "fonts": {
+    "body": "Spectral",
+    "heading": "Spectral",
+    "code": "IBM Plex Mono"
+  },
+  "scale": {
+    "base": "13pt",
+    "leading": "0.8em",
+    "paragraphSpacing": "1em",
+    "firstLineIndent": "0pt"
+  },
+  "layout": {
+    "paper": "a4",
+    "orientation": "landscape",
+    "margin": "2.2cm",
+    "columns": 1,
+    "pageNumbering": "",
+    "pageHeader": "",
+    "pageFooter": "",
+    "pageFill": "",
+    "bleed": "",
+    "cropMarks": false,
+    "facingPages": false,
+    "binding": ""
+  },
+  "headings": {
+    "h1": {
+      "size": "24pt",
+      "weight": "bold",
+      "color": "primary",
+      "marginTop": "2em"
+    },
+    "h2": {
+      "size": "18pt",
+      "weight": "semibold",
+      "color": "primary",
+      "marginTop": "1.6em"
+    },
+    "h3": {
+      "size": "14pt",
+      "weight": "semibold",
+      "color": "primary",
+      "marginTop": "1.3em"
+    },
+    "h4": {
+      "size": "12pt",
+      "weight": "semibold",
+      "color": "text",
+      "marginTop": "1.1em"
+    },
+    "h5": {
+      "size": "11pt",
+      "weight": "bold",
+      "color": "text",
+      "marginTop": "1em"
+    },
+    "h6": {
+      "size": "10pt",
+      "weight": "bold",
+      "color": "muted",
+      "marginTop": "0.8em"
+    },
+    "numbering": ""
+  },
+  "elements": {
+    "blockquote": {
+      "borderColor": "accent",
+      "borderWidth": "3pt",
+      "paddingLeft": "1em",
+      "textColor": "text",
+      "italic": true
+    },
+    "codeBlock": {
+      "background": "luma(245)",
+      "paddingX": "1em",
+      "paddingY": "0.6em",
+      "borderRadius": "4pt"
+    },
+    "figure": {
+      "captionPosition": "bottom",
+      "captionSize": "9pt",
+      "captionColor": "muted",
+      "captionAlign": "left",
+      "captionSeparator": ": ",
+      "creditSeparator": " — ",
+      "creditLabel": "Photo: "
+    },
+    "table": {
+      "headerBackground": "primary",
+      "headerTextColor": "background",
+      "alternateRowFill": false,
+      "borderColor": "muted",
+      "cellPadding": "6pt"
+    }
+  },
+  "sections": [],
+  "custom": {
+    "preamble": ""
+  }
+}
