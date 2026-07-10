@@ -122,8 +122,14 @@ console.log('\n── Test 3: agnostic output modes (fragment vs standalone docu
 console.log('\n── Test 4: styleToCss — tokens → scoped CSS (no global leak) ──');
 {
   const css = styleToCss(DEFAULT_PROJECT_STYLE);
-  check('exposes color custom properties on the root', css.includes('.pw-article {') && css.includes('--pw-accent:'));
-  check('font + measure on root', css.includes('--pw-font-body:') && css.includes('max-width: 70ch'));
+  // Contract §4: design tokens live at :root (the single skin-override point),
+  // NOT on .pw-article — so ONE host override reaches cover + TOC + every
+  // article, and a closer host wrapper wins by custom-property inheritance
+  // proximity (defining them on .pw-article shadowed host overrides).
+  check('design tokens exposed at :root (skin-override point)', /:root \{[^}]*--pw-accent:/.test(css) && /:root \{[^}]*--pw-font-body:/.test(css));
+  check('tokens NOT redefined on .pw-article base block (no host-override shadow)', !/\.pw-article \{[^}]*--pw-accent:/.test(css));
+  check('.pw-article reads the tokens via var (measure + colour)', /\.pw-article \{[^}]*max-width: var\(--pw-measure\)/.test(css) && /\.pw-article \{[^}]*color: var\(--pw-text\)/.test(css));
+  check('structural tokens present (--pw-rule / --pw-measure / --pw-space)', /:root \{[^}]*--pw-rule:/.test(css) && css.includes('--pw-measure: 70ch') && css.includes('--pw-space: 1.25rem'));
   check('headings ratio-scaled with em + token color', /\.pw-article h1 \{[^}]*font-size: [\d.]+em/.test(css) && /\.pw-article h1 \{[^}]*color: var\(--pw-/.test(css));
   check('blockquote uses border-inline-start + token color', /\.pw-article blockquote \{[^}]*border-inline-start/.test(css));
   // The scoping-leak guard: every comma-separated selector must carry the prefix.
@@ -182,7 +188,7 @@ console.log('\n── Test 6: web bundle writer (index + fragment + meta + asset
   const r = buildWebBundle({ doc: doc as any, style: DEFAULT_PROJECT_STYLE, meta: { title: 'Bundle Test', locale: 'en' }, slug: 'bundle-test', outDir: out, rootDir: root });
   check('index.html written as a standalone document', fs.existsSync(r.indexPath) && /^<!doctype html>/i.test(fs.readFileSync(r.indexPath, 'utf8')));
   check('fragment.html written as an <article> fragment', fs.existsSync(r.fragmentPath) && fs.readFileSync(r.fragmentPath, 'utf8').trimStart().startsWith('<article'));
-  check('meta.json written + parses with slug + assets', (() => { const m = JSON.parse(fs.readFileSync(r.metaPath, 'utf8')); return m.slug === 'bundle-test' && Array.isArray(m.assets); })());
+  check('meta.json written + parses with slug + kind:"article" + assets', (() => { const m = JSON.parse(fs.readFileSync(r.metaPath, 'utf8')); return m.slug === 'bundle-test' && m.kind === 'article' && Array.isArray(m.assets); })());
   check('image copied into assets/', fs.existsSync(`${out}/assets/pix.png`) && r.assets.includes('assets/pix.png'));
   check('img src rewritten to relative assets path', fs.readFileSync(r.indexPath, 'utf8').includes('<img src="assets/pix.png"'));
 
@@ -620,11 +626,11 @@ console.log('\n── Test 16: Phase E heroes (cover / aufmacher / spread) + jus
   // Whole-page background in document mode (fills the viewport behind the column);
   // fragment mode never restyles a host's <body>.
   const docBg = serializeHtml(raw('Hi') as any, { mode: 'document', meta: { title: 'T' }, pageBackground: '#eef0ec' });
-  check('document mode: whole page gets the magazine background', docBg.includes('<style>html{background:#eef0ec') && docBg.includes('body{margin:0}'));
+  check('document mode: page bg via --pw-background token (skinnable) + literal fallback', docBg.includes('<style>html{background:var(--pw-background, #eef0ec)') && docBg.includes('body{margin:0}'));
   check('hostile/invalid pageBackground is dropped (no page <style>)', !serializeHtml(raw('Hi') as any, { mode: 'document', pageBackground: 'red;}</style><script>x' as any }).includes('<script>'));
   const frag = serializeHtml(raw('Hi') as any, { mode: 'fragment', pageBackground: '#eef0ec' });
   check('fragment mode: never restyles the host page (no html/body bg)', !frag.includes('html{background') && !frag.includes('body{margin'));
-  check('article has a padding gutter (text never touches the edge)', styleToCss(DEFAULT_PROJECT_STYLE).includes('padding: 2.5rem 1.25rem') && styleToCss(DEFAULT_PROJECT_STYLE).includes('box-sizing: border-box'));
+  check('article has a padding gutter via --pw-space (text never touches the edge)', styleToCss(DEFAULT_PROJECT_STYLE).includes('padding: 2.5rem var(--pw-space)') && styleToCss(DEFAULT_PROJECT_STYLE).includes('--pw-space: 1.25rem') && styleToCss(DEFAULT_PROJECT_STYLE).includes('box-sizing: border-box'));
 }
 
 console.log('\n── Test 17: magazine mini-site (split → index + per-article pages + nav + shared assets) ──');
@@ -671,6 +677,9 @@ console.log('\n── Test 17: magazine mini-site (split → index + per-article
   check('index.html + 2 article pages written', fs.existsSync(`${out}/index.html`) && fs.existsSync(`${out}/editorial.html`) && fs.existsSync(`${out}/feature.html`) && r.pages.length === 3);
   const idx = fs.readFileSync(`${out}/index.html`, 'utf8');
   check('index = cover hero + TOC', idx.includes('<header class="pw-cover">') && idx.includes('class="pw-toc"') && idx.includes('>TESTMAG<'));
+  // Contract §4.1: cover + TOC (index) AND every article page expose the SAME
+  // :root token set, so a single host skin re-skins the whole issue at once.
+  check('every page carries the :root token block (one skin → cover+TOC+articles)', /:root \{[^}]*--pw-accent:/.test(idx) && /:root \{[^}]*--pw-accent:/.test(fs.readFileSync(`${out}/feature.html`, 'utf8')));
   check('TOC links both articles with kicker + title', idx.includes('href="editorial.html"') && idx.includes('>Editorial</span>') && idx.includes('href="feature.html"') && idx.includes('>Die große Geschichte</span>'));
 
   const feat = fs.readFileSync(`${out}/feature.html`, 'utf8');
@@ -680,6 +689,11 @@ console.log('\n── Test 17: magazine mini-site (split → index + per-article
   check('within-article cross-ref resolves on its own page (@fig:x → Figure 1 + target)', feat.includes('href="#fig:x">Figure 1</a>') && feat.includes('id="fig:x"'));
   check('shared asset copied once', fs.existsSync(`${out}/assets/x.png`) && r.assets.filter((a) => a === 'assets/x.png').length === 1);
   check('meta.json is a magazine issue w/ article list', (() => { const m = JSON.parse(fs.readFileSync(`${out}/meta.json`, 'utf8')); return m.kind === 'magazine' && m.articles.length === 2 && m.articles[0].file === 'editorial.html'; })());
+  // Regression guard (contract §2): the first opener's kicker/byline describe an
+  // ARTICLE, not the issue — deriveDocMeta surfaces them (for the single-page
+  // path) but they must NEVER reach the issue-level meta.json (only per-article).
+  check('deriveDocMeta surfaces the first opener kicker/byline', (() => { const d = deriveDocMeta(doc as any); return d.kicker === 'Editorial' && d.byline === 'Von A. Autor'; })());
+  check('issue meta.json has NO top-level kicker/byline (per-article only)', (() => { const m = JSON.parse(fs.readFileSync(`${out}/meta.json`, 'utf8')); return m.kicker === undefined && m.byline === undefined && m.articles.every((a: any) => !!a.kicker); })());
   check('CSS: .pw-toc + .pw-nav scoped', styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-article .pw-toc {') && styleToCss(DEFAULT_PROJECT_STYLE).includes('.pw-article .pw-nav {'));
 
   for (const d of [root, out]) fs.rmSync(d, { recursive: true, force: true });

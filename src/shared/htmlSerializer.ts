@@ -53,6 +53,10 @@ export interface ArticleMeta {
   cover?: string;
   accent?: string;
   locale?: string;
+  /** Editorial kicker / dateline (web-export-contract.md §2 — generic, not
+   *  consumer-specific: the article's own eyebrow + byline). */
+  kicker?: string;
+  byline?: string;
   [key: string]: unknown;
 }
 
@@ -1065,7 +1069,12 @@ function wrapDocument(article: string, meta: ArticleMeta = {}, pageBackground?: 
   // edge-to-edge behind the centered article. Only in this standalone shell —
   // the embeddable fragment never restyles a host's <body>.
   const bg = safeCssColor(pageBackground);
-  const pageStyle = bg ? `\n  <style>html{background:${bg};-webkit-text-size-adjust:100%}body{margin:0}</style>` : '';
+  // Reference the --pw-background TOKEN (the article's scoped CSS defines it at
+  // :root) rather than hardcoding the colour, so a host re-skin of the token
+  // flows through to the page shell too (web-export-contract.md §4.2). The
+  // resolved literal stays as a var() fallback: a file opened before/without
+  // the token still shows the right page colour.
+  const pageStyle = bg ? `\n  <style>html{background:var(--pw-background, ${bg});-webkit-text-size-adjust:100%}body{margin:0}</style>` : '';
   const head = [
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',

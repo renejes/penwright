@@ -209,7 +209,10 @@ export function buildWebBundle(args: BuildWebBundleArgs): WebBundleResult {
   // meta.json cover → the copied bundle asset (same mapping as the HTML).
   const meta = { ...args.meta };
   if (typeof meta.cover === 'string' && meta.cover) meta.cover = rw.resolve(meta.cover);
-  fs.writeFileSync(metaPath, JSON.stringify({ slug: args.slug, ...meta, assets }, null, 2), 'utf-8');
+  // `kind` is the reliable article-vs-magazine discriminator a consumer keys on
+  // (web-export-contract.md §2). Single bundle → 'article'; the mini-site writer
+  // sets 'magazine'. Placed after the spread so it is always authoritative.
+  fs.writeFileSync(metaPath, JSON.stringify({ slug: args.slug, ...meta, kind: 'article', assets }, null, 2), 'utf-8');
 
   return { dir: args.outDir, indexPath, fragmentPath, metaPath, assets };
 }

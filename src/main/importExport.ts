@@ -597,6 +597,12 @@ export async function runWebExport(config: {
     // → <head> description/og:* and meta.json (single page; the mini-site
     // derives them per article).
     const docMeta = deriveDocMeta(doc as { content?: unknown[] } as never);
+    // Base issue/document metadata. kicker/byline are the FIRST opener's — they
+    // describe a single ARTICLE, not the whole issue, so they are attached ONLY
+    // on the single-page bundle path below. The mini-site derives kicker/byline
+    // per article itself; injecting the doc-level pair into the issue meta.json
+    // would mis-attribute the first article's eyebrow to the whole magazine
+    // (web-export-contract.md §2 — the magazine shape has no top-level kicker).
     const meta: ArticleMeta = { title, locale: context.lang, description: docMeta.description, cover: docMeta.cover };
 
     // Page split: 'auto' → a multi-article magazine (a cover or ≥2 openers)
@@ -612,7 +618,7 @@ export async function runWebExport(config: {
       const site = buildWebSite({ articles, style: design.style, meta, outDir: result.filePath, rootDir, context, inlineAssets: config.inlineAssets, fonts: design.fonts });
       dir = site.dir; indexPath = site.indexPath;
     } else {
-      const bundle = buildWebBundle({ doc, style: design.style, meta, slug, outDir: result.filePath, rootDir, inlineAssets: config.inlineAssets, context, fonts: design.fonts });
+      const bundle = buildWebBundle({ doc, style: design.style, meta: { ...meta, kicker: docMeta.kicker, byline: docMeta.byline }, slug, outDir: result.filePath, rootDir, inlineAssets: config.inlineAssets, context, fonts: design.fonts });
       dir = bundle.dir; indexPath = bundle.indexPath;
     }
     appState.mainWindow?.webContents.send('penwright', { type: 'exportStatus', exporting: false, format: 'web' });

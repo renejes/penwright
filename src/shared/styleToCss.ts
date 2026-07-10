@@ -103,10 +103,40 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   const bpt = basePt(style);
   const out: string[] = [];
 
-  // --- root: custom properties + base typography ---------------------------
   const c = style.colors;
   const f = style.fonts;
-  const rootDecls: string[] = [
+  const leadingEm = lenToEm(style.scale.leading, bpt);
+
+  // --- design tokens at :root (the single skinning contract) ---------------
+  // The `--pw-*` custom properties are emitted UNSCOPED, at `:root`, and are
+  // deliberately NOT redefined on `.pw-article` (web-export-contract.md §4).
+  //
+  // Why NOT on `.pw-article`: that is the article's own wrapper — a very close
+  // ancestor of everything inside it. If Penwright set the tokens there, a host
+  // could not re-skin the body: a host `.pw-article { --pw-accent }` (loaded in
+  // <head>) loses on source order to Penwright's inline-in-<body> copy, and a
+  // host wrapper is a farther ancestor so it is shadowed too. Vacating
+  // `.pw-article` is what makes the host's override win.
+  //
+  // How a host re-skins (the contract's `:root, .pw-article { --pw-* }` form):
+  // its `.pw-article` selector sets the tokens ON the article element, which —
+  // since Penwright no longer competes there — is now the CLOSEST ancestor with
+  // a value, so it wins by inheritance proximity over the fragment's own :root.
+  // A host WRAPPER (`.host-skin { --pw-* }` around the article) wins the same
+  // way. A bare `:root`-only host override in <head>, by contrast, does NOT win
+  // an embedded fragment (the fragment ships its own :root in a <body> <style>,
+  // which beats a <head> :root by source order at equal specificity) — hence the
+  // contract targets `.pw-article` too, not `:root` alone.
+  //
+  // Trade-off (accepted): because the defaults live at the global :root, TWO
+  // bare Penwright fragments pasted onto ONE page share the later one's :root.
+  // The contract's own single-article flow embeds each article into "ihre eigene
+  // Hülle" (a wrapper), which both isolates them and enables per-fragment
+  // skinning by proximity — so wrap each when placing several on a page.
+  //
+  // Everything design-bearing below reads `var(--pw-*)`; nothing colour/font/
+  // measure is hardcoded outside these tokens, so the whole look is skinnable.
+  const tokenDecls: string[] = [
     `--pw-primary: ${c.primary}`,
     `--pw-accent: ${c.accent}`,
     `--pw-text: ${c.text}`,
@@ -115,19 +145,30 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
     `--pw-font-body: ${fontStack(f.body, 'body')}`,
     `--pw-font-heading: ${fontStack(f.heading, 'heading')}`,
     `--pw-font-code: ${fontStack(f.code, 'code')}`,
+    // Structural tokens (contract §4.3) — reading measure, hairline-rule colour
+    // and the base spacing, each retunable without touching layout. `--pw-rule`
+    // derives from `--pw-muted` so re-skinning the palette alone keeps the
+    // dividers coherent, yet a host may override it directly.
+    `--pw-rule: color-mix(in srgb, var(--pw-muted) 45%, transparent)`,
+    `--pw-measure: 70ch`,
+    `--pw-space: 1.25rem`,
+  ];
+  const rootTokensCss = `:root {\n  ${tokenDecls.join(';\n  ')};\n}`;
+
+  // --- .pw-article base typography (reads the tokens) ----------------------
+  const articleDecls: string[] = [
     `color: var(--pw-text)`,
     `background: var(--pw-background)`,
     `font-family: var(--pw-font-body)`,
     `font-size: ${baseRem}rem`,
     `box-sizing: border-box`,
-    `max-width: 70ch`,
+    `max-width: var(--pw-measure)`,
     `margin-inline: auto`,
     // Breathing room + a side gutter so text never touches the screen edge on
-    // mobile; with box-sizing the measure stays 70ch.
-    `padding: 2.5rem 1.25rem`,
+    // mobile; with box-sizing the measure stays var(--pw-measure).
+    `padding: 2.5rem var(--pw-space)`,
   ];
-  const leadingEm = lenToEm(style.scale.leading, bpt);
-  if (leadingEm !== null) rootDecls.push(`line-height: ${round(Math.min(Math.max(1 + leadingEm, 1.2), 2.2), 2)}`);
+  if (leadingEm !== null) articleDecls.push(`line-height: ${round(Math.min(Math.max(1 + leadingEm, 1.2), 2.2), 2)}`);
   // custom.preamble is free-form Typst and is NOT executed on the web (plan C4),
   // but a few declarations have a safe, 1:1 CSS translation — pick those out
   // instead of dropping the whole block. Justified body is the editorial signal
@@ -135,9 +176,9 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   // enable hyphenation (the article carries `lang` so hyphens: auto works).
   const preamble = style.custom?.preamble ?? '';
   if (/\bpar\(\s*[^)]*justify:\s*true/.test(preamble)) {
-    rootDecls.push('text-align: justify', 'hyphens: auto', '-webkit-hyphens: auto');
+    articleDecls.push('text-align: justify', 'hyphens: auto', '-webkit-hyphens: auto');
   }
-  out.push(`{\n  ${rootDecls.join(';\n  ')};\n}`);
+  out.push(`{\n  ${articleDecls.join(';\n  ')};\n}`);
 
   // --- paragraphs ----------------------------------------------------------
   // Typst geometry: `par.spacing` is the BASELINE gap between paragraphs
@@ -228,7 +269,7 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   // --- helper element classes the serializer emits -------------------------
   out.push(`a { color: var(--pw-accent); }`);
   out.push(`.pw-cite, .pw-ref { color: var(--pw-accent); text-decoration: none; }`);
-  out.push(`hr {\n  border: none;\n  border-top: 1px solid color-mix(in srgb, var(--pw-muted) 50%, transparent);\n  margin: 2em auto;\n  width: 6em;\n}`);
+  out.push(`hr {\n  border: none;\n  border-top: 1px solid var(--pw-rule);\n  margin: 2em auto;\n  width: 6em;\n}`);
 
   // --- design elements (Phase B slice: drop cap + callout) -----------------
   // Drop cap: native initial-letter (Chrome + Safari, -webkit- for older
@@ -272,7 +313,7 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-figure-panel {\n  display: grid;\n  grid-template-columns: 1.45fr 1fr;\n  gap: 1.1em;\n  align-items: start;\n  margin: 1.4em 0;\n}`);
   out.push(`.pw-fp-media { margin: 0; }`);
   out.push(`.pw-fp-caption {\n  font-size: 0.8em;\n  font-style: italic;\n  color: var(--pw-muted);\n  margin-top: 0.45em;\n}`);
-  out.push(`.pw-fp-note {\n  border: 1px solid color-mix(in srgb, var(--pw-muted) 35%, transparent);\n  padding: 0.9em 1em;\n  font-size: 0.9em;\n}`);
+  out.push(`.pw-fp-note {\n  border: 1px solid var(--pw-rule);\n  padding: 0.9em 1em;\n  font-size: 0.9em;\n}`);
   out.push(`.pw-fp-note > :first-child { margin-top: 0; }`);
   out.push(`.pw-fp-note > :last-child { margin-bottom: 0; }`);
   out.push(`.pw-fp-title {\n  font-family: var(--pw-font-heading);\n  font-weight: 700;\n  font-size: 0.8em;\n  letter-spacing: 0.1em;\n  text-transform: uppercase;\n  color: var(--pw-accent);\n  margin: 0 0 0.5em;\n}`);
@@ -318,7 +359,7 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-fn a { text-decoration: none; }`);
   out.push(`.pw-cite-missing { color: ${cvar('muted')}; }`);
   out.push(`.pw-footnotes {\n  margin-top: 2.5em;\n  font-size: 0.85em;\n  color: ${cvar('muted')};\n}`);
-  out.push(`.pw-footnotes-rule {\n  border: none;\n  border-top: 1px solid color-mix(in srgb, var(--pw-muted) 40%, transparent);\n  width: 8em;\n  margin: 0 0 1em;\n}`);
+  out.push(`.pw-footnotes-rule {\n  border: none;\n  border-top: 1px solid var(--pw-rule);\n  width: 8em;\n  margin: 0 0 1em;\n}`);
   out.push(`.pw-footnotes ol { padding-inline-start: 1.4em; }`);
   out.push(`.pw-footnotes li { margin: 0.3em 0; }`);
   out.push(`.pw-fn-back { text-decoration: none; margin-inline-start: 0.3em; }`);
@@ -341,7 +382,7 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-hero-line {\n  text-indent: 0;\n  text-align: inherit;\n  margin: 0.35em 0;\n  line-height: 1.25;\n}`);
   out.push(`.pw-hero-spread-title { font-style: italic; color: var(--pw-text); }`);
   // cover / title page: centered, set apart with a rule.
-  out.push(`.pw-cover {\n  text-align: center;\n  margin: 0 0 3em;\n  padding-bottom: 2em;\n  border-bottom: 1px solid color-mix(in srgb, var(--pw-muted) 45%, transparent);\n}`);
+  out.push(`.pw-cover {\n  text-align: center;\n  margin: 0 0 3em;\n  padding-bottom: 2em;\n  border-bottom: 1px solid var(--pw-rule);\n}`);
   out.push(`.pw-cover .pw-hero-line { text-align: center; margin: 0.5em auto; }`);
   out.push(`.pw-cover .pw-hero-title { text-align: center; }`);
   out.push(`.pw-cover .pw-grid { justify-items: center; margin-top: 1.6em; font-size: 0.85em; }`);
@@ -349,8 +390,8 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   // --- mini-site: issue table of contents + per-article navigation ----------
   out.push(`.pw-toc { margin: 2.5em 0 0; text-align: start; }`);
   out.push(`.pw-toc-list { list-style: none; padding: 0; margin: 0; }`);
-  out.push(`.pw-toc-item { border-top: 1px solid color-mix(in srgb, var(--pw-muted) 35%, transparent); }`);
-  out.push(`.pw-toc-item:last-child { border-bottom: 1px solid color-mix(in srgb, var(--pw-muted) 35%, transparent); }`);
+  out.push(`.pw-toc-item { border-top: 1px solid var(--pw-rule); }`);
+  out.push(`.pw-toc-item:last-child { border-bottom: 1px solid var(--pw-rule); }`);
   out.push(`.pw-toc-item a {\n  display: block;\n  padding: 0.85em 0;\n  text-decoration: none;\n  color: var(--pw-text);\n}`);
   out.push(`.pw-toc-kicker {\n  display: block;\n  font-family: var(--pw-font-heading);\n  font-size: 0.72em;\n  letter-spacing: 0.18em;\n  text-transform: uppercase;\n  color: var(--pw-accent);\n}`);
   out.push(`.pw-toc-title {\n  display: block;\n  font-family: var(--pw-font-heading);\n  font-size: 1.3em;\n  line-height: 1.2;\n  margin-top: 0.12em;\n}`);
@@ -358,19 +399,20 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-toc-item a:hover .pw-toc-title { color: var(--pw-accent); }`);
 
   out.push(`.pw-nav {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1em 1.5em;\n  align-items: baseline;\n  font-size: 0.85em;\n  text-indent: 0;\n}`);
-  out.push(`.pw-nav:first-child {\n  margin: 0 0 2.5em;\n  padding-bottom: 0.7em;\n  border-bottom: 1px solid color-mix(in srgb, var(--pw-muted) 30%, transparent);\n}`);
-  out.push(`.pw-nav:last-child {\n  margin: 3em 0 0;\n  padding-top: 1em;\n  border-top: 1px solid color-mix(in srgb, var(--pw-muted) 30%, transparent);\n}`);
+  out.push(`.pw-nav:first-child {\n  margin: 0 0 2.5em;\n  padding-bottom: 0.7em;\n  border-bottom: 1px solid var(--pw-rule);\n}`);
+  out.push(`.pw-nav:last-child {\n  margin: 3em 0 0;\n  padding-top: 1em;\n  border-top: 1px solid var(--pw-rule);\n}`);
   out.push(`.pw-nav a { text-decoration: none; color: var(--pw-accent); }`);
   out.push(`.pw-nav-up { font-family: var(--pw-font-heading); font-weight: 600; }`);
   out.push(`.pw-nav-prev { margin-inline-start: auto; }`);
   out.push(`.pw-nav-next { text-align: end; }`);
   out.push(`.pw-nav-dir { color: var(--pw-muted); }`);
 
-  // --- scope every rule under .pw-article ----------------------------------
-  // Section overlays are appended AFTER scoping: their selectors target the
-  // article element itself (`.pw-article.pw-section-<id>`), which the prefix
-  // scoper would mangle into a descendant selector.
-  return scopeRules(out, opts.scope ?? 'prefix') + sectionOverlaysCss(style, baseRem, bpt);
+  // --- assemble: :root tokens (unscoped) + scoped rules + section overlays --
+  // The `:root` token block is prepended UNSCOPED (it is global by design — the
+  // host's skinning hook). Section overlays are appended AFTER scoping: their
+  // selectors target the article element itself (`.pw-article.pw-section-<id>`),
+  // which the prefix scoper would mangle into a descendant selector.
+  return rootTokensCss + '\n' + scopeRules(out, opts.scope ?? 'prefix') + sectionOverlaysCss(style, baseRem, bpt);
 }
 
 /** A raw color value safe for a CSS custom property (section overlays carry

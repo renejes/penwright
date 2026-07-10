@@ -186,15 +186,24 @@ function deriveArticle(name: string, order: number, blocks: JSONNode[], isCover:
  * Frontmatter for a SINGLE-PAGE export (no article split): a description
  * (standfirst / first substantial paragraph) + a cover image candidate.
  */
-export function deriveDocMeta(doc: { content?: JSONNode[] }): { description?: string; cover?: string } {
+export function deriveDocMeta(doc: { content?: JSONNode[] }): { description?: string; cover?: string; kicker?: string; byline?: string } {
   const blocks = doc.content ?? [];
   let standfirst: string | undefined;
+  let kicker: string | undefined;
+  let byline: string | undefined;
   for (const n of blocks) {
-    if (n.type === 'articleHeader' && n.attrs?.standfirst) { standfirst = String(n.attrs.standfirst); break; }
+    if (n.type === 'articleHeader') {
+      standfirst ??= n.attrs?.standfirst ? String(n.attrs.standfirst) : undefined;
+      kicker ??= n.attrs?.kicker ? String(n.attrs.kicker) : undefined;
+      byline ??= n.attrs?.byline ? String(n.attrs.byline) : undefined;
+      break;
+    }
   }
   return {
     description: summarize(standfirst ?? firstParagraphText(blocks) ?? ''),
     cover: firstImage(blocks),
+    kicker,
+    byline,
   };
 }
 
