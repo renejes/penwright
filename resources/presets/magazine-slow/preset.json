@@ -1,0 +1,26 @@
+{
+  "id": "magazine-slow",
+  "type": "magazine",
+  "label": { "en": "Slow / Literary", "de": "Slow / Literarisch" },
+  "tagline": {
+    "en": "A calm editorial issue — every chapter is its own layout.",
+    "de": "Ein ruhiges Heft — jedes Kapitel ist ein eigenes Layout."
+  },
+  "highlights": {
+    "en": [
+      "6 chapters, each a different layout",
+      "Cover, editorial, feature, interview, essay, department",
+      "Drop caps, pull-quotes, photo panels, multi-column",
+      "Just overwrite the placeholder text"
+    ],
+    "de": [
+      "6 Kapitel, je ein eigenes Layout",
+      "Cover, Editorial, Reportage, Interview, Essay, Rubrik",
+      "Initialen, Pull-Quotes, Bildtafeln, mehrspaltig",
+      "Einfach den Platzhaltertext überschreiben"
+    ]
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-editorial.typ",
+  "order": 10
+}

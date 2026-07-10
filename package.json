@@ -20,6 +20,8 @@
     "fetch:packages": "node scripts/fetch-typst-packages.mjs",
     "fetch:fonts": "node scripts/fetch-typst-fonts.mjs",
     "audit:packages": "node scripts/audit-bundled-deps.mjs",
+    "presets:build": "node scripts/presets-build.mjs",
+    "presets:check": "node scripts/presets-build.mjs --check",
     "mcp": "node dist/mcp/server.mjs"
   },
   "bin": {
