@@ -170,4 +170,18 @@ export interface GalleryItem {
   thumbnail?: string;
   /** Fallback glyph when there is no thumbnail. */
   icon: string;
+  /** Where a preset lives: 'bundled' (shipped, read-only) or 'user' (the
+   *  writable userData library — the user's own saved presets, deletable). */
+  origin?: 'bundled' | 'user';
+}
+
+/**
+ * Payload the renderer sends to save the CURRENT project as a reusable user
+ * preset (`preset:save`). Everything else is derived from the open project.
+ */
+export interface SavePresetInput {
+  label: string;
+  /** A project-type id (defaults to 'document' if unknown). */
+  type: string;
+  tagline?: string;
 }

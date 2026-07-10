@@ -15,6 +15,7 @@
  */
 
 import { app, dialog } from 'electron';
+import { execFileSync } from 'node:child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import simpleGit from 'simple-git';
@@ -22,9 +23,10 @@ import { appState } from './appState';
 import { getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
 import { addBreadcrumb } from './crashReporter';
+import { getTypstPath, buildTypstCompileArgs } from './typstPath';
 import {
   PROJECT_TYPES, localize, localizeList,
-  type PresetManifest, type GalleryItem, type Locale,
+  type PresetManifest, type GalleryItem, type Locale, type SavePresetInput,
 } from '../shared/presetTypes';
 import { openProject, ensureProjectInfrastructure } from './projectManager';
 
@@ -50,9 +52,28 @@ function findBundledPresetsDir(): string | null {
   return null;
 }
 
+/**
+ * The WRITABLE user preset library — where "Save as preset" stores the user's
+ * own reusable starting points. Lives in userData so it survives app updates
+ * (the bundled library inside the .app is read-only). Created on first use.
+ */
+export function userPresetsDir(): string {
+  return path.join(app.getPath('userData'), 'presets');
+}
+
+/** All preset roots, in gallery order (bundled first, then the user's own). */
+function presetRoots(): { dir: string; origin: 'bundled' | 'user' }[] {
+  const roots: { dir: string; origin: 'bundled' | 'user' }[] = [];
+  const bundled = findBundledPresetsDir();
+  if (bundled) roots.push({ dir: bundled, origin: 'bundled' });
+  roots.push({ dir: userPresetsDir(), origin: 'user' });
+  return roots;
+}
+
 interface ScannedPreset {
   manifest: PresetManifest;
   dir: string;
+  origin: 'bundled' | 'user';
 }
 
 /** Reads + validates one preset folder's `preset.json`. */
@@ -68,18 +89,22 @@ function readManifest(dir: string): PresetManifest | null {
   }
 }
 
-/** Scans every preset folder (skipping `_shared`, dotfiles, non-manifest dirs). */
+/** Scans every preset folder across all roots (skipping `_shared`, dotfiles,
+ *  non-manifest dirs). A user preset id shadows a bundled one of the same id. */
 function scanPresetDirs(): ScannedPreset[] {
-  const root = findBundledPresetsDir();
-  if (!root) return [];
   const out: ScannedPreset[] = [];
-  let entries: fs.Dirent[];
-  try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { return []; }
-  for (const e of entries) {
-    if (!e.isDirectory() || e.name.startsWith('_') || e.name.startsWith('.')) continue;
-    const dir = path.join(root, e.name);
-    const manifest = readManifest(dir);
-    if (manifest) out.push({ manifest, dir });
+  const seen = new Set<string>();
+  for (const { dir: root, origin } of presetRoots()) {
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith('_') || e.name.startsWith('.')) continue;
+      const dir = path.join(root, e.name);
+      const manifest = readManifest(dir);
+      if (!manifest || seen.has(manifest.id)) continue;
+      seen.add(manifest.id);
+      out.push({ manifest, dir, origin });
+    }
   }
   return out;
 }
@@ -122,9 +147,9 @@ export function buildGallery(locale: Locale = getLocale() as Locale): GalleryIte
     });
   }
 
-  // Rich presets — scanned folders.
+  // Rich presets — scanned folders (bundled + the user's own).
   const scanned = scanPresetDirs().sort((a, b) => (a.manifest.order ?? 100) - (b.manifest.order ?? 100));
-  for (const { manifest, dir } of scanned) {
+  for (const { manifest, dir, origin } of scanned) {
     const type = PROJECT_TYPES.find((t) => t.id === manifest.type);
     items.push({
       key: `preset:${manifest.id}`,
@@ -136,6 +161,7 @@ export function buildGallery(locale: Locale = getLocale() as Locale): GalleryIte
       highlights: localizeList(manifest.highlights, locale),
       thumbnail: thumbnailDataUri(dir),
       icon: type?.icon ?? '✨',
+      origin,
     });
   }
 
@@ -234,4 +260,125 @@ export async function createFromPreset(presetId: string): Promise<string | null>
     }
   }
   return opened;
+}
+
+// ─── Save the current project as a reusable user preset ──────────────────────
+
+/** kebab-case slug for a preset id from a human label. */
+function slugify(s: string): string {
+  return (s || '')
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    .slice(0, 48).replace(/-+$/, '') || 'preset';
+}
+
+/** Directories never carried into a saved preset (regenerated on create, or
+ *  machine-/history-specific). `.penwright` is special-cased to keep only
+ *  style.json (the design tokens); backups/ai-snapshots/preferences are dropped. */
+const SAVE_SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', '.claude']);
+
+/** Copies an open project into a preset folder, stripping git/build/history and
+ *  keeping only `.penwright/style.json` from the project-local state. */
+function copyProjectToPreset(src: string, dest: string): void {
+  fs.mkdirSync(dest, { recursive: true });
+  const walk = (s: string, d: string) => {
+    for (const e of fs.readdirSync(s, { withFileTypes: true })) {
+      const name = e.name;
+      if (name === '.DS_Store' || name === 'preset.json' || /^thumbnail\.(png|jpe?g|webp)$/i.test(name)) continue;
+      if (e.isDirectory()) {
+        if (SAVE_SKIP_DIRS.has(name)) continue;
+        if (name === '.penwright') {
+          const styleJson = path.join(s, name, 'style.json');
+          if (fs.existsSync(styleJson)) {
+            fs.mkdirSync(path.join(d, name), { recursive: true });
+            fs.copyFileSync(styleJson, path.join(d, name, 'style.json'));
+          }
+          continue;
+        }
+        fs.mkdirSync(path.join(d, name), { recursive: true });
+        walk(path.join(s, name), path.join(d, name));
+      } else if (e.isFile() && !name.toLowerCase().endsWith('.pdf')) {
+        fs.copyFileSync(path.join(s, name), path.join(d, name));
+      }
+    }
+  };
+  walk(src, dest);
+}
+
+/** Finds the root .typ file inside a preset/project dir. */
+function findRootFileIn(dir: string): string | null {
+  for (const n of ['main.typ', 'document.typ', 'index.typ']) {
+    const p = path.join(dir, n);
+    if (fs.existsSync(p)) return p;
+  }
+  try { const f = fs.readdirSync(dir).find((x) => x.endsWith('.typ')); return f ? path.join(dir, f) : null; }
+  catch { return null; }
+}
+
+/** Renders page 1 of a project to a PNG thumbnail with the bundled Typst.
+ *  Best-effort — a render failure just leaves the card with its type glyph. */
+function renderThumbnail(projectDir: string, rootAbs: string, outPng: string): boolean {
+  try {
+    execFileSync(
+      getTypstPath(),
+      buildTypstCompileArgs(['--root', projectDir, '--pages', '1', '--ppi', '96', '--format', 'png', rootAbs, outPng]),
+      { stdio: 'ignore', timeout: 90_000 },
+    );
+    return fs.existsSync(outPng);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Saves the CURRENTLY OPEN project as a reusable user preset in the writable
+ * userData library: copies it (minus git/build/history, keeping style.json),
+ * renders a page-1 thumbnail, and writes a `preset.json`. The saved preset then
+ * appears in the New-Project gallery under its type, alongside the bundled ones.
+ */
+export async function saveProjectAsPreset(input: SavePresetInput): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const src = appState.projectDir;
+  if (!src || !fs.existsSync(src)) return { ok: false, error: 'no-project' };
+  const label = (input.label || '').trim();
+  if (!label) return { ok: false, error: 'no-label' };
+  const type = PROJECT_TYPES.some((t) => t.id === input.type) ? input.type : 'document';
+
+  const root = userPresetsDir();
+  fs.mkdirSync(root, { recursive: true });
+  const base = slugify(label);
+  let id = base, i = 2;
+  while (fs.existsSync(path.join(root, id))) { id = `${base}-${i}`; i++; }
+  const dest = path.join(root, id);
+
+  try {
+    copyProjectToPreset(src, dest);
+  } catch (err) {
+    try { fs.rmSync(dest, { recursive: true, force: true }); } catch { /* ignore */ }
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  const rootAbs = findRootFileIn(dest);
+  if (rootAbs) renderThumbnail(dest, rootAbs, path.join(dest, 'thumbnail.png'));
+
+  const tag = input.tagline?.trim() || '';
+  const manifest: PresetManifest = {
+    id, type,
+    label: { en: label, de: label },
+    tagline: { en: tag, de: tag },
+    root: rootAbs ? path.basename(rootAbs) : 'main.typ',
+    order: 50,
+  };
+  fs.writeFileSync(path.join(dest, 'preset.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+  addBreadcrumb('project', `saved project as preset ${id}`);
+  return { ok: true, id };
+}
+
+/** Deletes a USER preset (never a bundled one). Guards the userData root. */
+export function deleteUserPreset(id: string): { ok: boolean } {
+  const root = userPresetsDir();
+  const dir = path.join(root, id);
+  const inside = path.resolve(dir).startsWith(path.resolve(root) + path.sep);
+  if (!inside || !fs.existsSync(dir)) return { ok: false };
+  try { fs.rmSync(dir, { recursive: true, force: true }); return { ok: true }; }
+  catch { return { ok: false }; }
 }

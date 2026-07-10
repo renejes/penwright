@@ -25,7 +25,7 @@ function isPathWithinProject(filePath: string): boolean {
 }
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
 import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
-import { buildGallery, createFromPreset } from './presetManager';
+import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset } from './presetManager';
 import {
   getPanelState,
   savePanelState,
@@ -1346,6 +1346,15 @@ export function setupIPC(): void {
   ipcMain.handle('preset:create', async (_event, presetId: string) => {
     const result = await createFromPreset(presetId);
     return { ok: !!result, projectDir: result };
+  });
+
+  // Save the currently-open project as a reusable USER preset (writable library).
+  ipcMain.handle('preset:save', async (_event, input: { label: string; type: string; tagline?: string }) => {
+    return saveProjectAsPreset(input);
+  });
+
+  ipcMain.handle('preset:delete', (_event, presetId: string) => {
+    return deleteUserPreset(presetId);
   });
 
   ipcMain.handle('project:close', async () => {
