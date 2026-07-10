@@ -32,6 +32,13 @@ Kern-Erkenntnis:
 Der Vertrag besteht aus drei Teilen: **meta.json**, **HTML-Struktur** und —
 das Herzstück — **Design-Tokens als CSS-Variablen**.
 
+> **Status (umgesetzt in v0.11.x+):** Die drei Kern-Bitten aus §4 sind live —
+> Tokens liegen an `:root` **in einem `@layer penwright`**, es ist nichts
+> Skinbares mehr hardcoded (inkl. `html{background}`), und der Token-Satz wurde
+> um `--pw-rule` / `--pw-measure` / `--pw-space` erweitert. Für den Konsumenten
+> heißt das konkret: **ein `:root { --pw-* }`-Override im `<head>` genügt, ohne
+> `!important` und unabhängig von der Ladereihenfolge.** Details unten.
+
 ---
 
 ## 2. `meta.json` — generisches Manifest (pro Export)
@@ -96,8 +103,8 @@ Der Konsument will den Look vereinheitlichen (eigene Schriften + Farben) — und
 zwar mit **einem** Override für *alles* (Cover, Inhaltsverzeichnis, alle Artikel).
 Das geht nur, wenn Penwright sein Design **konsequent über Variablen** exponiert.
 
-**Die Tokens, die ihr schon nutzt** (bitte offiziell dokumentieren + überall
-konsequent verwenden):
+**Der offizielle Token-Satz** (alle an `:root`, alle konsequent verwendet — kein
+Skinbares mehr hardcoded):
 
 | Token | Zweck |
 |---|---|
@@ -109,32 +116,41 @@ konsequent verwenden):
 | `--pw-text` | Textfarbe |
 | `--pw-background` | Hintergrund |
 | `--pw-muted` | Gedämpfter Text |
+| `--pw-rule` | Linien-/Trennerfarbe (leitet sich aus `--pw-muted` ab, einzeln überschreibbar) |
+| `--pw-measure` | Lesebreite (Default `70ch`) |
+| `--pw-space` | Grund-Seitenabstand (Innenabstand des Artikels) |
 
-**Drei konkrete Bitten (das ist die eigentliche Arbeit):**
+**Die drei Kern-Bitten — Status: ✅ umgesetzt.**
 
-1. **Tokens an `:root` setzen** (zusätzlich zu / statt `.pw-article`). Aktuell
-   liegen sie *pro* `.pw-article` — dann re-skinnt ein Konsument nur den
-   Artikel-Body, aber **Cover und Inhaltsverzeichnis eines Magazins bleiben
-   außen vor**. An `:root` genügt *ein* Override für alles.
+1. ✅ **Tokens an `:root`, in einem `@layer penwright`.** Statt sie *pro*
+   `.pw-article` zu setzen (wo ein Konsument nur den Artikel-Body erreichte und
+   Cover/Inhaltsverzeichnis außen vor blieben), liegen die **Default**-Tokens
+   jetzt an `:root` in einer niedrig priorisierten *Cascade Layer*. Der Effekt:
+   ein **unlayered** Konsumenten-Override (dein `:root { --pw-* }`) **gewinnt
+   immer** — egal ob im `<head>` geladen, egal welche Reihenfolge, **ohne
+   `!important`** (unlayered schlägt layered grundsätzlich). Das war der
+   eigentliche Knackpunkt: vorher stand das fragment-eigene `:root` im
+   `<body>`-`<style>` und schlug einen `<head>`-Skin per Quelltext-Reihenfolge
+   → die Seite behielt Penwrights Hintergrund. **Wichtig:** nur die *Token-
+   Defaults* sind gelayert; die gescopten `.pw-article`-Regeln bleiben
+   **unlayered**, damit das Umgebungs-CSS der Host-Seite (`p {}`, `a {}` …)
+   Penwrights *Struktur* nicht überschreiben kann — verloren geht nur gegen
+   einen *Token*-Override, genau wie gewollt.
 
-2. **Keine Farbe/Schrift außerhalb der Tokens hart reincodieren.** Alles, was
-   hardcoded ist, bleibt beim Skinnen stehen. Konkretes Beispiel aus dem
-   aktuellen Export: der `<head>`-Reset `html{background:#eef0ec}` — der sollte
-   `var(--pw-background)` nutzen (oder skinbar sein), sonst muss der Konsument
-   den Seiten-Hintergrund separat überschreiben.
+2. ✅ **Nichts Skinbares mehr hardcoded.** Der `<head>`-Hintergrund nutzt jetzt
+   `html{background:var(--pw-background, <literal>)}` (Token mit Literal nur als
+   Fallback). Alle Trenner/Linien laufen über `var(--pw-rule)`, alle
+   Farben/Schriften/Maße über die Tokens.
 
-3. **Token-Satz bei Bedarf erweitern** — je mehr skinbar, desto nahtloser.
-   Kandidaten: `--pw-rule` (Linienstärke/-farbe), `--pw-measure` (Textbreite,
-   aktuell hart `70ch`), `--pw-space` (Grundabstand). Optional, aber jedes
-   zusätzliche Token macht den Skin sauberer.
+3. ✅ **Token-Satz erweitert** um `--pw-rule`, `--pw-measure`, `--pw-space`
+   (siehe Tabelle).
 
-**So skinnt ein Konsument** (nur zur Illustration — genau das macht
-show-your-work heute):
+**So skinnt ein Konsument** — dank `@layer` reicht wirklich *ein* Block an
+`:root`, ohne `!important` und egal wo geladen:
 
 ```css
-/* penwright-skin.css beim Konsumenten */
-:root,
-.pw-article {
+/* penwright-skin.css beim Konsumenten — z.B. im <head> eingebunden */
+:root {
   --pw-font-body: "Vollkorn", Georgia, serif;
   --pw-font-heading: ui-monospace, Menlo, monospace;
   --pw-background: transparent;
@@ -145,6 +161,17 @@ show-your-work heute):
 
 → Penwrights Layout bleibt, aber alles trägt den Look des Konsumenten. Genau
 das Ziel: *eigen im Satz, einheitlich im Look.*
+
+**Browser-Floor:** `@layer` ist Baseline 2022 — älter als das `color-mix()`, das
+der Export ohnehin schon verwendet. Der Export setzt also keinen neuen
+Browser-Mindeststand voraus.
+
+**Randfall Mehrfach-Einbettung:** Weil die Defaults am globalen `:root` liegen,
+teilen sich **zwei nackt** auf *eine* Seite geklebte Penwright-Fragmente den
+später deklarierten `:root`-Block. Der §6.2-Fluss bettet ohnehin jeden Artikel
+in „seine eigene Hülle" (einen Wrapper) ein — das isoliert sie und erlaubt
+zugleich Per-Fragment-Skinning über den Wrapper. Also: beim Platzieren mehrerer
+Artikel auf einer Seite jeden in einen eigenen Container wrappen.
 
 ---
 
@@ -178,19 +205,27 @@ das Ziel: *eigen im Satz, einheitlich im Look.*
 
 ## 7. To-do-Checkliste für Penwright
 
-- [ ] `meta.json`: `kind`-Feld verlässlich setzen; generisch halten (keine
-      Site-Felder wie date/tags/summary/accent).
-- [ ] `--pw-*`-Tokens an **`:root`** exponieren (nicht nur `.pw-article`).
-- [ ] **Keine** hardcoded Farben/Schriften außerhalb der Tokens
-      (inkl. `html{background}` → über `--pw-background`).
-- [ ] Token-Namen + Zweck dokumentieren; Satz ggf. erweitern
+- [x] `meta.json`: `kind`-Feld verlässlich setzen (`"article"` / `"magazine"`);
+      generisch halten (kein Leak von date/tags/summary/accent — auch kein
+      `kicker`/`byline` auf Issue-Ebene, nur pro Artikel).
+- [x] `--pw-*`-Tokens an **`:root`** exponieren (nicht auf `.pw-article`), in
+      einem `@layer penwright`, damit ein Konsumenten-Override ohne `!important`
+      und unabhängig von der Ladereihenfolge gewinnt.
+- [x] **Keine** hardcoded Farben/Schriften außerhalb der Tokens
+      (inkl. `html{background}` → `var(--pw-background, <fallback>)`).
+- [x] Token-Namen + Zweck dokumentiert; Satz erweitert
       (`--pw-rule`, `--pw-measure`, `--pw-space`).
-- [ ] Bilder **web-groß** exportieren (skalieren + komprimieren).
-- [ ] Optional: Webfonts bündeln (Standalone-Treue) + konfigurierbarer
-      Home/Zurück-Link.
+- [x] Webfonts gebündelt (`@font-face` + Dateien in `assets/fonts/`,
+      Standalone-Treue).
+- [ ] Bilder **web-groß** exportieren (skalieren + komprimieren) — *offen*
+      (aktuell werden Original-Assets kopiert; WebP/Resize noch nicht drin).
+- [ ] Optional: konfigurierbarer Home/Zurück-Link fürs gehostete Magazin —
+      *offen*.
 
 ---
 
-*Kurzfassung: `meta.json` generisch, Design 100 % über `--pw-*` an `:root`,
-nichts Skinbares hardcoden, Bilder web-groß. Dann kann jede Seite deinen Export
-einbetten und in ihre Identität kleiden — ohne dein Layout zu brechen.*
+*Kurzfassung: `meta.json` generisch, Design 100 % über `--pw-*` an `:root` (in
+`@layer penwright`, ohne `!important` überschreibbar), nichts Skinbares
+hardcoden, Fonts gebündelt. Dann kann jede Seite deinen Export einbetten und in
+ihre Identität kleiden — ohne dein Layout zu brechen. Offen bleibt: Bild-
+Kompression (web-groß) und der optionale Home-Link.*
