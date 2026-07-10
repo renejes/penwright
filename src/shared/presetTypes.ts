@@ -70,6 +70,9 @@ export interface PresetManifest {
   openFile?: string;
   /** Sort order within the type group (lower first; default 100). */
   order?: number;
+  /** Which page presets-build renders as the gallery thumbnail (default 1) —
+   *  image-led presets point at a content page rather than a sparse title page. */
+  thumbnailPage?: number;
 }
 
 /**

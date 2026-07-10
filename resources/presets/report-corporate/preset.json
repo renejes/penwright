@@ -1,0 +1,25 @@
+{
+  "id": "report-corporate",
+  "type": "report",
+  "label": {
+    "en": "Corporate",
+    "de": "Corporate"
+  },
+  "tagline": {
+    "en": "Cover, executive summary, findings, table.",
+    "de": "Deckblatt, Management-Summary, Ergebnisse, Tabelle."
+  },
+  "highlights": {
+    "en": [
+      "Cover page + data table",
+      "Sans-serif, strong accent"
+    ],
+    "de": [
+      "Deckblatt + Datentabelle",
+      "Serifenlos, kräftiger Akzent"
+    ]
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 20
+}

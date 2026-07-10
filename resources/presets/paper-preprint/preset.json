@@ -1,0 +1,15 @@
+{
+  "id": "paper-preprint",
+  "type": "paper",
+  "label": {
+    "en": "Preprint",
+    "de": "Preprint"
+  },
+  "tagline": {
+    "en": "Compact academic preprint with abstract.",
+    "de": "Kompakter akademischer Preprint mit Abstract."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 20
+}

@@ -1,0 +1,23 @@
+{
+  "id": "thesis-classic",
+  "type": "thesis",
+  "label": {
+    "en": "Classic",
+    "de": "Klassisch"
+  },
+  "tagline": {
+    "en": "Traditional serif academic thesis, numbered.",
+    "de": "Klassische Serifen-Abschlussarbeit, nummeriert."
+  },
+  "highlights": {
+    "en": [
+      "Title page, TOC, chapters, bibliography"
+    ],
+    "de": [
+      "Titelseite, Inhalt, Kapitel, Literatur"
+    ]
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-introduction.typ",
+  "order": 20
+}

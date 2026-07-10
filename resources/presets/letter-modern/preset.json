@@ -1,0 +1,15 @@
+{
+  "id": "letter-modern",
+  "type": "letter",
+  "label": {
+    "en": "Modern",
+    "de": "Modern"
+  },
+  "tagline": {
+    "en": "A clean sans-serif letter.",
+    "de": "Ein klarer serifenloser Brief."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 30
+}

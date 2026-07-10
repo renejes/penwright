@@ -1,0 +1,15 @@
+{
+  "id": "doc-clean",
+  "type": "document",
+  "label": {
+    "en": "Clean",
+    "de": "Schlicht"
+  },
+  "tagline": {
+    "en": "Minimal modern document, sans-serif.",
+    "de": "Minimalistisches modernes Dokument, serifenlos."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 20
+}

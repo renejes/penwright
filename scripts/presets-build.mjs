@@ -66,7 +66,8 @@ for (const dir of dirs) {
   try {
     typst(['--root', dir, root, path.join(tmp, `${name}.pdf`)]);
     if (!checkOnly) {
-      typst(['--root', dir, '--pages', '1', '--ppi', '96', '--format', 'png', root, path.join(dir, 'thumbnail.png')]);
+      const page = Number.isInteger(m.thumbnailPage) && m.thumbnailPage > 0 ? String(m.thumbnailPage) : '1';
+      typst(['--root', dir, '--pages', page, '--ppi', '96', '--format', 'png', root, path.join(dir, 'thumbnail.png')]);
     }
     console.log('  ✓', name, `· ${m.type}${checkOnly ? '' : ' · thumbnail'}`);
     pass++;

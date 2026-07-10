@@ -1,0 +1,16 @@
+{
+  "id": "portfolio-grid",
+  "type": "portfolio",
+  "label": {
+    "en": "Grid",
+    "de": "Grid"
+  },
+  "tagline": {
+    "en": "Image-led project pages with metrics.",
+    "de": "Bildgeführte Projektseiten mit Kennzahlen."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 20,
+  "thumbnailPage": 2
+}

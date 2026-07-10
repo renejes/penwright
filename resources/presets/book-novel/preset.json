@@ -1,0 +1,15 @@
+{
+  "id": "book-novel",
+  "type": "book",
+  "label": {
+    "en": "Novel",
+    "de": "Roman"
+  },
+  "tagline": {
+    "en": "Warm A5 novel with chapters.",
+    "de": "Warmer A5-Roman mit Kapiteln."
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-chapter.typ",
+  "order": 20
+}

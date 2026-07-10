@@ -1,0 +1,15 @@
+{
+  "id": "doc-editorial",
+  "type": "document",
+  "label": {
+    "en": "Editorial",
+    "de": "Editorial"
+  },
+  "tagline": {
+    "en": "Warm serif document with an accent.",
+    "de": "Warmes Serifen-Dokument mit Akzent."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 30
+}

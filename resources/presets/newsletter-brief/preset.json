@@ -1,0 +1,15 @@
+{
+  "id": "newsletter-brief",
+  "type": "newsletter",
+  "label": {
+    "en": "Brief",
+    "de": "Brief"
+  },
+  "tagline": {
+    "en": "Two-column newsletter with a masthead.",
+    "de": "Zweispaltiger Newsletter mit Titelkopf."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 20
+}

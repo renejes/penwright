@@ -1,0 +1,15 @@
+{
+  "id": "letter-formal",
+  "type": "letter",
+  "label": {
+    "en": "Formal",
+    "de": "Formell"
+  },
+  "tagline": {
+    "en": "A classic formal letter.",
+    "de": "Ein klassischer formeller Brief."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 20
+}

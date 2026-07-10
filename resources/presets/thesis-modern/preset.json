@@ -1,0 +1,15 @@
+{
+  "id": "thesis-modern",
+  "type": "thesis",
+  "label": {
+    "en": "Modern",
+    "de": "Modern"
+  },
+  "tagline": {
+    "en": "Sans headings, serif body — a contemporary thesis.",
+    "de": "Serifenlose Überschriften, Serifen-Text — moderne Arbeit."
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-introduction.typ",
+  "order": 30
+}
