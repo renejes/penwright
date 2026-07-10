@@ -130,6 +130,13 @@ console.log('\n── Test 4: styleToCss — tokens → scoped CSS (no global le
   check('tokens NOT redefined on .pw-article base block (no host-override shadow)', !/\.pw-article \{[^}]*--pw-accent:/.test(css));
   check('.pw-article reads the tokens via var (measure + colour)', /\.pw-article \{[^}]*max-width: var\(--pw-measure\)/.test(css) && /\.pw-article \{[^}]*color: var\(--pw-text\)/.test(css));
   check('structural tokens present (--pw-rule / --pw-measure / --pw-space)', /:root \{[^}]*--pw-rule:/.test(css) && css.includes('--pw-measure: 70ch') && css.includes('--pw-space: 1.25rem'));
+  // Contract §4.1 robustness: the token DEFAULTS live in a low-priority cascade
+  // layer, so an unlayered host override (`:root { --pw-* }`) wins regardless of
+  // load order — even a <head> stylesheet beats the fragment's <body> :root, with
+  // NO !important. Only the tokens are layered; scoped rules stay unlayered so a
+  // host's ambient page CSS can't clobber Penwright's structure.
+  check('token defaults wrapped in @layer penwright (host skin wins w/o !important, any order)', /@layer penwright \{\s*:root \{[^{}]*\}\s*\}/.test(css));
+  check('only the tokens are layered — scoped rules stay unlayered (structure protected)', (css.match(/@layer/g) ?? []).length === 1 && /\.pw-article \{[^}]*max-width: var\(--pw-measure\)/.test(css));
   check('headings ratio-scaled with em + token color', /\.pw-article h1 \{[^}]*font-size: [\d.]+em/.test(css) && /\.pw-article h1 \{[^}]*color: var\(--pw-/.test(css));
   check('blockquote uses border-inline-start + token color', /\.pw-article blockquote \{[^}]*border-inline-start/.test(css));
   // The scoping-leak guard: every comma-separated selector must carry the prefix.

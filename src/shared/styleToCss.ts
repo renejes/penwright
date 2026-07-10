@@ -107,35 +107,32 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   const f = style.fonts;
   const leadingEm = lenToEm(style.scale.leading, bpt);
 
-  // --- design tokens at :root (the single skinning contract) ---------------
-  // The `--pw-*` custom properties are emitted UNSCOPED, at `:root`, and are
-  // deliberately NOT redefined on `.pw-article` (web-export-contract.md §4).
+  // --- design tokens at :root, in a low-priority cascade layer -------------
+  // The `--pw-*` custom properties are the ONE skinning contract
+  // (web-export-contract.md §4): a consuming site re-skins the whole export
+  // (cover, TOC, every article) by overriding these tokens once.
   //
-  // Why NOT on `.pw-article`: that is the article's own wrapper — a very close
-  // ancestor of everything inside it. If Penwright set the tokens there, a host
-  // could not re-skin the body: a host `.pw-article { --pw-accent }` (loaded in
-  // <head>) loses on source order to Penwright's inline-in-<body> copy, and a
-  // host wrapper is a farther ancestor so it is shadowed too. Vacating
-  // `.pw-article` is what makes the host's override win.
+  // They are emitted at `:root` (page-global — reaches everything, incl. the
+  // standalone page background) INSIDE `@layer penwright`. A cascade layer makes
+  // the DEFAULTS the lowest priority, so ANY host override — an unlayered
+  // `:root { --pw-accent: … }` (or `.pw-article`, or a wrapper), loaded
+  // ANYWHERE incl. a stylesheet in <head> — wins with NO `!important` and
+  // regardless of source order (unlayered always beats layered). This is the fix
+  // for the real bug: previously the fragment's own :root, sitting in a <body>
+  // <style>, beat a host skin loaded in <head> on source order, so a hosted
+  // magazine kept Penwright's page background.
   //
-  // How a host re-skins (the contract's `:root, .pw-article { --pw-* }` form):
-  // its `.pw-article` selector sets the tokens ON the article element, which —
-  // since Penwright no longer competes there — is now the CLOSEST ancestor with
-  // a value, so it wins by inheritance proximity over the fragment's own :root.
-  // A host WRAPPER (`.host-skin { --pw-* }` around the article) wins the same
-  // way. A bare `:root`-only host override in <head>, by contrast, does NOT win
-  // an embedded fragment (the fragment ships its own :root in a <body> <style>,
-  // which beats a <head> :root by source order at equal specificity) — hence the
-  // contract targets `.pw-article` too, not `:root` alone.
+  // Only the TOKEN DEFAULTS are layered. The scoped `.pw-article` element rules
+  // below stay UNLAYERED, so the host's ambient page CSS (a bare `p {}`,
+  // `a {}`, …) can NOT clobber Penwright's structure — Penwright's layout only
+  // ever loses to a *token* override, which is exactly the skinning contract.
   //
-  // Trade-off (accepted): because the defaults live at the global :root, TWO
-  // bare Penwright fragments pasted onto ONE page share the later one's :root.
-  // The contract's own single-article flow embeds each article into "ihre eigene
-  // Hülle" (a wrapper), which both isolates them and enables per-fragment
-  // skinning by proximity — so wrap each when placing several on a page.
-  //
-  // Everything design-bearing below reads `var(--pw-*)`; nothing colour/font/
-  // measure is hardcoded outside these tokens, so the whole look is skinnable.
+  // Self-contained is preserved: the <style> still travels inside the article
+  // (fragment mode stays embeddable), and a standalone page renders from these
+  // defaults (a layered value with no competitor is used normally). @layer is
+  // Baseline-2022 — older than the color-mix() this CSS already uses — so it
+  // adds no new browser floor. Nothing colour/font/measure is hardcoded outside
+  // the tokens; every design-bearing value below reads var(--pw-*).
   const tokenDecls: string[] = [
     `--pw-primary: ${c.primary}`,
     `--pw-accent: ${c.accent}`,
@@ -153,7 +150,7 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
     `--pw-measure: 70ch`,
     `--pw-space: 1.25rem`,
   ];
-  const rootTokensCss = `:root {\n  ${tokenDecls.join(';\n  ')};\n}`;
+  const rootTokensCss = `@layer penwright {\n:root {\n  ${tokenDecls.join(';\n  ')};\n}\n}`;
 
   // --- .pw-article base typography (reads the tokens) ----------------------
   const articleDecls: string[] = [
@@ -407,11 +404,13 @@ export function styleToCss(style: ProjectStyle, opts: StyleToCssOptions = {}): s
   out.push(`.pw-nav-next { text-align: end; }`);
   out.push(`.pw-nav-dir { color: var(--pw-muted); }`);
 
-  // --- assemble: :root tokens (unscoped) + scoped rules + section overlays --
-  // The `:root` token block is prepended UNSCOPED (it is global by design — the
-  // host's skinning hook). Section overlays are appended AFTER scoping: their
-  // selectors target the article element itself (`.pw-article.pw-section-<id>`),
-  // which the prefix scoper would mangle into a descendant selector.
+  // --- assemble: layered :root tokens + scoped rules + section overlays -----
+  // The `@layer penwright { :root { … } }` token block is prepended UNSCOPED (it
+  // is the global, low-priority skinning hook — see above). The scoped rules and
+  // section overlays stay UNLAYERED. Section overlays are appended AFTER scoping:
+  // their selectors target the article element itself
+  // (`.pw-article.pw-section-<id>`), which the prefix scoper would mangle into a
+  // descendant selector.
   return rootTokensCss + '\n' + scopeRules(out, opts.scope ?? 'prefix') + sectionOverlaysCss(style, baseRem, bpt);
 }
 
