@@ -78,6 +78,7 @@ const INVOKE_CHANNELS = [
   'preset:delete',
   'preset:styles',
   'preset:getStyle',
+  'preset:preview',
   'project:close',
   'project:newFolder',
   'project:addAssets',

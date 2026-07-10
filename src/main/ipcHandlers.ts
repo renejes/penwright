@@ -25,7 +25,7 @@ function isPathWithinProject(filePath: string): boolean {
 }
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
 import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
-import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset, listPresetStyles, getPresetStyle } from './presetManager';
+import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset, listPresetStyles, getPresetStyle, renderPresetPreview } from './presetManager';
 import {
   getPanelState,
   savePanelState,
@@ -1361,6 +1361,9 @@ export function setupIPC(): void {
   // The renderer merges the chosen scope and saves via the normal safe-apply path.
   ipcMain.handle('preset:styles', () => listPresetStyles());
   ipcMain.handle('preset:getStyle', (_event, presetId: string) => ({ style: getPresetStyle(presetId) }));
+
+  // Render the first pages of a preset to PNG data-URIs for the gallery preview.
+  ipcMain.handle('preset:preview', (_event, presetId: string) => renderPresetPreview(presetId));
 
   ipcMain.handle('project:close', async () => {
     const closed = await closeProjectInteractive();

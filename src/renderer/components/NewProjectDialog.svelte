@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { t, getLocale } from '@shared/i18n/store.svelte';
   import { PROJECT_TYPES, localize, type GalleryItem } from '@shared/presetTypes';
+  import PresetPreview from './PresetPreview.svelte';
 
   // `templates` is kept for back-compat with the caller but no longer used —
   // the gallery (blank starters + rich presets) is fetched from main.
@@ -17,8 +18,22 @@
   let creating = $state(false);
   let selectedKey = $state('');
   let projectName = $state('');
+  let previewItem = $state<GalleryItem | null>(null);
 
   const locale = getLocale();
+  const de = locale === 'de';
+
+  function openPreview(item: GalleryItem, e: MouseEvent) {
+    e.stopPropagation();
+    selectedKey = item.key;
+    previewItem = item;
+  }
+
+  function useFromPreview() {
+    const item = previewItem;
+    previewItem = null;
+    if (item) { selectedKey = item.key; create(); }
+  }
 
   async function loadGallery() {
     loading = true;
@@ -131,6 +146,9 @@
                     {:else}
                       <span class="thumb-icon">{item.icon}</span>
                     {/if}
+                    {#if item.kind === 'preset'}
+                      <button class="preview-btn" onclick={(e) => openPreview(item, e)}>{de ? 'Vorschau' : 'Preview'}</button>
+                    {/if}
                     {#if item.origin === 'user'}
                       <span class="badge">{savedLabel}</span>
                       <button class="del" title={t().common.delete ?? 'Delete'} onclick={(e) => deletePreset(item, e)} aria-label="delete">×</button>
@@ -157,6 +175,15 @@
     </div>
   </div>
 </div>
+
+{#if previewItem}
+  <PresetPreview
+    title={previewItem.label}
+    presetId={previewItem.id}
+    onClose={() => previewItem = null}
+    onUse={useFromPreview}
+  />
+{/if}
 
 <style>
   .dialog-overlay {
@@ -246,6 +273,16 @@
   .thumb img { width: 100%; height: 100%; object-fit: contain; object-position: center top; }
   .card.blank .thumb { background: repeating-linear-gradient(45deg, #fafafa, #fafafa 8px, #f4f4f4 8px, #f4f4f4 16px); }
   .thumb-icon { font-size: 34px; opacity: 0.5; }
+
+  .preview-btn {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    padding: 5px 12px; border: none; border-radius: 20px;
+    background: rgba(20, 22, 28, 0.82); color: #fff;
+    font-size: 11.5px; font-weight: 600; font-family: inherit;
+    cursor: pointer; opacity: 0; transition: opacity 0.12s; white-space: nowrap;
+  }
+  .card:hover .preview-btn { opacity: 1; }
+  .preview-btn:hover { background: rgba(20, 22, 28, 0.96); }
 
   .badge {
     position: absolute; top: 6px; left: 6px;

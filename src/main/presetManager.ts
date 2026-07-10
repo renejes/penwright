@@ -196,6 +196,53 @@ export function getPresetStyle(presetId: string): ProjectStyle | null {
   catch { return null; }
 }
 
+// ─── On-demand multi-page preview (rendered with the bundled Typst) ──────────
+
+/** Small session cache so re-opening the same preview is instant. Capped. */
+const previewCache = new Map<string, string[]>();
+const PREVIEW_CACHE_MAX = 6;
+
+/** Clears the preview cache (call when a user preset changes). */
+export function clearPreviewCache(): void { previewCache.clear(); }
+
+/**
+ * Renders the first pages of a preset to PNG data-URIs, for the gallery's
+ * "flip through the design" overlay. Uses the bundled Typst (already the app's
+ * compiler), so no preview images ship in the bundle and the preview is always
+ * fresh. `--pages 1-N` clamps to the actual page count (never errors on short
+ * presets). Returns [] on any failure — the overlay just shows nothing.
+ */
+export function renderPresetPreview(presetId: string, maxPages = 6): string[] {
+  if (previewCache.has(presetId)) return previewCache.get(presetId)!;
+  const found = scanPresetDirs().find((s) => s.manifest.id === presetId);
+  if (!found) return [];
+  const { manifest, dir } = found;
+  const root = path.join(dir, manifest.root || 'main.typ');
+  if (!fs.existsSync(root)) return [];
+
+  const tmp = fs.mkdtempSync(path.join(app.getPath('temp'), 'pw-preview-'));
+  try {
+    execFileSync(
+      getTypstPath(),
+      buildTypstCompileArgs(['--root', dir, '--pages', `1-${Math.max(1, maxPages)}`, '--ppi', '120', '--format', 'png', root, path.join(tmp, 'p-{p}.png')]),
+      { stdio: 'ignore', timeout: 120_000 },
+    );
+    const files = fs.readdirSync(tmp)
+      .filter((f) => /^p-\d+\.png$/.test(f))
+      .sort((a, b) => parseInt(a.slice(2), 10) - parseInt(b.slice(2), 10));
+    const uris = files.map((f) => `data:image/png;base64,${fs.readFileSync(path.join(tmp, f)).toString('base64')}`);
+    if (uris.length) {
+      previewCache.set(presetId, uris);
+      if (previewCache.size > PREVIEW_CACHE_MAX) previewCache.delete(previewCache.keys().next().value as string);
+    }
+    return uris;
+  } catch {
+    return [];
+  } finally {
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
+
 /** Recursive copy, skipping library-only files at the TOP level + never .git. */
 function copyPresetDir(src: string, dest: string, top = true): void {
   fs.mkdirSync(dest, { recursive: true });
@@ -398,6 +445,7 @@ export async function saveProjectAsPreset(input: SavePresetInput): Promise<{ ok:
   };
   fs.writeFileSync(path.join(dest, 'preset.json'), JSON.stringify(manifest, null, 2), 'utf-8');
   addBreadcrumb('project', `saved project as preset ${id}`);
+  clearPreviewCache();
   return { ok: true, id };
 }
 
@@ -407,6 +455,6 @@ export function deleteUserPreset(id: string): { ok: boolean } {
   const dir = path.join(root, id);
   const inside = path.resolve(dir).startsWith(path.resolve(root) + path.sep);
   if (!inside || !fs.existsSync(dir)) return { ok: false };
-  try { fs.rmSync(dir, { recursive: true, force: true }); return { ok: true }; }
+  try { fs.rmSync(dir, { recursive: true, force: true }); clearPreviewCache(); return { ok: true }; }
   catch { return { ok: false }; }
 }
