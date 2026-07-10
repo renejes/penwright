@@ -207,7 +207,7 @@ async function pickPresetTargetDir(suggested: string): Promise<string | null> {
  * (landing on the manifest's `openFile` so the user starts on writable content,
  * not a cover). Returns the project dir, or null if cancelled/failed.
  */
-export async function createFromPreset(presetId: string): Promise<string | null> {
+export async function createFromPreset(presetId: string, suggestedName?: string): Promise<string | null> {
   const md = resolveDict(getLocale()).mainDialogs;
   const found = scanPresetDirs().find((s) => s.manifest.id === presetId);
   if (!found) {
@@ -227,7 +227,7 @@ export async function createFromPreset(presetId: string): Promise<string | null>
     if (!closed) return null;
   }
 
-  const target = await pickPresetTargetDir(manifest.id);
+  const target = await pickPresetTargetDir((suggestedName && suggestedName.trim()) || manifest.id);
   if (!target) return null;
 
   try {

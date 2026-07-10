@@ -1343,8 +1343,8 @@ export function setupIPC(): void {
     return buildGallery();
   });
 
-  ipcMain.handle('preset:create', async (_event, presetId: string) => {
-    const result = await createFromPreset(presetId);
+  ipcMain.handle('preset:create', async (_event, presetId: string, suggestedName?: string) => {
+    const result = await createFromPreset(presetId, suggestedName);
     return { ok: !!result, projectDir: result };
   });
 
