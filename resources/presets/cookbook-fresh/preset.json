@@ -1,0 +1,16 @@
+{
+  "id": "cookbook-fresh",
+  "type": "cookbook",
+  "label": {
+    "en": "Fresh / Green",
+    "de": "Frisch / Grün"
+  },
+  "tagline": {
+    "en": "Garden-fresh greens, crisp and light.",
+    "de": "Gartenfrische Grüntöne, hell und klar."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 30,
+  "thumbnailPage": 2
+}

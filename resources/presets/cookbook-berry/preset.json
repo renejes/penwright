@@ -1,0 +1,16 @@
+{
+  "id": "cookbook-berry",
+  "type": "cookbook",
+  "label": {
+    "en": "Berry",
+    "de": "Beere"
+  },
+  "tagline": {
+    "en": "Berry tones, soft and sweet.",
+    "de": "Beerentöne, sanft und süß."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 40,
+  "thumbnailPage": 2
+}

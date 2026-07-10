@@ -1,0 +1,15 @@
+{
+  "id": "newsletter-pop",
+  "type": "newsletter",
+  "label": {
+    "en": "Pop",
+    "de": "Pop"
+  },
+  "tagline": {
+    "en": "Pop-art newsletter, red + blue punch.",
+    "de": "Pop-Art-Newsletter, Rot + Blau."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 30
+}

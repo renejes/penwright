@@ -1,0 +1,15 @@
+{
+  "id": "report-dark",
+  "type": "report",
+  "label": {
+    "en": "Dark",
+    "de": "Dark"
+  },
+  "tagline": {
+    "en": "Dark-mode report, emerald accent.",
+    "de": "Dark-Mode-Report, Smaragd-Akzent."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 40
+}

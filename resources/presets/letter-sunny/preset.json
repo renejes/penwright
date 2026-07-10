@@ -1,0 +1,15 @@
+{
+  "id": "letter-sunny",
+  "type": "letter",
+  "label": {
+    "en": "Sunny",
+    "de": "Sonnig"
+  },
+  "tagline": {
+    "en": "A warm, cheerful amber letter.",
+    "de": "Ein warmer, fröhlicher Bernstein-Brief."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 40
+}

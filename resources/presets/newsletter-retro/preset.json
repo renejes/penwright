@@ -1,0 +1,15 @@
+{
+  "id": "newsletter-retro",
+  "type": "newsletter",
+  "label": {
+    "en": "Retro",
+    "de": "Retro"
+  },
+  "tagline": {
+    "en": "70s warmth — amber, cream, olive.",
+    "de": "70er-Wärme — Bernstein, Creme, Oliv."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 40
+}

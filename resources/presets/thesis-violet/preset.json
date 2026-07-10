@@ -1,0 +1,15 @@
+{
+  "id": "thesis-violet",
+  "type": "thesis",
+  "label": {
+    "en": "Violet",
+    "de": "Violett"
+  },
+  "tagline": {
+    "en": "A lively academic look with a violet bar.",
+    "de": "Lebendiger akademischer Look mit Violett-Balken."
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-introduction.typ",
+  "order": 40
+}

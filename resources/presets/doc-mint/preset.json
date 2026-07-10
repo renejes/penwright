@@ -1,0 +1,15 @@
+{
+  "id": "doc-mint",
+  "type": "document",
+  "label": {
+    "en": "Fresh Mint",
+    "de": "Frisches Minz"
+  },
+  "tagline": {
+    "en": "Soft mint pastel, friendly rounded titles.",
+    "de": "Sanftes Minz-Pastell, freundliche runde Titel."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 50
+}

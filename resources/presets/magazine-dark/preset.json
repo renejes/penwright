@@ -1,0 +1,15 @@
+{
+  "id": "magazine-dark",
+  "type": "magazine",
+  "label": {
+    "en": "Dark / Editorial",
+    "de": "Dark / Editorial"
+  },
+  "tagline": {
+    "en": "Night-mode issue — ink black, warm gold.",
+    "de": "Nacht-Heft — Tintenschwarz, warmes Gold."
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-editorial.typ",
+  "order": 50
+}

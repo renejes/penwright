@@ -1,0 +1,15 @@
+{
+  "id": "report-vibrant",
+  "type": "report",
+  "label": {
+    "en": "Vibrant",
+    "de": "Vibrant"
+  },
+  "tagline": {
+    "en": "Bold violet blocks, confident cover.",
+    "de": "Kräftige Violett-Blöcke, selbstbewusstes Deckblatt."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 30
+}

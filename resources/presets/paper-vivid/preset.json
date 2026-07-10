@@ -1,0 +1,15 @@
+{
+  "id": "paper-vivid",
+  "type": "paper",
+  "label": {
+    "en": "Vivid",
+    "de": "Vivid"
+  },
+  "tagline": {
+    "en": "Preprint with magenta section rules.",
+    "de": "Preprint mit Magenta-Abschnittslinien."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 30
+}

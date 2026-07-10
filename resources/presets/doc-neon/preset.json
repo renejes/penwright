@@ -1,0 +1,15 @@
+{
+  "id": "doc-neon",
+  "type": "document",
+  "label": {
+    "en": "Neon Dark",
+    "de": "Neon Dark"
+  },
+  "tagline": {
+    "en": "Dark mode, electric cyan, mono accents.",
+    "de": "Dark Mode, elektrisches Cyan, Mono-Akzente."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 40
+}

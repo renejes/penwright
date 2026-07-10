@@ -1,0 +1,16 @@
+{
+  "id": "portfolio-candy",
+  "type": "portfolio",
+  "label": {
+    "en": "Candy",
+    "de": "Candy"
+  },
+  "tagline": {
+    "en": "Playful pink + violet, rounded chips.",
+    "de": "Verspieltes Pink + Violett, runde Chips."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 40,
+  "thumbnailPage": 2
+}

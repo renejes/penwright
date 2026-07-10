@@ -1,0 +1,15 @@
+{
+  "id": "magazine-pop",
+  "type": "magazine",
+  "label": {
+    "en": "Pop / Colour",
+    "de": "Pop / Farbe"
+  },
+  "tagline": {
+    "en": "Pop issue — every rubric its own bright.",
+    "de": "Pop-Heft — jede Rubrik eine eigene Knallfarbe."
+  },
+  "root": "main.typ",
+  "openFile": "chapters/01-editorial.typ",
+  "order": 40
+}

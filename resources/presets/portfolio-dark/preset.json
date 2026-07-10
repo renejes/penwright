@@ -1,0 +1,16 @@
+{
+  "id": "portfolio-dark",
+  "type": "portfolio",
+  "label": {
+    "en": "Dark / Lime",
+    "de": "Dark / Lime"
+  },
+  "tagline": {
+    "en": "Black canvas, electric lime.",
+    "de": "Schwarze Leinwand, elektrisches Lime."
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 30,
+  "thumbnailPage": 2
+}

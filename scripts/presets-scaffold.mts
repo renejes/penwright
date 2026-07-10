@@ -52,6 +52,28 @@ const p = (i: number) => LOREM[i % LOREM.length];
 const paras = (from: number, n: number) => Array.from({ length: n }, (_, k) => p(from + k)).join('\n\n');
 const TITLES = ['Lorem Ipsum', 'Dolor Sit Amet', 'Consectetur', 'Adipiscing Elit', 'Sed Do Eiusmod', 'Tempor Incididunt', 'Ut Labore', 'Magna Aliqua'];
 
+// ─── Design treatments — decorative custom.preamble snippets (theme-aware) ────
+// Injected into style.custom.preamble, so they layer ON TOP of the generated
+// heading rules and re-theme with the palette. Kept compile-safe.
+const TREATMENTS: Record<string, string> = {
+  // H1 as a filled accent block with white text — bold, modern, "shop" energy.
+  blocks: [
+    '#show heading.where(level: 1): it => block(fill: style-colors.accent, inset: (x: 0.7em, y: 0.42em), radius: 7pt, above: 1.1em, below: 0.7em, text(fill: white, weight: "bold", it.body))',
+    '#show heading.where(level: 2): it => block(above: 1.2em, below: 0.5em)[#box(fill: style-colors.accent, inset: (x: 0.4em, y: 0.15em), radius: 4pt, text(fill: white, it.body))]',
+  ].join('\n'),
+  // A short thick accent rule under every heading.
+  underline: '#show heading: it => block(above: 1.1em, below: 0.6em)[#it.body #v(-0.15em) #line(length: 1.4cm, stroke: 3pt + style-colors.accent)]',
+  // A coloured left bar on H1 (editorial).
+  sidebar: '#show heading.where(level: 1): it => block(above: 1.1em, below: 0.6em, inset: (left: 0.7em), stroke: (left: 4pt + style-colors.accent), it.body)',
+  // Big playful accent headings + a subtle tinted rule between sections.
+  pop: [
+    '#show heading.where(level: 1): set text(fill: style-colors.accent)',
+    '#show heading.where(level: 2): it => block(above: 1.2em, below: 0.4em)[#text(fill: style-colors.accent, it.body) #box(width: 1fr, inset: (left: 0.5em), line(length: 100%, stroke: 1.5pt + style-colors.accent.lighten(40%)))]',
+  ].join('\n'),
+  // Rounded outlined heading chips (soft, friendly).
+  chips: '#show heading.where(level: 1): it => block(above: 1.1em, below: 0.7em)[#box(stroke: 2pt + style-colors.accent, inset: (x: 0.7em, y: 0.35em), radius: 20pt, text(fill: style-colors.accent, weight: "bold", it.body))]',
+};
+
 // ─── Content generators (per kind) ────────────────────────────────────────────
 interface Asset { name: string; w: number; h: number; label: string }
 interface Gen { files: Record<string, string>; assets?: Asset[]; openFile: string }
@@ -60,6 +82,8 @@ type Spec = {
   label: { en: string; de: string }; tagline: { en: string; de: string };
   highlights?: { en: string[]; de: string[] };
   openFile?: string;
+  /** A named decorative treatment injected into custom.preamble (see TREATMENTS). */
+  treatment?: string;
   /** Generator kinds use a ProjectStyle partial. */
   style?: Partial<ProjectStyle>;
   /** Variant presets inherit their CONTENT (chapters/macros/assets) from another
@@ -539,6 +563,107 @@ const SPECS: Spec[] = [
     label: { en: 'Recipe', de: 'Rezept' }, tagline: { en: 'Recipe pages — image, ingredients, steps.', de: 'Rezeptseiten — Bild, Zutaten, Schritte.' },
     style: { colors: { primary: '#3a2417', accent: '#b45309', text: '#3a2417', background: '#fdf9f3', muted: '#9a7b5f' }, fonts: { body: 'Spectral', heading: 'IBM Plex Sans', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.72em', paragraphSpacing: '0.8em', firstLineIndent: '0pt' } },
   },
+
+  // ── Design-forward "shop": bold colour + distinct treatments, wide spectrum. ──
+  {
+    id: 'doc-neon', type: 'document', kind: 'document', order: 40, treatment: 'sidebar',
+    label: { en: 'Neon Dark', de: 'Neon Dark' }, tagline: { en: 'Dark mode, electric cyan, mono accents.', de: 'Dark Mode, elektrisches Cyan, Mono-Akzente.' },
+    style: { colors: { primary: '#22d3ee', accent: '#22d3ee', text: '#e5e7eb', background: '#0f1117', muted: '#8b94a7' }, fonts: { body: 'Inter', heading: 'Inter', code: 'JetBrains Mono' }, scale: { base: '11pt', leading: '0.72em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' }, layout: { margin: '3cm' } as any },
+  },
+  {
+    id: 'doc-mint', type: 'document', kind: 'document', order: 50, treatment: 'chips',
+    label: { en: 'Fresh Mint', de: 'Frisches Minz' }, tagline: { en: 'Soft mint pastel, friendly rounded titles.', de: 'Sanftes Minz-Pastell, freundliche runde Titel.' },
+    style: { colors: { primary: '#065f46', accent: '#10b981', text: '#064e3b', background: '#f0fdf4', muted: '#6b9080' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '11.5pt', leading: '0.74em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'thesis-violet', type: 'thesis', kind: 'thesis', order: 40, treatment: 'sidebar',
+    label: { en: 'Violet', de: 'Violett' }, tagline: { en: 'A lively academic look with a violet bar.', de: 'Lebendiger akademischer Look mit Violett-Balken.' },
+    style: { colors: { primary: '#5b21b6', accent: '#7c3aed', text: '#1e1b2e', background: '#ffffff', muted: '#6b7280' }, fonts: { body: 'IBM Plex Serif', heading: 'IBM Plex Sans', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.7em', paragraphSpacing: '', firstLineIndent: '1em' }, headings: { numbering: '1.1' } as any },
+  },
+  {
+    id: 'paper-vivid', type: 'paper', kind: 'paper', order: 30, treatment: 'underline',
+    label: { en: 'Vivid', de: 'Vivid' }, tagline: { en: 'Preprint with magenta section rules.', de: 'Preprint mit Magenta-Abschnittslinien.' },
+    style: { colors: { primary: '#9d174d', accent: '#db2777', text: '#1a1a1a', background: '#ffffff', muted: '#6b7280' }, fonts: { body: 'IBM Plex Serif', heading: 'IBM Plex Sans', code: 'IBM Plex Mono' }, scale: { base: '10pt', leading: '0.64em', paragraphSpacing: '', firstLineIndent: '1em' }, headings: { numbering: '1.' } as any },
+  },
+  {
+    id: 'letter-sunny', type: 'letter', kind: 'letter', order: 40,
+    label: { en: 'Sunny', de: 'Sonnig' }, tagline: { en: 'A warm, cheerful amber letter.', de: 'Ein warmer, fröhlicher Bernstein-Brief.' },
+    style: { colors: { primary: '#b45309', accent: '#f59e0b', text: '#422006', background: '#fffbeb', muted: '#a16207' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.72em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'book-kids', type: 'book', kind: 'picturebook', order: 40, thumbnailPage: 2, treatment: 'blocks',
+    label: { en: 'Kids / Bright', de: 'Kinder / Knallbunt' }, tagline: { en: 'Pippi-bright picture book — big blocks, hot pink.', de: 'Pippi-knallbunt — große Blöcke, Pink.' },
+    highlights: { en: ['Landscape · huge playful type'], de: ['Querformat · riesige verspielte Schrift'] },
+    style: { colors: { primary: '#06b6d4', accent: '#ec4899', text: '#1e293b', background: '#fef9c3', muted: '#f59e0b' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '14pt', leading: '0.82em', paragraphSpacing: '1em', firstLineIndent: '0pt' }, layout: { paper: 'a4', orientation: 'landscape', margin: '2cm' } as any },
+  },
+  {
+    id: 'report-vibrant', type: 'report', kind: 'report', order: 30, treatment: 'blocks',
+    label: { en: 'Vibrant', de: 'Vibrant' }, tagline: { en: 'Bold violet blocks, confident cover.', de: 'Kräftige Violett-Blöcke, selbstbewusstes Deckblatt.' },
+    style: { colors: { primary: '#4c1d95', accent: '#7c3aed', text: '#1e1b2e', background: '#ffffff', muted: '#6b7280' }, fonts: { body: 'IBM Plex Sans', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '10.5pt', leading: '0.68em', paragraphSpacing: '0.8em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'report-dark', type: 'report', kind: 'report', order: 40, treatment: 'sidebar',
+    label: { en: 'Dark', de: 'Dark' }, tagline: { en: 'Dark-mode report, emerald accent.', de: 'Dark-Mode-Report, Smaragd-Akzent.' },
+    style: { colors: { primary: '#34d399', accent: '#34d399', text: '#e5e7eb', background: '#111827', muted: '#94a3b8' }, fonts: { body: 'IBM Plex Sans', heading: 'Inter', code: 'JetBrains Mono' }, scale: { base: '10.5pt', leading: '0.68em', paragraphSpacing: '0.8em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'newsletter-pop', type: 'newsletter', kind: 'newsletter', order: 30, treatment: 'pop',
+    label: { en: 'Pop', de: 'Pop' }, tagline: { en: 'Pop-art newsletter, red + blue punch.', de: 'Pop-Art-Newsletter, Rot + Blau.' },
+    style: { colors: { primary: '#2563eb', accent: '#ef4444', text: '#111111', background: '#ffffff', muted: '#6b7280' }, fonts: { body: 'IBM Plex Sans', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '10pt', leading: '0.66em', paragraphSpacing: '0.7em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'newsletter-retro', type: 'newsletter', kind: 'newsletter', order: 40, treatment: 'underline',
+    label: { en: 'Retro', de: 'Retro' }, tagline: { en: '70s warmth — amber, cream, olive.', de: '70er-Wärme — Bernstein, Creme, Oliv.' },
+    style: { colors: { primary: '#7c2d12', accent: '#d97706', text: '#3f2d16', background: '#fdf6e3', muted: '#8a7a52' }, fonts: { body: 'Spectral', heading: 'Spectral', code: 'IBM Plex Mono' }, scale: { base: '10pt', leading: '0.66em', paragraphSpacing: '0.7em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'portfolio-dark', type: 'portfolio', kind: 'portfolio', order: 30, thumbnailPage: 2, treatment: 'sidebar',
+    label: { en: 'Dark / Lime', de: 'Dark / Lime' }, tagline: { en: 'Black canvas, electric lime.', de: 'Schwarze Leinwand, elektrisches Lime.' },
+    style: { colors: { primary: '#a3e635', accent: '#a3e635', text: '#fafafa', background: '#0a0a0a', muted: '#a1a1aa' }, fonts: { body: 'Inter', heading: 'Inter', code: 'JetBrains Mono' }, scale: { base: '11pt', leading: '0.7em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'portfolio-candy', type: 'portfolio', kind: 'portfolio', order: 40, thumbnailPage: 2, treatment: 'chips',
+    label: { en: 'Candy', de: 'Candy' }, tagline: { en: 'Playful pink + violet, rounded chips.', de: 'Verspieltes Pink + Violett, runde Chips.' },
+    style: { colors: { primary: '#8b5cf6', accent: '#ec4899', text: '#1f1147', background: '#ffffff', muted: '#8b7fae' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.7em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'cookbook-fresh', type: 'cookbook', kind: 'cookbook', order: 30, thumbnailPage: 2, treatment: 'underline',
+    label: { en: 'Fresh / Green', de: 'Frisch / Grün' }, tagline: { en: 'Garden-fresh greens, crisp and light.', de: 'Gartenfrische Grüntöne, hell und klar.' },
+    style: { colors: { primary: '#3f6212', accent: '#65a30d', text: '#1a2e05', background: '#f7fee7', muted: '#65805a' }, fonts: { body: 'Spectral', heading: 'IBM Plex Sans', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.72em', paragraphSpacing: '0.8em', firstLineIndent: '0pt' } },
+  },
+  {
+    id: 'cookbook-berry', type: 'cookbook', kind: 'cookbook', order: 40, thumbnailPage: 2, treatment: 'chips',
+    label: { en: 'Berry', de: 'Beere' }, tagline: { en: 'Berry tones, soft and sweet.', de: 'Beerentöne, sanft und süß.' },
+    style: { colors: { primary: '#9d174d', accent: '#be185d', text: '#500724', background: '#fdf2f8', muted: '#a3708c' }, fonts: { body: 'Spectral', heading: 'IBM Plex Sans', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.72em', paragraphSpacing: '0.8em', firstLineIndent: '0pt' } },
+  },
+
+  // ── Colourful magazine variants (inherit magazine-slow's per-chapter layouts). ──
+  {
+    id: 'magazine-pop', type: 'magazine', order: 40, baseFrom: 'magazine-slow',
+    label: { en: 'Pop / Colour', de: 'Pop / Farbe' }, tagline: { en: 'Pop issue — every rubric its own bright.', de: 'Pop-Heft — jede Rubrik eine eigene Knallfarbe.' },
+    openFile: 'chapters/01-editorial.typ',
+    styleOverride: { colors: { primary: '#111111', accent: '#ea580c', text: '#141414', background: '#fffdf5', muted: '#6b7280' }, fonts: { body: 'IBM Plex Sans', heading: 'Inter' } },
+    sectionOverrides: {
+      feature: { colors: { accent: '#ea580c' }, fonts: { heading: 'Inter', body: 'IBM Plex Sans' } },
+      interview: { colors: { accent: '#0891b2' }, fonts: { heading: 'Inter', body: 'IBM Plex Sans' } },
+      essay: { colors: { accent: '#7c3aed' }, fonts: { heading: 'Inter', body: 'IBM Plex Sans' } },
+      'photo-essay': { colors: { accent: '#db2777' }, fonts: { heading: 'Inter', body: 'IBM Plex Sans' } },
+      department: { colors: { accent: '#16a34a' }, fonts: { heading: 'Inter', body: 'IBM Plex Sans' } },
+    },
+  },
+  {
+    id: 'magazine-dark', type: 'magazine', order: 50, baseFrom: 'magazine-slow',
+    label: { en: 'Dark / Editorial', de: 'Dark / Editorial' }, tagline: { en: 'Night-mode issue — ink black, warm gold.', de: 'Nacht-Heft — Tintenschwarz, warmes Gold.' },
+    openFile: 'chapters/01-editorial.typ',
+    styleOverride: { colors: { primary: '#e8b04b', accent: '#e8b04b', text: '#ececec', background: '#161616', muted: '#9a9a9a' }, fonts: { body: 'Spectral', heading: 'Spectral' } },
+    sectionOverrides: {
+      feature: { colors: { accent: '#e8b04b', text: '#ececec' } },
+      interview: { colors: { accent: '#6bb6c9', text: '#ececec' } },
+      essay: { colors: { accent: '#d9a679', text: '#ececec' } },
+      'photo-essay': { colors: { accent: '#e8b04b', text: '#ececec' } },
+      department: { colors: { accent: '#c98a8a', text: '#ececec' } },
+    },
+  },
 ];
 
 // ─── Placeholder image render ─────────────────────────────────────────────────
@@ -593,7 +718,13 @@ for (const spec of specs) {
     fs.writeFileSync(path.join(dir, 'style.typ'), generateStyleTypst(style), 'utf-8');
     copyContent(baseDir, dir);
   } else {
-    const style = sanitizeProjectStyle(spec.style as ProjectStyle);
+    // Fold a named decorative treatment into custom.preamble before sanitizing.
+    const raw: Partial<ProjectStyle> = { ...(spec.style ?? {}) };
+    if (spec.treatment && TREATMENTS[spec.treatment]) {
+      const existing = raw.custom?.preamble ?? '';
+      raw.custom = { preamble: (existing ? existing + '\n' : '') + TREATMENTS[spec.treatment] };
+    }
+    const style = sanitizeProjectStyle(raw as ProjectStyle);
     fs.writeFileSync(path.join(dir, '.penwright', 'style.json'), JSON.stringify(style, null, 2), 'utf-8');
     fs.writeFileSync(path.join(dir, 'style.typ'), generateStyleTypst(style), 'utf-8');
 

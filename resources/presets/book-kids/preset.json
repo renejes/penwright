@@ -1,0 +1,24 @@
+{
+  "id": "book-kids",
+  "type": "book",
+  "label": {
+    "en": "Kids / Bright",
+    "de": "Kinder / Knallbunt"
+  },
+  "tagline": {
+    "en": "Pippi-bright picture book — big blocks, hot pink.",
+    "de": "Pippi-knallbunt — große Blöcke, Pink."
+  },
+  "highlights": {
+    "en": [
+      "Landscape · huge playful type"
+    ],
+    "de": [
+      "Querformat · riesige verspielte Schrift"
+    ]
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 40,
+  "thumbnailPage": 2
+}
