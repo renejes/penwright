@@ -31,7 +31,7 @@
   import { LAYOUT_PRESETS } from '../../shared/layoutPresets';
   import { SECTION_PRESETS, getSectionPreset } from '../../shared/sectionPresets';
   import CodeEditor from './CodeEditor.svelte';
-  import { t } from '@shared/i18n/store.svelte';
+  import { t, getLocale } from '@shared/i18n/store.svelte';
 
   type Status = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
   type FontSlot = keyof ProjectStyle['fonts'];
@@ -309,6 +309,58 @@
     if (p.baseSize) style.scale.base = p.baseSize;
   }
 
+  // ─── Import design FROM another preset ────
+  // Reads a source preset's ProjectStyle and merges the chosen scope into the
+  // current `style` (which auto-saves through the safe-apply path, so an import
+  // that would break the doc is rolled back and can be undone like any change).
+  const importDe = getLocale() === 'de';
+  let presetStyles = $state<{ id: string; label: string; type: string; sections: number }[]>([]);
+  let importPresetId = $state('');
+  let importScope = $state<'design' | 'palette' | 'fonts' | 'layout' | 'sections'>('design');
+  let importMsg = $state('');
+
+  onMount(async () => {
+    try {
+      presetStyles = (await api?.invoke('preset:styles')) as typeof presetStyles ?? [];
+      if (!importPresetId && presetStyles.length) importPresetId = presetStyles[0].id;
+    } catch { /* ignore */ }
+  });
+
+  async function importFromPreset(): Promise<void> {
+    if (!api || !importPresetId) return;
+    let src: ProjectStyle | undefined;
+    try { src = ((await api.invoke('preset:getStyle', importPresetId)) as { style?: ProjectStyle })?.style; }
+    catch { /* ignore */ }
+    if (!src) return;
+    const cur = style;
+    if (importScope === 'palette') {
+      style.colors = { ...src.colors };
+    } else if (importScope === 'fonts') {
+      style.fonts = { ...src.fonts };
+    } else if (importScope === 'layout') {
+      style.layout = { ...src.layout, bleed: cur.layout.bleed ?? '', cropMarks: cur.layout.cropMarks ?? false, facingPages: cur.layout.facingPages ?? false, binding: cur.layout.binding ?? '' };
+      if (src.scale?.base) style.scale.base = src.scale.base;
+    } else if (importScope === 'sections') {
+      const have = new Set((style.sections ?? []).map(s => s.id));
+      const add = (src.sections ?? []).filter(s => !have.has(s.id)).map(s => JSON.parse(JSON.stringify(s)));
+      style.sections = [...(style.sections ?? []), ...add];
+    } else {
+      // whole design (look): colors + fonts + scale + headings + elements + layout,
+      // preserving the current custom code, section rubrics and print setup.
+      const preservedCustom = cur.custom?.preamble ?? '';
+      const preservedSections = cur.sections ?? [];
+      style = cloneProjectStyle({
+        ...src,
+        sections: preservedSections,
+        custom: { preamble: preservedCustom },
+        layout: { ...src.layout, bleed: cur.layout.bleed ?? '', cropMarks: cur.layout.cropMarks ?? false, facingPages: cur.layout.facingPages ?? false, binding: cur.layout.binding ?? '' },
+      });
+    }
+    const lbl = presetStyles.find(p => p.id === importPresetId)?.label ?? '';
+    importMsg = importDe ? `Aus „${lbl}" importiert.` : `Imported from “${lbl}”.`;
+    setTimeout(() => { importMsg = ''; }, 3500);
+  }
+
   // ─── Section styles (Phase E — per-chapter magazine rubrics) ───
   let sectionsExpanded = $state(false);
 
@@ -580,6 +632,29 @@
       {/each}
     </div>
   </section>
+
+  {#if presetStyles.length}
+  <section class="design-section">
+    <header class="design-section-header">
+      <h3>{importDe ? 'Aus Preset importieren' : 'Import from preset'}</h3>
+      <span class="design-section-hint">{importDe ? 'Übernimm Design, Farben, Schriften, Layout oder Kapitel-Rubriken aus einem anderen Preset.' : 'Bring in the design, colors, fonts, layout or chapter rubrics from another preset.'}</span>
+    </header>
+    <div class="import-row">
+      <select class="import-select" bind:value={importPresetId} aria-label="preset">
+        {#each presetStyles as ps}<option value={ps.id}>{ps.label}</option>{/each}
+      </select>
+      <select class="import-select" bind:value={importScope} aria-label="scope">
+        <option value="design">{importDe ? 'Ganzes Design' : 'Whole design'}</option>
+        <option value="palette">{importDe ? 'Nur Farben' : 'Colors only'}</option>
+        <option value="fonts">{importDe ? 'Nur Schriften' : 'Fonts only'}</option>
+        <option value="layout">{importDe ? 'Nur Layout' : 'Layout only'}</option>
+        <option value="sections">{importDe ? 'Kapitel-Rubriken' : 'Chapter rubrics'}</option>
+      </select>
+      <button type="button" class="import-btn" onclick={importFromPreset} disabled={!importPresetId}>{importDe ? 'Importieren' : 'Import'}</button>
+    </div>
+    {#if importMsg}<div class="import-msg">{importMsg}</div>{/if}
+  </section>
+  {/if}
 
   <section class="design-section">
     <header class="design-section-header">
@@ -1335,6 +1410,42 @@
     font-size: 10.5px;
     color: #999;
     line-height: 1.4;
+  }
+
+  .import-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .import-select {
+    flex: 1 1 40%;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
+    font-family: inherit;
+    color: #333;
+  }
+  .import-btn {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    background: #4f7df9;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .import-btn:hover { background: #3d6ce8; }
+  .import-btn:disabled { opacity: 0.4; cursor: default; }
+  .import-msg {
+    margin-top: 8px;
+    font-size: 11.5px;
+    color: #2f7d4f;
   }
 
   .design-section-hint code {

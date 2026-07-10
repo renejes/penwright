@@ -25,7 +25,7 @@ function isPathWithinProject(filePath: string): boolean {
 }
 import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
 import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
-import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset } from './presetManager';
+import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset, listPresetStyles, getPresetStyle } from './presetManager';
 import {
   getPanelState,
   savePanelState,
@@ -1356,6 +1356,11 @@ export function setupIPC(): void {
   ipcMain.handle('preset:delete', (_event, presetId: string) => {
     return deleteUserPreset(presetId);
   });
+
+  // Import a design/palette/layout/rubrics FROM a preset into the open project.
+  // The renderer merges the chosen scope and saves via the normal safe-apply path.
+  ipcMain.handle('preset:styles', () => listPresetStyles());
+  ipcMain.handle('preset:getStyle', (_event, presetId: string) => ({ style: getPresetStyle(presetId) }));
 
   ipcMain.handle('project:close', async () => {
     const closed = await closeProjectInteractive();

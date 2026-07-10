@@ -28,6 +28,7 @@ import {
   PROJECT_TYPES, localize, localizeList,
   type PresetManifest, type GalleryItem, type Locale, type SavePresetInput,
 } from '../shared/presetTypes';
+import { sanitizeProjectStyle, type ProjectStyle } from '../shared/styleTypes';
 import { openProject, ensureProjectInfrastructure } from './projectManager';
 
 const IMAGE_MIME: Record<string, string> = {
@@ -166,6 +167,33 @@ export function buildGallery(locale: Locale = getLocale() as Locale): GalleryIte
   }
 
   return items;
+}
+
+// ─── Import design FROM a preset (into the open project) ─────────────────────
+
+/** Lists presets that ship a design (`.penwright/style.json`) — the sources a
+ *  user can import a look / palette / layout / rubrics FROM, in the Design panel. */
+export function listPresetStyles(locale: Locale = getLocale() as Locale): { id: string; label: string; type: string; sections: number }[] {
+  const out: { id: string; label: string; type: string; sections: number }[] = [];
+  for (const { manifest, dir } of scanPresetDirs()) {
+    const p = path.join(dir, '.penwright', 'style.json');
+    if (!fs.existsSync(p)) continue;
+    let sections = 0;
+    try { sections = (JSON.parse(fs.readFileSync(p, 'utf-8')).sections?.length as number) ?? 0; } catch { /* ignore */ }
+    out.push({ id: manifest.id, label: localize(manifest.label, locale), type: manifest.type, sections });
+  }
+  return out;
+}
+
+/** The sanitized ProjectStyle a preset ships, or null. The renderer merges the
+ *  chosen scope into the open project's style and saves through the normal
+ *  safe-apply path (compile-verify-or-rollback) — no new apply code. */
+export function getPresetStyle(presetId: string): ProjectStyle | null {
+  const found = scanPresetDirs().find((s) => s.manifest.id === presetId);
+  if (!found) return null;
+  const p = path.join(found.dir, '.penwright', 'style.json');
+  try { return sanitizeProjectStyle(JSON.parse(fs.readFileSync(p, 'utf-8'))); }
+  catch { return null; }
 }
 
 /** Recursive copy, skipping library-only files at the TOP level + never .git. */
