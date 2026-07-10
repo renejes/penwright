@@ -50,6 +50,7 @@ const LOREM = [
 ];
 const p = (i: number) => LOREM[i % LOREM.length];
 const paras = (from: number, n: number) => Array.from({ length: n }, (_, k) => p(from + k)).join('\n\n');
+const sentence = (i: number) => p(i).split('.')[0] + '.';
 const TITLES = ['Lorem Ipsum', 'Dolor Sit Amet', 'Consectetur', 'Adipiscing Elit', 'Sed Do Eiusmod', 'Tempor Incididunt', 'Ut Labore', 'Magna Aliqua'];
 
 // ─── Design treatments — decorative custom.preamble snippets (theme-aware) ────
@@ -94,6 +95,7 @@ type Spec = {
 };
 
 const importHead = '#import "style.typ": *\n#show: apply-style\n';
+const importBlocks = importHead + '#import "blocks.typ": *\n';
 
 function genDocument(): Gen {
   const body = `${importHead}
@@ -268,26 +270,24 @@ function genBook(): Gen {
 }
 
 function genReport(): Gen {
-  const body = `${importHead}
-// ── Cover ──
-#block(breakable: false)[
-  #v(4cm)
-  #text(size: 0.85em, weight: "bold", tracking: 0.2em, fill: style-colors.accent)[#upper("Report")]
-  #v(0.6em)
-  #text(size: 32pt, weight: "bold")[Report Title]
-  #v(0.4em)
-  #text(size: 1.2em, fill: style-colors.muted)[A subtitle for this report — replace with your own.]
-  #v(1fr)
-  #text(size: 0.9em, fill: style-colors.muted)[Prepared by · Author Name #h(1fr) #datetime.today().display("[month repr:long] [year]")]
-]
+  const body = `${importBlocks}
+#v(2.6cm)
+#herohead("Report Title", kicker: "Report", subtitle: "A subtitle for this report — replace with your own.", size: 2.9em)
+#v(0.5em)
+#text(size: 0.9em, fill: style-colors.muted)[Prepared by · Author Name #h(1fr) #datetime.today().display("[month repr:long] [year]")]
+
+#v(1.3em)
+#statrow((("128", "Data points"), ("+42%", "Growth"), ("7", "Regions"), ("A+", "Rating")))
 
 #pagebreak()
 
 = Executive Summary
 ${paras(0, 2)}
 
+#callout(title: "Key takeaway")[${p(2)}]
+
 = Findings
-${p(2)}
+${p(3)}
 
 #figure(
   table(
@@ -300,42 +300,66 @@ ${p(2)}
   caption: [A placeholder data table.],
 )
 
-${p(3)}
+#pullquote[${sentence(6)}]
 
 = Recommendations
+#steps(([${sentence(4)}], [${sentence(5)}], [${sentence(1)}]))
+`;
+  return { files: { 'main.typ': body }, openFile: 'main.typ' };
+}
+
+function genFeature(): Gen {
+  const body = `${importBlocks}
+#herohead("A Feature Article", kicker: "Feature", subtitle: "An editorial document with real furniture — replace the placeholder text.", size: 2.7em)
+
+${paras(0, 2)}
+
+#pullquote[${sentence(2)}]
+
+${p(3)}
+
+#callout(title: "In short")[${p(4)}]
+
 ${p(5)}
 
-+ Lorem ipsum dolor sit amet
-+ Consectetur adipiscing elit
-+ Sed do eiusmod tempor incididunt
+#sidenote[${sentence(6)}]
+
+${p(1)}
+
+#fancydivider()
+
+${p(0)}
 `;
   return { files: { 'main.typ': body }, openFile: 'main.typ' };
 }
 
 function genNewsletter(): Gen {
-  const body = `${importHead}
+  const body = `${importBlocks}
 #align(center)[
-  #text(size: 34pt, weight: "bold")[THE NEWSLETTER]
-  #v(0.2em)
+  #text(size: 34pt, weight: "bold", fill: style-colors.accent)[THE NEWSLETTER]
+  #v(0.15em)
   #text(size: 0.85em, tracking: 0.2em, fill: style-colors.muted)[ISSUE 01 · #datetime.today().display("[month repr:long] [year]")]
 ]
-#line(length: 100%, stroke: 1pt + style-colors.accent)
-#v(1em)
+#band[#tag("News") #tag("Updates") #tag("Events") #h(1fr) In this issue — replace with your own topics.]
 
 #columns(2, gutter: 1.4em)[
   == ${TITLES[0]}
   ${p(0)}
 
+  #callout[${sentence(1)}]
+
   == ${TITLES[1]}
-  ${p(1)}
+  ${p(3)}
 
   #colbreak()
 
   == ${TITLES[2]}
-  ${p(3)}
+  ${p(5)}
+
+  #pullquote[${sentence(4)}]
 
   == ${TITLES[3]}
-  ${p(5)}
+  ${p(6)}
 ]
 `;
   return { files: { 'main.typ': body }, openFile: 'main.typ' };
@@ -345,21 +369,17 @@ function genPortfolio(): Gen {
   const project = (title: string, img: string, from: number) => `
 == ${title}
 
-#figure(image("assets/${img}", width: 100%), caption: [A placeholder project image.])
+#figure(image("assets/${img}", width: 100%))
 
 ${p(from)}
 
-#grid(columns: 3, column-gutter: 1em,
-  [#text(weight: "bold", fill: style-colors.accent)[Role] \\ Design],
-  [#text(weight: "bold", fill: style-colors.accent)[Year] \\ 2026],
-  [#text(weight: "bold", fill: style-colors.accent)[Client] \\ Lorem Inc.],
-)
+#band[#tag("Design") #tag("2026") #tag("Lorem Inc.") #h(1fr) #text(fill: style-colors.accent, weight: "bold")[View project ↗]]
 `;
-  const body = `${importHead}
-#text(size: 30pt, weight: "bold")[Portfolio]
-#v(0.2em)
-#text(size: 1.1em, fill: style-colors.muted)[Selected work — replace with your own projects.]
-#v(1.5em)
+  const body = `${importBlocks}
+#herohead("Portfolio", kicker: "Selected work", subtitle: "A few projects — replace with your own.", size: 2.9em)
+#v(0.7em)
+#statrow((("24", "Projects"), ("8", "Clients"), ("5", "Awards")))
+#pagebreak()
 ${project('Project One', 'work-1.png', 0)}
 #pagebreak()
 ${project('Project Two', 'work-2.png', 3)}
@@ -378,33 +398,27 @@ function genCookbook(): Gen {
   const recipe = (title: string, img: string, from: number) => `
 = ${title}
 
+#tag("Serves 4") #tag("30 min") #tag("Easy")
+
+#v(0.7em)
+
 #grid(columns: (1fr, 1fr), column-gutter: 1.5em, align: top,
-  [
-    #figure(image("assets/${img}", width: 100%), caption: [Serves 4 · 30 min])
-  ],
-  [
-    #text(weight: "bold", fill: style-colors.accent)[#upper("Ingredients")]
-    #v(0.3em)
+  figure(image("assets/${img}", width: 100%)),
+  callout(title: "Ingredients")[
     - 200 g lorem ipsum
     - 2 dolor sit amet
     - 1 tbsp consectetur
     - a pinch of adipiscing
+    - salt & pepper to taste
   ],
 )
 
 #v(0.5em)
-#text(weight: "bold", fill: style-colors.accent)[#upper("Method")]
-#v(0.3em)
-+ ${p(from)}
-+ ${p(from + 1)}
-+ ${p(from + 2)}
+#text(weight: "bold", tracking: 0.08em, fill: style-colors.accent)[#upper("Method")]
+#steps(([${sentence(from)}], [${sentence(from + 1)}], [${sentence(from + 2)}]))
 `;
-  const body = `${importHead}
-#align(center)[
-  #text(size: 30pt, weight: "bold")[The Cookbook]
-  #v(0.2em)
-  #text(size: 1.1em, style: "italic", fill: style-colors.muted)[A sample of recipes — replace with your own.]
-]
+  const body = `${importBlocks}
+#herohead("The Cookbook", kicker: "Recipes", subtitle: "A sample of recipes — replace with your own.", size: 2.9em)
 #pagebreak()
 ${recipe('Lorem Ipsum Soup', 'dish-1.png', 0)}
 #pagebreak()
@@ -449,10 +463,13 @@ ${spread('scene-3.png', 'And everyone lived happily ever after. The end.')}
 }
 
 const GENERATORS: Record<string, () => Gen> = {
-  document: genDocument, thesis: genThesis, paper: genPaper, letter: genLetter,
-  book: genBook, report: genReport, newsletter: genNewsletter,
+  document: genDocument, feature: genFeature, thesis: genThesis, paper: genPaper,
+  letter: genLetter, book: genBook, report: genReport, newsletter: genNewsletter,
   portfolio: genPortfolio, cookbook: genCookbook, picturebook: genPictureBook,
 };
+
+/** Content kinds that compose the shared design blocks (need blocks.typ). */
+const NEEDS_BLOCKS = new Set(['feature', 'report', 'newsletter', 'portfolio', 'cookbook']);
 
 // ─── Curated specs (design variants per type) ─────────────────────────────────
 const SPECS: Spec[] = [
@@ -501,8 +518,8 @@ const SPECS: Spec[] = [
     style: { colors: { primary: '#1f2933', accent: '#2b6cb0', text: '#1f2933', background: '#ffffff', muted: '#7b8794' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.7em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' }, layout: { margin: '3cm' } as any },
   },
   {
-    id: 'doc-editorial', type: 'document', kind: 'document', order: 30,
-    label: { en: 'Editorial', de: 'Editorial' }, tagline: { en: 'Warm serif document with an accent.', de: 'Warmes Serifen-Dokument mit Akzent.' },
+    id: 'doc-editorial', type: 'document', kind: 'feature', order: 30,
+    label: { en: 'Editorial', de: 'Editorial' }, tagline: { en: 'Warm serif feature — pull-quotes, side notes, callouts.', de: 'Warmes Serifen-Feature — Pull-Quotes, Randnotizen, Callouts.' },
     style: { colors: { primary: '#2d2a26', accent: '#a15c2b', text: '#2d2a26', background: '#fbfaf7', muted: '#8a8078' }, fonts: { body: 'Spectral', heading: 'Spectral', code: 'IBM Plex Mono' }, scale: { base: '12pt', leading: '0.72em', paragraphSpacing: '', firstLineIndent: '1.1em' } },
   },
   {
@@ -566,8 +583,8 @@ const SPECS: Spec[] = [
 
   // ── Design-forward "shop": bold colour + distinct treatments, wide spectrum. ──
   {
-    id: 'doc-neon', type: 'document', kind: 'document', order: 40, treatment: 'sidebar',
-    label: { en: 'Neon Dark', de: 'Neon Dark' }, tagline: { en: 'Dark mode, electric cyan, mono accents.', de: 'Dark Mode, elektrisches Cyan, Mono-Akzente.' },
+    id: 'doc-neon', type: 'document', kind: 'feature', order: 40, treatment: 'sidebar',
+    label: { en: 'Neon Dark', de: 'Neon Dark' }, tagline: { en: 'Dark-mode feature — cyan glow, editorial furniture.', de: 'Dark-Mode-Feature — Cyan-Glow, Editorial-Bausteine.' },
     style: { colors: { primary: '#22d3ee', accent: '#22d3ee', text: '#e5e7eb', background: '#0f1117', muted: '#8b94a7' }, fonts: { body: 'Inter', heading: 'Inter', code: 'JetBrains Mono' }, scale: { base: '11pt', leading: '0.72em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' }, layout: { margin: '3cm' } as any },
   },
   {
@@ -740,6 +757,9 @@ for (const spec of specs) {
       const assetsDir = path.join(dir, 'assets');
       fs.mkdirSync(assetsDir, { recursive: true });
       for (const a of out.assets) renderPlaceholder(path.join(assetsDir, a.name), a.w, a.h, a.label);
+    }
+    if (NEEDS_BLOCKS.has(spec.kind ?? '')) {
+      fs.copyFileSync(path.join(presetsDir, '_shared', 'blocks.typ'), path.join(dir, 'blocks.typ'));
     }
     openFile = out.openFile;
   }

@@ -6,8 +6,8 @@
     "de": "Editorial"
   },
   "tagline": {
-    "en": "Warm serif document with an accent.",
-    "de": "Warmes Serifen-Dokument mit Akzent."
+    "en": "Warm serif feature — pull-quotes, side notes, callouts.",
+    "de": "Warmes Serifen-Feature — Pull-Quotes, Randnotizen, Callouts."
   },
   "root": "main.typ",
   "openFile": "main.typ",
