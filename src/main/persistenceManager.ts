@@ -62,7 +62,6 @@ interface StoreSchema {
   windowBounds: WindowBounds;
   panelState: PanelState;
   recentProjects: RecentProject[];
-  lastProjectPath: string | null;
   onboardingSeen: boolean;
   /** Epoch ms when the local 14-day trial first started; null until first launch records it. */
   trialStartedAt: number | null;
@@ -107,8 +106,7 @@ const store = new Store<StoreSchema>({
       previewWidth: 400,
     },
     recentProjects: [],
-    lastProjectPath: null,
-    onboardingSeen: false,
+      onboardingSeen: false,
     trialStartedAt: null,
     zoteroBibPath: null,
     licenseBlob: null,
@@ -173,16 +171,6 @@ export function removeRecentProject(projectFolder: string): void {
   store.set('recentProjects', recent.filter(p => p.path !== projectFolder));
 }
 
-// ─── Last Project (auto-reopen) ──────────────────
-
-export function getLastProjectPath(): string | null {
-  return store.get('lastProjectPath');
-}
-
-export function saveLastProjectPath(filePath: string | null): void {
-  store.set('lastProjectPath', filePath);
-}
-
 // ─── Onboarding ──────────────────────────────────
 
 export function isOnboardingSeen(): boolean {
@@ -227,10 +215,6 @@ export function setPreviewMode(mode: string): void {
 // First launch stamps `trialStartedAt`; the 14-day clock is read from it.
 // Stored in global electron-store (not per-project) so the trial is per-device.
 
-export function getTrialStartedAt(): number | null {
-  return store.get('trialStartedAt');
-}
-
 /** Returns the trial start (epoch ms), recording `Date.now()` on first call. */
 export function ensureTrialStarted(): number {
   let t = store.get('trialStartedAt');
@@ -266,10 +250,9 @@ export function setMcpTarget(target: 'meta' | 'claude'): void {
 
 // ─── Zotero ──────────────────────────────────────
 
-export function getZoteroBibPath(): string | null {
-  return store.get('zoteroBibPath');
-}
-
+// NOTE: the stored path is currently write-only — the Zotero watcher lives
+// only for the running session. Kept for a future "resume watcher on
+// restart"; the unread getter + its IPC channel were removed in the cleanup.
 export function saveZoteroBibPath(bibPath: string | null): void {
   store.set('zoteroBibPath', bibPath);
 }
@@ -639,13 +622,6 @@ export function saveProjectPreferences(projectDir: string, prefs: ProjectPrefere
   }
 }
 
-/** Deletes the project's `.penwright` folder entirely. */
-export function clearProjectPenwrightData(projectDir: string): void {
-  const dir = penwrightDir(projectDir);
-  try {
-    fs.rmSync(dir, { recursive: true, force: true });
-  } catch {}
-}
 
 // ─── Project-Local Style (Design Editor — Phase A) ──────────────
 // `.penwright/style.json` holds the structured "design tokens" used by the

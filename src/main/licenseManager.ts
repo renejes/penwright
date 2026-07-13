@@ -151,23 +151,9 @@ export async function deactivateLicense(): Promise<void> {
   clearLicenseData();
 }
 
-/**
- * Single-tier check: is there any active, valid license key on this device?
- * A `true` result unlocks everything, including the MCP server.
- */
-export function isLicensed(): boolean {
-  const data = getLicenseData();
-  return data.licenseStatus === 'active' && data.licenseKey !== null;
-}
-
-/**
- * Back-compat alias. There are no tiers anymore — "Pro" == "licensed".
- */
-export function isProUser(): boolean {
-  return isLicensed();
-}
-
 // ─── Entitlement (local, synchronous gate) ──────────
+// The ONLY gate: getEntitlement() below. (The former isLicensed()/isProUser()
+// wrappers had no callers and were removed in the pre-launch cleanup.)
 
 export type Access = 'licensed' | 'trial' | 'expired';
 

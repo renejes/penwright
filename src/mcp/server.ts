@@ -23,11 +23,9 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { parseSettings, applySettings, generateSetBlocks, type DocumentSettings } from '../shared/settingsParser.js';
 import { findRootFile } from '../shared/rootFinder.js';
-import { styleTemplates } from '../shared/styleTemplates.js';
 import {
   sanitizeProjectStyle,
   DEFAULT_PROJECT_STYLE,
-  COLOR_SLOTS,
   type ProjectStyle,
   type StyleColors,
   type SectionStyle,

@@ -108,24 +108,12 @@ export interface EditMessage {
   content: string;
 }
 
-export interface ExportPdfMessage {
-  type: 'exportPdf';
-}
-
-export interface ExportDocxMessage {
-  type: 'exportDocx';
-}
-
 export interface OpenSourceMessage {
   type: 'openSource';
 }
 
 export interface NewProjectMessage {
   type: 'newProject';
-}
-
-export interface NewFileMessage {
-  type: 'newFile';
 }
 
 export interface MergeDocumentMessage {
@@ -160,16 +148,6 @@ export interface SplitDocumentMessage {
   type: 'splitDocument';
 }
 
-export interface SetWordGoalMessage {
-  type: 'setWordGoal';
-  goal: number;
-}
-
-export interface ApplyStyleMessage {
-  type: 'applyStyle';
-  styleId: string;
-}
-
 export interface RequestCitationsMessage {
   type: 'requestCitations';
 }
@@ -186,10 +164,6 @@ export interface AddCitationManuallyMessage {
   type: 'addCitationManually';
 }
 
-export interface ImportStyleTemplateMessage {
-  type: 'importStyleTemplate';
-}
-
 export interface UndoLastAiEditMessage {
   type: 'undoLastAiEdit';
 }
@@ -197,10 +171,6 @@ export interface UndoLastAiEditMessage {
 export interface DismissWelcomeMessage {
   type: 'dismissWelcome';
   dontShowAgain: boolean;
-}
-
-export interface OpenUserGuideMessage {
-  type: 'openUserGuide';
 }
 
 export interface DeserializeErrorMessage {
@@ -211,11 +181,8 @@ export interface DeserializeErrorMessage {
 export type WebviewMessage =
   | ReadyMessage
   | EditMessage
-  | ExportPdfMessage
-  | ExportDocxMessage
   | OpenSourceMessage
   | NewProjectMessage
-  | NewFileMessage
   | MergeDocumentMessage
   | PickImageMessage
   | DropImageMessage
@@ -223,16 +190,12 @@ export type WebviewMessage =
   | RequestSettingsMessage
   | UpdateSettingsMessage
   | SplitDocumentMessage
-  | SetWordGoalMessage
-  | ApplyStyleMessage
   | RequestCitationsMessage
   | EnsureBibliographyMessage
   | ImportSourcesMessage
   | AddCitationManuallyMessage
-  | ImportStyleTemplateMessage
   | UndoLastAiEditMessage
   | DismissWelcomeMessage
-  | OpenUserGuideMessage
   | DeserializeErrorMessage;
 
 // VS Code API available in webview context

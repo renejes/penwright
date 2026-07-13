@@ -163,8 +163,3 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
   },
 ];
 
-/** Returns a deep copy of the named preset's layout, or null. */
-export function getLayout(id: string): { layout: StyleLayout; baseSize?: string } | null {
-  const p = LAYOUT_PRESETS.find(x => x.id === id);
-  return p ? { layout: { ...p.layout }, baseSize: p.baseSize } : null;
-}

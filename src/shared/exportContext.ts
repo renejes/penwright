@@ -512,20 +512,6 @@ export function parseBibDirective(typstContent: string): { path?: string; title?
   return { path: pathM ? pathM[1] : undefined, title: titleM ? titleM[1] : undefined };
 }
 
-/** True if the node is a `#bibliography(...)` raw block or the dedicated node. */
-export function isBibliographyNode(node: ExportNode): boolean {
-  if (node.type === 'bibliography') return true;
-  if (node.type !== 'typstRawBlock') return false;
-  const content = ((node.attrs?.content as string) ?? '').trim();
-  return /^#bibliography\b/.test(content) || content.includes('#bibliography(');
-}
-
-/** True if the node is a `#outline()` raw block (web has no page-based TOC). */
-export function isOutlineNode(node: ExportNode): boolean {
-  if (node.type !== 'typstRawBlock') return false;
-  return /^#outline\b/.test(((node.attrs?.content as string) ?? '').trim());
-}
-
 // ─── Pre-pass: cross-reference numbering + citation style ─────
 
 export interface ExportModel {

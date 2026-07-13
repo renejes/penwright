@@ -14,7 +14,6 @@ import { appState } from './appState';
 import { checkLock, acquireLock, releaseLock } from './lockManager';
 import {
   addRecentProject,
-  saveLastProjectPath,
   saveProjectBackup,
   pruneProjectBackups,
   checkForFileRecovery,
@@ -309,10 +308,9 @@ export async function openFile(filePath?: string): Promise<void> {
 
     setupFileWatcher();
 
-    // Persist for recent projects + auto-reopen
+    // Persist for the recent-projects list (the app never auto-reopens).
     if (appState.projectDir) {
       addRecentProject(appState.projectDir, path.basename(appState.projectDir));
-      saveLastProjectPath(appState.projectDir);
     }
 
     addBreadcrumb('file', `opened ${path.extname(appState.currentFilePath)}`);

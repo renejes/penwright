@@ -48,23 +48,17 @@ import * as path from 'path';
 import { parseBibFile, type BibEntry } from './bibParser';
 import { parseSettings, type DocumentSettings } from './settingsParser';
 import { type ProjectStyle } from './styleTypes';
-import { parseTypstGrid, type ParsedGrid } from './typstGrid';
 import {
   type RefTarget,
-  type RawDesc,
   matchBracket,
   classifyRawBlock,
   splitDesignChunks,
-  splitHeadingLabel,
   stripHeadingLabelContent,
   getPlainText,
   refWords,
-  NUMERIC_BIB_STYLES,
   citationInner,
   cleanBibText,
   formatBibAuthors,
-  collectCitekeysInOrder,
-  renderEqNumber,
   mathSnippet,
   svgSnippet,
   buildExportModel,
@@ -150,8 +144,6 @@ interface DocxCtx {
   labelMap: Map<string, RefTarget>;
   /** Typst-snippet → rendered raster, built in the pre-pass. */
   rendered: Map<string, RenderedSnippet>;
-  /** Whether the source enables display-equation numbering. */
-  equationNumbering: boolean;
   /** Citation rendering style derived from the bibliography setting. */
   citationMode: 'author-year' | 'numeric';
   /** Ordered citekey list for numeric citation style. */
@@ -1540,7 +1532,7 @@ async function buildExportContext(
   // their numbers and `@fig:…` targets. Never re-implement this walk here:
   // a local flat copy is exactly how DOCX and HTML drifted apart before.
   const model = buildExportModel(doc, typstContent);
-  const { labelMap, equationNumbering, citationMode, numericOrder } = model;
+  const { labelMap, citationMode, numericOrder } = model;
 
   // DOCX-specific raster plan: display-math (from the shared model) plus SVG
   // images, which Word can't embed natively. The SVG scan mirrors the render
@@ -1578,7 +1570,7 @@ async function buildExportContext(
 
   return {
     baseDir, resolved, bibEntries, labelMap, rendered,
-    equationNumbering, citationMode, numericOrder, orderedInstance: 1,
+    citationMode, numericOrder, orderedInstance: 1,
     figureSeq: 0, tableSeq: 0,
   };
 }

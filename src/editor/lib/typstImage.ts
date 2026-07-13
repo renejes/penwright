@@ -24,10 +24,6 @@ function refreshAllImages() {
   });
 }
 
-export function getDocumentBaseUri(): string {
-  return documentBaseUri;
-}
-
 /**
  * Resolves a relative image path to a full webview URI.
  * Absolute URLs (http/https/data) are returned as-is.

@@ -365,8 +365,3 @@ export const THEME_PRESETS: ThemePreset[] = [
   },
 ];
 
-/** Lookup helper — returns a deep clone so callers can mutate freely. */
-export function getTheme(id: string): ProjectStyle | null {
-  const t = THEME_PRESETS.find(p => p.id === id);
-  return t ? sanitizeProjectStyle(t.style) : null;
-}

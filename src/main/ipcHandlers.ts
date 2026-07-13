@@ -23,7 +23,7 @@ function isPathWithinProject(filePath: string): boolean {
   const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
   return isPathWithin(filePath, projectRoot);
 }
-import { handleExportPdf, handleExportDocx, handleImportMarkdown, handleImportStyleTemplate, handleLinkZotero, handleRequestCitations, applyStyleTemplate, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
+import { handleRequestCitations, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
 import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
 import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset, listPresetStyles, getPresetStyle, renderPresetPreview } from './presetManager';
 import {
@@ -36,7 +36,6 @@ import {
   setLocale,
   getPreviewMode,
   setPreviewMode,
-  getZoteroBibPath,
   listProjectBackups,
   loadProjectBackup,
   getBackupConfig,
@@ -312,16 +311,6 @@ export function setupIPC(): void {
         break;
       }
 
-      case 'exportPdf': {
-        handleExportPdf();
-        break;
-      }
-
-      case 'exportDocx': {
-        handleExportDocx();
-        break;
-      }
-
       case 'requestSettings': {
         handleRequestSettings();
         break;
@@ -351,11 +340,6 @@ export function setupIPC(): void {
         const templateId = msg.templateId as string;
         const projectName = msg.projectName as string;
         handleCreateProject(templateId, projectName);
-        break;
-      }
-
-      case 'importMarkdown': {
-        handleImportMarkdown();
         break;
       }
 
@@ -418,18 +402,6 @@ export function setupIPC(): void {
         break;
       }
 
-      case 'setWordGoal': {
-        const goal = msg.goal as number;
-        const wordCount = appState.currentContent.split(/\s+/).filter(Boolean).length;
-        appState.mainWindow?.webContents.send('penwright', { type: 'wordGoal', goal, current: wordCount });
-        break;
-      }
-
-      case 'applyStyle': {
-        applyStyleTemplate(msg.styleId as string);
-        break;
-      }
-
       case 'requestCitations': {
         handleRequestCitations();
         break;
@@ -454,11 +426,6 @@ export function setupIPC(): void {
         break;
       }
 
-      case 'linkZotero': {
-        handleLinkZotero();
-        break;
-      }
-
       case 'importSources': {
         if (appState.currentFilePath) {
           const sourcesDir = path.join(path.dirname(appState.currentFilePath), 'sources');
@@ -479,11 +446,6 @@ export function setupIPC(): void {
         break;
       }
 
-      case 'importStyleTemplate': {
-        handleImportStyleTemplate();
-        break;
-      }
-
       case 'undoLastAiEdit': {
         const undone = popAiSnapshot();
         if (!undone) {
@@ -492,14 +454,6 @@ export function setupIPC(): void {
             message: resolveDict(getLocale()).mainDialogs.noAiEditsToUndo,
           });
         }
-        break;
-      }
-
-      case 'openUserGuide': {
-        // The user guide ships in-app (HandbookViewer); open it instead of an
-        // external URL. (The old vswrite.netlify.app domain is dead + a hijack
-        // risk, and contradicts the in-app-handbook design.)
-        appState.mainWindow?.webContents.send('penwright', { type: 'showHandbook' });
         break;
       }
 
@@ -756,7 +710,6 @@ export function setupIPC(): void {
   ipcMain.handle('persist:getRecentProjects', () => getRecentProjects());
   ipcMain.handle('persist:isOnboardingSeen', () => isOnboardingSeen());
   ipcMain.handle('persist:setOnboardingSeen', (_event, seen: boolean) => { setOnboardingSeen(!!seen); return { ok: true }; });
-  ipcMain.handle('persist:getZoteroBibPath', () => getZoteroBibPath());
 
   // ─── UI Locale ───
   ipcMain.handle('app:getLocale', () => getLocale());

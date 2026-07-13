@@ -34,7 +34,7 @@
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
   import { t, applyLocale, i18nState, setLocale } from '@shared/i18n/store.svelte';
-  import { createEditor, setEditorLanguage } from '../editor/lib/editor';
+  import { createEditor } from '../editor/lib/editor';
   import { serializeTypstCached } from '../editor/lib/serializer';
   import { ipc } from '../editor/lib/ipcAdapter';
   import type { DocumentSettings } from '../editor/lib/messages';
@@ -58,9 +58,6 @@
     zoomEditorIn,
     zoomEditorOut,
     resetEditorZoom,
-    zoomPdfIn,
-    zoomPdfOut,
-    resetPdfZoom,
     openTab,
     closeTab,
     tabName,

@@ -3,8 +3,8 @@
  *
  * The "Versionen" UI in the renderer talks to the high-level handlers
  * (`git:saveVersion`, `git:listVersions`, `git:showVersion`, `git:restoreVersion`).
- * The low-level Git verbs (`git:stage`, `git:commit`, `git:push`, ...) are kept
- * for the optional "Erweitert" cloud-sync section.
+ * The low-level Git verbs (`git:push`, `git:pull`, `git:getRemote`,
+ * `git:setRemote`) back the optional "Erweitert" cloud-sync section.
  */
 
 import { ipcMain } from 'electron';
@@ -249,29 +249,11 @@ export function setupGitIPC(): void {
     }
   });
 
-  // ─── Low-level verbs (kept for "Erweitert" cloud-sync section) ──
-
-  ipcMain.handle('git:stage', async (_event, filePath: string) => {
-    if (!isPathWithinGitDir(filePath)) throw new Error('Access denied: path is outside the project.');
-    const git = simpleGit(getGitDir());
-    await git.add(filePath);
-  });
-
-  ipcMain.handle('git:unstage', async (_event, filePath: string) => {
-    if (!isPathWithinGitDir(filePath)) throw new Error('Access denied: path is outside the project.');
-    const git = simpleGit(getGitDir());
-    await git.reset(['HEAD', '--', filePath]);
-  });
-
-  ipcMain.handle('git:stageAll', async () => {
-    const git = simpleGit(getGitDir());
-    await git.add('-A');
-  });
-
-  ipcMain.handle('git:commit', async (_event, message: string) => {
-    const git = simpleGit(getGitDir());
-    await git.commit(message);
-  });
+  // ─── Low-level verbs used by the "Erweitert" cloud-sync section ──
+  // (push / pull / getRemote / setRemote — the ProjectPanel's Advanced UI.
+  // The former stage/unstage/stageAll/commit/init verbs had no callers and
+  // were removed in the pre-launch cleanup; versions go through
+  // git:saveVersion, repo init through git:ensureRepo.)
 
   ipcMain.handle('git:push', async () => {
     const git = simpleGit(getGitDir());
@@ -281,11 +263,6 @@ export function setupGitIPC(): void {
   ipcMain.handle('git:pull', async () => {
     const git = simpleGit(getGitDir());
     await git.pull();
-  });
-
-  ipcMain.handle('git:init', async () => {
-    const git = simpleGit(getGitDir());
-    await git.init();
   });
 
   ipcMain.handle('git:getRemote', async () => {

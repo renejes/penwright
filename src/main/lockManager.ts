@@ -142,13 +142,6 @@ export function releaseLock(): void {
   }
 }
 
-/**
- * Returns the path of the current lock file, or null if none.
- */
-export function getCurrentLockPath(): string | null {
-  return currentLockPath;
-}
-
 function stopHeartbeat(): void {
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
