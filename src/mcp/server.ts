@@ -53,6 +53,8 @@ import { parseBibFile } from '../shared/bibParser.js';
 import { resolveIncludes } from '../shared/mergeDocument.js';
 import { splitIntoChapters, slugify } from '../shared/splitDocument.js';
 import { templates as projectTemplates } from '../shared/projectTemplates.js';
+import { scanPresetsDir, copyPresetFolder } from '../shared/presetLibrary.js';
+import { localize } from '../shared/presetTypes.js';
 import { listComments, createComment, updateComment, deleteComment } from '../main/commentManager.js';
 import { listProjectLabels, type LabelType } from '../main/projectLabels.js';
 import { searchProject, replaceInProject } from '../main/projectSearch.js';
@@ -1864,6 +1866,82 @@ server.tool(
           text: `Created project "${projectName}" (${template.label}) at ${projectDir}\nFiles: ${Object.keys(template.files).join(', ')}`,
         }],
       };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tools: preset library (ready-made project starters) ────────────────────
+
+/** Resolves the bundled `resources/presets/` directory. Production: derived from
+ *  TYPST_PACKAGE_PATH (same Resources dir), or an explicit PENWRIGHT_PRESETS;
+ *  dev: relative to the working directory. */
+function getPresetsDir(): string | null {
+  const candidates: string[] = [];
+  if (process.env.PENWRIGHT_PRESETS) candidates.push(process.env.PENWRIGHT_PRESETS);
+  if (process.env.TYPST_PACKAGE_PATH) candidates.push(path.join(path.dirname(process.env.TYPST_PACKAGE_PATH), 'presets'));
+  candidates.push(path.resolve(process.cwd(), 'resources', 'presets'));
+  for (const c of candidates) {
+    try { if (fs.existsSync(c) && fs.statSync(c).isDirectory()) return c; } catch { /* keep looking */ }
+  }
+  return null;
+}
+
+server.tool(
+  'penwright_list_presets',
+  'List the built-in project presets — ready-made, compile-tested project starters (magazine, report, cookbook, portfolio, thesis, letter, newsletter, picture book, …), each shipping a finished design plus placeholder (Lorem) content. Magazine presets give every chapter a different layout. Instantiate one with penwright_create_from_preset.',
+  {
+    type: z.string().optional().describe('Optional project-type filter, e.g. "magazine", "report", "document", "cookbook", "portfolio".'),
+  },
+  async ({ type }) => {
+    const root = getPresetsDir();
+    if (!root) return { content: [{ type: 'text' as const, text: 'Error: the preset library was not found.' }], isError: true };
+    let presets = scanPresetsDir(root).map(s => s.manifest);
+    if (type) presets = presets.filter(m => m.type === type);
+    presets.sort((a, b) => a.type.localeCompare(b.type) || ((a.order ?? 100) - (b.order ?? 100)));
+    const list = presets.map(m => ({
+      id: m.id, type: m.type,
+      label: localize(m.label, 'en'), tagline: localize(m.tagline, 'en'),
+      openFile: m.openFile ?? m.root ?? 'main.typ',
+    }));
+    return { content: [{ type: 'text' as const, text: `Available presets (${list.length}):\n${JSON.stringify(list, null, 2)}\n\nCreate one with penwright_create_from_preset({ presetId, projectName, parentDir }).` }] };
+  },
+);
+
+server.tool(
+  'penwright_create_from_preset',
+  'Create a new project from a built-in preset (see penwright_list_presets): copies the ready-made project (design + macros + placeholder assets + Lorem content) verbatim, git-inits it, and switches the active project to it. Then replace the placeholder text with the real content. Prefer this over penwright_create_project when the user wants a designed starting point.',
+  {
+    presetId: z.string().describe('Preset id from penwright_list_presets, e.g. "magazine-slow", "report-vibrant", "cookbook-fresh".'),
+    projectName: z.string().describe('Project name (becomes the folder name).'),
+    parentDir: z.string().describe('Parent directory where the project folder will be created (absolute, or relative to the current project).'),
+  },
+  async ({ presetId, projectName, parentDir }) => {
+    try {
+      const root = getPresetsDir();
+      if (!root) return { content: [{ type: 'text' as const, text: 'Error: the preset library was not found.' }], isError: true };
+      const all = scanPresetsDir(root);
+      const found = all.find(s => s.manifest.id === presetId);
+      if (!found) {
+        return { content: [{ type: 'text' as const, text: `Error: unknown preset "${presetId}". Available: ${all.map(s => s.manifest.id).join(', ')}` }], isError: true };
+      }
+
+      const absParent = path.isAbsolute(parentDir) ? parentDir : path.join(state.projectDir, parentDir);
+      const projectDir = path.join(absParent, projectName);
+      if (fs.existsSync(projectDir)) {
+        return { content: [{ type: 'text' as const, text: `Error: directory already exists: ${projectDir}` }], isError: true };
+      }
+
+      copyPresetFolder(found.dir, projectDir);
+      await ensureGitRepo(projectDir);
+      try { const g = simpleGit(projectDir); await g.add('-A'); await g.commit(`New from preset — ${localize(found.manifest.label, 'en')}`); } catch { /* non-fatal */ }
+
+      const openRel = found.manifest.openFile ?? found.manifest.root ?? 'main.typ';
+      state.projectDir = projectDir;
+      state.currentFile = path.join(projectDir, fs.existsSync(path.join(projectDir, openRel)) ? openRel : 'main.typ');
+
+      return { content: [{ type: 'text' as const, text: `Created "${projectName}" from preset "${presetId}" at ${projectDir}.\nActive file: ${path.relative(projectDir, state.currentFile)}\nThe project ships placeholder (Lorem) content — replace it with the real text.` }] };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
     }
