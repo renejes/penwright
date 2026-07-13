@@ -11,7 +11,9 @@ export interface SettingsDataMessage {
 
 export interface DocumentBaseUriMessage {
   type: 'documentBaseUri';
-  baseUri: string;
+  /** Directory of the open document — the base for relative image paths.
+   *  Field name matches what BOTH main-process senders actually emit. */
+  uri: string;
 }
 
 export interface InsertImageMessage {

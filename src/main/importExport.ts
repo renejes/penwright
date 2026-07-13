@@ -7,7 +7,13 @@ import { dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { execFileSync } from 'child_process';
+import { execFileSync, execFile } from 'child_process';
+import { promisify } from 'util';
+
+// Async variant for the snippet renderers: they run inside Promise.all —
+// with execFileSync each compile blocked the whole main process and the
+// "parallel" renders were strictly sequential.
+const execFileAsync = promisify(execFile);
 import { getTypstPath, getTypstFontPath, buildTypstCompileArgs } from './typstPath';
 import { watch, type FSWatcher } from 'chokidar';
 import { deserializeTypst } from './deserializer-bridge';
@@ -336,7 +342,7 @@ function createTypstSnippetRenderer(baseDir: string): (snippet: string) => Promi
     const outFile = path.join(os.tmpdir(), `penwright-snip-${stamp}.png`);
     try {
       fs.writeFileSync(inFile, snippet, 'utf-8');
-      execFileSync(getTypstPath(), buildTypstCompileArgs(['--ppi', '300', '--root', baseDir, inFile, outFile]), { stdio: 'ignore' });
+      await execFileAsync(getTypstPath(), buildTypstCompileArgs(['--ppi', '300', '--root', baseDir, inFile, outFile]));
       const png = fs.readFileSync(outFile);
       const dim = pngDimensions(png);
       if (!dim) return null;
@@ -364,7 +370,7 @@ function createTypstSvgRenderer(baseDir: string): (snippet: string) => Promise<s
     const outFile = path.join(os.tmpdir(), `penwright-svg-${stamp}.svg`);
     try {
       fs.writeFileSync(inFile, snippet, 'utf-8');
-      execFileSync(getTypstPath(), buildTypstCompileArgs(['--format', 'svg', '--root', baseDir, inFile, outFile]), { stdio: 'ignore' });
+      await execFileAsync(getTypstPath(), buildTypstCompileArgs(['--format', 'svg', '--root', baseDir, inFile, outFile]));
       return fs.readFileSync(outFile, 'utf-8');
     } catch {
       return null;

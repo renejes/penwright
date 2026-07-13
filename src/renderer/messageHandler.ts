@@ -65,8 +65,7 @@ export function handleMessage(message: ExtensionMessage): void {
       syncSpellcheckLanguage(message.settings.lang);
     }
   } else if (message.type === 'documentBaseUri') {
-    const uri = (message as unknown as { uri?: string }).uri || (message as unknown as { baseUri?: string }).baseUri || '';
-    setDocumentBaseUri(uri);
+    setDocumentBaseUri(message.uri || '');
   } else if (message.type === 'insertImage' && editor) {
     const sel = editor.state.selection;
     const fromPos = sel.$from ?? sel.from;

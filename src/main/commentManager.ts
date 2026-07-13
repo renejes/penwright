@@ -86,7 +86,10 @@ function escapeYamlString(s: string): string {
 }
 
 function unescapeYamlString(s: string): string {
-  return s.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  // Single left-to-right pass: an escaped backslash is consumed atomically,
+  // so `\\` followed by `n` can never be re-read as a `\n` escape (the old
+  // sequential .replace() chain corrupted anchors containing `\` + 'n').
+  return s.replace(/\\(\\|"|n)/g, (_m, c: string) => (c === 'n' ? '\n' : c));
 }
 
 function parseScalar(raw: string): string | number | boolean {

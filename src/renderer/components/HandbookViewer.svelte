@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { marked } from 'marked';
-  import { t } from '@shared/i18n/store.svelte';
+  import { t, getLocale } from '@shared/i18n/store.svelte';
   // Bundled at build time (?raw) so the handbook ships inside the app — no
   // network, no external docs site. @docs → repo `documentation/`.
   import handbookEn from '@docs/handbook.md?raw';
@@ -13,10 +13,9 @@
     electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
   }).electronAPI;
 
-  // Default to the user's UI language; let them flip it.
-  let lang = $state<'en' | 'de'>(
-    typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('de') ? 'de' : 'en',
-  );
+  // Default to the user's UI language (the app locale, which may differ from
+  // the OS language); let them flip it.
+  let lang = $state<'en' | 'de'>(getLocale() === 'de' ? 'de' : 'en');
 
   const html = $derived(marked.parse(lang === 'de' ? handbookDe : handbookEn, { gfm: true }) as string);
 
@@ -40,7 +39,7 @@
         if (slugify(h.textContent || '') === want) h.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     } else if (/^https?:\/\//.test(href)) {
-      api.invoke('app:openExternal', href);
+      api.invoke('app:openExternal', href).catch(() => {});
     }
   }
 

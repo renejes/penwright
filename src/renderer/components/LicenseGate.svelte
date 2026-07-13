@@ -11,7 +11,7 @@
   let recheckNote = $state('');
 
   function buy() {
-    api.invoke('license:openCheckout');
+    api.invoke('license:openCheckout').catch(() => {});
   }
 
   function enterKey() {

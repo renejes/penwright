@@ -74,7 +74,7 @@
   });
 
   function openExternal(url: string) {
-    api.invoke('app:openExternal', url);
+    api.invoke('app:openExternal', url).catch(() => {});
   }
 
   // License count per type for the summary chip row.

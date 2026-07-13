@@ -100,7 +100,11 @@ function readManifest(dir: string): PresetManifest | null {
 function scanPresetDirs(): ScannedPreset[] {
   const out: ScannedPreset[] = [];
   const seen = new Set<string>();
-  for (const { dir: root, origin } of presetRoots()) {
+  // USER roots first so a user preset id actually shadows a bundled one of
+  // the same id (dedup keeps the first occurrence; iterating bundled-first
+  // inverted the documented precedence). Display order comes from
+  // manifest.order at the gallery level, not from scan order.
+  for (const { dir: root, origin } of [...presetRoots()].reverse()) {
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {

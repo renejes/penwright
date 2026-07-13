@@ -289,39 +289,16 @@
     window.addEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
     window.addEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.addEventListener('penwright:project-closed', onProjectClosed as EventListener);
-    window.addEventListener('penwright:show-mcp-wizard', () => { showMcpWizard = true; });
-    window.addEventListener('penwright:show-mcp-connection', () => { showMcpConnection = true; });
-    window.addEventListener('penwright:show-onboarding', () => { showOnboarding = true; });
-    window.addEventListener('penwright:edit-chapter-look', (e) => { editChapterLook = (e as CustomEvent).detail; });
+    // Named handlers (not inline closures) so onDestroy can remove them.
+    window.addEventListener('penwright:show-mcp-wizard', onShowMcpWizard);
+    window.addEventListener('penwright:show-mcp-connection', onShowMcpConnection);
+    window.addEventListener('penwright:show-onboarding', onShowOnboarding);
+    window.addEventListener('penwright:edit-chapter-look', onEditChapterLook as EventListener);
     window.addEventListener('penwright:preview-jump', handlePreviewJump as EventListener);
 
     // Drag & Drop images into the editor
-    document.addEventListener('dragover', (e) => e.preventDefault());
-    document.addEventListener('drop', (e) => {
-      e.preventDefault();
-
-      const sidebarImagePath = e.dataTransfer?.getData('application/penwright-image');
-      if (sidebarImagePath) {
-        ipc.send({ type: 'dropImagePath', path: sidebarImagePath } as unknown as import('../editor/lib/messages').WebviewMessage);
-        return;
-      }
-
-      if (!e.dataTransfer?.files.length) return;
-      for (const file of Array.from(e.dataTransfer.files)) {
-        if (file.type.startsWith('image/')) {
-          const filePath = (file as unknown as { path?: string }).path;
-          if (filePath) {
-            ipc.send({ type: 'dropImagePath', path: filePath } as unknown as import('../editor/lib/messages').WebviewMessage);
-          } else {
-            const reader = new FileReader();
-            reader.onload = () => {
-              ipc.send({ type: 'dropImage', name: file.name, data: reader.result as string } as unknown as import('../editor/lib/messages').WebviewMessage);
-            };
-            reader.readAsDataURL(file);
-          }
-        }
-      }
-    });
+    document.addEventListener('dragover', onDocumentDragover);
+    document.addEventListener('drop', onDocumentDrop);
 
     // Restore persisted panel state
     const electronAPI = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
@@ -603,7 +580,13 @@
     }
 
     // Show the handoff popover at the selection (reads the pin we just wrote).
-    designAiPopover = popoverPos;
+    // Null first: if it's already open (no backdrop — the editor stays
+    // interactive), a plain re-assign would keep the mounted instance and its
+    // stale onMount-loaded pin. The remount re-reads the fresh pin.
+    designAiPopover = null;
+    requestAnimationFrame(() => {
+      designAiPopover = popoverPos;
+    });
   }
 
   // Backlinks trigger: OutlinePanel hover-button or citation right-click
@@ -1009,6 +992,39 @@
     contextMenu.path = '';
   }
 
+  // Hoisted (named) handlers for the listeners onDestroy must remove —
+  // anonymous closures can't be passed to removeEventListener.
+  function onShowMcpWizard() { showMcpWizard = true; }
+  function onShowMcpConnection() { showMcpConnection = true; }
+  function onShowOnboarding() { showOnboarding = true; }
+  function onEditChapterLook(e: CustomEvent) { editChapterLook = e.detail; }
+  function onDocumentDragover(e: DragEvent) { e.preventDefault(); }
+  function onDocumentDrop(e: DragEvent) {
+    e.preventDefault();
+
+    const sidebarImagePath = e.dataTransfer?.getData('application/penwright-image');
+    if (sidebarImagePath) {
+      ipc.send({ type: 'dropImagePath', path: sidebarImagePath } as unknown as import('../editor/lib/messages').WebviewMessage);
+      return;
+    }
+
+    if (!e.dataTransfer?.files.length) return;
+    for (const file of Array.from(e.dataTransfer.files)) {
+      if (file.type.startsWith('image/')) {
+        const filePath = (file as unknown as { path?: string }).path;
+        if (filePath) {
+          ipc.send({ type: 'dropImagePath', path: filePath } as unknown as import('../editor/lib/messages').WebviewMessage);
+        } else {
+          const reader = new FileReader();
+          reader.onload = () => {
+            ipc.send({ type: 'dropImage', name: file.name, data: reader.result as string } as unknown as import('../editor/lib/messages').WebviewMessage);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+  }
+
   onDestroy(() => {
     clearTimeout(debounceTimer);
     window.removeEventListener('keydown', handleGlobalKeydown);
@@ -1021,6 +1037,12 @@
     window.removeEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.removeEventListener('penwright:project-closed', onProjectClosed as EventListener);
     window.removeEventListener('penwright:preview-jump', handlePreviewJump as EventListener);
+    window.removeEventListener('penwright:show-mcp-wizard', onShowMcpWizard);
+    window.removeEventListener('penwright:show-mcp-connection', onShowMcpConnection);
+    window.removeEventListener('penwright:show-onboarding', onShowOnboarding);
+    window.removeEventListener('penwright:edit-chapter-look', onEditChapterLook as EventListener);
+    document.removeEventListener('dragover', onDocumentDragover);
+    document.removeEventListener('drop', onDocumentDrop);
     editorRef.current?.destroy();
   });
 </script>

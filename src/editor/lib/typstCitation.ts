@@ -121,6 +121,14 @@ export const TypstCitation = Node.create({
           dom.title = `@${updatedNode.attrs.citekey} — Right-click to find usages`;
           return true;
         },
+        destroy() {
+          // A pending dwell timer would otherwise fire against the detached
+          // dom (all-zero rect) and pop a mispositioned hover card.
+          if (hoverTimer != null) {
+            window.clearTimeout(hoverTimer);
+            hoverTimer = null;
+          }
+        },
       };
     };
   },

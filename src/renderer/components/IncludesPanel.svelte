@@ -52,7 +52,7 @@
   }
 
   function openInclude(entry: IncludeEntry) {
-    api.invoke('includes:open', entry.path);
+    api.invoke('includes:open', entry.path).catch(() => {});
   }
 
   async function addInclude() {

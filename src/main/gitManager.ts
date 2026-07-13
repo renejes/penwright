@@ -25,7 +25,7 @@ function isPathWithinGitDir(filePath: string): boolean {
   return isPathWithin(absPath, gitDir);
 }
 
-const GITIGNORE_REQUIRED_LINES = ['.penwright/', '*.pdf'];
+const GITIGNORE_REQUIRED_LINES = ['.penwright/', '.penwright-*', '*.pdf'];
 
 async function ensureGitignore(dir: string): Promise<void> {
   const gitignorePath = path.join(dir, '.gitignore');
@@ -221,8 +221,10 @@ export function setupGitIPC(): void {
 
       const status = await git.status();
       const files = [
-        ...status.staged.map(f => ({ path: f, status: 'M', staged: true })),
-        ...status.created.filter(f => status.staged.includes(f)).map(f => ({ path: f, status: 'A', staged: true })),
+        // Staged files: 'A' when git reports them as created, else 'M'.
+        // (The old plain staged→'M' entry was pushed first and the dedup
+        // then discarded the correct 'A' entry for brand-new files.)
+        ...status.staged.map(f => ({ path: f, status: status.created.includes(f) ? 'A' : 'M', staged: true })),
         ...status.modified.filter(f => !status.staged.includes(f)).map(f => ({ path: f, status: 'M', staged: false })),
         ...status.not_added.map(f => ({ path: f, status: '?', staged: false })),
         ...status.deleted.map(f => ({ path: f, status: 'D', staged: false })),

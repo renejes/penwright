@@ -97,7 +97,7 @@
   }
 
   function handleBuy() {
-    api.invoke('license:openCheckout');
+    api.invoke('license:openCheckout').catch(() => {});
   }
 
   function maskKey(key: string): string {

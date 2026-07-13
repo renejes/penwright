@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import * as pdfjsLib from 'pdfjs-dist';
   import { TextLayer } from 'pdfjs-dist';
   import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom } from '../appState.svelte';
@@ -57,9 +57,12 @@
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
   } }).electronAPI;
 
-  onMount(() => {
-    loadPdf();
-  });
+  // Single load path: the $effect below fires on initial mount AND on
+  // filePath changes — the old extra onMount(loadPdf) ran a SECOND concurrent
+  // load whose PDFDocumentProxy/observer leaked (both entered with
+  // currentPdf === null, so neither destroyed the other's document).
+  // `loadSeq` drops any load superseded by a newer one.
+  let loadSeq = 0;
 
   $effect(() => {
     if (filePath) loadPdf();
@@ -67,6 +70,7 @@
 
   async function loadPdf() {
     if (!filePath) return;
+    const seq = ++loadSeq;
     loading = true;
     errorMsg = '';
     renderedPages.clear();
@@ -80,20 +84,28 @@
         bytes[i] = binaryStr.charCodeAt(i);
       }
 
+      const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+      if (seq !== loadSeq) {
+        // A newer load started while we awaited — discard this one cleanly.
+        doc.destroy();
+        return;
+      }
       if (currentPdf) {
         currentPdf.destroy();
       }
-      currentPdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+      currentPdf = doc;
       pageCount = currentPdf.numPages;
 
       await tick();
       setupPlaceholders();
       setupIntersectionObserver();
     } catch (err) {
-      errorMsg = t().pickers.pdfLoadFailed(String(err));
-      console.error('[penwright] PDF load error:', err);
+      if (seq === loadSeq) {
+        errorMsg = t().pickers.pdfLoadFailed(String(err));
+        console.error('[penwright] PDF load error:', err);
+      }
     }
-    loading = false;
+    if (seq === loadSeq) loading = false;
   }
 
   function setupPlaceholders() {

@@ -154,6 +154,11 @@ function cssColor(typstColor: string): string {
     black: '#000000',
     white: '#ffffff',
   };
-  // If it's a named color, map it. Otherwise pass through (rgb, luma, hex).
+  // Typst `rgb("#RRGGBB")` expression → the plain CSS hex inside it. The pink
+  // highlight stores this form; passing it through verbatim produced invalid
+  // CSS (`background-color: rgb("#FFD1DC")`) — an invisible highlight.
+  const rgbHex = typstColor.match(/^rgb\("(#[0-9a-fA-F]{3,8})"\)$/);
+  if (rgbHex) return rgbHex[1];
+  // If it's a named color, map it. Otherwise pass through (luma, hex, …).
   return map[typstColor] || typstColor;
 }

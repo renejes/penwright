@@ -53,7 +53,7 @@
   }
 
   function openExternal(url: string) {
-    api.invoke('app:openExternal', url);
+    api.invoke('app:openExternal', url).catch(() => {});
   }
 
   async function copyDiagnostics() {

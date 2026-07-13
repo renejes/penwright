@@ -117,16 +117,16 @@ export const DESIGN_ELEMENTS: DesignElement[] = [
   {
     id: 'callout',
     name: 'Callout',
-    description: 'Boxed info / warning / tip note with an accent border. Defaults to "info" style; pass kind=warning or kind=tip for variants.',
+    description: 'Boxed info / warning / tip note with an accent border. Defaults to "info" style; kind=warning / tip / note switch the accent color.',
     params: [
-      { name: 'kind', description: 'One of "info" | "warning" | "tip" | "note". Controls the icon and accent.', required: false, defaultValue: 'info' },
+      { name: 'kind', description: 'One of "info" | "warning" | "tip" | "note". Controls the accent color of the box.', required: false, defaultValue: 'info' },
       { name: 'title', description: 'Bold headline above the body. Empty = no headline.', required: false, defaultValue: '' },
       { name: 'body', description: 'Callout body text', required: true, defaultValue: 'Callout body.' },
     ],
     template: `
 #block(
-  fill: style-colors.accent.lighten(85%),
-  stroke: (left: 4pt + style-colors.accent),
+  fill: {kind-color}.lighten(85%),
+  stroke: (left: 4pt + {kind-color}),
   inset: (x: 1em, y: 0.7em),
   radius: 3pt,
 )[
@@ -632,6 +632,17 @@ export function renderDesignElement(
       'title-block': values.title
         ? `*${values.title}*\\\n  \\\n  `
         : '',
+      // The advertised kind → accent mapping (info/note stay theme-driven,
+      // tip/warning use conventional semantic colors). Previously `kind`
+      // was accepted but completely inert.
+      'kind-color': (
+        {
+          info: 'style-colors.accent',
+          note: 'style-colors.primary',
+          tip: 'rgb("#2e7d32")',
+          warning: 'rgb("#b45309")',
+        } as Record<string, string>
+      )[(values.kind || 'info').toLowerCase()] ?? 'style-colors.accent',
     },
     hero: {
       'subtitle-block': values.subtitle

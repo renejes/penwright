@@ -110,12 +110,13 @@ function serializeNode(node: TipTapNode): string {
       const src = (node.attrs?.src as string) ?? '';
       const width = node.attrs?.width as string | null;
       const align = node.attrs?.align as string | null;
-      let imageCode: string;
-      if (width) {
-        imageCode = `#image("${src}", width: ${width})`;
-      } else {
-        imageCode = `#image("${src}")`;
-      }
+      const alt = (node.attrs?.alt as string | null) || null;
+      // alt is a real Typst #image param (accessibility) — it used to be
+      // silently dropped on save even though the image dialog writes it.
+      const args = [`"${src}"`];
+      if (alt) args.push(`alt: ${typstStr(alt)}`);
+      if (width) args.push(`width: ${width}`);
+      const imageCode = `#image(${args.join(', ')})`;
       if (align && align !== 'left') {
         return `#align(${align})[${imageCode}]`;
       }

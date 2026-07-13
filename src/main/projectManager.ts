@@ -20,6 +20,7 @@ import { resolveDict } from '../shared/i18n';
 
 const GITIGNORE_TEMPLATE = `# Penwright
 .penwright/
+.penwright-*
 *.pdf
 
 # OS
@@ -42,7 +43,7 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
   } else {
     const existing = fs.readFileSync(gitignorePath, 'utf-8');
     const lines = existing.split('\n').map(l => l.trim());
-    const required = ['.penwright/', '*.pdf'];
+    const required = ['.penwright/', '.penwright-*', '*.pdf'];
     const missing = required.filter(req => !lines.includes(req));
     if (missing.length > 0) {
       const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
@@ -443,7 +444,7 @@ export async function openSampleProject(): Promise<string | null> {
     // .gitignore for Penwright-local state — match what ensureProjectInfrastructure does.
     const gitignorePath = path.join(targetDir, '.gitignore');
     if (!fs.existsSync(gitignorePath)) {
-      fs.writeFileSync(gitignorePath, '# Penwright\n.penwright/\n*.pdf\n\n# OS\n.DS_Store\nThumbs.db\n', 'utf-8');
+      fs.writeFileSync(gitignorePath, '# Penwright\n.penwright/\n.penwright-*\n*.pdf\n\n# OS\n.DS_Store\nThumbs.db\n', 'utf-8');
     }
     await git.add('-A');
     await git.commit('Sample 0.7.0 — initial state');

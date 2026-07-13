@@ -367,7 +367,19 @@ export async function saveFileAs(): Promise<boolean> {
   if (result.canceled || !result.filePath) return false;
 
   appState.currentFilePath = result.filePath;
-  return saveFile();
+  const ok = await saveFile();
+  if (ok) {
+    // The compiler was built against findRootFile(oldPath) and the watcher
+    // against the old directory — rebuild both so the live preview compiles
+    // the NEW location instead of the previous document.
+    setupCompiler();
+    setupFileWatcher();
+    appState.mainWindow?.webContents.send('penwright', {
+      type: 'currentFile',
+      path: appState.currentFilePath,
+    });
+  }
+  return ok;
 }
 
 /**
@@ -525,7 +537,10 @@ function setupFileWatcher(): void {
       '**/.git/**',
       '**/.penwright/**',
       '**/.DS_Store',
-      '**/.penwright-preview*',
+      // ALL .penwright-* temp files: preview, export temp root, print style,
+      // math/SVG snippet renders — not just the preview PDF. Export temps
+      // used to trigger spurious filetreeChanged / sidebar flicker.
+      '**/.penwright-*',
       '**/*.lock',
     ],
   });
@@ -585,13 +600,13 @@ function setupFileWatcher(): void {
 
   fileWatcher.on('add', (addedPath: string) => {
     if (Date.now() - appState.lastSaveTimestamp < 3000) return;
-    if (addedPath.includes('.penwright-preview')) return;
+    if (path.basename(addedPath).startsWith('.penwright-')) return;
     appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 
   fileWatcher.on('unlink', (removedPath: string) => {
     if (Date.now() - appState.lastSaveTimestamp < 3000) return;
-    if (removedPath.includes('.penwright-preview')) return;
+    if (path.basename(removedPath).startsWith('.penwright-')) return;
     appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 }

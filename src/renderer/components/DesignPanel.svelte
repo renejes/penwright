@@ -325,7 +325,9 @@
   // Reads a source preset's ProjectStyle and merges the chosen scope into the
   // current `style` (which auto-saves through the safe-apply path, so an import
   // that would break the doc is rolled back and can be undone like any change).
-  const importDe = getLocale() === 'de';
+  // $derived so the import section follows a LIVE language switch like the
+  // rest of the panel (getLocale() reads the reactive i18n state).
+  const importDe = $derived(getLocale() === 'de');
   let presetStyles = $state<{ id: string; label: string; type: string; sections: number }[]>([]);
   let importPresetId = $state('');
   let importScope = $state<'design' | 'palette' | 'fonts' | 'layout' | 'sections'>('design');

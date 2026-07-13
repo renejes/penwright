@@ -122,8 +122,11 @@ function splitIntoBlocks(text: string): string[] {
       continue;
     }
 
-    if (line.trim() === '' && !isNested) {
-      // Blank line outside nesting → block boundary
+    // Blank line outside nesting AND outside display math → block boundary.
+    // A multi-line `$ … $` equation may contain blank lines for readability;
+    // splitting there left an unbalanced-`$` head and re-parsed the tail as
+    // prose (mirrors the wasInMath guard on the heading branch above).
+    if (line.trim() === '' && !isNested && !inMath) {
       if (current.length > 0) {
         blocks.push(current.join('\n'));
         current = [];
@@ -228,16 +231,10 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
   const alignNode = parseAlignedBlock(block);
   if (alignNode) return alignNode;
 
-  // 7. Image: #image("path") or #image("path", width: 80%)
-  const imageMatch = block.match(/^#image\("([^"]+)"(?:\s*,\s*width:\s*([^)]+))?\)$/);
-  if (imageMatch) {
-    return {
-      type: 'image',
-      attrs: {
-        src: imageMatch[1],
-        width: imageMatch[2]?.trim() || null,
-      },
-    };
+  // 7. Image: #image("path") with optional alt: "…" and width: … args
+  const imageAttrs = parseImageCall(block);
+  if (imageAttrs) {
+    return { type: 'image', attrs: imageAttrs };
   }
 
   // 7.5. Table: #table(columns: N, [...], ...)
@@ -513,6 +510,27 @@ function classifyRawBlock(block: string): string {
  * of scope for the deserializer, but we want title pages and abstract
  * headings to survive DOCX export as actual visible text.
  */
+/**
+ * Parses a standalone `#image("src", …)` call with the round-trippable named
+ * args `alt: "…"` (any position) and `width: …`. Returns null when the call
+ * carries anything else, so unknown args fall through to the raw-block path
+ * instead of being dropped.
+ */
+function parseImageCall(src: string): { src: string; width: string | null; alt: string | null } | null {
+  const m = src.match(
+    /^#image\("([^"]+)"((?:\s*,\s*(?:alt:\s*"(?:[^"\\]|\\.)*"|width:\s*[^,)]+))*)\s*\)$/,
+  );
+  if (!m) return null;
+  const tail = m[2] ?? '';
+  const altMatch = tail.match(/alt:\s*"((?:[^"\\]|\\.)*)"/);
+  const widthMatch = tail.match(/width:\s*([^,)]+)/);
+  return {
+    src: m[1],
+    width: widthMatch ? widthMatch[1].trim() : null,
+    alt: altMatch ? altMatch[1].replace(/\\(["\\])/g, '$1') : null,
+  };
+}
+
 function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
   const headerMatch = block.match(/^#align\(([^)]+)\)\[/);
   if (!headerMatch) return null;
@@ -542,15 +560,11 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
       : 'center';
 
   // Special-case: a single image inside the align block.
-  const innerImageMatch = inner.match(/^#image\("([^"]+)"(?:\s*,\s*width:\s*([^)]+))?\)$/);
-  if (innerImageMatch) {
+  const innerImageAttrs = parseImageCall(inner);
+  if (innerImageAttrs) {
     return {
       type: 'image',
-      attrs: {
-        src: innerImageMatch[1],
-        width: innerImageMatch[2]?.trim() || null,
-        align: alignment,
-      },
+      attrs: { ...innerImageAttrs, align: alignment },
     };
   }
 
@@ -567,6 +581,14 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
   // General case: split into chunks separated by `#v(…)` or blank lines,
   // then convert each chunk into a paragraph (or heading for big bold text).
   const chunks = splitAlignedChunks(inner);
+  // Bail on chunks we can't faithfully represent (a centered #figure /
+  // #table / arbitrary macro, or a heading mixed into a multi-chunk block) —
+  // parseInline would emit their raw source as literal prose, which the next
+  // save re-escapes and thereby destroys the construct. Returning null lets
+  // the whole block fall through to the verbatim raw-block path.
+  for (const chunk of chunks) {
+    if (isUnhandledAlignedChunk(chunk)) return null;
+  }
   const nodes: TipTapNode[] = [];
   for (const chunk of chunks) {
     const node = chunkToAlignedNode(chunk, alignment);
@@ -576,6 +598,17 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
     nodes.push({ type: 'paragraph', attrs: { textAlign: alignment } });
   }
   return nodes;
+}
+
+/** True when a chunk inside #align[...] has no faithful WYSIWYG mapping. */
+function isUnhandledAlignedChunk(chunk: string): boolean {
+  // The two shapes chunkToAlignedNode handles explicitly.
+  if (/^#text\(/.test(chunk) || /^#datetime\.today\(\)\.display\(/.test(chunk)) return false;
+  // After stripping the known inline constructs, any leftover #macro( call
+  // (e.g. #figure(, #table(, #image() or a heading marker means the chunk
+  // would degrade to literal text.
+  const stripped = stripKnownInlines(chunk);
+  return /#[a-zA-Z][\w.-]*\(/.test(stripped) || /^=/.test(stripped.trim());
 }
 
 /** Splits the inside of an aligned block into logical chunks. */
@@ -684,7 +717,12 @@ function parseTable(block: string): TipTapNode | null {
   }
 
   // Parse body cells
-  const bodyCells = extractAllCells(remaining);
+  const { cells: bodyCells, rest: trailing } = extractAllCells(remaining);
+
+  // Trailing non-cell content (e.g. `align: center, fill: gray` AFTER the
+  // cells) would be silently dropped and destroyed on the next save — bail
+  // so the whole #table(...) round-trips as a verbatim raw block instead.
+  if (trailing.trim() !== '') return null;
 
   // Validate cell counts
   if (headerCells && headerCells.length !== numCols) return null;
@@ -753,9 +791,11 @@ function extractCellsUntilParen(text: string): { cells: string[]; rest: string }
 }
 
 /**
- * Extracts all [...] cell contents from remaining text.
+ * Extracts all [...] cell contents from remaining text. `rest` is whatever
+ * follows the last cell — non-empty means unparsed params the caller must
+ * not silently drop.
  */
-function extractAllCells(text: string): string[] {
+function extractAllCells(text: string): { cells: string[]; rest: string } {
   const cells: string[] = [];
   let i = 0;
 
@@ -775,7 +815,7 @@ function extractAllCells(text: string): string[] {
     }
   }
 
-  return cells;
+  return { cells, rest: text.slice(i) };
 }
 
 /**
