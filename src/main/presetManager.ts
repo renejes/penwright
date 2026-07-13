@@ -15,7 +15,12 @@
  */
 
 import { app, dialog } from 'electron';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+// Async — a preset compile may take seconds; execFileSync would freeze the
+// whole main-process event loop (menu, IPC, window) for its duration.
+const execFileAsync = promisify(execFile);
 import * as path from 'path';
 import * as fs from 'fs';
 import simpleGit from 'simple-git';
@@ -212,7 +217,7 @@ export function clearPreviewCache(): void { previewCache.clear(); }
  * fresh. `--pages 1-N` clamps to the actual page count (never errors on short
  * presets). Returns [] on any failure — the overlay just shows nothing.
  */
-export function renderPresetPreview(presetId: string, maxPages = 6): string[] {
+export async function renderPresetPreview(presetId: string, maxPages = 6): Promise<string[]> {
   if (previewCache.has(presetId)) return previewCache.get(presetId)!;
   const found = scanPresetDirs().find((s) => s.manifest.id === presetId);
   if (!found) return [];
@@ -222,10 +227,10 @@ export function renderPresetPreview(presetId: string, maxPages = 6): string[] {
 
   const tmp = fs.mkdtempSync(path.join(app.getPath('temp'), 'pw-preview-'));
   try {
-    execFileSync(
+    await execFileAsync(
       getTypstPath(),
       buildTypstCompileArgs(['--root', dir, '--pages', `1-${Math.max(1, maxPages)}`, '--ppi', '120', '--format', 'png', root, path.join(tmp, 'p-{p}.png')]),
-      { stdio: 'ignore', timeout: 120_000 },
+      { timeout: 120_000 },
     );
     const files = fs.readdirSync(tmp)
       .filter((f) => /^p-\d+\.png$/.test(f))
@@ -392,12 +397,12 @@ function findRootFileIn(dir: string): string | null {
 
 /** Renders page 1 of a project to a PNG thumbnail with the bundled Typst.
  *  Best-effort — a render failure just leaves the card with its type glyph. */
-function renderThumbnail(projectDir: string, rootAbs: string, outPng: string): boolean {
+async function renderThumbnail(projectDir: string, rootAbs: string, outPng: string): Promise<boolean> {
   try {
-    execFileSync(
+    await execFileAsync(
       getTypstPath(),
       buildTypstCompileArgs(['--root', projectDir, '--pages', '1', '--ppi', '96', '--format', 'png', rootAbs, outPng]),
-      { stdio: 'ignore', timeout: 90_000 },
+      { timeout: 90_000 },
     );
     return fs.existsSync(outPng);
   } catch {
@@ -433,7 +438,7 @@ export async function saveProjectAsPreset(input: SavePresetInput): Promise<{ ok:
   }
 
   const rootAbs = findRootFileIn(dest);
-  if (rootAbs) renderThumbnail(dest, rootAbs, path.join(dest, 'thumbnail.png'));
+  if (rootAbs) await renderThumbnail(dest, rootAbs, path.join(dest, 'thumbnail.png'));
 
   const tag = input.tagline?.trim() || '';
   const manifest: PresetManifest = {

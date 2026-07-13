@@ -174,6 +174,34 @@ export async function openFile(filePath?: string): Promise<void> {
     filePath = result.filePaths[0];
   }
 
+  // Flush the pending debounced auto-save BEFORE the buffer is replaced —
+  // otherwise the still-armed timer fires after the switch and writes the NEW
+  // file's content to the NEW path, silently losing the previous file's last
+  // <1s of edits. Also covers re-opening the same file (disk read would
+  // otherwise clobber unsaved in-memory edits).
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+  if (appState.isDirty && appState.currentFilePath) {
+    try {
+      appState.lastSaveTimestamp = Date.now();
+      await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
+      appState.isDirty = false;
+      addBreadcrumb('file', `flush-saved ${path.extname(appState.currentFilePath)} before open`);
+    } catch (err) {
+      // Never proceed silently: switching now would replace the buffer and
+      // lose the unsaved edits. Surface the error and abort the switch —
+      // the dirty buffer (and dirty flag) stay intact.
+      addBreadcrumb('file', `flush-save failed: ${err instanceof Error ? err.message : String(err)}`);
+      dialog.showErrorBox(
+        md.couldNotSaveFile,
+        `${appState.currentFilePath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
+  }
+
   // Check for file lock (shared folder collaboration)
   if (filePath.endsWith('.typ')) {
     const existingLock = checkLock(filePath);
@@ -199,6 +227,7 @@ export async function openFile(filePath?: string): Promise<void> {
   }
 
   try {
+    let recovered = false;
     appState.currentContent = await fs.promises.readFile(filePath, 'utf-8');
     appState.currentFilePath = filePath;
     if (!appState.projectDir) {
@@ -222,7 +251,7 @@ export async function openFile(filePath?: string): Promise<void> {
         });
         if (result.response === 0) {
           appState.currentContent = recovery.backupContent;
-          appState.isDirty = true;
+          recovered = true;
         }
       }
 
@@ -234,9 +263,9 @@ export async function openFile(filePath?: string): Promise<void> {
       });
     }
 
-    if (!appState.isDirty) {
-      appState.isDirty = false;
-    }
+    // A freshly opened file is clean — dirty only if backup recovery replaced
+    // the buffer (the recovered content isn't on disk yet).
+    appState.isDirty = recovered;
     updateTitle();
 
     appState.mainWindow?.webContents.send('penwright', {

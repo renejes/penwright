@@ -67,6 +67,7 @@ import {
   renderEqNumber,
   mathSnippet,
   svgSnippet,
+  buildExportModel,
 } from './exportContext';
 
 // ─── Types (mirrors deserializer output) ─────────────────────
@@ -157,6 +158,12 @@ interface DocxCtx {
   numericOrder: string[];
   /** Monotonic counter handing each ordered list its own numbering instance. */
   orderedInstance: number;
+  /** Render-pass running figure/table ordinals — number UNLABELLED figures
+   *  too (readers expect "Figure N" regardless of cross-referencing). Walks
+   *  in the same depth-first order as buildExportModel, so these stay in
+   *  step with the labelMap numbers of labelled ones. */
+  figureSeq: number;
+  tableSeq: number;
 }
 
 let activeCtx: DocxCtx | null = null;
@@ -1524,73 +1531,44 @@ async function buildExportContext(
   bibEntries: BibEntry[],
   opts: SerializeDocxOptions,
 ): Promise<DocxCtx> {
-  const labelMap = new Map<string, RefTarget>();
   const rendered = new Map<string, RenderedSnippet>();
 
-  const eqNumMatch = typstContent.match(/#set\s+math\.equation\([^)]*numbering\s*:\s*"([^"]*)"/);
-  const equationNumbering = !!eqNumMatch;
-  const eqPattern = eqNumMatch ? eqNumMatch[1] : '(1)';
+  // Numbering / citation style / label map come from the SHARED depth-first
+  // pre-pass (exportContext.buildExportModel) — the render pass below descends
+  // into the magazine container nodes (columns/callout/figurePanel), so the
+  // counting pass must recurse identically or nested figures/tables/math lose
+  // their numbers and `@fig:…` targets. Never re-implement this walk here:
+  // a local flat copy is exactly how DOCX and HTML drifted apart before.
+  const model = buildExportModel(doc, typstContent);
+  const { labelMap, equationNumbering, citationMode, numericOrder } = model;
 
-  const bibStyleMatch = typstContent.match(/#bibliography\([^)]*style:\s*"([^"]+)"/);
-  const citationMode: 'author-year' | 'numeric' =
-    bibStyleMatch && NUMERIC_BIB_STYLES.has(bibStyleMatch[1].toLowerCase()) ? 'numeric' : 'author-year';
-
-  let figureN = 0, tableN = 0, equationN = 0;
-  const headingCounters = [0, 0, 0, 0, 0, 0];
+  // DOCX-specific raster plan: display-math (from the shared model) plus SVG
+  // images, which Word can't embed natively. The SVG scan mirrors the render
+  // pass's depth-first descent.
   const renderQueue: string[] = [];
-
-  for (const node of doc.content ?? []) {
-    if (node.type === 'heading') {
-      // Mirror the section numbering Word will produce so `@sec:…` refs can
-      // resolve to "Section 2.1".
-      const level = Math.min(6, Math.max(1, (node.attrs?.level as number) ?? 1));
-      headingCounters[level - 1]++;
-      for (let l = level; l < 6; l++) headingCounters[l] = 0;
-      const split = splitHeadingLabel(node);
-      // The deserializer moves a trailing `<label>` into attrs.label and strips
-      // it from the heading text (B2), so a text-only read misses it; prefer the
-      // attr and fall back to an inline label. Without this `@sec:…` refs never
-      // resolve to "Section N.M".
-      const headingLabel = (node.attrs?.label as string | undefined) ?? split.label;
-      if (headingLabel) {
-        labelMap.set(headingLabel, {
-          kind: 'heading',
-          n: headingCounters[0],
-          numberText: headingCounters.slice(0, level).join('.'),
-          title: split.title,
-        });
-      }
-      continue;
-    }
-    if (node.type === 'typstRawBlock') {
-      const content = (node.attrs?.content as string) ?? '';
-      const blockType = (node.attrs?.blockType as string) ?? '';
-      const desc = classifyRawBlock(content, blockType);
-      if (desc.kind === 'math') {
-        if (equationNumbering) equationN++;
-        const numberText = equationNumbering ? renderEqNumber(eqPattern, equationN) : undefined;
-        if (desc.label) labelMap.set(desc.label, { kind: 'equation', n: equationN, numberText });
-        if (opts.renderTypstSnippet) renderQueue.push(mathSnippet(desc.tex));
-      } else if (desc.kind === 'figure' && desc.variant === 'image') {
-        figureN++;
-        if (desc.label) labelMap.set(desc.label, { kind: 'figure', n: figureN });
-        if (desc.imagePath) {
-          const abs = resolveImagePath(baseDir, desc.imagePath);
-          if (abs.toLowerCase().endsWith('.svg') && opts.renderTypstSnippet) renderQueue.push(svgSnippet(toTypstRel(baseDir, abs)));
-        }
-      } else if (desc.kind === 'figure' && desc.variant === 'table') {
-        tableN++;
-        if (desc.label) labelMap.set(desc.label, { kind: 'table', n: tableN });
-      }
-    } else if (node.type === 'image') {
-      const src = (node.attrs?.src as string) ?? '';
-      if (src.toLowerCase().endsWith('.svg') && opts.renderTypstSnippet) {
-        renderQueue.push(svgSnippet(toTypstRel(baseDir, resolveImagePath(baseDir, src))));
-      }
-    }
-  }
-
   if (opts.renderTypstSnippet) {
+    for (const mb of model.mathBlocks) renderQueue.push(mathSnippet(mb.tex));
+    const scanSvgs = (node: TipTapNode) => {
+      if (node.type === 'typstRawBlock') {
+        const content = (node.attrs?.content as string) ?? '';
+        const blockType = (node.attrs?.blockType as string) ?? '';
+        const desc = classifyRawBlock(content, blockType);
+        if (desc.kind === 'figure' && desc.variant === 'image' && desc.imagePath) {
+          const abs = resolveImagePath(baseDir, desc.imagePath);
+          if (abs.toLowerCase().endsWith('.svg')) renderQueue.push(svgSnippet(toTypstRel(baseDir, abs)));
+        }
+      } else if (node.type === 'image' || node.type === 'figurePanel') {
+        // figurePanel carries its image in attrs.path (rendered via
+        // buildImageParagraph, which reads the raster map for SVGs).
+        const src = String(node.attrs?.src ?? node.attrs?.path ?? '');
+        if (src.toLowerCase().endsWith('.svg')) {
+          renderQueue.push(svgSnippet(toTypstRel(baseDir, resolveImagePath(baseDir, src))));
+        }
+      }
+      for (const c of node.content ?? []) scanSvgs(c);
+    };
+    for (const node of doc.content ?? []) scanSvgs(node);
+
     const unique = [...new Set(renderQueue)];
     const results = await Promise.all(
       unique.map((s) => opts.renderTypstSnippet!(s).catch(() => null)),
@@ -1598,12 +1576,10 @@ async function buildExportContext(
     unique.forEach((s, i) => { const r = results[i]; if (r) rendered.set(s, r); });
   }
 
-  const numericOrder: string[] = [];
-  if (citationMode === 'numeric') collectCitekeysInOrder(doc, numericOrder);
-
   return {
     baseDir, resolved, bibEntries, labelMap, rendered,
     equationNumbering, citationMode, numericOrder, orderedInstance: 1,
+    figureSeq: 0, tableSeq: 0,
   };
 }
 
@@ -1708,7 +1684,11 @@ function renderRawBlock(
       const target = desc.label ? activeCtx?.labelMap.get(desc.label) : undefined;
       const isTable = desc.variant === 'table';
       const numWord = isTable ? words.table : words.figure;
-      const num = target?.n ?? '';
+      // Unlabelled figures/tables get the running ordinal — the pre-pass only
+      // stores numbers for LABELLED blocks, but a caption without a numeral
+      // ("Figure: A river at dawn") reads as a defect.
+      const seq = activeCtx ? (isTable ? ++activeCtx.tableSeq : ++activeCtx.figureSeq) : '';
+      const num = target?.n ?? seq;
       const captionSrc = desc.caption
         ? desc.caption + (desc.credit ? `${activeCtx?.resolved.creditSeparator ?? ' — '}${activeCtx?.resolved.creditLabel ?? 'Photo: '}${desc.credit}` : '')
         : undefined;

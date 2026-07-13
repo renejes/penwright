@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import CodeEditor from './CodeEditor.svelte';
   import { t } from '@shared/i18n/store.svelte';
 
@@ -22,23 +21,42 @@
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
   } }).electronAPI;
 
-  onMount(() => {
-    loadFile();
-  });
+  // The component instance is REUSED across text tabs (mounted un-keyed with a
+  // derived active-tab path), so a tab switch arrives as a filePath change.
+  // The old unconditional reload silently discarded unsaved edits — flush the
+  // previous file first. `loadSeq` drops reads superseded by a faster switch.
+  let loadedPath = '';
+  let loadSeq = 0;
 
   $effect(() => {
-    if (filePath) loadFile();
+    if (filePath && filePath !== loadedPath) {
+      void switchTo(filePath);
+    }
   });
 
-  async function loadFile() {
-    if (!filePath) return;
+  async function switchTo(nextPath: string) {
+    const prevPath = loadedPath;
+    loadedPath = nextPath;
+    if (isDirty && prevPath) {
+      try {
+        await api.invoke('textfile:write', prevPath, content);
+      } catch (e) {
+        console.error('[penwright] Failed to flush-save before tab switch:', e);
+      }
+    }
+    await loadFile(nextPath);
+  }
+
+  async function loadFile(p: string) {
+    const seq = ++loadSeq;
     try {
-      const text = await api.invoke('textfile:read', filePath) as string;
+      const text = await api.invoke('textfile:read', p) as string;
+      if (seq !== loadSeq) return;
       content = text;
       originalContent = text;
       isDirty = false;
     } catch (e) {
-      content = t().pickers.textLoadError(String(e));
+      if (seq === loadSeq) content = t().pickers.textLoadError(String(e));
     }
   }
 
@@ -48,10 +66,10 @@
   }
 
   async function save() {
-    if (!isDirty || !filePath) return;
+    if (!isDirty || !loadedPath) return;
     saving = true;
     try {
-      await api.invoke('textfile:write', filePath, content);
+      await api.invoke('textfile:write', loadedPath, content);
       originalContent = content;
       isDirty = false;
     } catch (e) {

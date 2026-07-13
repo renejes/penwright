@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import simpleGit, { type SimpleGit } from 'simple-git';
 import { appState } from './appState';
 import { isPathWithin } from './pathSecurity';
+import { updateTitle } from './fileManager';
 
 function getGitDir(): string {
   return appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : process.cwd());
@@ -163,6 +164,13 @@ export function setupGitIPC(): void {
     const git = simpleGit(dir);
     if (!/^[0-9a-f]{4,40}$/i.test(args.sha)) throw new Error('Invalid version id.');
 
+    // Stamp BEFORE the checkout so the chokidar watcher's 3s self-save guard
+    // treats the file writes as our own (we refresh the editor explicitly
+    // below — without the stamp the watcher would double-handle them, and
+    // without the explicit refresh a restore within 3s of an auto-save was
+    // silently ignored: stale editor content overwrote the restored file on
+    // the next keystroke).
+    appState.lastSaveTimestamp = Date.now();
     if (args.files && args.files.length > 0) {
       for (const f of args.files) {
         if (!isPathWithinGitDir(f)) throw new Error('Access denied: path is outside the project.');
@@ -172,6 +180,33 @@ export function setupGitIPC(): void {
       // Restore all files of that commit into the working tree.
       await git.raw(['checkout', args.sha, '--', '.']);
     }
+
+    // If the restore touched the currently-open file, refresh the editor
+    // buffer the same way project:applyBackup does.
+    if (appState.currentFilePath && fs.existsSync(appState.currentFilePath)) {
+      const restoredCurrent =
+        !args.files ||
+        args.files.length === 0 ||
+        args.files.some((f) => {
+          const abs = path.isAbsolute(f) ? f : path.resolve(dir, f);
+          return path.resolve(abs) === path.resolve(appState.currentFilePath!);
+        });
+      if (restoredCurrent) {
+        try {
+          const restoredContent = fs.readFileSync(appState.currentFilePath, 'utf-8');
+          if (restoredContent !== appState.currentContent) {
+            appState.currentContent = restoredContent;
+            appState.isDirty = false;
+            updateTitle();
+            appState.mainWindow?.webContents.send('penwright', { type: 'update', content: restoredContent });
+          }
+        } catch (err) {
+          console.warn('[penwright] Could not refresh editor after restore:', err);
+        }
+      }
+    }
+
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     return { ok: true };
   });
 

@@ -132,7 +132,7 @@
     <div class="shortcuts-hint">
       <span><kbd>Cmd+N</kbd> {t().startScreen.shortcutNew}</span>
       <span><kbd>Cmd+O</kbd> {t().startScreen.shortcutOpen}</span>
-      <span><kbd>Cmd+B</kbd> {t().startScreen.shortcutSidebar}</span>
+      <span><kbd>Cmd+Alt+B</kbd> {t().startScreen.shortcutSidebar}</span>
     </div>
   </div>
 </div>

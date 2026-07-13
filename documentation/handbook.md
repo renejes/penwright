@@ -66,7 +66,7 @@ The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in
 
 | Panel | Shortcut | Status Bar button |
 |-------|----------|-------------------|
-| Sidebar (left) | `Cmd+B` | **Project** |
+| Sidebar (left) | `Cmd+Alt+B` | **Project** |
 | Preview (right) | `Cmd+Shift+P` | **Preview** |
 
 All panels are resizable by dragging their edges.
@@ -98,7 +98,7 @@ All project-level and document-level actions live in the **native menu bar** (to
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
-- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), plus standard window/zoom roles
+- **View** — Toggle Sidebar (`Cmd+Alt+B`), Toggle Preview (`Cmd+Shift+P`), plus standard window/zoom roles
 - **Document** — Document Settings (**interface language** + document language + bibliography style; the document's Look lives in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
 
@@ -993,7 +993,7 @@ The MCP server also exposes five **prompts** backed by the deployed `.claude/ski
 | Find in Project | `Cmd+Shift+F` |
 | Add Comment | `Cmd+Alt+M` |
 | Insert Reference | `Cmd+Alt+L` |
-| Toggle sidebar | `Cmd+B` |
+| Toggle sidebar | `Cmd+Alt+B` |
 | Toggle preview | `Cmd+Shift+P` |
 | Undo | `Cmd+Z` |
 | Redo | `Cmd+Shift+Z` |

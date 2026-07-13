@@ -66,7 +66,7 @@ Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitze
 
 | Panel | Shortcut | Status Bar Button |
 |-------|----------|-------------------|
-| Sidebar (links) | `Cmd+B` | **Project** |
+| Sidebar (links) | `Cmd+Alt+B` | **Project** |
 | Preview (rechts) | `Cmd+Shift+P` | **Preview** |
 
 Alle Panels sind per Drag resizeable.
@@ -98,7 +98,7 @@ Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleist
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
-- **View** — Toggle Sidebar (`Cmd+B`), Toggle Preview (`Cmd+Shift+P`), plus Standard-Window-/Zoom-Rollen
+- **View** — Toggle Sidebar (`Cmd+Alt+B`), Toggle Preview (`Cmd+Shift+P`), plus Standard-Window-/Zoom-Rollen
 - **Document** — Document Settings (**Oberflächensprache** + Dokumentsprache + Zitierstil; der Look des Dokuments lebt in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (oeffnet `<userData>/crash-reports/` im Finder); About auf Windows / Linux
 
@@ -993,7 +993,7 @@ Der MCP-Server bietet zusaetzlich fuenf **Prompts** (`typst-reference`, `penwrig
 | Suchen im Projekt | `Cmd+Shift+F` |
 | Kommentar hinzufuegen | `Cmd+Alt+M` |
 | Cross-Reference einfuegen | `Cmd+Alt+L` |
-| Sidebar ein/aus | `Cmd+B` |
+| Sidebar ein/aus | `Cmd+Alt+B` |
 | Preview ein/aus | `Cmd+Shift+P` |
 | Rueckgaengig | `Cmd+Z` |
 | Wiederholen | `Cmd+Shift+Z` |

@@ -32,15 +32,18 @@
 
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
-    on(channel: string, callback: (data: unknown) => void): void;
+    on(channel: string, callback: (data: unknown) => void): () => void;
   } }).electronAPI;
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  // Sidebar tab panels unmount on every tab switch — release the IPC
+  // subscription or each visit stacks another permanent listener.
+  let unsubscribe: (() => void) | null = null;
 
   onMount(async () => {
     await refreshAll();
 
-    api.on('penwright', (data: unknown) => {
+    unsubscribe = api.on('penwright', (data: unknown) => {
       const msg = data as { type: string };
       if (msg.type === 'filetreeChanged' || msg.type === 'saveStatus' || msg.type === 'currentFile') {
         refreshAll();
@@ -52,6 +55,7 @@
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
+    unsubscribe?.();
   });
 
   async function refreshAll() {

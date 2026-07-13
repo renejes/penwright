@@ -20,7 +20,7 @@
 
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
-    on(channel: string, callback: (data: unknown) => void): void;
+    on(channel: string, callback: (data: unknown) => void): () => void;
   } }).electronAPI;
 
   let comments: CommentEntry[] = $state([]);
@@ -124,10 +124,14 @@
     });
   }
 
+  // Sidebar tab panels unmount on every tab switch — release the IPC
+  // subscription or each visit stacks another permanent listener.
+  let unsubscribeIpc: (() => void) | null = null;
+
   onMount(async () => {
     await loadProjectInfo();
     await loadComments();
-    api.on('penwright', (data: unknown) => {
+    unsubscribeIpc = api.on('penwright', (data: unknown) => {
       const msg = data as { type: string };
       if (msg.type === 'filetreeChanged' || msg.type === 'currentFile') onFiletreeChanged();
     });
@@ -136,6 +140,7 @@
   });
 
   onDestroy(() => {
+    unsubscribeIpc?.();
     window.removeEventListener('penwright:comment-click', onCommentClick as EventListener);
     window.removeEventListener('penwright:comment-created', onCreateComment as EventListener);
     for (const id of Object.keys(saveTimers)) clearTimeout(saveTimers[id]);

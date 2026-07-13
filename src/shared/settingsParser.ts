@@ -45,9 +45,12 @@ export function parseSettings(text: string): DocumentSettings {
   const settings: DocumentSettings = { ...DEFAULT_SETTINGS };
 
   // Match #set text(...) — may span multiple lines. We only pull `lang` now.
-  const textMatch = text.match(/#set\s+text\s*\(([^)]*)\)/);
-  if (textMatch) {
-    settings.lang = extractStringArg(textMatch[1], 'lang') || '';
+  // Balanced-paren scan: the args may nest parens (font fallback arrays like
+  // `font: ("Libertinus Serif", "Noto Serif")`), which a flat `[^)]*` regex
+  // cut short — `lang` after the array was never seen.
+  const textBlock = findSetTextBlock(text);
+  if (textBlock) {
+    settings.lang = extractStringArg(textBlock.args, 'lang') || '';
   }
 
   // Match #bibliography(..., style: "...")
@@ -87,10 +90,26 @@ export function applySettings(
   const newBlocks = generateSetBlocks(settings);
 
   let result = text;
-  // Drop any existing `#set text(...)` line so we can re-emit a clean
-  // single-arg version. We can do this with a flat regex because text()
-  // doesn't accept bracket args.
-  result = result.replace(/^#set\s+text\s*\([^)]*\)\s*\n?/gm, '');
+  // Drop any existing line-anchored `#set text(...)` block so we can re-emit
+  // a clean single-arg version. Balanced-paren scan — a font fallback array
+  // (`font: ("Arial", "Helvetica")`) nests parens, and the old flat regex
+  // stripped only up to the INNER `)`, leaving an orphaned `, lang: "…")`
+  // tail that broke compilation.
+  let searchFrom = 0;
+  for (;;) {
+    const block = findSetTextBlock(result, searchFrom);
+    if (!block) break;
+    const atLineStart = block.start === 0 || result[block.start - 1] === '\n';
+    if (!atLineStart) {
+      searchFrom = block.end;
+      continue;
+    }
+    let end = block.end;
+    while (result[end] === ' ' || result[end] === '\t') end++;
+    if (result[end] === '\n') end++;
+    result = result.slice(0, block.start) + result.slice(end);
+    searchFrom = block.start;
+  }
   result = result.replace(/^\n+/, '');
 
   if (newBlocks) {
@@ -129,6 +148,41 @@ export function applySettings(
 }
 
 // --- Helpers ---
+
+/**
+ * Finds the next `#set text( … )` block at or after `from` with a balanced
+ * paren scan (string contents skipped, so a `)` inside quotes doesn't close
+ * the block). Returns the raw args plus the block's [start, end) span.
+ */
+function findSetTextBlock(
+  text: string,
+  from = 0,
+): { args: string; start: number; end: number } | null {
+  const re = /#set\s+text\s*\(/g;
+  re.lastIndex = from;
+  const hit = re.exec(text);
+  if (!hit) return null;
+  const openIdx = hit.index + hit[0].length - 1;
+  let depth = 1;
+  let inStr = false;
+  let j = openIdx + 1;
+  while (j < text.length && depth > 0) {
+    const c = text[j];
+    if (inStr) {
+      if (c === '\\') j++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') {
+      inStr = true;
+    } else if (c === '(') {
+      depth++;
+    } else if (c === ')') {
+      depth--;
+    }
+    j++;
+  }
+  if (depth !== 0) return null;
+  return { args: text.slice(openIdx + 1, j - 1), start: hit.index, end: j };
+}
 
 function extractStringArg(args: string, key: string): string | null {
   const regex = new RegExp(`${key}\\s*:\\s*"([^"]*)"`, 'i');

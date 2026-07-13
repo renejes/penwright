@@ -131,10 +131,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
-  on(channel: string, callback: (data: unknown) => void) {
+  // Returns an unsubscribe function — components that mount/unmount (the
+  // sidebar tab panels) MUST call it in onDestroy, otherwise every tab visit
+  // permanently stacks another ipcRenderer listener (contextBridge proxies
+  // returned functions across the isolation boundary).
+  on(channel: string, callback: (data: unknown) => void): () => void {
     if (ON_CHANNELS.includes(channel)) {
-      ipcRenderer.on(channel, (_event, data) => callback(data));
+      const listener = (_event: unknown, data: unknown) => callback(data);
+      ipcRenderer.on(channel, listener as Parameters<typeof ipcRenderer.on>[1]);
+      return () => ipcRenderer.removeListener(channel, listener as Parameters<typeof ipcRenderer.on>[1]);
     }
+    return () => {};
   },
 
   invoke(channel: string, ...args: unknown[]): Promise<unknown> {

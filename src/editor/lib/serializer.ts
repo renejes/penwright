@@ -78,23 +78,13 @@ function serializeNode(node: TipTapNode): string {
 
     case 'bulletList': {
       return (node.content ?? [])
-        .map((item) => {
-          const text = (item.content ?? [])
-            .map((child) => serializeInline(child.content ?? []))
-            .join('\n');
-          return `- ${text}`;
-        })
+        .map((item) => serializeListItem(item, '-', 0))
         .join('\n');
     }
 
     case 'orderedList': {
       return (node.content ?? [])
-        .map((item) => {
-          const text = (item.content ?? [])
-            .map((child) => serializeInline(child.content ?? []))
-            .join('\n');
-          return `+ ${text}`;
-        })
+        .map((item) => serializeListItem(item, '+', 0))
         .join('\n');
     }
 
@@ -244,8 +234,48 @@ function wrapWithAlign(content: string, align: string | undefined | null): strin
  * so they stay live; only the user's inner text is escaped. Code blocks and
  * raw/bibliography passthrough bypass this (they are literal Typst).
  */
+/**
+ * Serializes one listItem, recursing into nested bullet/ordered lists
+ * (reachable via Tab / sinkListItem). Nested lists become indented `- `/`+ `
+ * lines — Typst's nesting syntax; they used to be silently DROPPED because
+ * serializeInline knows no block node types. Continuation paragraphs are
+ * indented two spaces past the marker so they stay part of the item.
+ */
+function serializeListItem(item: TipTapNode, marker: '-' | '+', depth: number): string {
+  const indent = '  '.repeat(depth);
+  const inlineParts: string[] = [];
+  const nestedParts: string[] = [];
+  for (const child of item.content ?? []) {
+    if (child.type === 'bulletList' || child.type === 'orderedList') {
+      const childMarker = child.type === 'bulletList' ? '-' : '+';
+      nestedParts.push(
+        (child.content ?? [])
+          .map((sub) => serializeListItem(sub, childMarker, depth + 1))
+          .join('\n'),
+      );
+    } else {
+      inlineParts.push(serializeInline(child.content ?? []));
+    }
+  }
+  const first = `${indent}${marker} ${inlineParts.join(`\n${indent}  `)}`;
+  return nestedParts.length ? [first, ...nestedParts].join('\n') : first;
+}
+
 function escapeTypstText(text: string): string {
-  return text.replace(/[\\`*_#@$<>~[\]]/g, (ch) => '\\' + ch);
+  return (
+    text
+      .replace(/[\\`*_#@$<>~[\]]/g, (ch) => '\\' + ch)
+      // `//` starts a Typst line comment even mid-sentence — everything after
+      // it on the line would silently vanish from the PDF (URLs pasted as
+      // plain text, "a//b", …). Escape the first slash of every pair.
+      // (`/*` INSIDE one run needs no handling: the `*` is escaped above,
+      // which already breaks the comment token.)
+      .replace(/\/(?=\/)/g, '\\/')
+      // A run-FINAL slash can still fuse with the next run's mark delimiter
+      // into `/*` (text "and/" + bold "or" → `and/*or*` = unterminated block
+      // comment, silently eating the rest of the document). Escape it.
+      .replace(/\/$/, '\\/')
+  );
 }
 
 /**
@@ -332,7 +362,10 @@ function serializeInline(nodes: TipTapNode[]): string {
               text = `\`${text}\``;
               break;
             case 'strike':
-              text = `~${text}~`;
+              // Typst has no `~…~` strikethrough — `~` is the non-breaking
+              // space shorthand. #strike[…] is the real thing (and what the
+              // Markdown importer already emits).
+              text = `#strike[${text}]`;
               break;
             case 'link':
               // Quote+escape the href so a `"` or `\` in the URL can't break the

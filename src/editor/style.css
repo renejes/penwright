@@ -1345,14 +1345,14 @@ body {
   background: rgba(128, 128, 128, 0.15);
 }
 
-/* Search highlights */
-mark.search-highlight {
+/* Search highlights — rendered as ProseMirror inline decorations (<span>) */
+.search-highlight {
   background: rgba(255, 210, 0, 0.3);
   border-radius: 2px;
   padding: 0;
 }
 
-mark.search-current {
+.search-current {
   background: rgba(255, 160, 0, 0.5);
   outline: 1px solid rgba(255, 160, 0, 0.8);
 }

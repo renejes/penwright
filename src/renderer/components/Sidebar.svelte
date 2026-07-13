@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { t } from '@shared/i18n/store.svelte';
 
   let {
@@ -27,17 +27,25 @@
 
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
-    on(channel: string, callback: (data: unknown) => void): void;
+    on(channel: string, callback: (data: unknown) => void): () => void;
   } }).electronAPI;
+
+  // Sidebar tab panels unmount on every tab switch — the IPC subscription
+  // must be released or each visit stacks another permanent listener.
+  let unsubscribe: (() => void) | null = null;
 
   onMount(() => {
     loadTree();
-    api.on('penwright', (data: unknown) => {
+    unsubscribe = api.on('penwright', (data: unknown) => {
       const msg = data as { type: string };
       if (msg.type === 'filetreeChanged') {
         loadTree();
       }
     });
+  });
+
+  onDestroy(() => {
+    unsubscribe?.();
   });
 
   async function loadTree() {

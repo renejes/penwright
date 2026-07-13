@@ -134,20 +134,27 @@ function convertInline(text: string): string {
   // Links: [text](url) → #link("url")[text]
   text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '#link("$2")[$1]');
 
-  // Bold + italic: ***text*** or ___text___
-  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '*_$1_*');
-  text = text.replace(/___(.+?)___/g, '*_$1_*');
+  // Bold must go through a placeholder: emitting Typst `*text*` directly would
+  // be re-matched by the single-asterisk italic pass below (Markdown italic and
+  // Typst bold share the `*` delimiter), which used to turn every bold span
+  // into italic. The NUL-delimited token cannot occur in Markdown input.
+  const BOLD_OPEN = '\u0000B\u0000';
+  const BOLD_CLOSE = '\u0000/B\u0000';
 
-  // Bold: **text** or __text__ → *text*
-  text = text.replace(/\*\*(.+?)\*\*/g, '*$1*');
-  text = text.replace(/__(.+?)__/g, '*$1*');
+  // Bold + italic: ***text*** or ___text___ → bold-wrapped italic
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, `${BOLD_OPEN}_$1_${BOLD_CLOSE}`);
+  text = text.replace(/___(.+?)___/g, `${BOLD_OPEN}_$1_${BOLD_CLOSE}`);
 
-  // Italic: *text* or _text_ → _text_ (already Typst syntax)
-  // *text* needs to stay as-is if it's single asterisks (Typst uses * for bold)
-  // Actually in Typst: *text* = bold, _text_ = italic
-  // In Markdown: *text* = italic, **text** = bold
-  // So single * in Markdown (italic) needs to become _ in Typst
+  // Bold: **text** or __text__
+  text = text.replace(/\*\*(.+?)\*\*/g, `${BOLD_OPEN}$1${BOLD_CLOSE}`);
+  text = text.replace(/__(.+?)__/g, `${BOLD_OPEN}$1${BOLD_CLOSE}`);
+
+  // Italic: Markdown single *text* → Typst _text_ (Typst uses * for bold).
+  // Runs on the ORIGINAL single asterisks only — bold is already tokenised.
   text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '_$1_');
+
+  // Restore bold placeholders as Typst bold markers
+  text = text.split(BOLD_OPEN).join('*').split(BOLD_CLOSE).join('*');
 
   // Inline code: `code` stays the same in Typst
   // (already correct syntax)

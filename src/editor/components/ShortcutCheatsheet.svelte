@@ -65,7 +65,7 @@
     {
       title: t().editor.shortcutsGroupView,
       entries: [
-        { action: t().editor.shortcutToggleSidebar, shortcut: `${mod}+B` },
+        { action: t().editor.shortcutToggleSidebar, shortcut: `${mod}+${alt}+B` },
         { action: t().editor.shortcutTogglePreview, shortcut: `${mod}+Shift+P` },
       ],
     },

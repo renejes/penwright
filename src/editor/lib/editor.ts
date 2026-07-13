@@ -17,6 +17,7 @@ import { HeadingLabel } from './typstHeadingLabel';
 import { MAGAZINE_NODES } from './typstMagazine';
 import { SlashCommands } from './slashCommands';
 import { CommentDecorations } from './commentDecorations';
+import { SearchDecorations } from './searchDecorations';
 import { t } from '../../shared/i18n/store.svelte';
 
 /**
@@ -209,6 +210,7 @@ export function createEditor(
       ...MAGAZINE_NODES,
       ImageDropHandler,
       CommentDecorations,
+      SearchDecorations,
     ],
     content: { type: 'doc', content: [{ type: 'paragraph' }] },
     onTransaction: options.onTransaction

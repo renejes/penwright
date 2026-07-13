@@ -2,6 +2,12 @@
   import { onMount, onDestroy } from 'svelte';
   import type { Editor } from '@tiptap/core';
   import { t } from '@shared/i18n/store.svelte';
+  import {
+    findSearchMatches,
+    setSearchHighlights,
+    clearSearchHighlights,
+    type SearchMatch,
+  } from '../lib/searchDecorations';
 
   let {
     editor,
@@ -17,136 +23,113 @@
   let showReplace = $state(false);
   let matchCount = $state(0);
   let currentMatch = $state(0);
-  let highlights: Range[] = [];
+  // ProseMirror positions of the current matches. NEVER touch the editor's
+  // DOM directly — highlights are Decorations, replacements are transactions.
+  // (The old innerHTML-rebuild approach destroyed every custom Typst node.)
+  let matches: SearchMatch[] = [];
 
   onMount(() => {
     searchInput?.focus();
   });
 
-  function clearHighlights() {
-    // Remove all search highlight marks via CSS class
-    const el = editor.view.dom;
-    el.querySelectorAll('mark.search-highlight').forEach((m) => {
-      const parent = m.parentNode;
-      if (parent) {
-        parent.replaceChild(document.createTextNode(m.textContent || ''), m);
-        parent.normalize();
-      }
-    });
-    el.querySelectorAll('mark.search-current').forEach((m) => {
-      const parent = m.parentNode;
-      if (parent) {
-        parent.replaceChild(document.createTextNode(m.textContent || ''), m);
-        parent.normalize();
-      }
-    });
-  }
+  // The doc the current `matches` were computed against — positions go stale
+  // the moment the user edits, so every navigation/replace re-syncs first.
+  let matchesDoc: unknown = null;
 
   function performSearch() {
-    clearHighlights();
-    highlights = [];
-    matchCount = 0;
-    currentMatch = 0;
-
-    if (!searchTerm) return;
-
-    const term = searchTerm.toLowerCase();
-    const walker = document.createTreeWalker(
-      editor.view.dom,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode(node) {
-          // Skip raw block textareas
-          const parent = node.parentElement;
-          if (parent?.closest('.typst-raw-block')) return NodeFilter.FILTER_REJECT;
-          return NodeFilter.FILTER_ACCEPT;
-        },
-      },
-    );
-
-    const matches: { node: Text; start: number; end: number }[] = [];
-    let textNode: Node | null;
-    while ((textNode = walker.nextNode())) {
-      const text = textNode.textContent || '';
-      const lower = text.toLowerCase();
-      let idx = lower.indexOf(term);
-      while (idx !== -1) {
-        matches.push({ node: textNode as Text, start: idx, end: idx + term.length });
-        idx = lower.indexOf(term, idx + 1);
-      }
-    }
-
+    matches = findSearchMatches(editor, searchTerm);
+    matchesDoc = editor.state.doc;
     matchCount = matches.length;
-    if (matchCount === 0) return;
+    currentMatch = matchCount > 0 ? 1 : 0;
+    setSearchHighlights(editor, matches, currentMatch - 1);
+    if (currentMatch > 0) scrollToCurrentMatch();
+  }
 
-    // Wrap matches in <mark> elements (process in reverse to preserve offsets)
-    for (let i = matches.length - 1; i >= 0; i--) {
-      const { node, start, end } = matches[i];
-      const range = document.createRange();
-      range.setStart(node, start);
-      range.setEnd(node, end);
-
-      const mark = document.createElement('mark');
-      mark.className = i === 0 ? 'search-highlight search-current' : 'search-highlight';
-      range.surroundContents(mark);
-    }
-
-    currentMatch = 1;
-    scrollToCurrentMatch();
+  /** Re-scans if the document changed since the last scan (cheap text walk);
+   *  keeps the current index clamped so navigation stays sensible. */
+  function ensureFreshMatches() {
+    if (editor.state.doc === matchesDoc) return;
+    matches = findSearchMatches(editor, searchTerm);
+    matchesDoc = editor.state.doc;
+    matchCount = matches.length;
+    if (currentMatch > matchCount) currentMatch = matchCount;
+    if (currentMatch === 0 && matchCount > 0) currentMatch = 1;
+    setSearchHighlights(editor, matches, currentMatch - 1);
   }
 
   function scrollToCurrentMatch() {
-    const marks = editor.view.dom.querySelectorAll('mark.search-highlight');
-    marks.forEach((m) => m.classList.remove('search-current'));
-    if (marks.length > 0 && currentMatch > 0) {
-      const current = marks[currentMatch - 1];
-      current.classList.add('search-current');
-      current.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
+    const m = matches[currentMatch - 1];
+    if (!m || m.to > editor.state.doc.content.size) return;
+    const { node } = editor.view.domAtPos(m.from);
+    const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as HTMLElement);
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   function nextMatch() {
+    ensureFreshMatches();
     if (matchCount === 0) return;
     currentMatch = currentMatch >= matchCount ? 1 : currentMatch + 1;
+    setSearchHighlights(editor, matches, currentMatch - 1);
     scrollToCurrentMatch();
   }
 
   function prevMatch() {
+    ensureFreshMatches();
     if (matchCount === 0) return;
     currentMatch = currentMatch <= 1 ? matchCount : currentMatch - 1;
+    setSearchHighlights(editor, matches, currentMatch - 1);
     scrollToCurrentMatch();
   }
 
-  function replaceOne() {
-    if (matchCount === 0 || !searchTerm) return;
-    const marks = editor.view.dom.querySelectorAll('mark.search-highlight');
-    if (marks.length === 0 || currentMatch < 1) return;
+  /** The stored match positions go stale if the user edits the document while
+   *  the search bar is open — verify the target range still holds the term
+   *  before replacing; on mismatch just re-search instead of corrupting text. */
+  function isMatchFresh(m: SearchMatch): boolean {
+    if (m.to > editor.state.doc.content.size) return false;
+    const current = editor.state.doc.textBetween(m.from, m.to, '￼');
+    return current.toLowerCase() === searchTerm.toLowerCase();
+  }
 
-    const mark = marks[currentMatch - 1];
-    const parent = mark.parentNode;
-    if (parent) {
-      parent.replaceChild(document.createTextNode(replaceTerm), mark);
-      parent.normalize();
+  function replaceOne() {
+    ensureFreshMatches();
+    if (matchCount === 0 || !searchTerm || currentMatch < 1) return;
+    const m = matches[currentMatch - 1];
+    if (!m) return;
+    if (!isMatchFresh(m)) {
+      performSearch();
+      return;
     }
-    // Trigger editor update
-    editor.commands.setContent(editor.view.dom.innerHTML);
-    // Re-search to update counts
-    setTimeout(performSearch, 50);
+    editor.view.dispatch(editor.state.tr.insertText(replaceTerm, m.from, m.to));
+    // Re-scan the updated doc; continue at the first match AFTER the
+    // replacement so replacing "cat" → "cats" doesn't re-target the same spot.
+    const replacedEnd = m.from + replaceTerm.length;
+    matches = findSearchMatches(editor, searchTerm);
+    matchesDoc = editor.state.doc;
+    matchCount = matches.length;
+    const nextIdx = matches.findIndex((x) => x.from >= replacedEnd);
+    currentMatch = matchCount === 0 ? 0 : nextIdx === -1 ? 1 : nextIdx + 1;
+    setSearchHighlights(editor, matches, currentMatch - 1);
+    if (currentMatch > 0) scrollToCurrentMatch();
   }
 
   function replaceAll() {
+    ensureFreshMatches();
     if (matchCount === 0 || !searchTerm) return;
-    const marks = editor.view.dom.querySelectorAll('mark.search-highlight');
-    marks.forEach((mark) => {
-      const parent = mark.parentNode;
-      if (parent) {
-        parent.replaceChild(document.createTextNode(replaceTerm), mark);
-        parent.normalize();
-      }
-    });
-    editor.commands.setContent(editor.view.dom.innerHTML);
+    if (matches.some((m) => !isMatchFresh(m))) {
+      performSearch();
+      return;
+    }
+    // One transaction (= one undo step), applied back-to-front so earlier
+    // positions stay valid while later ranges are being replaced.
+    const tr = editor.state.tr;
+    for (let i = matches.length - 1; i >= 0; i--) {
+      tr.insertText(replaceTerm, matches[i].from, matches[i].to);
+    }
+    editor.view.dispatch(tr);
+    matches = [];
     matchCount = 0;
     currentMatch = 0;
+    clearSearchHighlights(editor);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -162,7 +145,7 @@
   }
 
   function close() {
-    clearHighlights();
+    clearSearchHighlights(editor);
     onClose();
   }
 
@@ -174,7 +157,7 @@
   });
 
   onDestroy(() => {
-    clearHighlights();
+    clearSearchHighlights(editor);
   });
 </script>
 

@@ -305,7 +305,19 @@
   function applyLayout(layoutId: string): void {
     const p = LAYOUT_PRESETS.find(x => x.id === layoutId);
     if (!p) return;
-    style.layout = { ...p.layout };
+    // Preserve the print / prepress setup unless the preset defines its own
+    // (only 'magazine-print-a4' does) — same rule as applyTheme and the
+    // preset-import 'layout' scope. Without this, picking any screen layout
+    // silently wiped a configured bleed/crop-marks/binding through the
+    // sanitizer's defaults.
+    const cur = style.layout;
+    style.layout = {
+      ...p.layout,
+      bleed: p.layout.bleed ?? cur.bleed ?? '',
+      cropMarks: p.layout.cropMarks ?? cur.cropMarks ?? false,
+      facingPages: p.layout.facingPages ?? cur.facingPages ?? false,
+      binding: p.layout.binding ?? cur.binding ?? '',
+    };
     if (p.baseSize) style.scale.base = p.baseSize;
   }
 

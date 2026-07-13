@@ -30,7 +30,10 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
  * setup version in electron-store is compared against this; mismatch =>
  * the wizard prompts again so updates re-install the binary.
  */
-export const MCP_SETUP_VERSION = '0.17.0';
+// 0.18.0: pre-launch bug wave 1 — hero-insert anchor (generate_layout),
+// markdown bold→italic import fix, DOCX nested-numbering pre-pass now shared
+// with HTML (buildExportModel), serializer `//`-comment escaping.
+export const MCP_SETUP_VERSION = '0.18.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

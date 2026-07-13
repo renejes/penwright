@@ -190,36 +190,12 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
   const lines = block.split('\n');
   const listMarker = lines[0]?.match(/^([-+]) /)?.[1];
   if (listMarker && lines.every((l) => l.match(/^[-+] /) || /^\s/.test(l) || l === '')) {
-    const allMatchSameMarker = lines.every((l) => {
-      const m = l.match(/^([-+]) /);
-      return !m || m[1] === listMarker;
-    });
-    if (allMatchSameMarker) {
-      const items: string[] = [];
-      let buf: string[] = [];
-      for (const line of lines) {
-        if (line.match(/^[-+] /)) {
-          if (buf.length > 0) items.push(buf.join(' ').trim());
-          buf = [line.replace(/^[-+] /, '')];
-        } else {
-          buf.push(line.trim());
-        }
-      }
-      if (buf.length > 0) items.push(buf.join(' ').trim());
-
-      return {
-        type: listMarker === '-' ? 'bulletList' : 'orderedList',
-        content: items.map((text) => ({
-          type: 'listItem',
-          content: [
-            {
-              type: 'paragraph',
-              content: parseInline(text),
-            },
-          ],
-        })),
-      };
-    }
+    // Indentation-aware parse: indented `- `/`+ ` lines become NESTED lists
+    // (the serializer's sinkListItem output), plain indented lines stay
+    // continuation text of the previous item. Bails (null) on a root-level
+    // marker switch — same as the old allMatchSameMarker guard.
+    const parsed = parseNestedList(lines);
+    if (parsed) return parsed;
   }
 
   // 5. Blockquote: #quote[text]
@@ -357,6 +333,33 @@ function paragraphInline(lines: string[]): TipTapNode[] | undefined {
  * This is used by isRawBlock to avoid false-positives from content inside
  * footnotes, highlights, links etc.
  */
+/**
+ * String-aware scan of a `#link(` call starting at `i` (index of the '#').
+ * Tracks quoted strings so a ')' inside the URL doesn't end the call early.
+ * Returns the raw args + the index after the closing ')', or null if
+ * unbalanced.
+ */
+function scanLinkCall(text: string, i: number): { argsStr: string; end: number } | null {
+  let j = i + 6; // after '#link('
+  let depth = 1;
+  let inStr = false;
+  while (j < text.length && depth > 0) {
+    const c = text[j];
+    if (c === '"' && text[j - 1] !== '\\') inStr = !inStr;
+    if (!inStr) {
+      if (c === '(') depth++;
+      else if (c === ')') depth--;
+    }
+    j++;
+  }
+  if (depth !== 0) return null;
+  return { argsStr: text.slice(i + 6, j - 1), end: j };
+}
+
+/** Bodyless `#link("url")` is only accepted when the args are EXACTLY one
+ *  quoted string — `#link(label("x"))` and friends stay plain/raw text. */
+const BARE_LINK_ARGS = /^\s*"([^"]*)"\s*$/;
+
 function stripKnownInlines(text: string): string {
   let result = '';
   let i = 0;
@@ -397,19 +400,20 @@ function stripKnownInlines(text: string): string {
       }
     }
 
-    // Check #link("url")[text] pattern
+    // Check #link("url")[text] — and the bodyless #link("url") form, which
+    // parseInline turns into a real link node (so a prose paragraph with a
+    // bare URL link must not be classified raw).
     if (!matched && text.startsWith('#link(', i)) {
-      let j = i + 6;
-      let depth = 1;
-      while (j < text.length && depth > 0) {
-        if (text[j] === '(') depth++;
-        if (text[j] === ')') depth--;
-        j++;
-      }
-      if (depth === 0 && j < text.length && text[j] === '[') {
-        const bc = extractInlineBrackets(text, j);
-        if (bc) {
-          i = bc.end;
+      const call = scanLinkCall(text, i);
+      if (call) {
+        if (call.end < text.length && text[call.end] === '[') {
+          const bc = extractInlineBrackets(text, call.end);
+          if (bc) {
+            i = bc.end;
+            matched = true;
+          }
+        } else if (BARE_LINK_ARGS.test(call.argsStr)) {
+          i = call.end;
           matched = true;
         }
       }
@@ -805,6 +809,93 @@ function extractBracketContent(text: string, start: number): { content: string; 
  * Parses inline Typst formatting into TipTap text nodes with marks.
  * First extracts inline constructs (#footnote[...]), then applies formatting.
  */
+// ─── Nested list parsing ─────────────────────────────────────
+
+interface ListItemAcc {
+  text: string[];
+  children: ListAcc[];
+}
+interface ListAcc {
+  marker: '-' | '+';
+  indent: number;
+  items: ListItemAcc[];
+}
+
+/**
+ * Parses list lines with indentation-based nesting. Returns null when the
+ * shape isn't a single well-formed list (root-level marker switch) so the
+ * caller can fall through to the other block parsers.
+ */
+function parseNestedList(lines: string[]): TipTapNode | null {
+  let root: ListAcc | null = null;
+  const stack: ListAcc[] = [];
+
+  for (const line of lines) {
+    const m = line.match(/^(\s*)([-+]) (.*)$/);
+    if (m) {
+      const indent = m[1].length;
+      const marker = m[2] as '-' | '+';
+      const rest = m[3];
+
+      while (stack.length > 0 && indent < stack[stack.length - 1].indent) stack.pop();
+      let top = stack[stack.length - 1];
+
+      if (!top || indent > top.indent) {
+        // Deeper level → new list attached to the last item of the current one.
+        const list: ListAcc = { marker, indent, items: [] };
+        if (top) {
+          const parentItem = top.items[top.items.length - 1];
+          if (!parentItem) return null; // nested marker before any parent item
+          parentItem.children.push(list);
+        } else if (root) {
+          return null; // second root list in one block — not a single list
+        } else {
+          root = list;
+        }
+        stack.push(list);
+        top = list;
+      } else if (marker !== top.marker) {
+        // Marker switch at the same level: at root that's not one list (bail,
+        // matching the old guard); nested it starts a sibling list on the
+        // same parent item.
+        stack.pop();
+        const parent = stack[stack.length - 1];
+        if (!parent) return null;
+        const parentItem = parent.items[parent.items.length - 1];
+        if (!parentItem) return null;
+        const list: ListAcc = { marker, indent, items: [] };
+        parentItem.children.push(list);
+        stack.push(list);
+        top = list;
+      }
+
+      top.items.push({ text: [rest], children: [] });
+    } else {
+      // Continuation line → append to the deepest current item.
+      const top = stack[stack.length - 1];
+      const item = top?.items[top.items.length - 1];
+      if (item) {
+        const t = line.trim();
+        if (t) item.text.push(t);
+      }
+    }
+  }
+
+  if (!root || root.items.length === 0) return null;
+
+  const toNode = (list: ListAcc): TipTapNode => ({
+    type: list.marker === '-' ? 'bulletList' : 'orderedList',
+    content: list.items.map((it) => ({
+      type: 'listItem',
+      content: [
+        { type: 'paragraph', content: parseInline(it.text.join(' ').trim()) },
+        ...it.children.map(toNode),
+      ],
+    })),
+  });
+  return toNode(root);
+}
+
 type InlineSegType =
   | 'text'
   | 'footnote'
@@ -820,7 +911,8 @@ type InlineSegType =
   | 'underline'
   | 'superscript'
   | 'subscript'
-  | 'smallcaps';
+  | 'smallcaps'
+  | 'strike';
 
 const REFERENCE_PREFIXES = new Set([
   'fig', 'figure',
@@ -944,6 +1036,14 @@ function parseInline(text: string): TipTapNode[] {
           })),
         );
         break;
+      case 'strike':
+        result.push(
+          ...parseFormattedText(seg.content).map((n) => ({
+            ...n,
+            marks: [...(n.marks ?? []), { type: 'strike' }],
+          })),
+        );
+        break;
       case 'superscript':
         result.push(
           ...parseFormattedText(seg.content).map((n) => ({
@@ -983,6 +1083,7 @@ const SIMPLE_INLINE = [
   { prefix: '#emph[', type: 'emphasis' as const },
   { prefix: '#strong[', type: 'strong' as const },
   { prefix: '#underline[', type: 'underline' as const },
+  { prefix: '#strike[', type: 'strike' as const },
   { prefix: '#super[', type: 'superscript' as const },
   { prefix: '#sub[', type: 'subscript' as const },
   { prefix: '#smallcaps[', type: 'smallcaps' as const },
@@ -1010,14 +1111,17 @@ function splitInlineConstructs(text: string): InlineSegment[] {
 
     let matched = false;
 
-    // Check simple #func[content] patterns
+    // Check simple #func[content] patterns.
+    // IMPORTANT: the preceding text run is pushed only AFTER extraction
+    // succeeds — pushing on prefix-match alone re-emitted the same span at
+    // loop end when extraction failed (duplicated text + leaked macro source).
     for (const sf of SIMPLE_INLINE) {
       if (text.startsWith(sf.prefix, i)) {
-        if (i > textStart) {
-          segments.push({ type: 'text', content: text.slice(textStart, i) });
-        }
         const bracketContent = extractInlineBrackets(text, i + sf.prefix.length - 1);
         if (bracketContent) {
+          if (i > textStart) {
+            segments.push({ type: 'text', content: text.slice(textStart, i) });
+          }
           segments.push({ type: sf.type, content: bracketContent.content });
           i = bracketContent.end;
           textStart = i;
@@ -1031,11 +1135,11 @@ function splitInlineConstructs(text: string): InlineSegment[] {
     if (!matched) {
       for (const af of ARG_INLINE) {
         if (text.startsWith(af.prefix, i)) {
-          if (i > textStart) {
-            segments.push({ type: 'text', content: text.slice(textStart, i) });
-          }
           const result = extractArgAndBracket(text, i + af.prefix.length, af.argKey);
           if (result) {
+            if (i > textStart) {
+              segments.push({ type: 'text', content: text.slice(textStart, i) });
+            }
             segments.push({ type: af.type, content: result.content, args: result.argValue });
             i = result.end;
             textStart = i;
@@ -1046,29 +1150,39 @@ function splitInlineConstructs(text: string): InlineSegment[] {
       }
     }
 
-    // Check #link("url")[text] pattern
+    // Check #link("url")[text] — and the bodyless form #link("url"), which is
+    // the standard bare-URL link (renders the URL as its own text). The scan
+    // is string-aware so a ')' inside the URL doesn't end the call early.
     if (!matched && text.startsWith('#link(', i)) {
-      if (i > textStart) {
-        segments.push({ type: 'text', content: text.slice(textStart, i) });
-      }
-      // Extract the URL from #link("url")
-      let j = i + 6; // after '#link('
-      let depth = 1;
-      while (j < text.length && depth > 0) {
-        if (text[j] === '(') depth++;
-        if (text[j] === ')') depth--;
-        j++;
-      }
-      if (depth === 0 && j < text.length && text[j] === '[') {
-        const argsStr = text.slice(i + 6, j - 1); // content between ( and )
-        const urlMatch = argsStr.match(/"([^"]*)"/);
-        const href = urlMatch ? urlMatch[1] : argsStr.trim();
-        const bc = extractInlineBrackets(text, j);
-        if (bc) {
-          segments.push({ type: 'link', content: bc.content, args: href });
-          i = bc.end;
-          textStart = i;
-          matched = true;
+      const call = scanLinkCall(text, i);
+      if (call) {
+        const urlMatch = call.argsStr.match(/"([^"]*)"/);
+        const href = urlMatch ? urlMatch[1] : call.argsStr.trim();
+        if (call.end < text.length && text[call.end] === '[') {
+          const bc = extractInlineBrackets(text, call.end);
+          if (bc) {
+            if (i > textStart) {
+              segments.push({ type: 'text', content: text.slice(textStart, i) });
+            }
+            segments.push({ type: 'link', content: bc.content, args: href });
+            i = bc.end;
+            textStart = i;
+            matched = true;
+          }
+        } else {
+          // Bare form — only when the args are exactly one quoted string
+          // (guard against #link(label("x")) etc.). Link text = the URL;
+          // serializes back as #link("url")[url] — visually identical.
+          const bare = BARE_LINK_ARGS.exec(call.argsStr);
+          if (bare && bare[1]) {
+            if (i > textStart) {
+              segments.push({ type: 'text', content: text.slice(textStart, i) });
+            }
+            segments.push({ type: 'link', content: bare[1], args: bare[1] });
+            i = call.end;
+            textStart = i;
+            matched = true;
+          }
         }
       }
     }

@@ -39,6 +39,9 @@ import {
   ensureSectionStyle,
   clearSectionStyle,
   getSectionStyleId,
+  STYLE_IMPORT_LINE,
+  STYLE_APPLY_LINE,
+  STYLE_INCLUDE_LINE_LEGACY,
 } from '../shared/styleParser.js';
 import { SECTION_PRESETS, getSectionPreset } from '../shared/sectionPresets.js';
 import { THEME_PRESETS } from '../shared/themePresets.js';
@@ -152,6 +155,23 @@ function readProjectStyle(projectDir: string): ProjectStyle {
  * `#include "style.typ"`. Returns the sanitised style that was actually
  * persisted (after coercion / clamping) so the caller can report it.
  */
+/**
+ * Resolves the file the document-wide design lives in: a project-root
+ * candidate first (so global style never lands in an open chapter), then
+ * findRootFile from the current file. Mirrors ipcHandlers.resolveStyleRootFile.
+ */
+function resolveDesignRootFile(projectDir: string): string | null {
+  const candidates = ['main.typ', 'document.typ', 'index.typ'];
+  for (const name of candidates) {
+    const p = path.join(projectDir, name);
+    if (fs.existsSync(p)) return p;
+  }
+  if (state.currentFile && fs.existsSync(state.currentFile)) {
+    return findRootFile(state.currentFile);
+  }
+  return null;
+}
+
 function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): ProjectStyle {
   const style = sanitizeProjectStyle(raw);
   const penwrightDir = path.dirname(styleJsonPath(projectDir));
@@ -159,15 +179,7 @@ function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): Proje
   fs.writeFileSync(styleJsonPath(projectDir), JSON.stringify(style, null, 2), 'utf-8');
 
   // Write style.typ next to the root file.
-  const candidates = ['main.typ', 'document.typ', 'index.typ'];
-  let rootFile: string | null = null;
-  for (const name of candidates) {
-    const p = path.join(projectDir, name);
-    if (fs.existsSync(p)) { rootFile = p; break; }
-  }
-  if (!rootFile && state.currentFile && fs.existsSync(state.currentFile)) {
-    rootFile = findRootFile(state.currentFile);
-  }
+  const rootFile = resolveDesignRootFile(projectDir);
   const projectRootDir = rootFile ? path.dirname(rootFile) : projectDir;
   fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(style), 'utf-8');
 
@@ -1261,19 +1273,31 @@ server.tool(
     });
 
     let heroInserted = false;
-    if (addHero && title && state.currentFile) {
+    // The hero goes into the ROOT file (a document opener) — that is also the
+    // only scope where style-colors/style-fonts exist. Never a chapter.
+    const heroTarget = resolveDesignRootFile(state.projectDir);
+    if (addHero && title && heroTarget && fs.existsSync(heroTarget)) {
       try {
         const element = getDesignElement('hero')!;
         const snippet = renderDesignElement(element, { title, subtitle: subtitle ?? '' });
-        const content = fs.readFileSync(state.currentFile, 'utf-8');
-        // Insert at top, after any existing #include "style.typ" line.
-        const includeLine = '#include "style.typ"';
-        const idx = content.indexOf(includeLine);
-        const insertAt = idx === -1
-          ? 0
-          : content.indexOf('\n', idx + includeLine.length) + 1;
+        const content = fs.readFileSync(heroTarget, 'utf-8');
+        // The snippet references style-colors/style-fonts, which are undefined
+        // until `#import "style.typ": *` has run — insert BELOW the style
+        // block, never above it. writeProjectStyleAndRegenerate just ran
+        // ensureStyleInclude on this file, so the modern anchors exist; the
+        // legacy `#include "style.typ"` is a last-resort fallback.
+        const anchors = [STYLE_APPLY_LINE, STYLE_IMPORT_LINE, STYLE_INCLUDE_LINE_LEGACY];
+        let insertAt = 0;
+        for (const anchor of anchors) {
+          const idx = content.indexOf(anchor);
+          if (idx !== -1) {
+            const nl = content.indexOf('\n', idx + anchor.length);
+            insertAt = nl === -1 ? content.length : nl + 1;
+            break;
+          }
+        }
         const updated = content.slice(0, insertAt) + '\n' + snippet + '\n' + content.slice(insertAt);
-        fs.writeFileSync(state.currentFile, updated, 'utf-8');
+        fs.writeFileSync(heroTarget, updated, 'utf-8');
         heroInserted = true;
       } catch (err) {
         // Non-fatal — the theme + layout still applied.
@@ -1516,14 +1540,23 @@ server.tool(
 
       // Rebuild include lines in new order
       const newIncludes: string[] = [];
+      const used = new Set<string>();
       for (const chPath of order) {
-        const found = includeLines.find(l => l.includes(`"${chPath}"`));
+        const found = includeLines.find(l => !used.has(l) && l.includes(`"${chPath}"`));
         if (found) {
           newIncludes.push(found);
+          used.add(found);
         } else {
           newIncludes.push(`#include "${chPath}"`);
         }
       }
+
+      // NEVER drop chapters the caller didn't mention: a partial `order`
+      // (e.g. "move one chapter to the front") used to silently delete every
+      // unlisted #include from the document. Unlisted chapters keep their
+      // original relative order, appended after the ordered ones.
+      const preserved = includeLines.filter(l => !used.has(l));
+      newIncludes.push(...preserved);
 
       // Find where includes were and replace them
       const result: string[] = [];
@@ -1542,8 +1575,11 @@ server.tool(
       const updated = result.join('\n');
       fs.writeFileSync(filePath, updated, 'utf-8');
 
+      const note = preserved.length
+        ? ` (${preserved.length} chapter(s) not in the order array kept at the end — pass ALL chapters to fully control the order)`
+        : '';
       return {
-        content: [{ type: 'text' as const, text: `Reordered ${newIncludes.length} chapters in ${path.basename(filePath)}` }],
+        content: [{ type: 'text' as const, text: `Reordered ${newIncludes.length} chapters in ${path.basename(filePath)}${note}` }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };

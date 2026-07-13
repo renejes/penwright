@@ -156,7 +156,10 @@ export function buildMenu(state: AppState): void {
       submenu: [
         {
           label: m.toggleSidebar,
-          accelerator: 'CmdOrCtrl+B',
+          // NOT CmdOrCtrl+B (editor Bold) and NOT CmdOrCtrl+Shift+B (editor
+          // Blockquote) — a native accelerator swallows the key before the
+          // renderer ever sees it.
+          accelerator: 'CmdOrCtrl+Alt+B',
           click: () => send('togglePanel', { panel: 'sidebar' }),
         },
         {

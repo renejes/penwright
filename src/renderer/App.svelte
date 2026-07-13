@@ -899,6 +899,9 @@
   }
 
   function handleGlobalKeydown(e: KeyboardEvent) {
+    // Something closer to the target (ProseMirror keymaps, dialog inputs)
+    // already claimed this key — never double-handle it here.
+    if (e.defaultPrevented) return;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
       e.preventDefault();
@@ -913,7 +916,8 @@
       e.preventDefault();
       uiState.showSearch = true;
     }
-    if (mod && e.key === 'b') {
+    // Cmd+Alt+B — plain Cmd+B is the editor's Bold, Cmd+Shift+B its Blockquote.
+    if (mod && e.altKey && (e.key === 'b' || e.key === 'B' || e.code === 'KeyB')) {
       e.preventDefault();
       panelState.showSidebar = !panelState.showSidebar;
     }
@@ -1301,7 +1305,7 @@
         class="status-toggle"
         class:active={panelState.showSidebar}
         onclick={() => (panelState.showSidebar = !panelState.showSidebar)}
-        title="Cmd+B"
+        title="Cmd+Alt+B"
         aria-label={t().app.toggleSidebar}
         aria-pressed={panelState.showSidebar}
       >
