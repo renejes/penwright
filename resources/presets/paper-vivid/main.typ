@@ -1,21 +1,22 @@
 #import "style.typ": *
 #show: apply-style
+#import "blocks.typ": *
 
 #align(center)[
-  #text(size: 17pt, weight: "bold")[Paper Title]
-  #v(0.6em)
-  Author Name #h(1.5em) Second Author
+  #text(size: 18pt, weight: "bold", font: style-fonts.heading)[Paper Title]
+  #v(0.5em)
+  #text(size: 0.95em)[Author Name #h(1.5em) Second Author]
   #v(0.2em)
-  #text(style: "italic", size: 0.9em)[Institution · author\@example.com]
+  #text(style: "italic", size: 0.88em, fill: style-colors.muted)[Institution · author\@example.com]
+  #v(0.7em)
+  #line(length: 26%, stroke: 1.5pt + style-colors.accent)
 ]
 
-#v(1em)
+#v(0.8em)
 
-#block(inset: (x: 1.2em), [
-  #text(weight: "bold")[Abstract. ] Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
-])
+#callout(title: "Abstract")[Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.]
 
-#v(1em)
+#v(0.6em)
 
 = Introduction
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.

@@ -122,14 +122,21 @@ ${p(4)}
 
 function genThesis(): Gen {
   const main = `${importHead}
+#v(1fr)
 #align(center)[
-  #v(3cm)
-  #text(size: 24pt, weight: "bold")[Thesis Title]
-  #v(1em)
-  Author Name
+  #text(size: 0.85em, weight: "bold", tracking: 0.24em, fill: style-colors.accent)[#upper("Thesis")]
+  #v(1.1em)
+  #text(size: 30pt, weight: "bold", font: style-fonts.heading, fill: style-colors.text)[Thesis Title]
   #v(0.5em)
-  #datetime.today().display("[month repr:long] [year]")
+  #text(size: 1.15em, fill: style-colors.muted)[A subtitle or research question — replace this.]
+  #v(1em)
+  #line(length: 28%, stroke: 2pt + style-colors.accent)
+  #v(1.4em)
+  #text(size: 1.05em)[Author Name]
+  #v(0.3em)
+  #text(fill: style-colors.muted)[#datetime.today().display("[month repr:long] [year]")]
 ]
+#v(1.5fr)
 
 #pagebreak()
 #outline()
@@ -160,22 +167,22 @@ function genThesis(): Gen {
 }
 
 function genPaper(): Gen {
-  const body = `${importHead}
+  const body = `${importBlocks}
 #align(center)[
-  #text(size: 17pt, weight: "bold")[Paper Title]
-  #v(0.6em)
-  Author Name #h(1.5em) Second Author
+  #text(size: 18pt, weight: "bold", font: style-fonts.heading)[Paper Title]
+  #v(0.5em)
+  #text(size: 0.95em)[Author Name #h(1.5em) Second Author]
   #v(0.2em)
-  #text(style: "italic", size: 0.9em)[Institution · author\\@example.com]
+  #text(style: "italic", size: 0.88em, fill: style-colors.muted)[Institution · author\\@example.com]
+  #v(0.7em)
+  #line(length: 26%, stroke: 1.5pt + style-colors.accent)
 ]
 
-#v(1em)
+#v(0.8em)
 
-#block(inset: (x: 1.2em), [
-  #text(weight: "bold")[Abstract. ] ${p(2)}
-])
+#callout(title: "Abstract")[${p(2)}]
 
-#v(1em)
+#v(0.6em)
 
 = Introduction
 ${paras(0, 2)}
@@ -462,14 +469,69 @@ ${spread('scene-3.png', 'And everyone lived happily ever after. The end.')}
   };
 }
 
+function genKidsBook(): Gen {
+  const dot = '#box(baseline: -0.12em, circle(radius: 0.3em, fill: style-colors.primary))';
+  const spread = (img: string, line: string) =>
+    `#align(center, image("assets/${img}", width: 74%))\n#v(0.7em)\n#align(center)[${dot} #h(0.5em) #text(size: 30pt, weight: "bold", fill: style-colors.accent, font: style-fonts.heading)[${line}] #h(0.5em) ${dot}]\n`;
+  const body = `${importHead}
+#align(center + horizon)[
+  #text(size: 54pt, weight: "bold", fill: style-colors.accent, font: style-fonts.heading)[The Big Adventure]
+  #v(0.5em)
+  #text(size: 1.5em, weight: "bold", fill: style-colors.primary)[A picture book · by You]
+]
+
+#pagebreak()
+${spread('scene-1.png', 'Once upon a time…')}
+#pagebreak()
+${spread('scene-2.png', 'A big, bright adventure!')}
+#pagebreak()
+${spread('scene-3.png', 'And a happy end.')}
+`;
+  return {
+    files: { 'main.typ': body },
+    assets: [
+      { name: 'scene-1.png', w: 1800, h: 1100, label: 'Scene 1' },
+      { name: 'scene-2.png', w: 1800, h: 1100, label: 'Scene 2' },
+      { name: 'scene-3.png', w: 1800, h: 1100, label: 'Scene 3' },
+    ],
+    openFile: 'main.typ',
+  };
+}
+
+function genPoster(): Gen {
+  const body = `${importBlocks}
+#block(width: 100%, fill: style-colors.accent, inset: (x: 1.3em, y: 1.5em), radius: 12pt)[
+  #text(size: 0.9em, weight: "bold", tracking: 0.22em, fill: style-colors.background)[#upper("Announcing")]
+  #v(0.55em)
+  #text(size: 46pt, weight: "bold", fill: style-colors.background, font: style-fonts.heading)[A Big Bold Poster]
+]
+
+#v(1.3em)
+#text(size: 1.7em, fill: style-colors.text)[A short, punchy line that grabs attention — replace it.]
+
+#v(1em)
+${p(0)}
+
+#v(1.2em)
+#grid(columns: (1fr, 1fr), gutter: 1.2em,
+  callout(title: "When")[Saturday · 7:00 pm],
+  callout(title: "Where")[The Big Venue · Downtown],
+)
+
+#v(1em)
+${p(3)}
+`;
+  return { files: { 'main.typ': body }, openFile: 'main.typ' };
+}
+
 const GENERATORS: Record<string, () => Gen> = {
-  document: genDocument, feature: genFeature, thesis: genThesis, paper: genPaper,
+  document: genDocument, feature: genFeature, poster: genPoster, thesis: genThesis, paper: genPaper,
   letter: genLetter, book: genBook, report: genReport, newsletter: genNewsletter,
-  portfolio: genPortfolio, cookbook: genCookbook, picturebook: genPictureBook,
+  portfolio: genPortfolio, cookbook: genCookbook, picturebook: genPictureBook, kidsbook: genKidsBook,
 };
 
 /** Content kinds that compose the shared design blocks (need blocks.typ). */
-const NEEDS_BLOCKS = new Set(['feature', 'report', 'newsletter', 'portfolio', 'cookbook']);
+const NEEDS_BLOCKS = new Set(['feature', 'poster', 'paper', 'report', 'newsletter', 'portfolio', 'cookbook']);
 
 // ─── Curated specs (design variants per type) ─────────────────────────────────
 const SPECS: Spec[] = [
@@ -593,6 +655,12 @@ const SPECS: Spec[] = [
     style: { colors: { primary: '#065f46', accent: '#10b981', text: '#064e3b', background: '#f0fdf4', muted: '#6b9080' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '11.5pt', leading: '0.74em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' } },
   },
   {
+    id: 'doc-poster', type: 'document', kind: 'poster', order: 60,
+    label: { en: 'Poster', de: 'Poster' }, tagline: { en: 'A bold announcement — big colour band, huge type.', de: 'Eine kräftige Ankündigung — großes Farbband, riesige Schrift.' },
+    highlights: { en: ['Solid colour band + big display type'], de: ['Vollflächiges Farbband + große Display-Schrift'] },
+    style: { colors: { primary: '#1e3a8a', accent: '#dc2626', text: '#1c1917', background: '#fffdf5', muted: '#78716c' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '12pt', leading: '0.74em', paragraphSpacing: '0.95em', firstLineIndent: '0pt' } },
+  },
+  {
     id: 'thesis-violet', type: 'thesis', kind: 'thesis', order: 40, treatment: 'sidebar',
     label: { en: 'Violet', de: 'Violett' }, tagline: { en: 'A lively academic look with a violet bar.', de: 'Lebendiger akademischer Look mit Violett-Balken.' },
     style: { colors: { primary: '#5b21b6', accent: '#7c3aed', text: '#1e1b2e', background: '#ffffff', muted: '#6b7280' }, fonts: { body: 'IBM Plex Serif', heading: 'IBM Plex Sans', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.7em', paragraphSpacing: '', firstLineIndent: '1em' }, headings: { numbering: '1.1' } as any },
@@ -608,8 +676,8 @@ const SPECS: Spec[] = [
     style: { colors: { primary: '#b45309', accent: '#f59e0b', text: '#422006', background: '#fffbeb', muted: '#a16207' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '11pt', leading: '0.72em', paragraphSpacing: '0.9em', firstLineIndent: '0pt' } },
   },
   {
-    id: 'book-kids', type: 'book', kind: 'picturebook', order: 40, thumbnailPage: 2, treatment: 'blocks',
-    label: { en: 'Kids / Bright', de: 'Kinder / Knallbunt' }, tagline: { en: 'Pippi-bright picture book — big blocks, hot pink.', de: 'Pippi-knallbunt — große Blöcke, Pink.' },
+    id: 'book-kids', type: 'book', kind: 'kidsbook', order: 40, thumbnailPage: 2,
+    label: { en: 'Kids / Bright', de: 'Kinder / Knallbunt' }, tagline: { en: 'Pippi-bright picture book — huge pink type, playful dots.', de: 'Pippi-knallbunt — riesige pinke Schrift, verspielte Punkte.' },
     highlights: { en: ['Landscape · huge playful type'], de: ['Querformat · riesige verspielte Schrift'] },
     style: { colors: { primary: '#06b6d4', accent: '#ec4899', text: '#1e293b', background: '#fef9c3', muted: '#f59e0b' }, fonts: { body: 'Inter', heading: 'Inter', code: 'IBM Plex Mono' }, scale: { base: '14pt', leading: '0.82em', paragraphSpacing: '1em', firstLineIndent: '0pt' }, layout: { paper: 'a4', orientation: 'landscape', margin: '2cm' } as any },
   },
@@ -684,10 +752,11 @@ const SPECS: Spec[] = [
 ];
 
 // ─── Placeholder image render ─────────────────────────────────────────────────
-function renderPlaceholder(out: string, w: number, h: number, label: string): void {
+function renderPlaceholder(out: string, w: number, h: number, label: string, colors: { accent: string; muted: string }): void {
   execFileSync(TYPST, [
     'compile', '--font-path', FONTS,
     '--input', `w=${w}`, '--input', `h=${h}`, '--input', `label=${label}`,
+    '--input', `accent=${colors.accent}`, '--input', `muted=${colors.muted}`,
     '--format', 'png', '--ppi', '72', PLACEHOLDER, out,
   ], { stdio: 'ignore' });
 }
@@ -756,7 +825,7 @@ for (const spec of specs) {
     if (out.assets?.length) {
       const assetsDir = path.join(dir, 'assets');
       fs.mkdirSync(assetsDir, { recursive: true });
-      for (const a of out.assets) renderPlaceholder(path.join(assetsDir, a.name), a.w, a.h, a.label);
+      for (const a of out.assets) renderPlaceholder(path.join(assetsDir, a.name), a.w, a.h, a.label, style.colors);
     }
     if (NEEDS_BLOCKS.has(spec.kind ?? '')) {
       fs.copyFileSync(path.join(presetsDir, '_shared', 'blocks.typ'), path.join(dir, 'blocks.typ'));

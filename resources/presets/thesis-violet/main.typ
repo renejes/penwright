@@ -1,14 +1,21 @@
 #import "style.typ": *
 #show: apply-style
 
+#v(1fr)
 #align(center)[
-  #v(3cm)
-  #text(size: 24pt, weight: "bold")[Thesis Title]
-  #v(1em)
-  Author Name
+  #text(size: 0.85em, weight: "bold", tracking: 0.24em, fill: style-colors.accent)[#upper("Thesis")]
+  #v(1.1em)
+  #text(size: 30pt, weight: "bold", font: style-fonts.heading, fill: style-colors.text)[Thesis Title]
   #v(0.5em)
-  #datetime.today().display("[month repr:long] [year]")
+  #text(size: 1.15em, fill: style-colors.muted)[A subtitle or research question — replace this.]
+  #v(1em)
+  #line(length: 28%, stroke: 2pt + style-colors.accent)
+  #v(1.4em)
+  #text(size: 1.05em)[Author Name]
+  #v(0.3em)
+  #text(fill: style-colors.muted)[#datetime.today().display("[month repr:long] [year]")]
 ]
+#v(1.5fr)
 
 #pagebreak()
 #outline()

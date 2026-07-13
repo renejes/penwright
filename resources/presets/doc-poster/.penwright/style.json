@@ -1,11 +1,11 @@
 {
   "version": "1",
   "colors": {
-    "primary": "#06b6d4",
-    "accent": "#ec4899",
-    "text": "#1e293b",
-    "background": "#fef9c3",
-    "muted": "#f59e0b"
+    "primary": "#1e3a8a",
+    "accent": "#dc2626",
+    "text": "#1c1917",
+    "background": "#fffdf5",
+    "muted": "#78716c"
   },
   "fonts": {
     "body": "Inter",
@@ -13,15 +13,15 @@
     "code": "IBM Plex Mono"
   },
   "scale": {
-    "base": "14pt",
-    "leading": "0.82em",
-    "paragraphSpacing": "1em",
+    "base": "12pt",
+    "leading": "0.74em",
+    "paragraphSpacing": "0.95em",
     "firstLineIndent": "0pt"
   },
   "layout": {
     "paper": "a4",
-    "orientation": "landscape",
-    "margin": "2cm",
+    "orientation": "portrait",
+    "margin": "2.5cm",
     "columns": 1,
     "pageNumbering": "",
     "pageHeader": "",

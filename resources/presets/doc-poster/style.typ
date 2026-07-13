@@ -14,11 +14,11 @@
 // the generated set/show rules to the rest of the document.
 
 #let style-colors = (
-  primary:    rgb("#06b6d4"),
-  accent:     rgb("#ec4899"),
-  text:       rgb("#1e293b"),
-  background: rgb("#fef9c3"),
-  muted:      rgb("#f59e0b"),
+  primary:    rgb("#1e3a8a"),
+  accent:     rgb("#dc2626"),
+  text:       rgb("#1c1917"),
+  background: rgb("#fffdf5"),
+  muted:      rgb("#78716c"),
 )
 
 #let style-fonts = (
@@ -45,9 +45,9 @@
 }
 
 #let apply-style(body) = {
-  set page(paper: "a4", flipped: true, margin: 2cm, fill: style-colors.background)
-  set text(font: "Inter", size: 14pt, fill: style-colors.text)
-  set par(leading: 0.82em, spacing: 1em, first-line-indent: 0pt)
+  set page(paper: "a4", margin: 2.5cm, fill: style-colors.background)
+  set text(font: "Inter", size: 12pt, fill: style-colors.text)
+  set par(leading: 0.74em, spacing: 0.95em, first-line-indent: 0pt)
   show raw: set text(font: "IBM Plex Mono")
 
   show heading.where(level: 1): set text(font: "Inter", size: 24pt, weight: "bold", fill: style-colors.primary)

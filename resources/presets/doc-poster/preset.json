@@ -1,0 +1,23 @@
+{
+  "id": "doc-poster",
+  "type": "document",
+  "label": {
+    "en": "Poster",
+    "de": "Poster"
+  },
+  "tagline": {
+    "en": "A bold announcement — big colour band, huge type.",
+    "de": "Eine kräftige Ankündigung — großes Farbband, riesige Schrift."
+  },
+  "highlights": {
+    "en": [
+      "Solid colour band + big display type"
+    ],
+    "de": [
+      "Vollflächiges Farbband + große Display-Schrift"
+    ]
+  },
+  "root": "main.typ",
+  "openFile": "main.typ",
+  "order": 60
+}
