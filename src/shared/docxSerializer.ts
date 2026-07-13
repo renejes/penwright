@@ -47,6 +47,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseBibFile, type BibEntry } from './bibParser';
 import { parseSettings, type DocumentSettings } from './settingsParser';
+import { isReferenceLabel } from './refLabels';
 import { type ProjectStyle } from './styleTypes';
 import {
   type RefTarget,
@@ -2010,10 +2011,8 @@ function handleInlineFunc(name: string, args: string, inner: string | null, base
   }
 }
 
-/** Heuristic: known label prefixes / a colon → cross-reference; else citation. */
-const REF_PREFIXES = /^(fig|tbl|eq|sec|chap|app|thm|lem|def|cor|prop|algo|lst|figure|table|equation|section|chapter|appendix)\b/i;
 function renderAtRef(name: string): InlineRun[] {
-  if (name.includes(':') || REF_PREFIXES.test(name)) {
+  if (isReferenceLabel(name)) {
     const refType = name.split(':')[0];
     return renderReference(name, refType);
   }

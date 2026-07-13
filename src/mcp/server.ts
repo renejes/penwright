@@ -22,7 +22,7 @@ import * as os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { parseSettings, applySettings, generateSetBlocks, type DocumentSettings } from '../shared/settingsParser.js';
-import { findRootFile } from '../shared/rootFinder.js';
+import { findRootFile, findRootFileIn } from '../shared/rootFinder.js';
 import {
   sanitizeProjectStyle,
   DEFAULT_PROJECT_STYLE,
@@ -159,11 +159,8 @@ function readProjectStyle(projectDir: string): ProjectStyle {
  * findRootFile from the current file. Mirrors ipcHandlers.resolveStyleRootFile.
  */
 function resolveDesignRootFile(projectDir: string): string | null {
-  const candidates = ['main.typ', 'document.typ', 'index.typ'];
-  for (const name of candidates) {
-    const p = path.join(projectDir, name);
-    if (fs.existsSync(p)) return p;
-  }
+  const candidate = findRootFileIn(projectDir);
+  if (candidate) return candidate;
   if (state.currentFile && fs.existsSync(state.currentFile)) {
     return findRootFile(state.currentFile);
   }
@@ -291,14 +288,7 @@ function parseArgs(): void {
 
   // Auto-detect main .typ file
   if (!state.currentFile) {
-    const candidates = ['main.typ', 'document.typ', 'index.typ'];
-    for (const name of candidates) {
-      const p = path.join(state.projectDir, name);
-      if (fs.existsSync(p)) {
-        state.currentFile = p;
-        break;
-      }
-    }
+    state.currentFile = findRootFileIn(state.projectDir);
     // Fallback: first .typ file in directory
     if (!state.currentFile) {
       try {
@@ -433,14 +423,7 @@ server.tool(
     state.currentFile = null;
 
     // Auto-detect main .typ file
-    const candidates = ['main.typ', 'document.typ', 'index.typ'];
-    for (const name of candidates) {
-      const p = path.join(absDir, name);
-      if (fs.existsSync(p)) {
-        state.currentFile = p;
-        break;
-      }
-    }
+    state.currentFile = findRootFileIn(absDir);
     if (!state.currentFile) {
       try {
         const typFiles = fs.readdirSync(absDir).filter(f => f.endsWith('.typ'));

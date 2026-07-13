@@ -16,6 +16,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { appState } from './appState';
+import { refTypeFromLabel } from '../shared/refLabels';
 import { isPathWithin } from './pathSecurity';
 
 const IGNORED_DIRS = new Set([
@@ -76,17 +77,9 @@ function readContent(absPath: string): string | null {
   }
 }
 
-function classifyLabel(label: string): LabelType {
-  const colonIdx = label.indexOf(':');
-  if (colonIdx > 0) {
-    const prefix = label.slice(0, colonIdx).toLowerCase();
-    if (prefix === 'fig' || prefix === 'figure') return 'figure';
-    if (prefix === 'tbl' || prefix === 'table' || prefix === 'tab') return 'table';
-    if (prefix === 'eq' || prefix === 'eqn' || prefix === 'equation') return 'equation';
-    if (prefix === 'sec' || prefix === 'section' || prefix === 'chap' || prefix === 'chapter') return 'heading';
-  }
-  return 'other';
-}
+// Shared classifier (refLabels.ts) — same vocabulary as the editor badges,
+// so the picker rows and the in-text pills can never disagree.
+const classifyLabel = (label: string): LabelType => refTypeFromLabel(label);
 
 /**
  * Best-effort caption extraction.

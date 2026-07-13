@@ -428,56 +428,72 @@
   // under the cursor (fallback). Computes a source-offset hint by walking
   // the document up to the selection, which the backend uses as a starting
   // point for re-locating the anchor on later opens.
+  // ─── Selection→anchor helpers ───────────────────
+  // Shared by comments + Design-with-AI (the capture logic used to exist as
+  // two near-verbatim copies that could drift).
+
+  /** The selected text, or — with a collapsed cursor — the surrounding word. */
+  function selectionOrWord(editor: NonNullable<typeof editorRef.current>): string {
+    const { state } = editor;
+    const { from, to } = state.selection;
+    const selected = state.doc.textBetween(from, to, ' ', ' ').trim();
+    if (selected) return selected;
+    const resolved = state.doc.resolve(from);
+    const parent = resolved.parent;
+    const text = parent.textBetween(0, parent.content.size, ' ', ' ');
+    const offsetInParent = resolved.parentOffset;
+    let start = offsetInParent;
+    let end = offsetInParent;
+    while (start > 0 && /\S/.test(text[start - 1])) start--;
+    while (end < text.length && /\S/.test(text[end])) end++;
+    return text.slice(start, end);
+  }
+
+  /** Project-relative path with forward slashes (basename as fallback). */
+  function toProjectRelPath(absFile: string, projectDir: string): string {
+    const rel = absFile.startsWith(projectDir + '/')
+      ? absFile.slice(projectDir.length + 1)
+      : absFile.replace(/^.*\//, '');
+    return rel.replace(/\\/g, '/');
+  }
+
+  /** The open project's directory via project:getInfo, or null. */
+  async function fetchProjectDir(): Promise<string | null> {
+    const api = (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    const info = await api.invoke('project:getInfo') as { projectDir: string | null };
+    return info.projectDir;
+  }
+
   async function addCommentFromSelection() {
     const editor = editorRef.current;
     if (!editor || !tabState.currentFile) {
       alert(t().app.openFileFirst);
       return;
     }
-    const { state } = editor;
-    let { from, to } = state.selection;
-    let anchorText = state.doc.textBetween(from, to, ' ', ' ').trim();
-
-    // No selection → expand to the surrounding word
+    let anchorText = selectionOrWord(editor);
     if (!anchorText) {
-      const resolved = state.doc.resolve(from);
-      const parent = resolved.parent;
-      const text = parent.textBetween(0, parent.content.size, ' ', ' ');
-      const offsetInParent = resolved.parentOffset;
-      let start = offsetInParent;
-      let end = offsetInParent;
-      while (start > 0 && /\S/.test(text[start - 1])) start--;
-      while (end < text.length && /\S/.test(text[end])) end++;
-      anchorText = text.slice(start, end);
-      if (!anchorText) {
-        alert(t().app.selectTextToComment);
-        return;
-      }
+      alert(t().app.selectTextToComment);
+      return;
     }
-
     if (anchorText.length > 200) anchorText = anchorText.slice(0, 200);
 
     // Best-effort source-offset hint: the byte position in the live source.
     const rangeStart = Math.max(0, tabState.currentContent.indexOf(anchorText));
     const rangeEnd = rangeStart + anchorText.length;
 
-    const projectInfo = await (window as unknown as {
-      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
-    }).electronAPI.invoke('project:getInfo') as { projectDir: string | null };
-    if (!projectInfo.projectDir) {
+    const projectDir = await fetchProjectDir();
+    if (!projectDir) {
       alert(t().app.noProjectOpen);
       return;
     }
-
-    const rel = tabState.currentFile.startsWith(projectInfo.projectDir + '/')
-      ? tabState.currentFile.slice(projectInfo.projectDir.length + 1)
-      : tabState.currentFile.replace(/^.*\//, '');
 
     const api = (window as unknown as {
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
     }).electronAPI;
     const created = await api.invoke('comments:create', {
-      file: rel.replace(/\\/g, '/'),
+      file: toProjectRelPath(tabState.currentFile, projectDir),
       anchor: anchorText,
       rangeStart,
       rangeEnd,
@@ -509,23 +525,10 @@
     }
     const { state } = editor;
     const { from, to } = state.selection;
-    let selectionText = state.doc.textBetween(from, to, ' ', ' ').trim();
-
-    // No selection → expand to the surrounding word (same fallback as comments).
+    const selectionText = selectionOrWord(editor);
     if (!selectionText) {
-      const resolved = state.doc.resolve(from);
-      const parent = resolved.parent;
-      const text = parent.textBetween(0, parent.content.size, ' ', ' ');
-      const offsetInParent = resolved.parentOffset;
-      let start = offsetInParent;
-      let end = offsetInParent;
-      while (start > 0 && /\S/.test(text[start - 1])) start--;
-      while (end < text.length && /\S/.test(text[end])) end++;
-      selectionText = text.slice(start, end);
-      if (!selectionText) {
-        alert(t().app.selectTextToDesign);
-        return;
-      }
+      alert(t().app.selectTextToDesign);
+      return;
     }
 
     // Anchor = first 200 chars of the selection (whitespace-exact), which the
@@ -553,18 +556,14 @@
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
     }).electronAPI;
 
-    const projectInfo = await api.invoke('project:getInfo') as { projectDir: string | null };
-    if (!projectInfo.projectDir) {
+    const projectDir = await fetchProjectDir();
+    if (!projectDir) {
       alert(t().app.noProjectOpen);
       return;
     }
 
-    const rel = tabState.currentFile.startsWith(projectInfo.projectDir + '/')
-      ? tabState.currentFile.slice(projectInfo.projectDir.length + 1)
-      : tabState.currentFile.replace(/^.*\//, '');
-
     const result = await api.invoke('selection:pin', {
-      file: rel.replace(/\\/g, '/'),
+      file: toProjectRelPath(tabState.currentFile, projectDir),
       selectionText,
       anchorText,
       occurrence,
@@ -691,7 +690,7 @@
         setCommentMarks(editor, []);
         return;
       }
-      const rel = tabState.currentFile.slice(info.projectDir.length + 1).replace(/\\/g, '/');
+      const rel = toProjectRelPath(tabState.currentFile, info.projectDir);
       const list = await apiRef.invoke('comments:list', {
         forFile: rel,
         includeResolved: false,

@@ -17,8 +17,10 @@
 
 import { renderJSONContentToString, serializeChildrenToHTMLString } from '@tiptap/static-renderer/json/html-string';
 import { parseTypstGrid, type GridItem } from './typstGrid';
+import { isReferenceLabel } from './refLabels';
 import { parseHero, type HeroSpec } from './typstHero';
 import {
+  matchBracket,
   classifyRawBlock,
   splitDesignChunks,
   refWords,
@@ -190,7 +192,6 @@ const kids = serializeChildrenToHTMLString;
 /** Known label prefixes (heuristic: a colon OR an exact prefix → cross-reference,
  *  else citation) — mirrors docxSerializer's renderAtRef. Used by the inline
  *  Typst parser when an `@name` appears inside a reparsed raw-block body. */
-const REF_PREFIXES = /^(fig|tbl|eq|sec|chap|app|thm|lem|def|cor|prop|algo|lst|figure|table|equation|section|chapter|appendix)\b/i;
 
 // ─── Per-export render context ───────────────────────────────
 // Built once per serializeHtml call. The static renderer renders depth-first in
@@ -215,21 +216,6 @@ function addFootnote(rc: RenderCtx, bodyHtml: string): string {
 }
 
 // ─── Inline string-bracket matcher (for the inline-Typst reparser) ──────────
-
-/** Depth-aware bracket match — returns the inner slice + index past the close.
- *  String-aware: brackets inside `"…"` don't affect the depth count. */
-function matchBracket(s: string, open: number, oc: string, cc: string): { inner: string; end: number } | null {
-  if (s[open] !== oc) return null;
-  let depth = 0, inStr = false;
-  for (let i = open; i < s.length; i++) {
-    const c = s[i];
-    if (inStr) { if (c === '\\') i++; else if (c === '"') inStr = false; continue; }
-    if (c === '"') { inStr = true; continue; }
-    if (c === oc) depth++;
-    else if (c === cc) { depth--; if (depth === 0) return { inner: s.slice(open + 1, i), end: i + 1 }; }
-  }
-  return null;
-}
 
 /** For `#name(...)?[body]`, returns `{ args, body }` skipping the optional
  *  `(...)` arg group. `nameEnd` = index just past `#name`. null if no body. */
@@ -290,7 +276,7 @@ function inlineTypstToHtml(src: string, rc?: RenderCtx): string {
       if (m) {
         flush();
         const name = m[1].replace(/[.:]+$/, ''); // trailing punctuation isn't part of the key
-        if (rc) out += (name.includes(':') || REF_PREFIXES.test(name)) ? renderReferenceHtml(name, rc) : renderCitationGroupHtml([name], rc);
+        if (rc) out += isReferenceLabel(name) ? renderReferenceHtml(name, rc) : renderCitationGroupHtml([name], rc);
         else out += esc('@' + name);
         i += 1 + name.length;             // leave the trailing punctuation as text
         continue;
@@ -369,7 +355,7 @@ function inlineFunc(name: string, args: string, inner: string | null, rc?: Rende
     case 'raw': { const m = args.match(/"((?:[^"\\]|\\.)*)"/); return `<code>${esc(m ? m[1].replace(/\\"/g, '"') : (inner ?? ''))}</code>`; }
     case 'link': { const m = args.match(/"((?:[^"\\]|\\.)*)"/); const raw = m ? m[1].replace(/\\"/g, '"') : ''; const href = safeUrl(raw); const text = inner !== null ? inlineTypstToHtml(inner, rc) : esc(raw); return href ? `<a href="${escAttr(href)}">${text}</a>` : text; }
     case 'footnote': return inner !== null && rc ? addFootnote(rc, inlineTypstToHtml(inner, rc)) : '';
-    case 'cite': { const m = args.match(/"?<?([a-zA-Z0-9_:.-]+)>?"?/); if (!m || !rc) return ''; const key = m[1].replace(/[.:]+$/, ''); return (key.includes(':') || REF_PREFIXES.test(key)) ? renderReferenceHtml(key, rc) : renderCitationGroupHtml([key], rc); }
+    case 'cite': { const m = args.match(/"?<?([a-zA-Z0-9_:.-]+)>?"?/); if (!m || !rc) return ''; const key = m[1].replace(/[.:]+$/, ''); return isReferenceLabel(key) ? renderReferenceHtml(key, rc) : renderCitationGroupHtml([key], rc); }
     default: {
       if (inner !== null) return inlineTypstToHtml(inner, rc);
       // Unknown project macro with NO trailing body — its manuscript content

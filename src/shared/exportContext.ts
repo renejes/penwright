@@ -182,8 +182,15 @@ export function matchBracket(s: string, openIdx: number, open: string, close: st
   let inStr = false;
   for (let i = openIdx; i < s.length; i++) {
     const ch = s[i];
-    if (ch === '"' && s[i - 1] !== '\\') inStr = !inStr;
-    if (inStr) continue;
+    // Proper escape state machine: consume `\x` pairs inside strings so an
+    // escaped-backslash-then-quote (`\\"`) closes the string correctly (the
+    // old lookbehind check `s[i-1] !== '\\'` misread it as still-open).
+    if (inStr) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
     if (ch === open) depth++;
     else if (ch === close) { depth--; if (depth === 0) return { inner: s.slice(openIdx + 1, i), end: i + 1 }; }
   }

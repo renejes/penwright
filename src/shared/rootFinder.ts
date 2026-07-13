@@ -2,6 +2,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
+ * Ordered default root-file basenames — the SINGLE source for every
+ * root/style resolver (ipcHandlers, projectManager, presetManager, MCP
+ * server). Adding/reordering a candidate here updates them all; the list
+ * used to be copy-pasted in 6+ places that could silently disagree.
+ */
+export const ROOT_FILE_CANDIDATES = ['main.typ', 'document.typ', 'index.typ'] as const;
+
+/** First existing root candidate inside `dir`, or null. */
+export function findRootFileIn(dir: string): string | null {
+  for (const name of ROOT_FILE_CANDIDATES) {
+    const p = path.join(dir, name);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+/**
  * Finds the root .typ file for a given Typst file by walking up
  * the #include chain. If the file is not included by any other
  * .typ file, it is considered the root itself.

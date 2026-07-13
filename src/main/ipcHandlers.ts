@@ -14,7 +14,7 @@ import { templates as projectTemplates } from '../shared/projectTemplates';
 import { appState } from './appState';
 import { resolveDict } from '../shared/i18n';
 import { buildMenu } from './menuBuilder';
-import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, getAiSnapshotsList, getAiSnapshotCount, closeProjectInteractive } from './fileManager';
+import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, getAiSnapshotsList, getAiSnapshotCount, closeProjectInteractive , applySpellcheckLanguage } from './fileManager';
 import { isPathWithin } from './pathSecurity';
 import { getTypstPath } from './typstPath';
 
@@ -74,7 +74,7 @@ import {
 } from '../shared/styleParser';
 import { getSectionPreset } from '../shared/sectionPresets';
 import { type ProjectStyle, type SectionStyle, sanitizeProjectStyle, sanitizeSection } from '../shared/styleTypes';
-import { findRootFile } from '../shared/rootFinder';
+import { findRootFile, findRootFileIn } from '../shared/rootFinder';
 import { getCompiler } from './fileManager';
 import {
   checkClaudeDesktopInstalled,
@@ -169,10 +169,8 @@ function scanUsedDesignSignals(content: string): string[] {
 function resolveStyleRootFile(): string {
   const dir = appState.projectDir;
   if (!dir) return path.join(appState.currentFilePath ? path.dirname(appState.currentFilePath) : '', 'main.typ');
-  for (const name of ['main.typ', 'document.typ', 'index.typ']) {
-    const candidate = path.join(dir, name);
-    if (fs.existsSync(candidate)) return candidate;
-  }
+  const candidate = findRootFileIn(dir);
+  if (candidate) return candidate;
   if (appState.currentFilePath) return findRootFile(appState.currentFilePath);
   return path.join(dir, 'main.typ');
 }
@@ -664,17 +662,7 @@ export function setupIPC(): void {
 
   // ─── Spellcheck Handler ─────────────────────────
   ipcMain.handle('spellcheck:setLanguage', (_event, lang: string) => {
-    const bcp47Map: Record<string, string> = {
-      en: 'en-US', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT',
-      pt: 'pt-BR', nl: 'nl-NL', sv: 'sv-SE', da: 'da-DK', nb: 'nb-NO',
-      fi: 'fi-FI', pl: 'pl-PL', ru: 'ru-RU',
-    };
-    const resolved = bcp47Map[lang] || lang;
-    try {
-      appState.mainWindow?.webContents.session.setSpellCheckerLanguages([resolved]);
-    } catch (err) {
-      console.warn('[penwright] Spellcheck language not available:', resolved, err);
-    }
+    applySpellcheckLanguage(lang);
   });
 
   ipcMain.handle('includes:add', async () => {

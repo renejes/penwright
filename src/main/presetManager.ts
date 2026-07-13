@@ -25,6 +25,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import simpleGit from 'simple-git';
 import { appState } from './appState';
+import { findRootFileIn } from '../shared/rootFinder';
 import { getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
 import { addBreadcrumb } from './crashReporter';
@@ -389,12 +390,10 @@ function copyProjectToPreset(src: string, dest: string): void {
   walk(src, dest);
 }
 
-/** Finds the root .typ file inside a preset/project dir. */
-function findRootFileIn(dir: string): string | null {
-  for (const n of ['main.typ', 'document.typ', 'index.typ']) {
-    const p = path.join(dir, n);
-    if (fs.existsSync(p)) return p;
-  }
+/** Root .typ inside a preset/project dir — shared candidates, then any .typ. */
+function findPresetRootFile(dir: string): string | null {
+  const candidate = findRootFileIn(dir);
+  if (candidate) return candidate;
   try { const f = fs.readdirSync(dir).find((x) => x.endsWith('.typ')); return f ? path.join(dir, f) : null; }
   catch { return null; }
 }
@@ -441,7 +440,7 @@ export async function saveProjectAsPreset(input: SavePresetInput): Promise<{ ok:
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 
-  const rootAbs = findRootFileIn(dest);
+  const rootAbs = findPresetRootFile(dest);
   if (rootAbs) await renderThumbnail(dest, rootAbs, path.join(dest, 'thumbnail.png'));
 
   const tag = input.tagline?.trim() || '';

@@ -8,6 +8,8 @@
  *   - Raw Block    → wrapped in typstRawBlock node (code view, roundtrip-safe)
  */
 
+import { isReferenceLabel, refTypeFromLabel } from '../../shared/refLabels';
+
 interface TipTapDoc {
   type: 'doc';
   content: TipTapNode[];
@@ -953,48 +955,6 @@ type InlineSegType =
   | 'subscript'
   | 'smallcaps'
   | 'strike';
-
-const REFERENCE_PREFIXES = new Set([
-  'fig', 'figure',
-  'tbl', 'table', 'tab',
-  'eq', 'eqn', 'equation',
-  'sec', 'section',
-  'chap', 'chapter',
-  'app', 'appendix',
-  'thm', 'theorem',
-  'lem', 'lemma',
-  'def', 'definition',
-  'cor', 'corollary',
-  'prop', 'proposition',
-  'algo', 'alg', 'algorithm',
-  'lst', 'listing',
-]);
-
-/**
- * Heuristic: does this `@name` look like a Typst label (cross-reference)
- * rather than a bib citekey? Citekeys are conventionally bare slugs like
- * `chen2021codex`; labels are typically prefixed with `fig:`, `tbl:`,
- * `sec:` etc. Anything containing a colon or starting with a known label
- * prefix is treated as a reference.
- */
-function isReferenceLabel(name: string): boolean {
-  const colonIdx = name.indexOf(':');
-  if (colonIdx > 0) return true;
-  // Bare prefix like `figure` or `section` is rare for citekeys but plausible
-  // for headings — only count an exact-match prefix as a reference.
-  return REFERENCE_PREFIXES.has(name.toLowerCase());
-}
-
-/** Maps a label name to a coarse type used for icon / picker grouping. */
-function refTypeFromLabel(name: string): 'figure' | 'table' | 'equation' | 'heading' | 'other' {
-  const colonIdx = name.indexOf(':');
-  const prefix = (colonIdx > 0 ? name.slice(0, colonIdx) : name).toLowerCase();
-  if (prefix === 'fig' || prefix === 'figure') return 'figure';
-  if (prefix === 'tbl' || prefix === 'table' || prefix === 'tab') return 'table';
-  if (prefix === 'eq' || prefix === 'eqn' || prefix === 'equation') return 'equation';
-  if (prefix === 'sec' || prefix === 'section' || prefix === 'chap' || prefix === 'chapter') return 'heading';
-  return 'other';
-}
 
 interface InlineSegment {
   type: InlineSegType;

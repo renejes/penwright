@@ -27,20 +27,34 @@ function isPathWithinGitDir(filePath: string): boolean {
 
 const GITIGNORE_REQUIRED_LINES = ['.penwright/', '.penwright-*', '*.pdf'];
 
-async function ensureGitignore(dir: string): Promise<void> {
+const GITIGNORE_TEMPLATE = `# Penwright
+${GITIGNORE_REQUIRED_LINES.join('\n')}
+
+# OS
+.DS_Store
+Thumbs.db
+`;
+
+/**
+ * THE gitignore-ensure implementation — creates the full template when no
+ * .gitignore exists, otherwise appends the missing required lines. Shared by
+ * git:saveVersion, ensureProjectInfrastructure and openSampleProject (the
+ * logic used to exist as three drifting copies).
+ */
+export function ensureGitignore(dir: string): void {
   const gitignorePath = path.join(dir, '.gitignore');
-  let existing = '';
-  if (fs.existsSync(gitignorePath)) {
-    existing = fs.readFileSync(gitignorePath, 'utf-8');
+  if (!fs.existsSync(gitignorePath)) {
+    fs.writeFileSync(gitignorePath, GITIGNORE_TEMPLATE, 'utf-8');
+    return;
   }
 
+  const existing = fs.readFileSync(gitignorePath, 'utf-8');
   const lines = existing.split('\n').map(l => l.trim());
   const missing = GITIGNORE_REQUIRED_LINES.filter(req => !lines.includes(req));
   if (missing.length === 0) return;
 
   const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  const addition = (existing.length === 0 ? '# Penwright\n' : prefix + '\n# Penwright\n') + missing.join('\n') + '\n';
-  fs.writeFileSync(gitignorePath, existing + addition, 'utf-8');
+  fs.writeFileSync(gitignorePath, existing + prefix + '\n# Penwright\n' + missing.join('\n') + '\n', 'utf-8');
 }
 
 async function ensureRepo(dir: string): Promise<{ initialized: boolean }> {
@@ -52,7 +66,7 @@ async function ensureRepo(dir: string): Promise<{ initialized: boolean }> {
     // Set a sensible default branch — older Git versions still default to "master".
     try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
   }
-  await ensureGitignore(dir);
+  ensureGitignore(dir);
   return { initialized: !isRepo };
 }
 

@@ -160,6 +160,27 @@ export function getAiSnapshotsList(filePath?: string): { timestamp: number; file
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
+/**
+ * Applies a document language to Electron's spell checker. The Typst `lang`
+ * tag is a bare ISO code; Chromium wants a full BCP-47 dictionary tag. ONE
+ * map for both callers (openFile and the spellcheck:setLanguage IPC) — the
+ * two inline copies used to drift.
+ */
+export function applySpellcheckLanguage(lang: string): void {
+  if (!lang) return;
+  const bcp47Map: Record<string, string> = {
+    en: 'en-US', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT',
+    pt: 'pt-BR', nl: 'nl-NL', sv: 'sv-SE', da: 'da-DK', nb: 'nb-NO',
+    fi: 'fi-FI', pl: 'pl-PL', ru: 'ru-RU',
+  };
+  const resolved = bcp47Map[lang] || lang;
+  try {
+    appState.mainWindow?.webContents.session.setSpellCheckerLanguages([resolved]);
+  } catch (err) {
+    console.warn('[penwright] Spellcheck language not available:', resolved, err);
+  }
+}
+
 // ─── File Operations ──────────────────────────────────
 
 export async function openFile(filePath?: string): Promise<void> {
@@ -279,19 +300,7 @@ export async function openFile(filePath?: string): Promise<void> {
 
     // Sync spellcheck language from document settings
     const settings = parseSettings(appState.currentContent);
-    if (settings.lang) {
-      const bcp47Map: Record<string, string> = {
-        en: 'en-US', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT',
-        pt: 'pt-BR', nl: 'nl-NL', sv: 'sv-SE', da: 'da-DK', nb: 'nb-NO',
-        fi: 'fi-FI', pl: 'pl-PL', ru: 'ru-RU',
-      };
-      const resolved = bcp47Map[settings.lang] || settings.lang;
-      try {
-        appState.mainWindow?.webContents.session.setSpellCheckerLanguages([resolved]);
-      } catch (err) {
-        console.warn('[penwright] Spellcheck language not available:', resolved, err);
-      }
-    }
+    if (settings.lang) applySpellcheckLanguage(settings.lang);
 
     setupCompiler();
 

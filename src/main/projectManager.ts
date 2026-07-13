@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
-import { findRootFile } from '../shared/rootFinder';
+import { findRootFile, findRootFileIn } from '../shared/rootFinder';
 import { generateStyleTypst, ensureStyleInclude } from '../shared/styleParser';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleTypes';
 import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
@@ -17,16 +17,7 @@ import { appState } from './appState';
 import { addBreadcrumb } from './crashReporter';
 import { getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
-
-const GITIGNORE_TEMPLATE = `# Penwright
-.penwright/
-.penwright-*
-*.pdf
-
-# OS
-.DS_Store
-Thumbs.db
-`;
+import { ensureGitignore } from './gitManager';
 
 /**
  * Ensures a project has a Git repo + .gitignore + initial commit so that
@@ -36,20 +27,8 @@ Thumbs.db
 export async function ensureProjectInfrastructure(dir: string, initialMessage = 'Initial version'): Promise<void> {
   if (!fs.existsSync(dir)) return;
 
-  // .gitignore — create or extend
-  const gitignorePath = path.join(dir, '.gitignore');
-  if (!fs.existsSync(gitignorePath)) {
-    fs.writeFileSync(gitignorePath, GITIGNORE_TEMPLATE, 'utf-8');
-  } else {
-    const existing = fs.readFileSync(gitignorePath, 'utf-8');
-    const lines = existing.split('\n').map(l => l.trim());
-    const required = ['.penwright/', '.penwright-*', '*.pdf'];
-    const missing = required.filter(req => !lines.includes(req));
-    if (missing.length > 0) {
-      const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-      fs.writeFileSync(gitignorePath, existing + prefix + '\n# Penwright\n' + missing.join('\n') + '\n', 'utf-8');
-    }
-  }
+  // .gitignore — create or extend (single shared implementation)
+  ensureGitignore(dir);
 
   // .penwright/ skeleton
   const penwrightDir = path.join(dir, '.penwright');
@@ -92,11 +71,7 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
 export function ensureStyleFile(dir: string, injectImport: boolean): void {
   if (!fs.existsSync(dir)) return;
 
-  let rootFile: string | null = null;
-  for (const name of ['main.typ', 'document.typ', 'index.typ']) {
-    const p = path.join(dir, name);
-    if (fs.existsSync(p)) { rootFile = p; break; }
-  }
+  const rootFile = findRootFileIn(dir);
   const rootDir = rootFile ? path.dirname(rootFile) : dir;
   const styleTypPath = path.join(rootDir, 'style.typ');
   const styleJsonPath = path.join(dir, '.penwright', 'style.json');
@@ -441,11 +416,8 @@ export async function openSampleProject(): Promise<string | null> {
     const git = simpleGit(targetDir);
     await git.init();
     try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
-    // .gitignore for Penwright-local state — match what ensureProjectInfrastructure does.
-    const gitignorePath = path.join(targetDir, '.gitignore');
-    if (!fs.existsSync(gitignorePath)) {
-      fs.writeFileSync(gitignorePath, '# Penwright\n.penwright/\n.penwright-*\n*.pdf\n\n# OS\n.DS_Store\nThumbs.db\n', 'utf-8');
-    }
+    // .gitignore for Penwright-local state — single shared implementation.
+    ensureGitignore(targetDir);
     await git.add('-A');
     await git.commit('Sample 0.7.0 — initial state');
   } catch (err) {
