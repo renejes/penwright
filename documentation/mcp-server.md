@@ -78,7 +78,7 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 
 ---
 
-## Verfuegbare Tools (57)
+## Verfuegbare Tools (59)
 
 ### Projekt & Dateien (5)
 
@@ -89,6 +89,15 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 | `penwright_read_file` | Projektdatei lesen (Text oder Base64 fuer Binaerdateien) |
 | `penwright_write_file` | Datei schreiben (mit auto-mkdir) |
 | `penwright_create_project` | Neues Projekt aus Template (document, thesis, paper, letter, book, **magazine**). `magazine` ist die Slow-Media-Vorlage fuer ai-magazine-designer. |
+
+### Presets — fertige Projekt-Starter (2)
+
+Die **Preset-Bibliothek**: fertige, compile-getestete Projekt-Ordner (Magazin, Report, Kochbuch, Portfolio, Thesis, Brief, Newsletter, Bilderbuch, Poster …) mit fertigem Design **und** Platzhalter-Text (Lorem). Magazin-Presets geben **jedem Kapitel ein eigenes Layout**. Anders als `create_project` (leeres Template) kopiert der Agent hier ein **komplett designtes** Projekt und ersetzt nur den Platzhaltertext. Die Bibliothek liegt geb&uuml;ndelt unter `resources/presets/`; der MCP findet sie via `PENWRIGHT_PRESETS` (von `mcpSetup.buildMcpEnv` gesetzt) bzw. aus dem `TYPST_PACKAGE_PATH`-Nachbarordner.
+
+| Tool | Beschreibung |
+|------|-------------|
+| `penwright_list_presets` | Alle Built-in-Presets auflisten (`id` / `type` / `label` / `tagline` / `openFile`), optional nach `type` gefiltert (magazine, report, document, cookbook, portfolio, thesis, letter, newsletter, book, paper) |
+| `penwright_create_from_preset` | Neues Projekt aus einem Preset anlegen — kopiert den Ordner verbatim (Design + Makros + Assets + Lorem, ohne `preset.json`/`thumbnail`), `git init` + erste Version, wechselt auf die Startdatei des Presets. **Bevorzugt gegen&uuml;ber `create_project`, wenn ein designter Startpunkt gew&uuml;nscht ist.** |
 
 ### Dokument-Operationen (4)
 
@@ -221,6 +230,21 @@ Fuer Cloud-Sync-Workflows. Im Normalfall reicht der Versionen-Block oben.
 ---
 
 ## Typische Workflows
+
+### Projekt aus Preset anlegen
+
+```
+User:  "Mach mir ein Slow-Media-Magazin."
+Agent: penwright_list_presets({ type: "magazine" })
+  -> [ { id: "magazine-slow", label: "Slow / Literary", openFile: "chapters/01-editorial.typ" },
+       { id: "magazine-bold", ... }, { id: "magazine-mono", ... }, ... ]
+Agent: penwright_create_from_preset({ presetId: "magazine-slow", projectName: "mein-heft", parentDir: "/Users/.../Documents" })
+  -> Created "mein-heft" from preset "magazine-slow" — active file: chapters/01-editorial.typ
+Agent: penwright_get_document()          # liest das Editorial-Kapitel (Lorem)
+Agent: penwright_update_document({ ... }) # ersetzt den Platzhaltertext
+Agent: penwright_compile()
+  -> { success: true, pages: 10 }        # jedes Kapitel ein eigenes Layout
+```
 
 ### Dokument bearbeiten
 

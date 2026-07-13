@@ -174,31 +174,38 @@ Die Karte bleibt 250 ms nach Verlassen des Badges sichtbar — du kannst die Mau
 
 ## Neues Projekt erstellen
 
-**OEffnen:** File -> New Project… (`Cmd+N`)
+**OEffnen:** File -> New Project… (`Cmd+N`) — oder die grosse „Neues Projekt"-Karte auf dem Start-Screen.
 
-**Dialog:**
-1. **Projektname** eingeben (wird zum Ordnernamen)
-2. **Template** waehlen:
+### Die Preset-Gallery
 
-| Template | Beschreibung |
-|----------|--------------|
-| **Document** | Einfaches Dokument (eine Datei) |
-| **Thesis** | Wissenschaftliche Arbeit mit Kapiteln + Bibliography |
-| **Paper** | Akademisches Paper (Abstract, Sections, References) |
-| **Letter** | Formaler Brief |
-| **Book** | Buch mit Kapiteln + Inhaltsverzeichnis |
-| **Magazine** | Editorial-Magazin mit Cover, Editorial, Inhaltsverzeichnis und Article-Slots. Cover-Makro stabil in `chapters/_cover-macro.typ`; Macro-Call in `chapters/00-cover.typ` wird vom `cover-designer`-Skill des [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer) pro Ausgabe umgeschrieben |
+Der Dialog ist eine **Gallery, nach Projekttyp gruppiert**, mit gerenderten Vorschau-Thumbnails. Pro Typ gibt es oben eine **„Leer"-Karte** (nur das Grundgeruest) und darunter fertige **Presets** — echte, compile-getestete Projekte mit fertigem Design **und** Platzhalter-Text (Lorem), den du einfach ueberschreibst.
 
-3. **Speicherort** waehlen -> Projektstruktur wird erstellt
+Projekttypen: Dokument · Abschlussarbeit · Paper · Brief · Buch · **Magazin** · Report/Whitepaper · Newsletter/Zine · Portfolio/Case-Study · Kochbuch. Jeder Typ hat mehrere Design-Varianten — von sehr modern ueber Dark-Mode, Pastell, Pop, Retro bis knallbunt (Kinderbuch, Poster).
 
-Jedes neue Projekt bekommt automatisch:
-- Template-Dateien (main.typ, chapters/, bibliography.bib)
-- `assets/` Ordner fuer Bilder
-- `sources/` Ordner fuer Quellen-PDFs und sonstiges Recherchematerial
-- `.claude/skills/` mit Claude Code Skills (typst, Penwright, research)
-- `.git/` Repository + `.gitignore`, damit das Versionssystem von der ersten Speicherung an funktioniert
-- `.penwright/` Ordner fuer Auto-Backups und AI-Edit-Snapshots (versteckt, projekt-lokal)
-- Einen Initial-Commit mit dem Template-Inhalt
+**Magazin-Presets sind das Highlight:** **jedes Kapitel hat ein anderes Layout** (Cover, Editorial mit Initiale, Feature mit Bildtafel, zweispaltiges Interview, Essay, dreispaltige Rubrik …) — du schreibst einfach ins Kapitel und bekommst das Layout geschenkt.
+
+**Vorschau:** Ueber eine Preset-Karte hovern -> **„Vorschau"** -> ein Overlay blaettert dir die ersten Seiten des Designs durch (Pfeile / ←→ / Punkte), mit „Diese Vorlage verwenden".
+
+**Erstellen:** Karte waehlen -> „Projekt erstellen" -> Speicherort waehlen -> das Preset wird kopiert und oeffnet sich auf einem schreibbaren Kapitel.
+
+### Eigene Presets speichern
+
+**File -> „Save Project as Preset…"** (bei geoeffnetem Projekt) speichert dein aktuelles Projekt als wiederverwendbares Preset in deine persoenliche Bibliothek (`userData/presets/`), inkl. gerendertem Thumbnail. Es erscheint dann in der Gallery unter seinem Typ mit einem **„Meins"-Badge** (und einem Loeschen-Button beim Hover). So baust du dir deine eigene Vorlagen-Sammlung.
+
+### Design aus einem Preset importieren
+
+Im **Design-Panel** (Sidebar) -> Abschnitt **„Aus Preset importieren"**: uebernimm aus einem beliebigen Preset das **ganze Design**, nur die **Farben**, nur die **Schriften**, nur das **Layout** oder die **Kapitel-Rubriken** — direkt in dein offenes Projekt. Laeuft ueber die safe-apply-Engine (kompiliert-oder-Rollback, rueckgaengig-machbar).
+
+### Was jedes neue Projekt automatisch bekommt
+
+- Die Projektdateien (main.typ, chapters/, ggf. style.typ / macros.typ / assets)
+- `assets/` fuer Bilder, `sources/` fuer Quellen-PDFs
+- `.claude/skills/` mit Claude-Code-Skills (typst, Penwright, research, writing-style, design)
+- `.git/` + `.gitignore` — Versionssystem ab der ersten Speicherung
+- `.penwright/` fuer Auto-Backups + AI-Edit-Snapshots (versteckt, projekt-lokal)
+- Einen Initial-Commit
+
+> Ein **KI-Agent** kann per MCP dasselbe: `penwright_list_presets` + `penwright_create_from_preset` legen ein Projekt aus einem Preset an (siehe „MCP Server").
 
 ---
 
@@ -745,7 +752,8 @@ Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit de
 
 ### Was kann der MCP-Server?
 
-Die KI kann ueber den MCP-Server (57 Tools):
+Die KI kann ueber den MCP-Server (59 Tools):
+- **Ein komplettes Projekt aus einem Preset anlegen** (`penwright_list_presets` + `penwright_create_from_preset`) — designter Startpunkt inkl. Platzhalter-Text, statt bei null anzufangen; Magazin-Presets mit eigenem Layout pro Kapitel
 - Typst-Dokumente oeffnen, lesen, bearbeiten und verifizieren (`compile` ist reiner Verifier; das Schreiben von Artefakten uebernehmen die Export-Tools)
 - Dokument-Einstellungen aendern (Schriftart, Groesse, Sprache, Raender …) und Style-Templates anwenden
 - Kapitel und Bibliographie End-to-End verwalten (inkl. anker-basierter Inserts fuer Comments, Footnotes, Cross-References)
@@ -852,9 +860,9 @@ Du musst die Config **nicht** jedes Mal aendern, wenn du das Projekt wechselst. 
 
 Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
-### Verfuegbare Tools (57)
+### Verfuegbare Tools (59)
 
-Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 57 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
+Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 59 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
 **Projekt & Dateien (5)**
 
@@ -863,6 +871,11 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 - `penwright_read_file` — Liest eine Datei im Projekt; Text-Inhalt als String, Binaer-Dateien als Base64.
 - `penwright_write_file` — Schreibt Inhalt in eine Datei im Projekt; erzeugt Parent-Ordner automatisch.
 - `penwright_create_project` — Legt ein neues Typst-Projekt aus einer Vorlage an (`document`, `thesis`, `paper`, `letter`, `book`, `magazine`). Die `magazine`-Vorlage ist fuer die [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer)-Pipeline.
+
+**Presets — fertige Projekt-Starter (2)**
+
+- `penwright_list_presets` — Listet alle Built-in-Presets (fertige, designte Projekte mit Platzhalter-Text) auf — `id` / `type` / `label` / `tagline`, optional nach `type` gefiltert (magazine, report, cookbook, portfolio, thesis …).
+- `penwright_create_from_preset` — Legt ein neues Projekt aus einem Preset an: kopiert den kompletten Ordner (Design + Makros + Assets + Lorem), `git init`, wechselt auf die Startdatei. Bevorzugt gegenueber `create_project`, wenn ein designter Startpunkt gewuenscht ist — Magazin-Presets bringen pro Kapitel ein eigenes Layout mit.
 
 **Dokument-Operationen (4)**
 

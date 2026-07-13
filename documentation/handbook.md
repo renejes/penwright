@@ -174,31 +174,38 @@ The popover stays visible for 250 ms after you leave the badge so you can move t
 
 ## Creating a new project
 
-**Open:** File -> New Project… (`Cmd+N`)
+**Open:** File -> New Project… (`Cmd+N`) — or the big “New Project” card on the Start Screen.
 
-**Dialog:**
-1. **Project name** (becomes the folder name)
-2. **Template:**
+### The preset gallery
 
-| Template | Description |
-|----------|-------------|
-| **Document** | Simple single-file document |
-| **Thesis** | Academic thesis with chapters + bibliography |
-| **Paper** | Academic paper (abstract, sections, references) |
-| **Letter** | Formal letter |
-| **Book** | Book with chapters + table of contents |
-| **Magazine** | Editorial magazine with cover, editorial, TOC, and article slots. Cover macro lives stably in `chapters/_cover-macro.typ`; the macro call in `chapters/00-cover.typ` is rewritten per issue by the `cover-designer` skill from [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer) |
+The dialog is a **gallery grouped by project type**, with rendered preview thumbnails. Each type has a **“Blank” card** at the top (just the skeleton) and, below it, ready-made **presets** — real, compile-tested projects that ship a finished design **and** placeholder (Lorem) content you simply overwrite.
 
-3. **Location** — the project structure is created.
+Project types: Document · Thesis · Paper · Letter · Book · **Magazine** · Report/Whitepaper · Newsletter/Zine · Portfolio/Case-Study · Cookbook. Every type has several design variants — from very modern through dark mode, pastel, pop, retro, to bright (kids book, poster).
 
-Every new project automatically gets:
-- Template files (main.typ, chapters/, bibliography.bib)
-- `assets/` folder for images
-- `sources/` folder for reference PDFs and other research material
-- `.claude/skills/` with Claude Code skills (typst, Penwright, research)
-- `.git/` repository + `.gitignore` so the version system works from the very first save
-- `.penwright/` folder for auto-backups and AI-edit snapshots (hidden, project-local)
-- An initial commit with the template content
+**Magazine presets are the highlight:** **every chapter has a different layout** (cover, editorial with a drop cap, feature with a photo panel, two-column interview, essay, three-column department …) — you just type into a chapter and get its layout for free.
+
+**Preview:** hover a preset card -> **“Preview”** -> an overlay pages through the first pages of the design (arrows / ←→ / dots), with a “Use this preset” action.
+
+**Create:** pick a card -> “Create Project” -> choose a location -> the preset is copied and opens on a writable chapter.
+
+### Save your own presets
+
+**File -> “Save Project as Preset…”** (with a project open) saves the current project as a reusable preset in your personal library (`userData/presets/`), with a rendered thumbnail. It then appears in the gallery under its type with a **“Yours” badge** (and a delete button on hover) — so you can build your own template collection.
+
+### Import a design from a preset
+
+In the **Design panel** (sidebar) -> **“Import from preset”** section: pull in the **whole design**, just the **colors**, just the **fonts**, just the **layout**, or the **chapter rubrics** from any preset — straight into your open project. It routes through the safe-apply engine (compile-or-rollback, undoable).
+
+### What every new project automatically gets
+
+- The project files (main.typ, chapters/, plus style.typ / macros.typ / assets where applicable)
+- `assets/` for images, `sources/` for reference PDFs
+- `.claude/skills/` with Claude Code skills (typst, Penwright, research, writing-style, design)
+- `.git/` + `.gitignore` — version system from the first save
+- `.penwright/` for auto-backups + AI-edit snapshots (hidden, project-local)
+- An initial commit
+
+> An **AI agent** can do the same over MCP: `penwright_list_presets` + `penwright_create_from_preset` create a project from a preset (see “MCP Server”).
 
 ---
 
@@ -745,7 +752,8 @@ Penwright ships a built-in MCP server (Model Context Protocol) that lets externa
 
 ### What can the MCP server do?
 
-Over MCP (57 tools) the AI can:
+Over MCP (59 tools) the AI can:
+- **Create a whole project from a preset** (`penwright_list_presets` + `penwright_create_from_preset`) — a designed starting point with placeholder content instead of starting from scratch; magazine presets ship a different layout per chapter
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
 - Change document settings (font, size, language, margins, …) and apply style templates
 - Manage chapters and bibliography end-to-end (incl. anchor-based comment / footnote / cross-reference inserts)
@@ -852,9 +860,9 @@ You don't need to edit the config every time you switch projects. Just tell Clau
 
 Claude will call `penwright_set_project` and work with the new project from there on.
 
-### Available tools (57)
+### Available tools (59)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 57 tools with one-line descriptions, grouped by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 59 tools with one-line descriptions, grouped by category:
 
 **Project & files (5)**
 
@@ -863,6 +871,11 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 - `penwright_read_file` — Read a file from the project; text content as string, binaries as Base64.
 - `penwright_write_file` — Write content to a project file; creates parent directories as needed.
 - `penwright_create_project` — Create a new Typst project from a template (`document`, `thesis`, `paper`, `letter`, `book`, `magazine`). The `magazine` template is designed for the [ai-magazine-designer](https://github.com/renejes/ai-magazine-designer) pipeline.
+
+**Presets — ready-made project starters (2)**
+
+- `penwright_list_presets` — List all built-in presets (finished, designed projects with placeholder content) — `id` / `type` / `label` / `tagline`, optionally filtered by `type` (magazine, report, cookbook, portfolio, thesis …).
+- `penwright_create_from_preset` — Create a new project from a preset: copies the whole folder (design + macros + assets + Lorem), `git init`, switches to its opening file. Prefer this over `create_project` when a designed starting point is wanted — magazine presets ship a different layout per chapter.
 
 **Document operations (4)**
 
