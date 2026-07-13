@@ -14,6 +14,7 @@ import simpleGit, { type SimpleGit } from 'simple-git';
 import { appState } from './appState';
 import { isPathWithin } from './pathSecurity';
 import { updateTitle } from './fileManager';
+import { ensureGitIdentity } from '../shared/gitIdentity';
 
 function getGitDir(): string {
   return appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : process.cwd());
@@ -67,6 +68,10 @@ async function ensureRepo(dir: string): Promise<{ initialized: boolean }> {
     try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
   }
   ensureGitignore(dir);
+  // Repo-local identity fallback — writers' machines often have no global
+  // git config, and git:saveVersion has no catch for the resulting
+  // "Please tell me who you are" hard failure.
+  await ensureGitIdentity(git);
   return { initialized: !isRepo };
 }
 

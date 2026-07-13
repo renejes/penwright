@@ -33,7 +33,9 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.18.0: pre-launch bug wave 1 — hero-insert anchor (generate_layout),
 // markdown bold→italic import fix, DOCX nested-numbering pre-pass now shared
 // with HTML (buildExportModel), serializer `//`-comment escaping.
-export const MCP_SETUP_VERSION = '0.18.0';
+// 0.19.0: git committer-identity fallback (ensureGitIdentity) in the server's
+// version/commit tools + .penwright-* in its gitignore lines.
+export const MCP_SETUP_VERSION = '0.19.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

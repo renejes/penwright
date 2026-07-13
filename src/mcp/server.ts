@@ -64,6 +64,7 @@ import { markdownToTypst } from '../shared/markdownImporter.js';
 import { serializeDocx, type RenderedSnippet } from '../shared/docxSerializer.js';
 import { deserializeTypst } from '../editor/lib/deserializer.js';
 import simpleGit from 'simple-git';
+import { ensureGitIdentity } from '../shared/gitIdentity.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -1971,7 +1972,7 @@ server.tool(
 // local; nothing is ever pushed to a remote.
 // ═══════════════════════════════════════════════════════
 
-const GITIGNORE_REQUIRED_LINES = ['.penwright/', '*.pdf'];
+const GITIGNORE_REQUIRED_LINES = ['.penwright/', '.penwright-*', '*.pdf'];
 
 async function ensureGitRepo(dir: string): Promise<void> {
   const git = simpleGit(dir);
@@ -1981,6 +1982,9 @@ async function ensureGitRepo(dir: string): Promise<void> {
     // Default to "main" — older Git versions still default to "master".
     try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
   }
+  // Writers' machines often have no global git identity — without a
+  // repo-local fallback the commit hard-fails ("Please tell me who you are").
+  await ensureGitIdentity(git);
   // Make sure .gitignore covers Penwright-local state so we don't accidentally
   // commit auto-backups or generated PDFs.
   const gitignorePath = path.join(dir, '.gitignore');
@@ -2227,6 +2231,7 @@ server.tool(
   async ({ message, stageAll }) => {
     try {
       const git = simpleGit(state.projectDir);
+      await ensureGitIdentity(git);
       if (stageAll) {
         await git.add('-A');
       }

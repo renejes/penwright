@@ -18,6 +18,7 @@ import { addBreadcrumb } from './crashReporter';
 import { getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
 import { ensureGitignore } from './gitManager';
+import { ensureGitIdentity } from '../shared/gitIdentity';
 
 /**
  * Ensures a project has a Git repo + .gitignore + initial commit so that
@@ -50,6 +51,7 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
     if (!isRepo) {
       await git.init();
       try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
+      await ensureGitIdentity(git);
       await git.add('-A');
       const status = await git.status();
       if (status.staged.length > 0 || status.created.length > 0) {
@@ -418,6 +420,7 @@ export async function openSampleProject(): Promise<string | null> {
     try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
     // .gitignore for Penwright-local state — single shared implementation.
     ensureGitignore(targetDir);
+    await ensureGitIdentity(git);
     await git.add('-A');
     await git.commit('Sample 0.7.0 — initial state');
   } catch (err) {
