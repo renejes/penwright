@@ -50,15 +50,17 @@
     const prev = styleId;
     try {
       const res = id === ''
-        ? await api.invoke('section:clear', file) as { ok: boolean }
-        : await api.invoke('section:apply', file, id) as { ok: boolean };
+        ? await api.invoke('section:clear', file) as { ok: boolean; error?: string }
+        : await api.invoke('section:apply', file, id) as { ok: boolean; error?: string };
       if (res?.ok) {
         styleId = id || null;
         window.dispatchEvent(new CustomEvent('penwright:design-changed'));
       } else {
         styleId = prev;
-        note = t().look.notApplied;
-        setTimeout(() => { if (note) note = ''; }, 4000);
+        // A refused write (hand-written style.typ) carries its own reason —
+        // "not applied" alone would hide why, and the user would just retry.
+        note = res?.error || t().look.notApplied;
+        setTimeout(() => { if (note) note = ''; }, res?.error ? 9000 : 4000);
       }
     } catch {
       styleId = prev;

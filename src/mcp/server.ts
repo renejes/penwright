@@ -25,15 +25,12 @@ import { parseSettings, applySettings, generateSetBlocks, type DocumentSettings 
 import { findRootFile, findRootFileIn } from '../shared/rootFinder.js';
 import {
   sanitizeProjectStyle,
-  DEFAULT_PROJECT_STYLE,
   type ProjectStyle,
   type StyleColors,
   type SectionStyle,
 } from '../shared/styleTypes.js';
 import {
   generateStyleTypst,
-  ensureStyleInclude,
-  extractCustomBlock,
   ensureSectionStyle,
   clearSectionStyle,
   getSectionStyleId,
@@ -50,6 +47,12 @@ import {
   getDesignElement,
   renderDesignElement,
 } from '../shared/designElements.js';
+import {
+  planStyleWrites,
+  readProjectStyleWithCustom,
+  resolveDesignRoot,
+  handwrittenStyleMessage,
+} from '../shared/styleWrite.js';
 import { parseBibFile } from '../shared/bibParser.js';
 import { resolveIncludes } from '../shared/mergeDocument.js';
 import { splitIntoChapters, slugify } from '../shared/splitDocument.js';
@@ -131,22 +134,17 @@ function createMcpSnippetRenderer(baseDir: string): (snippet: string) => Promise
 // top of the root file. This keeps Claude's edits in lockstep with
 // what the Design panel in Penwright would have written.
 
-function styleJsonPath(projectDir: string): string {
-  return path.join(projectDir, '.penwright', 'style.json');
-}
-
 function selectionJsonPath(projectDir: string): string {
   return path.join(projectDir, '.penwright', 'selection.json');
 }
 
+/**
+ * Same read the app's `style:get` performs — including the backfill of a
+ * hand-edited custom block out of style.typ, which this side used to skip.
+ * Without it an agent's update_style would silently drop those edits.
+ */
 function readProjectStyle(projectDir: string): ProjectStyle {
-  const file = styleJsonPath(projectDir);
-  if (!fs.existsSync(file)) return sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
-  try {
-    return sanitizeProjectStyle(JSON.parse(fs.readFileSync(file, 'utf-8')));
-  } catch {
-    return sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
-  }
+  return readProjectStyleWithCustom(projectDir, state.currentFile);
 }
 
 /**
@@ -154,38 +152,35 @@ function readProjectStyle(projectDir: string): ProjectStyle {
  * `#include "style.typ"`. Returns the sanitised style that was actually
  * persisted (after coercion / clamping) so the caller can report it.
  */
-/**
- * Resolves the file the document-wide design lives in: a project-root
- * candidate first (so global style never lands in an open chapter), then
- * findRootFile from the current file. Mirrors ipcHandlers.resolveStyleRootFile.
- */
+/** Design home, resolved by the same shared function the app uses. */
 function resolveDesignRootFile(projectDir: string): string | null {
-  const candidate = findRootFileIn(projectDir);
-  if (candidate) return candidate;
-  if (state.currentFile && fs.existsSync(state.currentFile)) {
-    return findRootFile(state.currentFile);
-  }
-  return null;
+  return resolveDesignRoot(projectDir, state.currentFile);
 }
 
+/** Thrown when a design write is refused; handlers turn it into an isError. */
+class StyleWriteRefused extends Error {}
+
+/**
+ * Writes style.json + style.typ (+ the root's #import when it changes).
+ *
+ * The file set and its contents come from `planStyleWrites`, the same planner
+ * the Electron app stages through `safeApplyDesign` — so both processes touch
+ * exactly the same paths with exactly the same bytes, and both refuse on a
+ * project whose design lives in a hand-written style.typ.
+ *
+ * Note the remaining asymmetry: the app verifies the document still compiles
+ * and rolls back if not; this side does not yet (safeApplyMcp is the next
+ * step). Until then a design write here is committed unverified.
+ */
 function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): ProjectStyle {
-  const style = sanitizeProjectStyle(raw);
-  const penwrightDir = path.dirname(styleJsonPath(projectDir));
-  if (!fs.existsSync(penwrightDir)) fs.mkdirSync(penwrightDir, { recursive: true });
-  fs.writeFileSync(styleJsonPath(projectDir), JSON.stringify(style, null, 2), 'utf-8');
+  const plan = planStyleWrites({ projectDir, currentFile: state.currentFile, style: raw });
+  if (!plan.ok) throw new StyleWriteRefused(handwrittenStyleMessage(plan.styleTypPath));
 
-  // Write style.typ next to the root file.
-  const rootFile = resolveDesignRootFile(projectDir);
-  const projectRootDir = rootFile ? path.dirname(rootFile) : projectDir;
-  fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(style), 'utf-8');
-
-  if (rootFile && fs.existsSync(rootFile)) {
-    const before = fs.readFileSync(rootFile, 'utf-8');
-    const after = ensureStyleInclude(before);
-    if (after !== before) fs.writeFileSync(rootFile, after, 'utf-8');
+  for (const w of plan.writes) {
+    fs.mkdirSync(path.dirname(w.abs), { recursive: true });
+    fs.writeFileSync(w.abs, w.content, 'utf-8');
   }
-
-  return style;
+  return plan.style;
 }
 
 /** Deep-merges `patch` into `base`. Used by penwright_update_style. */

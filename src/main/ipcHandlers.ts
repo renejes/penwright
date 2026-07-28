@@ -43,9 +43,7 @@ import {
   getProjectPreferences,
   saveProjectPreferences,
   getProjectStyle,
-  saveProjectStyle,
   hasProjectStyle,
-  getStyleJsonPath,
   saveSelectionPin,
   getSelectionPin,
   clearSelectionPin,
@@ -64,17 +62,21 @@ import {
   type SelectionAnchorInput,
 } from '../shared/selectionTypes';
 import {
-  generateStyleTypst,
-  ensureStyleInclude,
   detectStylePreambleConflicts,
-  extractCustomBlock,
   ensureSectionStyle,
   clearSectionStyle,
   getSectionStyleId,
 } from '../shared/styleParser';
 import { getSectionPreset } from '../shared/sectionPresets';
 import { type ProjectStyle, type SectionStyle, sanitizeProjectStyle, sanitizeSection } from '../shared/styleTypes';
-import { findRootFile, findRootFileIn } from '../shared/rootFinder';
+import { findRootFile } from '../shared/rootFinder';
+import {
+  planStyleWrites,
+  readProjectStyleWithCustom,
+  resolveDesignRoot,
+  styleTypDir,
+  STYLE_TYP_BASENAME,
+} from '../shared/styleWrite';
 import { getCompiler } from './fileManager';
 import {
   checkClaudeDesktopInstalled,
@@ -156,23 +158,23 @@ function scanUsedDesignSignals(content: string): string[] {
 }
 
 /**
- * Resolves the project's **design home** — the root document that global
- * style is written next to (style.typ sibling + the `#show: apply-style`
- * import). Global design must NEVER be written into an open chapter file (it
- * would inject page setup + duplicate the show rule and break compilation), so
- * we prefer a conventional root document at the project root over
- * `findRootFile(openFile)`. Mirrors the MCP server's candidate resolution.
+ * The project's **design home** — the root document global style is written
+ * next to (style.typ sibling + the `#show: apply-style` import). Global design
+ * must NEVER land in an open chapter (it would inject page setup + duplicate
+ * the show rule and break compilation), so a conventional root document at the
+ * project root wins over `findRootFile(openFile)`.
  *
- * Order: main.typ / document.typ / index.typ at the project root → else walk
- * up the include chain from the open file → else `<project>/main.typ`.
+ * This is the *display* variant: several callers want a string label. The
+ * resolution itself comes from `resolveDesignRoot`, shared with the MCP
+ * server, so both processes agree on where the design lives. The `main.typ`
+ * tail is a label fallback only — no write path goes through it any more.
+ * Writers use `planStyleWrites`, which returns null rather than naming a file
+ * that doesn't exist (creating one would permanently move the design home).
  */
 function resolveStyleRootFile(): string {
   const dir = appState.projectDir;
   if (!dir) return path.join(appState.currentFilePath ? path.dirname(appState.currentFilePath) : '', 'main.typ');
-  const candidate = findRootFileIn(dir);
-  if (candidate) return candidate;
-  if (appState.currentFilePath) return findRootFile(appState.currentFilePath);
-  return path.join(dir, 'main.typ');
+  return resolveDesignRoot(dir, appState.currentFilePath) ?? path.join(dir, 'main.typ');
 }
 
 // ─── Safe-apply engine ("every design change is a safe experiment") ──────
@@ -939,28 +941,10 @@ export function setupIPC(): void {
 
   ipcMain.handle('style:get', () => {
     if (!appState.projectDir) return null;
-    const style = getProjectStyle(appState.projectDir);
-
-    // If a `style.typ` exists on disk with manual edits inside the fenced
-    // custom block but `style.json.custom.preamble` is empty (e.g. someone
-    // hand-edited style.typ between sessions), pull the on-disk version in
-    // so the Designer doesn't silently overwrite it on next save.
-    if (!style.custom?.preamble) {
-      try {
-        const rootFile = resolveStyleRootFile();
-        const styleTyp = path.join(
-          fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir,
-          'style.typ',
-        );
-        if (fs.existsSync(styleTyp)) {
-          const onDisk = fs.readFileSync(styleTyp, 'utf-8');
-          const extracted = extractCustomBlock(onDisk);
-          if (extracted && extracted.trim().length > 0) {
-            style.custom = { preamble: extracted };
-          }
-        }
-      } catch {}
-    }
+    // Shared with the MCP server's penwright_get_style: same tokens, same
+    // backfill of a hand-edited custom block, so neither side can silently
+    // drop what the other would have preserved.
+    const style = readProjectStyleWithCustom(appState.projectDir, appState.currentFilePath);
 
     return {
       style,
@@ -974,37 +958,34 @@ export function setupIPC(): void {
   ipcMain.handle('style:save', async (_event, raw: unknown) => {
     if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
 
-    const clean = sanitizeProjectStyle(raw);
-
-    // style.typ lands next to the project's design home (root document).
-    // resolveStyleRootFile() guarantees we never target an open chapter.
-    const rootFile = resolveStyleRootFile();
-    const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
-
-    // Batch the three files so a failed compile rolls ALL of them back together
-    // (incl. style.json, so the Design panel reflects what's actually applied).
-    const writes: { abs: string; content: string }[] = [
-      { abs: getStyleJsonPath(appState.projectDir), content: JSON.stringify(clean, null, 2) },
-      { abs: path.join(projectRootDir, 'style.typ'), content: generateStyleTypst(clean) },
-    ];
-
-    // Ensure the root file pulls style.typ in (one-time). Surface conflicting
-    // top-level #set rules so the renderer can warn — but still do the include.
-    const conflicts: string[] = [];
-    if (fs.existsSync(rootFile)) {
-      try {
-        const before = fs.readFileSync(rootFile, 'utf-8');
-        conflicts.push(...detectStylePreambleConflicts(before));
-        const after = ensureStyleInclude(before);
-        if (after !== before) writes.push({ abs: rootFile, content: after });
-      } catch (err) {
-        return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
-      }
+    // One planner for both processes: it resolves the design home, computes
+    // style.json + style.typ (+ the root's #import when it changes), and
+    // refuses outright when the project carries a hand-written style.typ.
+    const plan = planStyleWrites({
+      projectDir: appState.projectDir,
+      currentFile: appState.currentFilePath,
+      style: raw,
+    });
+    if (!plan.ok) {
+      return {
+        ok: false as const,
+        error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(path.basename(plan.styleTypPath)),
+        kept: true as const,
+      };
     }
 
-    const res = await safeApplyDesign(writes, resolveDict(getLocale()).mainDialogs.undoLabelDesignChanged);
+    // Surface conflicting top-level #set rules so the renderer can warn —
+    // the include itself is already part of the plan.
+    const conflicts: string[] = [];
+    if (plan.rootFile && fs.existsSync(plan.rootFile)) {
+      try {
+        conflicts.push(...detectStylePreambleConflicts(fs.readFileSync(plan.rootFile, 'utf-8')));
+      } catch { /* unreadable root — the writes still stand on their own */ }
+    }
+
+    const res = await safeApplyDesign(plan.writes, resolveDict(getLocale()).mainDialogs.undoLabelDesignChanged);
     if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
-    return { ok: true as const, style: clean, conflicts };
+    return { ok: true as const, style: plan.style, conflicts };
   });
 
   // ─── Section styles (Phase E — per-chapter design) ───
@@ -1012,28 +993,6 @@ export function setupIPC(): void {
   // regenerates style.typ with one `#let <id>-style` per variant). These
   // handlers manage the per-chapter opt-in: which variant a chapter uses, and
   // injecting / clearing the scoped `#show` at the top of a chapter file.
-
-  function regenerateStyleTyp(style: ProjectStyle): void {
-    if (!appState.projectDir) return;
-    const rootFile = resolveStyleRootFile();
-    const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
-    appState.lastSaveTimestamp = Date.now();
-    fs.writeFileSync(path.join(projectRootDir, 'style.typ'), generateStyleTypst(style), 'utf-8');
-    if (fs.existsSync(rootFile)) {
-      const before = fs.readFileSync(rootFile, 'utf-8');
-      const after = ensureStyleInclude(before);
-      if (after !== before) {
-        appState.lastSaveTimestamp = Date.now();
-        fs.writeFileSync(rootFile, after, 'utf-8');
-        if (appState.currentFilePath && path.resolve(rootFile) === path.resolve(appState.currentFilePath)) {
-          appState.currentContent = after;
-          appState.isDirty = false;
-          updateTitle();
-          appState.mainWindow?.webContents.send('penwright', { type: 'update', content: after });
-        }
-      }
-    }
-  }
 
   function resolveChapter(relPath: string): string | null {
     if (!appState.projectDir) return null;
@@ -1089,7 +1048,9 @@ export function setupIPC(): void {
     const edited = sanitizeSection(args.style);
     if (!edited) return { ok: false as const, error: 'Invalid section style.' };
 
-    const current = getProjectStyle(projectDir);
+    // Backfilling read: this style is written straight back out below, so a
+    // hand-edited custom block in style.typ must come along or it is dropped.
+    const current = readProjectStyleWithCustom(projectDir, appState.currentFilePath);
     const sections: SectionStyle[] = [...current.sections];
     let finalId = args.styleId;
     let chapterAbs: string | null = null;
@@ -1113,13 +1074,19 @@ export function setupIPC(): void {
       if (!chapterAbs) return { ok: false as const, error: 'Chapter not found.' };
     }
 
-    const newStyle = sanitizeProjectStyle({ ...current, sections });
-    const rootFile = resolveStyleRootFile();
-    const projectRootDir = fs.existsSync(rootFile) ? path.dirname(rootFile) : projectDir;
-    const writes: { abs: string; content: string }[] = [
-      { abs: getStyleJsonPath(projectDir), content: JSON.stringify(newStyle, null, 2) },
-      { abs: path.join(projectRootDir, 'style.typ'), content: generateStyleTypst(newStyle) },
-    ];
+    const plan = planStyleWrites({
+      projectDir,
+      currentFile: appState.currentFilePath,
+      style: { ...current, sections },
+    });
+    if (!plan.ok) {
+      return {
+        ok: false as const,
+        error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(path.basename(plan.styleTypPath)),
+        kept: true as const,
+      };
+    }
+    const writes = [...plan.writes];
     if (chapterAbs) {
       try {
         const src = fs.readFileSync(chapterAbs, 'utf-8');
@@ -1138,25 +1105,46 @@ export function setupIPC(): void {
     if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
     const abs = resolveChapter(relPath);
     if (!abs) return { ok: false as const, error: 'Chapter not found.' };
-    // Ensure the variant is defined + style.typ regenerated so the import
-    // resolves. Section presets are well-formed, so this structured write
-    // doesn't go through safe-apply; the risky part is the chapter injection.
-    const style = getProjectStyle(appState.projectDir);
+    const writes: { abs: string; content: string }[] = [];
+
+    // Define the variant if the project doesn't carry it yet. These writes are
+    // staged TOGETHER with the chapter injection. They used to run before it,
+    // outside safe-apply — so a failed verify rolled back only the chapter and
+    // left behind a regenerated style.typ plus a freshly created style.json.
+    // On a project whose design lives in a hand-written style.typ that was
+    // total, unrecoverable loss behind a "not applied" message.
+    const style = readProjectStyleWithCustom(appState.projectDir, appState.currentFilePath);
     if (!style.sections.some(s => s.id === styleId)) {
       const preset = getSectionPreset(styleId);
       if (!preset) return { ok: false as const, error: `Unknown section style "${styleId}".` };
-      style.sections.push(preset);
-      const saved = saveProjectStyle(appState.projectDir, style);
-      regenerateStyleTyp(saved);
+      const plan = planStyleWrites({
+        projectDir: appState.projectDir,
+        currentFile: appState.currentFilePath,
+        style: { ...style, sections: [...style.sections, preset] },
+      });
+      if (!plan.ok) {
+        return {
+          ok: false as const,
+          error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(path.basename(plan.styleTypPath)),
+          kept: true as const,
+        };
+      }
+      writes.push(...plan.writes);
     }
-    let injected: string;
+
     try {
-      injected = ensureSectionStyle(fs.readFileSync(abs, 'utf-8'), styleId, chapterImportPath(abs));
+      writes.push({
+        abs,
+        content: ensureSectionStyle(fs.readFileSync(abs, 'utf-8'), styleId, chapterImportPath(abs)),
+      });
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
-    // Verify the chapter still compiles with the look applied; roll back if not.
-    const res = await safeApplyDesign([{ abs, content: injected }], resolveDict(getLocale()).mainDialogs.undoLabelChapterLookSet(styleId));
+
+    // Verify the document still compiles with the look applied; roll back ALL
+    // of it if not — style.json included, which safe-apply unlinks when it
+    // didn't exist before.
+    const res = await safeApplyDesign(writes, resolveDict(getLocale()).mainDialogs.undoLabelChapterLookSet(styleId));
     if (!res.ok) return { ok: false as const, error: res.error, kept: true as const };
     return { ok: true as const };
   });
@@ -1183,9 +1171,10 @@ export function setupIPC(): void {
   // by the "Look" status control to show the visual designer.
   ipcMain.handle('project:lookFile', () => {
     if (!appState.projectDir) return null;
-    const rootFile = resolveStyleRootFile();
-    const dir = fs.existsSync(rootFile) ? path.dirname(rootFile) : appState.projectDir;
-    return path.join(dir, 'style.typ');
+    // Same resolution the writers use, so the Look editor always opens the
+    // file a design change would actually touch.
+    const rootFile = resolveDesignRoot(appState.projectDir, appState.currentFilePath);
+    return path.join(styleTypDir(appState.projectDir, rootFile), STYLE_TYP_BASENAME);
   });
 
   ipcMain.handle('design:canUndo', () => ({

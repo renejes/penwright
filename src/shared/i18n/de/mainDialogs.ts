@@ -118,6 +118,12 @@ export const mainDialogs: MainDialogsMessages = {
   undoLabelChapterLookSet: (id: string) => `Kapitel-Look: ${id}`,
   undoLabelChapterLookRemoved: 'Kapitel-Look entfernt',
 
+  // ─── Verweigerter Design-Schreibvorgang (handgeschriebene style.typ) ──
+  handwrittenStyleRefused: (file: string): string =>
+    `Das Design dieses Projekts liegt in einer handgeschriebenen ${file}, die Penwright nicht erzeugt hat. ` +
+    `Es wurde nichts geändert — eine Neugenerierung würde das gesamte Designsystem ersetzen, inklusive aller ` +
+    `Makros, die das Dokument aufruft. Benenne ${file} um, wenn du das Design hier verwalten willst.`,
+
   // ─── License status messages (shown in the license UI) ───────────────
   licenseRevoked: 'Deine Lizenz wurde widerrufen oder ist abgelaufen.',
   licenseOfflineMode: (days: number) => `Offline-Modus (noch ${days} Tage)`,

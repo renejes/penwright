@@ -189,14 +189,17 @@
       try {
         // Spread to detach from the $state proxy (structured-clone safety).
         const res = await api!.invoke('style:save', JSON.parse(serialized)) as
-          { ok: boolean; kept?: boolean } | undefined;
+          { ok: boolean; kept?: boolean; error?: string } | undefined;
         if (res && res.ok === false) {
-          // Safe-apply rolled the change back (it would have broken the doc).
-          // Revert the panel to what's actually applied so controls match.
+          // Either safe-apply rolled the change back (it would have broken the
+          // doc) or the write was refused outright (hand-written style.typ).
+          // Revert the panel to what's actually applied so controls match, and
+          // show main's reason when it has one — the generic rollback note
+          // would name the wrong cause for a refusal.
           await reloadStyleFromDisk();
           status = 'error';
-          designMsg = t().design.rollbackNote;
-          setTimeout(() => { if (designMsg) designMsg = ''; }, 5000);
+          designMsg = res.error || t().design.rollbackNote;
+          setTimeout(() => { if (designMsg) designMsg = ''; }, 9000);
         } else {
           lastSavedSerialized = serialized;
           status = 'saved';

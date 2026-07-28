@@ -118,6 +118,12 @@ export const mainDialogs = {
   undoLabelChapterLookSet: (id: string) => `Chapter look: ${id}`,
   undoLabelChapterLookRemoved: 'Chapter look removed',
 
+  // ─── Refused design write (hand-written style.typ, no style.json) ────
+  handwrittenStyleRefused: (file: string): string =>
+    `This project's design lives in a hand-written ${file} that Penwright did not generate. ` +
+    `Nothing was changed — regenerating it would replace the whole design system, including any ` +
+    `macros the document calls. Rename ${file} first if you want to manage the design here.`,
+
   // ─── License status messages (shown in the license UI) ───────────────
   licenseRevoked: 'Your license has been revoked or has expired.',
   licenseOfflineMode: (days: number) => `Offline mode (${days} days remaining)`,
