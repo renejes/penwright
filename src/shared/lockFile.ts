@@ -78,8 +78,31 @@ function isOwnLock(lock: LockInfo): boolean {
 }
 
 /**
+ * Is this lock held by a genuinely different editor — someone else, or the
+ * same person on another machine (a shared Dropbox/iCloud folder)?
+ *
+ * The distinction matters because "another process" and "another editor" are
+ * not the same thing. Penwright's MCP server runs as its own process on the
+ * user's own machine, so `isOwnLock` classifies the app's lock on the file the
+ * user has open as foreign. Refusing there would mean the AI cannot touch the
+ * one file the user is actually looking at — with a message naming the user as
+ * the blocker. That is exactly the case the snapshot-before-write and the
+ * watcher's adopt branch exist for: same person, two tools, both allowed.
+ *
+ * A different user or a different machine is the real conflict, and that stays
+ * refused.
+ */
+export function isForeignEditor(lock: LockInfo): boolean {
+  return lock.user !== (os.userInfo().username || os.hostname()) || lock.machine !== os.hostname();
+}
+
+/**
  * Checks if a file is locked by someone else.
  * Returns the lock info if locked by another user/process, null if free.
+ *
+ * Note the "process" in that sentence: this is the strict form, used by the
+ * app when opening a file. For deciding whether a WRITE may proceed, use
+ * `isForeignEditor` on the result — see the comment above.
  */
 export function checkLock(filePath: string): LockInfo | null {
   const lockPath = lockPathFor(filePath);

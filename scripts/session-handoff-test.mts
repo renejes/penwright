@@ -44,7 +44,12 @@ function makeProject(): string {
   return dir;
 }
 
-async function callMcp(cwd: string, calls: unknown[], env: Record<string, string> = {}): Promise<string> {
+async function callMcp(
+  cwd: string,
+  calls: unknown[],
+  env: Record<string, string> = {},
+  betweenCalls?: () => void,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [MCP], {
       cwd,
@@ -60,6 +65,18 @@ async function callMcp(cwd: string, calls: unknown[], env: Record<string, string
       { jsonrpc: '2.0', method: 'notifications/initialized' },
       ...calls,
     ];
+    if (betweenCalls) {
+      // Send everything up to the last call, run the hook, then the last one —
+      // so the state changes mid-session, as it would in real use.
+      child.stdin.write(lines.slice(0, -1).map(l => JSON.stringify(l)).join('\n') + '\n');
+      setTimeout(() => {
+        betweenCalls();
+        // Past the 2 s ambient throttle, so the refresh is allowed to happen.
+        setTimeout(() => child.stdin.write(JSON.stringify(lines[lines.length - 1]) + '\n'), 2300);
+      }, 300);
+      setTimeout(() => child.kill(), 9000);
+      return;
+    }
     child.stdin.write(lines.map(l => JSON.stringify(l)).join('\n') + '\n');
     setTimeout(() => child.kill(), 8000);
   });
@@ -133,6 +150,27 @@ console.log('\nThe agent picks up what the user has open');
   fs.rmSync(plain, { recursive: true, force: true });
 }
 
+console.log('\nThe agent keeps following the user, not a boot snapshot');
+{
+  const dir = makeProject();
+  writeActiveProject(dir);
+  writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '01.typ'), isDirty: false });
+
+  // Two reads in ONE server process, with the user switching files in between.
+  // parseArgs used to run once at startup, so the second read still returned
+  // the first file — for hours.
+  const out = await callMcp(os.tmpdir(), [
+    call(2, 'penwright_get_document'),
+    call(3, 'penwright_get_document'),
+  ], {}, () => {
+    writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '02.typ'), isDirty: false });
+  });
+  check('the second read follows the switch', out.includes('Second chapter'), out.slice(-400));
+
+  writeActiveProject(null);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 // ─── 3. Writes leave something to undo ──────────────────────────────
 
 console.log('\nEvery machine edit leaves a way back');
@@ -180,6 +218,31 @@ console.log('\nEvery machine edit leaves a way back');
 }
 
 // ─── 4. The lock is respected ───────────────────────────────────────
+
+console.log('\nThe user having the file open is NOT a conflict');
+{
+  // The app locks every .typ the user opens and keeps the lock fresh. This
+  // server is a separate process on the same machine, so a strict
+  // "different pid = foreign" rule refused to edit the one file the user was
+  // looking at — and blamed the user for it.
+  const dir = makeProject();
+  const chapter = path.join(dir, 'chapters', '02.typ');
+  const lockPath = path.join(path.dirname(chapter), `.${path.basename(chapter)}.lock`);
+  fs.writeFileSync(lockPath, JSON.stringify({
+    user: os.userInfo().username || os.hostname(), machine: os.hostname(),
+    pid: process.pid + 1, timestamp: Date.now(), app: 'penwright', file: chapter,
+  }));
+
+  const out = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_open_file', { filePath: 'chapters/02.typ' }),
+    call(4, 'penwright_update_document', { content: '= Two\n\nEdited while open in the app.\n' }),
+  ]);
+  check('the AI may edit the file the user has open', !/locked by/i.test(out), out.slice(-300));
+  check('and the edit landed', /Edited while open/.test(fs.readFileSync(chapter, 'utf-8')));
+  check('with a snapshot, so the user can step back', listSnapshots(dir, chapter).length === 1);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
 
 console.log('\nA file locked by someone else is not overwritten');
 {

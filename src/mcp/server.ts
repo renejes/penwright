@@ -58,7 +58,7 @@ import {
 } from '../shared/styleWrite.js';
 import { readActiveProject, readSession, isDirtyInEditor } from '../shared/sessionState.js';
 import { snapshotBeforeWrite } from '../shared/editHistory.js';
-import { checkLock } from '../shared/lockFile.js';
+import { checkLock, isForeignEditor } from '../shared/lockFile.js';
 import { findBibFiles, bibSearchRoots, planBibliography, BIB_HEADER } from '../shared/bibDiscovery.js';
 import { parseBibFile } from '../shared/bibParser.js';
 import { resolveIncludes } from '../shared/mergeDocument.js';
@@ -249,6 +249,42 @@ const state: ServerState = {
 
 // ─── Parse CLI args ──────────────────────────────────
 
+/**
+ * Set once the agent takes explicit control, so a user switching files in the
+ * app cannot pull the ground out from under a task in progress.
+ */
+let explicitProject = false;
+let explicitFile = false;
+let lastAmbientRead = 0;
+
+/**
+ * Re-reads what the app published about itself.
+ *
+ * This used to run once, inside parseArgs(), at process start. But the server
+ * is spawned by Claude Desktop and lives for hours while the user moves
+ * between chapters and projects — so a boot snapshot meant the agent kept
+ * aiming at whatever was open when it started. Cheap enough to do per call
+ * (two small JSON reads), throttled anyway.
+ */
+function refreshAmbientState(): void {
+  if (Date.now() - lastAmbientRead < 2000) return;
+  lastAmbientRead = Date.now();
+
+  if (!explicitProject) {
+    const active = readActiveProject();
+    if (active && active !== state.projectDir) {
+      state.projectDir = active;
+      state.currentFile = null;   // the old file belongs to the old project
+    }
+  }
+  if (!explicitFile && state.projectDir) {
+    const session = readSession(state.projectDir);
+    if (session?.currentFile && fs.existsSync(session.currentFile)) {
+      state.currentFile = session.currentFile;
+    }
+  }
+}
+
 function parseArgs(): void {
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
@@ -346,8 +382,12 @@ function guardedWrite(abs: string, content: string): void {
   const isState = resolved.includes(path.sep + '.penwright' + path.sep);
 
   if (inProject && !isTemp && !isState) {
+    // Only a genuinely different editor blocks a write. The app holds a lock on
+    // every .typ the user opens, and this server is a separate process on the
+    // same machine — treating that as a conflict meant refusing to edit the one
+    // file the user was looking at, naming the user as the blocker.
     const lock = checkLock(resolved);
-    if (lock) {
+    if (lock && isForeignEditor(lock)) {
       throw new Error(
         `"${base}" is locked by ${lock.user} on ${lock.machine} (since ${new Date(lock.timestamp).toISOString()}). ` +
         `Refusing to write — the other editor would lose its changes. Ask them to close the file, or edit a different one.`,
@@ -361,6 +401,7 @@ function guardedWrite(abs: string, content: string): void {
 
 
 function readCurrentDocument(): { content: string; filePath: string } {
+  refreshAmbientState();
   if (!state.projectDir) {
     throw new Error('No project set. Call penwright_set_project({ projectDir: "/absolute/path" }) first — this server was not started inside a project.');
   }
@@ -493,6 +534,7 @@ server.tool(
     }
     state.projectDir = absDir;
     state.currentFile = null;
+    explicitProject = true;
 
     // Auto-detect main .typ file
     state.currentFile = findRootFileIn(absDir);
@@ -553,6 +595,7 @@ server.tool(
         return { content: [{ type: 'text' as const, text: `Error: File not found: ${absPath}` }], isError: true };
       }
       state.currentFile = absPath;
+      explicitFile = true;
       const content = fs.readFileSync(absPath, 'utf-8');
       return {
         content: [{

@@ -263,7 +263,6 @@ export async function openFile(filePath?: string): Promise<void> {
     // bogus entry onto the AI-undo stack — one click on "Undo AI Edit" would
     // then throw away the whole session's work.
     noteDiskContent(filePath, appState.currentContent);
-    publishSession();
     appState.currentFilePath = filePath;
     if (!appState.projectDir) {
       appState.projectDir = path.dirname(filePath);
@@ -302,6 +301,10 @@ export async function openFile(filePath?: string): Promise<void> {
     // the buffer (the recovered content isn't on disk yet).
     appState.isDirty = recovered;
     updateTitle();
+    // Only here: currentFilePath and isDirty both hold their final value. It
+    // used to run before the assignment above, so session.json named the
+    // PREVIOUSLY open file and the agent aimed one file behind the user.
+    publishSession();
 
     appState.mainWindow?.webContents.send('penwright', {
       type: 'documentBaseUri',
