@@ -8,6 +8,13 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { watch, type FSWatcher } from 'chokidar';
 import { findRootFile } from '../shared/rootFinder';
+import {
+  markSelfWrite,
+  isSelfWrite,
+  isSelfDelete,
+  inspectBeforeWrite,
+  forgetAll,
+} from '../shared/fileWrite';
 import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
@@ -129,8 +136,8 @@ export function popAiSnapshot(): boolean {
       appState.isDirty = true;
       updateTitle();
       if (appState.currentFilePath) {
-        appState.lastSaveTimestamp = Date.now();
         fs.writeFileSync(appState.currentFilePath, snapshot.content, 'utf-8');
+        markSelfWrite(appState.currentFilePath, snapshot.content);
       }
       appState.mainWindow?.webContents.send('penwright', {
         type: 'update',
@@ -205,8 +212,8 @@ export async function openFile(filePath?: string): Promise<void> {
   }
   if (appState.isDirty && appState.currentFilePath) {
     try {
-      appState.lastSaveTimestamp = Date.now();
       await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
+      markSelfWrite(appState.currentFilePath, appState.currentContent);
       appState.isDirty = false;
       addBreadcrumb('file', `flush-saved ${path.extname(appState.currentFilePath)} before open`);
     } catch (err) {
@@ -338,8 +345,24 @@ export async function saveFile(): Promise<boolean> {
   }
 
   try {
-    appState.lastSaveTimestamp = Date.now();
+    // Last line of defence against a lost update. Normally the watcher has
+    // already pulled a foreign change into the buffer, so this never fires —
+    // it catches the race where the event is still in flight. We do NOT refuse
+    // the save (that would throw away what the user just typed); we preserve
+    // the foreign version as a snapshot so "Undo AI Edit" can bring it back,
+    // and say so.
+    const before = inspectBeforeWrite(appState.currentFilePath);
+    if (before.foreign && before.content !== null && before.content !== appState.currentContent) {
+      pushAiSnapshot(appState.currentFilePath, before.content);
+      appState.mainWindow?.webContents.send('penwright', {
+        type: 'externalWriteOverwritten',
+        file: appState.currentFilePath,
+      });
+      addBreadcrumb('file', `save overwrote a foreign change in ${path.basename(appState.currentFilePath)} (snapshotted)`);
+    }
+
     await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
+    markSelfWrite(appState.currentFilePath, appState.currentContent);
     appState.isDirty = false;
     updateTitle();
     // Recompile the live preview only in 'auto' mode. In 'manual' mode the file
@@ -414,7 +437,9 @@ export function closeProject(): void {
   appState.currentContent = '';
   appState.isDirty = false;
   appState.projectDir = null;
-  appState.lastSaveTimestamp = 0;
+  // Write provenance is per-project state — a path in the next project must
+  // never be mistaken for one we wrote in this one.
+  forgetAll();
 
   updateTitle();
   appState.mainWindow?.webContents.send('penwright', { type: 'projectClosed' });
@@ -538,11 +563,19 @@ function setupFileWatcher(): void {
 
   fileWatcher = watch(dir, {
     ignoreInitial: true,
-    depth: 3,
+    // 3 was too shallow for real projects — a figure under
+    // chapters/section/assets/ or a preset's nested folder never fired.
+    depth: 6,
     ignored: [
       '**/node_modules/**',
       '**/.git/**',
-      '**/.penwright/**',
+      // Only the noisy parts of .penwright/ are ignored. style.json and
+      // selection.json used to be swallowed with them, which is why a design
+      // change made through the MCP server produced no event at all: the
+      // preview kept the old look and the Design panel later wrote its stale
+      // snapshot back over it.
+      '**/.penwright/backups/**',
+      '**/.penwright/ai-snapshots/**',
       '**/.DS_Store',
       // ALL .penwright-* temp files: preview, export temp root, print style,
       // math/SVG snippet renders — not just the preview PDF. Export temps
@@ -553,12 +586,28 @@ function setupFileWatcher(): void {
   });
 
   fileWatcher.on('change', async (changedPath: string) => {
-    if (Date.now() - appState.lastSaveTimestamp < 3000) return;
+    let disk: Buffer;
+    try {
+      disk = await fs.promises.readFile(changedPath);
+    } catch {
+      return;   // vanished between event and read
+    }
+    // Provenance, not a stopwatch: ignore only what WE put there.
+    if (isSelfWrite(changedPath, disk)) return;
+
+    const isText = /\.(typ|bib|md|json|toml|txt|csl)$/i.test(changedPath);
+    const diskContent = isText ? disk.toString('utf-8') : null;
+
+    // The design tokens changed underneath us — tell the renderer so the
+    // Design panel reloads instead of overwriting this with its mount-time
+    // snapshot on the next slider move.
+    if (path.basename(changedPath) === 'style.json') {
+      appState.mainWindow?.webContents.send('penwright', { type: 'designChangedExternally' });
+    }
 
     // "Design after writing": if the externally-changed file is the one with a
     // pinned selection, Claude has likely applied the design. Clear the pin and
-    // tell the renderer to toast + refresh the Design hub card. The self-save
-    // guard above means our own writes never reach here.
+    // tell the renderer to toast + refresh the Design hub card.
     try {
       if (appState.projectDir) {
         const pin = getSelectionPin(appState.projectDir);
@@ -569,34 +618,33 @@ function setupFileWatcher(): void {
       }
     } catch {}
 
-    if (changedPath === appState.currentFilePath) {
-      try {
-        const diskContent = await fs.promises.readFile(changedPath, 'utf-8');
-        if (diskContent !== appState.currentContent) {
-          // Snapshot current content before applying external change (AI edit)
-          pushAiSnapshot(changedPath, appState.currentContent);
+    if (changedPath === appState.currentFilePath && diskContent !== null) {
+      if (diskContent !== appState.currentContent) {
+        // Snapshot what we're replacing so the user can step back to it.
+        pushAiSnapshot(changedPath, appState.currentContent);
 
-          appState.currentContent = diskContent;
-          appState.isDirty = false;
-          updateTitle();
-          appState.mainWindow?.webContents.send('penwright', {
-            type: 'update',
-            content: appState.currentContent,
-          });
-          appState.mainWindow?.webContents.send('penwright', {
-            type: 'saveStatus',
-            saved: true,
-          });
-          compiler?.compilePdf();
-        }
-      } catch {}
+        appState.currentContent = diskContent;
+        appState.isDirty = false;
+        updateTitle();
+        appState.mainWindow?.webContents.send('penwright', {
+          type: 'update',
+          content: appState.currentContent,
+        });
+        appState.mainWindow?.webContents.send('penwright', {
+          type: 'saveStatus',
+          saved: true,
+        });
+      }
     }
 
-    if (changedPath.endsWith('.typ') || changedPath.endsWith('.bib')) {
-      // Don't refresh file tree for our own saves
-      if (Date.now() - appState.lastSaveTimestamp >= 3000) {
-        appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
-      }
+    // Recompile for anything that can change the rendered document, not just
+    // the open file. A foreign edit to another chapter, to style.typ or to the
+    // bibliography used to leave the preview showing a PDF that no longer
+    // matched the sources — and the user would judge the AI's work by it.
+    if (affectsCompiledOutput(changedPath)) scheduleRecompile();
+
+    if (isText) {
+      scheduleFiletreeRefresh();
       if (changedPath.endsWith('.bib')) {
         import('./importExport').then(({ handleRequestCitations }) => {
           handleRequestCitations();
@@ -605,17 +653,47 @@ function setupFileWatcher(): void {
     }
   });
 
+  // add/unlink carry no content to compare, and a stale tree is cheap to fix
+  // while an invisible new chapter is not — so these always refresh. The
+  // debounce keeps a bulk operation (restore, preset copy) to one refresh.
   fileWatcher.on('add', (addedPath: string) => {
-    if (Date.now() - appState.lastSaveTimestamp < 3000) return;
     if (path.basename(addedPath).startsWith('.penwright-')) return;
-    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    scheduleFiletreeRefresh();
+    if (affectsCompiledOutput(addedPath)) scheduleRecompile();
   });
 
   fileWatcher.on('unlink', (removedPath: string) => {
-    if (Date.now() - appState.lastSaveTimestamp < 3000) return;
     if (path.basename(removedPath).startsWith('.penwright-')) return;
-    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    isSelfDelete(removedPath);   // consume the record either way
+    scheduleFiletreeRefresh();
+    if (affectsCompiledOutput(removedPath)) scheduleRecompile();
   });
+}
+
+/** Files whose content ends up in the compiled PDF. */
+function affectsCompiledOutput(p: string): boolean {
+  return /\.(typ|bib)$/i.test(p) || /\.(png|jpe?g|gif|svg|webp)$/i.test(p);
+}
+
+// Bulk operations (version restore, project-wide replace, preset copy) emit one
+// event per file. Coalesce so the renderer rebuilds its tree once and Typst runs
+// once, instead of dozens of times.
+let filetreeTimer: NodeJS.Timeout | null = null;
+function scheduleFiletreeRefresh(): void {
+  if (filetreeTimer) clearTimeout(filetreeTimer);
+  filetreeTimer = setTimeout(() => {
+    filetreeTimer = null;
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+  }, 150);
+}
+
+let recompileTimer: NodeJS.Timeout | null = null;
+function scheduleRecompile(): void {
+  if (recompileTimer) clearTimeout(recompileTimer);
+  recompileTimer = setTimeout(() => {
+    recompileTimer = null;
+    compiler?.compilePdf();
+  }, 250);
 }
 
 export function stopFileWatcher(): void {
@@ -623,6 +701,10 @@ export function stopFileWatcher(): void {
     fileWatcher.close();
     fileWatcher = null;
   }
+  // Pending coalesced work must not fire into the next project — a refresh
+  // would target a tree that no longer exists, a recompile a disposed compiler.
+  if (filetreeTimer) { clearTimeout(filetreeTimer); filetreeTimer = null; }
+  if (recompileTimer) { clearTimeout(recompileTimer); recompileTimer = null; }
 }
 
 export function disposeCompiler(): void {

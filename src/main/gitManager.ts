@@ -12,6 +12,20 @@ import * as path from 'path';
 import * as fs from 'fs';
 import simpleGit, { type SimpleGit } from 'simple-git';
 import { appState } from './appState';
+import { markSelfWrite } from '../shared/fileWrite';
+
+/**
+ * A `git checkout` writes files whose content we don't know up front, so
+ * provenance has to be recorded afterwards by reading what landed. Without it
+ * the watcher would treat the restore as a foreign change and bounce it back
+ * into the editor on top of the explicit refresh below.
+ */
+function markRestored(dir: string, files: string[]): void {
+  for (const f of files) {
+    const abs = path.isAbsolute(f) ? f : path.resolve(dir, f);
+    try { markSelfWrite(abs, fs.readFileSync(abs)); } catch { /* deleted by the restore */ }
+  }
+}
 import { isPathWithin } from './pathSecurity';
 import { updateTitle } from './fileManager';
 import { ensureGitIdentity } from '../shared/gitIdentity';
@@ -183,21 +197,17 @@ export function setupGitIPC(): void {
     const git = simpleGit(dir);
     if (!/^[0-9a-f]{4,40}$/i.test(args.sha)) throw new Error('Invalid version id.');
 
-    // Stamp BEFORE the checkout so the chokidar watcher's 3s self-save guard
-    // treats the file writes as our own (we refresh the editor explicitly
-    // below — without the stamp the watcher would double-handle them, and
-    // without the explicit refresh a restore within 3s of an auto-save was
-    // silently ignored: stale editor content overwrote the restored file on
-    // the next keystroke).
-    appState.lastSaveTimestamp = Date.now();
     if (args.files && args.files.length > 0) {
       for (const f of args.files) {
         if (!isPathWithinGitDir(f)) throw new Error('Access denied: path is outside the project.');
       }
       await git.raw(['checkout', args.sha, '--', ...args.files]);
+      markRestored(dir, args.files);
     } else {
       // Restore all files of that commit into the working tree.
       await git.raw(['checkout', args.sha, '--', '.']);
+      markRestored(dir, (await git.raw(['show', '--pretty=', '--name-only', args.sha]))
+        .split('\n').map(l => l.trim()).filter(Boolean));
     }
 
     // If the restore touched the currently-open file, refresh the editor

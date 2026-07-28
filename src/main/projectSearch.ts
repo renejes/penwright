@@ -5,11 +5,12 @@
  * the requested term. The currently open file's in-memory content is used
  * instead of the on-disk version so unsaved edits are searchable.
  *
- * Replace writes the result back to disk and bumps `lastSaveTimestamp`
- * so the chokidar watcher ignores its own writes.
+ * Replace writes the result back to disk and records write provenance so the
+ * chokidar watcher recognises its own writes by content.
  */
 
 import * as fs from 'fs';
+import { markSelfWrite } from '../shared/fileWrite';
 import * as path from 'path';
 import { appState } from './appState';
 import { isPathWithin } from './pathSecurity';
@@ -248,8 +249,8 @@ export function replaceInProject(opts: ReplaceOptions, projectDir?: string | nul
     if (count === 0 || replaced === content) continue;
 
     try {
-      appState.lastSaveTimestamp = Date.now();
       fs.writeFileSync(absPath, replaced, 'utf-8');
+      markSelfWrite(absPath, replaced);
       filesChanged++;
       totalReplacements += count;
 

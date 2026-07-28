@@ -70,6 +70,7 @@ import {
 import { getSectionPreset } from '../shared/sectionPresets';
 import { type ProjectStyle, type SectionStyle, sanitizeProjectStyle, sanitizeSection } from '../shared/styleTypes';
 import { findRootFile } from '../shared/rootFinder';
+import { markSelfWrite, markSelfDelete } from '../shared/fileWrite';
 import {
   planStyleWrites,
   readProjectStyleWithCustom,
@@ -224,10 +225,10 @@ async function safeApplyDesign(
   }));
 
   // Stage the new contents.
-  appState.lastSaveTimestamp = Date.now();
   for (const w of writes) {
     fs.mkdirSync(path.dirname(w.abs), { recursive: true });
     fs.writeFileSync(w.abs, w.content, 'utf-8');
+    markSelfWrite(w.abs, w.content);
   }
 
   const compiler = getCompiler();
@@ -257,10 +258,9 @@ async function safeApplyDesign(
 
   // Roll back to the previous (working) state. Preview is untouched, so the
   // last-good look stays visible.
-  appState.lastSaveTimestamp = Date.now();
   for (const o of olds) {
     if (o.old === null) {
-      try { fs.unlinkSync(o.abs); } catch {}
+      try { fs.unlinkSync(o.abs); markSelfDelete(o.abs); } catch {}
     } else {
       try { fs.writeFileSync(o.abs, o.old, 'utf-8'); } catch {}
       syncOpenBuffer(o.abs, o.old);
@@ -849,8 +849,8 @@ export function setupIPC(): void {
       if (!isPathWithinProject(target)) continue;
       try {
         fs.mkdirSync(path.dirname(target), { recursive: true });
-        appState.lastSaveTimestamp = Date.now();
         fs.writeFileSync(target, f.content, 'utf-8');
+        markSelfWrite(target, f.content);
         restored++;
 
         // If we just overwrote the currently-open file, refresh the editor
@@ -1185,14 +1185,14 @@ export function setupIPC(): void {
   ipcMain.handle('design:undo', () => {
     const entry = designUndoStack.pop();
     if (!entry) return { ok: false as const, error: 'Nothing to undo.' };
-    appState.lastSaveTimestamp = Date.now();
     for (const f of entry.files) {
       try {
         if (f.old === null) {
-          if (fs.existsSync(f.abs)) fs.unlinkSync(f.abs);
+          if (fs.existsSync(f.abs)) { fs.unlinkSync(f.abs); markSelfDelete(f.abs); }
         } else {
           fs.mkdirSync(path.dirname(f.abs), { recursive: true });
           fs.writeFileSync(f.abs, f.old, 'utf-8');
+          markSelfWrite(f.abs, f.old);
           syncOpenBuffer(f.abs, f.old);
         }
       } catch { /* best-effort per file */ }

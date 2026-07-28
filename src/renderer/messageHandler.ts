@@ -180,6 +180,20 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'selectionApplied') {
     window.dispatchEvent(new CustomEvent('penwright:selection-applied'));
   }
+  // The design tokens changed on disk without us doing it — the AI applied a
+  // theme, palette or layout. Reuse the in-app channel the Design panel and the
+  // chapter-look bar already listen on: without this they keep their mount-time
+  // snapshot and write it back over the change on the next click.
+  if (msg.type === 'designChangedExternally') {
+    window.dispatchEvent(new CustomEvent('penwright:design-changed'));
+  }
+  // A save overwrote a change somebody else had made to the same file. The
+  // foreign version was snapshotted, so "Undo AI Edit" can bring it back.
+  if (msg.type === 'externalWriteOverwritten') {
+    window.dispatchEvent(new CustomEvent('penwright:external-write-overwritten', {
+      detail: { file: msg.file as string },
+    }));
+  }
   if (msg.type === 'showReferencePicker') {
     window.dispatchEvent(new CustomEvent('penwright:open-reference-picker'));
   }

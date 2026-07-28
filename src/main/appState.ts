@@ -12,7 +12,6 @@ export interface AppState {
   currentContent: string;
   isDirty: boolean;
   projectDir: string | null;
-  lastSaveTimestamp: number;
   /** Whether the most recent preview compile succeeded. Lets the safe-apply
    *  engine tell "this design change broke a working doc" (→ roll back) from
    *  "the doc was already broken" (→ don't blame the design change). */
@@ -37,7 +36,6 @@ export const appState: AppState = {
   currentContent: '',
   isDirty: false,
   projectDir: null,
-  lastSaveTimestamp: 0,
   lastCompileOk: true,
 
   // These get wired up in index.ts after all modules are imported
