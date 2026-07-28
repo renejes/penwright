@@ -70,7 +70,7 @@ import {
 import { getSectionPreset } from '../shared/sectionPresets';
 import { type ProjectStyle, type SectionStyle, sanitizeProjectStyle, sanitizeSection } from '../shared/styleTypes';
 import { findRootFile } from '../shared/rootFinder';
-import { markSelfWrite, markSelfDelete } from '../shared/fileWrite';
+import { noteDiskContent, noteDeleted } from '../shared/fileWrite';
 import {
   planStyleWrites,
   readProjectStyleWithCustom,
@@ -228,7 +228,7 @@ async function safeApplyDesign(
   for (const w of writes) {
     fs.mkdirSync(path.dirname(w.abs), { recursive: true });
     fs.writeFileSync(w.abs, w.content, 'utf-8');
-    markSelfWrite(w.abs, w.content);
+    noteDiskContent(w.abs, w.content);
   }
 
   const compiler = getCompiler();
@@ -260,9 +260,13 @@ async function safeApplyDesign(
   // last-good look stays visible.
   for (const o of olds) {
     if (o.old === null) {
-      try { fs.unlinkSync(o.abs); markSelfDelete(o.abs); } catch {}
+      try { fs.unlinkSync(o.abs); noteDeleted(o.abs); } catch {}
     } else {
-      try { fs.writeFileSync(o.abs, o.old, 'utf-8'); } catch {}
+      // Inside the try: a failed write must not leave a record claiming success.
+      // Without this the rolled-back file counts as foreign — it would trigger
+      // the very recompile the comment above promises not to, and leave a stale
+      // record that later swallows an identical write from the MCP server.
+      try { fs.writeFileSync(o.abs, o.old, 'utf-8'); noteDiskContent(o.abs, o.old); } catch {}
       syncOpenBuffer(o.abs, o.old);
     }
   }
@@ -850,7 +854,7 @@ export function setupIPC(): void {
       try {
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.writeFileSync(target, f.content, 'utf-8');
-        markSelfWrite(target, f.content);
+        noteDiskContent(target, f.content);
         restored++;
 
         // If we just overwrote the currently-open file, refresh the editor
@@ -1188,11 +1192,11 @@ export function setupIPC(): void {
     for (const f of entry.files) {
       try {
         if (f.old === null) {
-          if (fs.existsSync(f.abs)) { fs.unlinkSync(f.abs); markSelfDelete(f.abs); }
+          if (fs.existsSync(f.abs)) { fs.unlinkSync(f.abs); noteDeleted(f.abs); }
         } else {
           fs.mkdirSync(path.dirname(f.abs), { recursive: true });
           fs.writeFileSync(f.abs, f.old, 'utf-8');
-          markSelfWrite(f.abs, f.old);
+          noteDiskContent(f.abs, f.old);
           syncOpenBuffer(f.abs, f.old);
         }
       } catch { /* best-effort per file */ }

@@ -287,6 +287,7 @@
     window.addEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.addEventListener('penwright:project-closed', onProjectClosed as EventListener);
     // Named handlers (not inline closures) so onDestroy can remove them.
+    window.addEventListener('penwright:external-write-overwritten', onExternalWriteOverwritten as EventListener);
     window.addEventListener('penwright:show-mcp-wizard', onShowMcpWizard);
     window.addEventListener('penwright:show-mcp-connection', onShowMcpConnection);
     window.addEventListener('penwright:show-onboarding', onShowOnboarding);
@@ -414,6 +415,17 @@
     previewState.compiling = true;
     (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } })
       .electronAPI?.invoke('preview:compile');
+  }
+
+  /**
+   * A save overwrote somebody else's concurrent change. Main already preserved
+   * their version as a snapshot; without a visible hint the user would never
+   * know it happened, and "recoverable" would be recoverable in theory only.
+   */
+  let overwrittenFile = $state<string | null>(null);
+  function onExternalWriteOverwritten(e: Event): void {
+    const detail = (e as CustomEvent<{ file?: string }>).detail;
+    overwrittenFile = detail?.file ? detail.file.split('/').pop() ?? detail.file : '';
   }
 
   // Opens the Polar checkout (used by the trial banner). Top-level so the
@@ -1031,6 +1043,7 @@
     window.removeEventListener('penwright:citation-hover', handleCitationHover as EventListener);
     window.removeEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
     window.removeEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
+    window.removeEventListener('penwright:external-write-overwritten', onExternalWriteOverwritten as EventListener);
     window.removeEventListener('penwright:project-closed', onProjectClosed as EventListener);
     window.removeEventListener('penwright:preview-jump', handlePreviewJump as EventListener);
     window.removeEventListener('penwright:show-mcp-wizard', onShowMcpWizard);
@@ -1053,6 +1066,15 @@
       <span>{t().app.trialLeft(uiState.trialDaysLeft)}</span>
       <button class="trial-buy" onclick={openCheckout}>
         {t().app.buyNow}
+      </button>
+    </div>
+  {/if}
+
+  {#if overwrittenFile !== null}
+    <div class="conflict-banner" role="status">
+      <span>{t().app.overwroteExternalChange(overwrittenFile)}</span>
+      <button class="conflict-dismiss" onclick={() => (overwrittenFile = null)}>
+        {t().common.close}
       </button>
     </div>
   {/if}
@@ -1798,6 +1820,33 @@
   .status-toggle.expired {
     color: #c0392b;
     font-weight: 600;
+  }
+
+  /* ─── Conflict banner: a concurrent change was overwritten ─── */
+  .conflict-banner {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    min-height: 30px;
+    padding: 6px 16px;
+    background: #fdf6e3;
+    border-bottom: 1px solid #ecdfc0;
+    font-size: 12.5px;
+    color: #7a6432;
+    -webkit-app-region: no-drag;
+  }
+
+  .conflict-dismiss {
+    padding: 3px 10px;
+    border: 1px solid #d9c68f;
+    border-radius: 6px;
+    background: transparent;
+    color: #7a6432;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
   }
 
   /* ─── Trial banner (slim, non-blocking) ─── */

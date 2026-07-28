@@ -10,7 +10,7 @@
  */
 
 import * as fs from 'fs';
-import { markSelfWrite } from '../shared/fileWrite';
+import { noteDiskContent } from '../shared/fileWrite';
 import * as path from 'path';
 import { appState } from './appState';
 import { isPathWithin } from './pathSecurity';
@@ -250,7 +250,7 @@ export function replaceInProject(opts: ReplaceOptions, projectDir?: string | nul
 
     try {
       fs.writeFileSync(absPath, replaced, 'utf-8');
-      markSelfWrite(absPath, replaced);
+      noteDiskContent(absPath, replaced);
       filesChanged++;
       totalReplacements += count;
 

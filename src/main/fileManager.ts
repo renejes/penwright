@@ -8,10 +8,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { watch, type FSWatcher } from 'chokidar';
 import { findRootFile } from '../shared/rootFinder';
+import { isIgnoredWatchPath, normalizeWatchRoot } from '../shared/watchIgnore';
 import {
-  markSelfWrite,
-  isSelfWrite,
-  isSelfDelete,
+  noteDiskContent,
+  isKnownContent,
+  wasDeletedByUs,
   inspectBeforeWrite,
   forgetAll,
 } from '../shared/fileWrite';
@@ -137,7 +138,7 @@ export function popAiSnapshot(): boolean {
       updateTitle();
       if (appState.currentFilePath) {
         fs.writeFileSync(appState.currentFilePath, snapshot.content, 'utf-8');
-        markSelfWrite(appState.currentFilePath, snapshot.content);
+        noteDiskContent(appState.currentFilePath, snapshot.content);
       }
       appState.mainWindow?.webContents.send('penwright', {
         type: 'update',
@@ -213,7 +214,7 @@ export async function openFile(filePath?: string): Promise<void> {
   if (appState.isDirty && appState.currentFilePath) {
     try {
       await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
-      markSelfWrite(appState.currentFilePath, appState.currentContent);
+      noteDiskContent(appState.currentFilePath, appState.currentContent);
       appState.isDirty = false;
       addBreadcrumb('file', `flush-saved ${path.extname(appState.currentFilePath)} before open`);
     } catch (err) {
@@ -256,6 +257,11 @@ export async function openFile(filePath?: string): Promise<void> {
   try {
     let recovered = false;
     appState.currentContent = await fs.promises.readFile(filePath, 'utf-8');
+    // What we just read IS the disk state. Without this record the very first
+    // autosave of every opened file reports a phantom collision and pushes a
+    // bogus entry onto the AI-undo stack — one click on "Undo AI Edit" would
+    // then throw away the whole session's work.
+    noteDiskContent(filePath, appState.currentContent);
     appState.currentFilePath = filePath;
     if (!appState.projectDir) {
       appState.projectDir = path.dirname(filePath);
@@ -362,7 +368,7 @@ export async function saveFile(): Promise<boolean> {
     }
 
     await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
-    markSelfWrite(appState.currentFilePath, appState.currentContent);
+    noteDiskContent(appState.currentFilePath, appState.currentContent);
     appState.isDirty = false;
     updateTitle();
     // Recompile the live preview only in 'auto' mode. In 'manual' mode the file
@@ -561,31 +567,30 @@ function setupFileWatcher(): void {
 
   const dir = appState.projectDir || path.dirname(appState.currentFilePath);
 
+  // Extracted to shared/watchIgnore.ts so it can be tested against the real
+  // chokidar — the previous glob array was silently dead under chokidar 4.
+  const watchRoot = normalizeWatchRoot(dir);
+
   fileWatcher = watch(dir, {
     ignoreInitial: true,
     // 3 was too shallow for real projects — a figure under
     // chapters/section/assets/ or a preset's nested folder never fired.
     depth: 6,
-    ignored: [
-      '**/node_modules/**',
-      '**/.git/**',
-      // Only the noisy parts of .penwright/ are ignored. style.json and
-      // selection.json used to be swallowed with them, which is why a design
-      // change made through the MCP server produced no event at all: the
-      // preview kept the old look and the Design panel later wrote its stale
-      // snapshot back over it.
-      '**/.penwright/backups/**',
-      '**/.penwright/ai-snapshots/**',
-      '**/.DS_Store',
-      // ALL .penwright-* temp files: preview, export temp root, print style,
-      // math/SVG snippet renders — not just the preview PDF. Export temps
-      // used to trigger spurious filetreeChanged / sidebar flicker.
-      '**/.penwright-*',
-      '**/*.lock',
-    ],
+    ignored: (p: string) => isIgnoredWatchPath(watchRoot, p),
   });
 
   fileWatcher.on('change', async (changedPath: string) => {
+    // The same cheap guard add/unlink have — and it has to run before the read.
+    if (path.basename(changedPath).startsWith('.penwright-')) return;
+
+    // Nothing downstream reacts to a path that is neither text, nor compiled
+    // input, nor the open file. Don't read it just to hash it.
+    const relevant =
+      affectsCompiledOutput(changedPath) ||
+      /\.(typ|bib|md|json|toml|txt|csl)$/i.test(changedPath) ||
+      changedPath === appState.currentFilePath;
+    if (!relevant) return;
+
     let disk: Buffer;
     try {
       disk = await fs.promises.readFile(changedPath);
@@ -593,7 +598,7 @@ function setupFileWatcher(): void {
       return;   // vanished between event and read
     }
     // Provenance, not a stopwatch: ignore only what WE put there.
-    if (isSelfWrite(changedPath, disk)) return;
+    if (isKnownContent(changedPath, disk)) return;
 
     const isText = /\.(typ|bib|md|json|toml|txt|csl)$/i.test(changedPath);
     const diskContent = isText ? disk.toString('utf-8') : null;
@@ -601,7 +606,8 @@ function setupFileWatcher(): void {
     // The design tokens changed underneath us — tell the renderer so the
     // Design panel reloads instead of overwriting this with its mount-time
     // snapshot on the next slider move.
-    if (path.basename(changedPath) === 'style.json') {
+    if (appState.projectDir &&
+        path.resolve(changedPath) === path.resolve(appState.projectDir, '.penwright', 'style.json')) {
       appState.mainWindow?.webContents.send('penwright', { type: 'designChangedExternally' });
     }
 
@@ -643,14 +649,22 @@ function setupFileWatcher(): void {
     // matched the sources — and the user would judge the AI's work by it.
     if (affectsCompiledOutput(changedPath)) scheduleRecompile();
 
+    // No scheduleFiletreeRefresh here: readDirTree lists names, not contents,
+    // so a pure content change can never alter the tree. Adding/removing files
+    // does, and that is handled in the add/unlink handlers.
     if (isText) {
-      scheduleFiletreeRefresh();
       if (changedPath.endsWith('.bib')) {
         import('./importExport').then(({ handleRequestCitations }) => {
           handleRequestCitations();
         });
       }
     }
+
+    // The record answers "what do I know is in this file?", not "what did I
+    // write?". Without this update, a later revert to our previously written
+    // content would be classified as ours and swallowed — the exact failure
+    // class this module exists to remove.
+    noteDiskContent(changedPath, disk);
   });
 
   // add/unlink carry no content to compare, and a stale tree is cheap to fix
@@ -664,14 +678,17 @@ function setupFileWatcher(): void {
 
   fileWatcher.on('unlink', (removedPath: string) => {
     if (path.basename(removedPath).startsWith('.penwright-')) return;
-    isSelfDelete(removedPath);   // consume the record either way
+    const ours = wasDeletedByUs(removedPath);
     scheduleFiletreeRefresh();
+    if (ours) return;   // our own delete needs no recompile — we triggered one
     if (affectsCompiledOutput(removedPath)) scheduleRecompile();
   });
 }
 
 /** Files whose content ends up in the compiled PDF. */
 function affectsCompiledOutput(p: string): boolean {
+  // A backup snapshot is a .typ, but it never reaches the compiled document.
+  if (p.replace(/\\/g, '/').includes('/.penwright/')) return false;
   return /\.(typ|bib)$/i.test(p) || /\.(png|jpe?g|gif|svg|webp)$/i.test(p);
 }
 

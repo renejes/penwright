@@ -48,6 +48,13 @@ export const app = {
   // Trial banner
   trialLeft: (days: number) => `Trial — ${days} ${days === 1 ? 'day' : 'days'} left`,
   buyNow: 'Buy now – €59',
+
+  // Shown when a save overwrote a concurrent change to the same file. The
+  // other version was kept as a snapshot, so this is a hint, not an error.
+  overwroteExternalChange: (file: string): string =>
+    file
+      ? `${file} was changed elsewhere while you were editing. Your version was saved; the other one is under History ▸ AI changes.`
+      : 'A file was changed elsewhere while you were editing. Your version was saved; the other one is under History ▸ AI changes.',
 };
 
 export type AppMessages = typeof app;

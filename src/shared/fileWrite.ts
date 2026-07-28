@@ -1,6 +1,6 @@
 /**
- * Write provenance — how a process tells its own writes apart from someone
- * else's.
+ * Disk-content records — how a process tells a change it already knows about
+ * from one that is new to it.
  *
  * The file watcher used to answer that question with a clock: ignore every
  * change that arrives within 3 s of *any* save we made. That is wrong in both
@@ -12,12 +12,21 @@
  * no recompile, nothing to undo. The AI had reported success.
  *
  * The honest question is not "how long ago did I write?" but "is what is on
- * disk what I put there?". That is what this module answers, by content hash.
+ * disk what I already know about?". That is what this module answers, by
+ * content hash.
  *
- * Being content-based makes it self-correcting: if a foreign write happens to
- * produce byte-identical content, ignoring it is harmless — there is nothing
- * to pick up. And an entry stays valid until the next write to that path, so
- * a watcher that fires twice for one write is handled without bookkeeping.
+ * Note the wording. An earlier version called this "did I write it", and that
+ * framing produced a real bug: after the watcher adopted somebody else's
+ * change, the record still described OUR last write, so a later revert to that
+ * exact content was classified as ours and swallowed — the very failure class
+ * the module exists to remove. The record must describe **what we believe is
+ * on disk**, whoever put it there. Every path that learns the disk state —
+ * writing it, reading it on open, adopting a foreign change — updates it.
+ *
+ * Being content-based makes it self-correcting: byte-identical content really
+ * is nothing to pick up, as long as the record is current. An entry stays
+ * valid until the next change to that path, so a watcher that fires twice for
+ * one write needs no bookkeeping.
  *
  * Deliberately NOT included: atomic temp+rename writes. They change which
  * events a watcher emits (`unlink`+`add` instead of `change` on some
@@ -28,11 +37,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-/** path → hash of the content this process last wrote there. */
-const selfWrites = new Map<string, string>();
+/** path → hash of the content this process believes is there. */
+const known = new Map<string, string>();
 
 /** Paths this process deleted, kept until the watcher has seen them. */
-const selfDeletes = new Set<string>();
+const deleted = new Set<string>();
 
 /**
  * Bound so a long session with bulk operations (project-wide replace, version
@@ -49,74 +58,77 @@ export function hashContent(content: string | Buffer): string {
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 
-/** Records that this process just wrote `content` to `abs`. */
-export function markSelfWrite(abs: string, content: string | Buffer): void {
-  if (selfWrites.size >= MAX_TRACKED) {
+/**
+ * Records `content` as the known state of `abs` — after writing it, after
+ * reading it, or after adopting somebody else's change.
+ */
+export function noteDiskContent(abs: string, content: string | Buffer): void {
+  if (known.size >= MAX_TRACKED) {
     // Drop the oldest insertion; Map preserves insertion order.
-    const oldest = selfWrites.keys().next();
-    if (!oldest.done) selfWrites.delete(oldest.value);
+    const oldest = known.keys().next();
+    if (!oldest.done) known.delete(oldest.value);
   }
-  selfWrites.set(key(abs), hashContent(content));
+  known.set(key(abs), hashContent(content));
 }
 
 /** Records that this process deleted `abs`. */
-export function markSelfDelete(abs: string): void {
-  selfWrites.delete(key(abs));
-  selfDeletes.add(key(abs));
+export function noteDeleted(abs: string): void {
+  known.delete(key(abs));
+  deleted.add(key(abs));
 }
 
 /**
- * True when `diskContent` is exactly what this process last wrote to `abs`.
+ * True when `diskContent` is exactly the state we already have on record.
  *
- * Read the file and pass its bytes; do not pass what you *think* is there.
- * The point is to compare against reality.
+ * Read the file and pass its bytes; never pass what you *think* is there —
+ * the point is to compare against reality.
  */
-export function isSelfWrite(abs: string, diskContent: string | Buffer): boolean {
-  const known = selfWrites.get(key(abs));
-  return known !== undefined && known === hashContent(diskContent);
+export function isKnownContent(abs: string, diskContent: string | Buffer): boolean {
+  const record = known.get(key(abs));
+  return record !== undefined && record === hashContent(diskContent);
 }
 
 /** True when this process deleted `abs`. Consumes the record. */
-export function isSelfDelete(abs: string): boolean {
-  return selfDeletes.delete(key(abs));
-}
-
-/** Forget any record for `abs` — e.g. when a project closes. */
-export function forgetPath(abs: string): void {
-  selfWrites.delete(key(abs));
-  selfDeletes.delete(key(abs));
+export function wasDeletedByUs(abs: string): boolean {
+  return deleted.delete(key(abs));
 }
 
 /** Forget everything. Called on project close so state can't leak across projects. */
 export function forgetAll(): void {
-  selfWrites.clear();
-  selfDeletes.clear();
+  known.clear();
+  deleted.clear();
+}
+
+/** True when we have any record of what `abs` holds. Unknown ≠ foreign. */
+export function hasRecord(abs: string): boolean {
+  return known.has(key(abs));
 }
 
 /**
- * Write a file and record its provenance in one step. Every write a process
- * makes to a watched file should go through here — a write that skips it will
- * be treated as a foreign change and bounce back into the editor.
+ * Write a file and record the new state in one step. Every write to a watched
+ * file should go through here — one that skips it is treated as a foreign
+ * change and bounces back into the editor.
  */
 export function writeFileTracked(abs: string, content: string | Buffer): void {
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content as never);
-  markSelfWrite(abs, content);
+  noteDiskContent(abs, content);
 }
 
 /**
- * Reads `abs` and reports whether it still holds what this process last wrote.
+ * Reads `abs` and reports whether it still holds what we have on record.
  *
- * `foreign` means somebody else changed the file since — the caller is about
- * to overwrite work it has never seen. Returns `null` content when the file is
- * gone or unreadable.
+ * `foreign` means somebody changed the file since we last saw it — the caller
+ * is about to overwrite work it has never seen. A path we have NO record for
+ * is not foreign: a file we only ever read, or a Save-As target the user
+ * picked and confirmed, must not be reported as a collision.
  */
 export function inspectBeforeWrite(abs: string): { foreign: boolean; content: string | null } {
   let content: string | null = null;
   try {
     content = fs.readFileSync(abs, 'utf-8');
   } catch {
-    return { foreign: false, content: null };   // absent or binary — nothing to lose
+    return { foreign: false, content: null };   // absent or unreadable — nothing to lose
   }
-  return { foreign: !isSelfWrite(abs, content), content };
+  return { foreign: hasRecord(abs) && !isKnownContent(abs, content), content };
 }

@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import simpleGit, { type SimpleGit } from 'simple-git';
 import { appState } from './appState';
-import { markSelfWrite } from '../shared/fileWrite';
+import { noteDiskContent } from '../shared/fileWrite';
 
 /**
  * A `git checkout` writes files whose content we don't know up front, so
@@ -23,7 +23,7 @@ import { markSelfWrite } from '../shared/fileWrite';
 function markRestored(dir: string, files: string[]): void {
   for (const f of files) {
     const abs = path.isAbsolute(f) ? f : path.resolve(dir, f);
-    try { markSelfWrite(abs, fs.readFileSync(abs)); } catch { /* deleted by the restore */ }
+    try { noteDiskContent(abs, fs.readFileSync(abs)); } catch { /* deleted by the restore */ }
   }
 }
 import { isPathWithin } from './pathSecurity';
@@ -206,7 +206,10 @@ export function setupGitIPC(): void {
     } else {
       // Restore all files of that commit into the working tree.
       await git.raw(['checkout', args.sha, '--', '.']);
-      markRestored(dir, (await git.raw(['show', '--pretty=', '--name-only', args.sha]))
+      // `checkout <sha> -- .` writes that commit's FULL tree; `show --name-only`
+      // lists only what changed IN it — and nothing at all for a merge commit.
+      // ls-tree is what actually landed.
+      markRestored(dir, (await git.raw(['ls-tree', '-r', '--name-only', args.sha]))
         .split('\n').map(l => l.trim()).filter(Boolean));
     }
 

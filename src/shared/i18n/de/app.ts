@@ -49,4 +49,11 @@ export const app: AppMessages = {
   // Trial banner
   trialLeft: (days: number) => `Testphase — noch ${days} ${days === 1 ? 'Tag' : 'Tage'}`,
   buyNow: 'Jetzt kaufen – 59 €',
+
+  // Hinweis, wenn ein Speichern eine gleichzeitige Aenderung ueberschrieben
+  // hat. Die andere Fassung liegt als Snapshot vor — also Hinweis, kein Fehler.
+  overwroteExternalChange: (file: string): string =>
+    file
+      ? `${file} wurde waehrend deiner Bearbeitung anderswo geaendert. Deine Fassung wurde gespeichert; die andere liegt unter Verlauf ▸ KI-Aenderungen.`
+      : 'Eine Datei wurde waehrend deiner Bearbeitung anderswo geaendert. Deine Fassung wurde gespeichert; die andere liegt unter Verlauf ▸ KI-Aenderungen.',
 };
