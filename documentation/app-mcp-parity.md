@@ -70,9 +70,13 @@ Sieben Punkte, **6–8 Personentage**. Zwei davon sind erledigt.
 | 2 | **Watcher-Provenienz statt Zeitfenster** — `Map<abs, sha256>` eigener Writes; Fremdinhalt wird *immer* verarbeitet | 6 h | offen |
 | 3 | `saveFile` prüft vor dem Schreiben gegen die Platte; bei Abweichung nicht überschreiben, sondern Fremdstand snapshotten und Konflikt sichtbar machen | 6 h | offen |
 | 4 | Invalidierung erweitern: `.penwright/style.json`+`selection.json` aus dem Ignore; Recompile für jede `.typ` im Kompilierbaum; `comments/*.md` in den Refresh; `depth: 6` | 4 h | offen |
-| 5 | `.penwright/session.json` — App schreibt, MCP liest (`currentFile`, `isDirty`, Projektpfad) + `file`-Parameter für die Anker-Tools | 8 h | offen |
-| 6 | Der MCP legt vor jedem mutierenden Write selbst einen Snapshot nach `.penwright/ai-snapshots/` und prüft `checkLock` | 10 h | offen |
+| 5 | `.penwright/session.json` — App schreibt, MCP liest (`currentFile`, `isDirty`, Projektpfad) | 8 h | ✅ `31b0476` |
+| 6 | Der MCP legt vor jedem mutierenden Write selbst einen Snapshot an und prüft `checkLock` | 10 h | ✅ `31b0476` |
 | 7 | `add_image` relativiert gegen die Zieldatei | 1 h | ✅ `c744ce5` |
+
+**Der Minimalsatz ist damit vollständig.** Was aus Punkt 5 bewusst offen blieb: der `file`-Parameter für die Anker-Tools (`insert_design_element` schreibt weiterhin nach `currentFile`, ohne eigenen Zielparameter) — der gehört in Phase C2 des Umbauplans, wo die Zielauflösung ohnehin angefasst wird.
+
+Zwei Dinge, die beim Umbau nebenbei auffielen und ebenfalls behoben sind: die Watcher-Ignore-Liste war **seit dem chokidar-4-Upgrade komplett wirkungslos** (Globs werden dort mit `===` verglichen), und `lockManager` lag in `main/`, obwohl es electron-frei ist — beide Prozesse nutzen es jetzt aus `shared/`.
 
 ### Restrisiko danach — gehört in die Release-Notiz
 
