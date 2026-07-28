@@ -1,12 +1,58 @@
 # MCP-Server-Umbau — Ausführungsplan
 
-> Stand: 2026-07-28 · Prämisse: **Penwright ist nicht released.** Keine Fremdnutzer, keine Rückwärtskompatibilität nötig.
-> Vorlauf: [mcp-tool-audit.md](mcp-tool-audit.md) (Bestandsaufnahme) · [mcp-tool-consolidation.md](mcp-tool-consolidation.md) (Optionen + Entscheidung)
-> Umfang: **~22–24 Personentage**, 6 Phasen, ~30 Commits.
+> **Revidiert 2026-07-29** (Session 41). Prämisse unverändert: **Penwright ist nicht released.**
+> Vorlauf: [mcp-tool-audit.md](mcp-tool-audit.md) · [mcp-tool-consolidation.md](mcp-tool-consolidation.md) · **[app-mcp-parity.md](app-mcp-parity.md)** (das übergeordnete Ziel, siehe unten)
+> Ursprünglicher Umfang ~22–24 PT · **Rest heute ~13–14 PT**, davon ~7 an ein Messergebnis geknüpft.
 
 ---
 
-## 0. Der Befund, der die Reihenfolge bestimmt
+## 0. Revision: dieser Plan ist kein eigenes Projekt mehr
+
+Der Plan wurde geschrieben, **bevor** das Paritätsprinzip formuliert war (App und KI sehen dasselbe, schreiben dieselben Dateien — [app-mcp-parity.md](app-mcp-parity.md)). Seither ist zweierlei passiert: **rund ein Drittel wurde durch die Paritätsarbeit nebenbei erledigt**, und der Rest überlappt zur Hälfte mit der offenen Paritätsliste. Ihn weiterhin als eigenständiges 20-Tage-Vorhaben zu führen, würde Arbeit doppelt planen.
+
+### Was durch Session 41 bereits erledigt ist
+
+| Plan-Item | Erledigt in |
+|---|---|
+| **A1** Style-Guard (`planStyleWrites`, Verweigerung bei handgeschriebener `style.typ`) | `561c22e` |
+| **A1b** `isDesignAdopted` — Guard nicht mehr von außen erodierbar | `c744ce5` |
+| **A3** (teilweise) `cwd`-Fallback nur bei echtem Projekt · `add_image`-Pfadfehler | `f30fe0a`, `c744ce5` |
+| **C1** (teilweise) Preserve-Liste — als `shared/stylePresetMerge.ts` | `708dc7a` |
+| **C4** `export_print` kennt die Weiche Token ↔ handdesigntes Projekt | `9e44ee7` |
+| **C5** rekursiver `.bib`-Scan | `708dc7a` |
+| *(nicht im Plan)* Bibliografie-Aufrufstelle, Watcher-Provenienz, Zustandskanal, Ko-Präsenz-Lock, MCP-Snapshots | Session 41 |
+
+**Der Befund, der ursprünglich in §0 stand** — `section:apply` schrieb `style.json` + `style.typ` außerhalb von `safeApplyDesign` und zerstörte damit handgeschriebene Designs — **ist behoben** (`561c22e`, abgesichert durch `c744ce5`). Die historische Beschreibung steht unten in §0b, weil sie die Fehlerklasse erklärt, auf die alles Weitere achtet.
+
+### Wie der Rest jetzt eingeplant ist
+
+Der Rest zerfällt in zwei Sorten, die nicht zusammengehören:
+
+**Sorte 1 — Defekte und Absicherung.** A3-Rest, C2/C3/C6–C9, D, F. Das ist **dieselbe Arbeit** wie die offene Paritätsliste, nur anders gruppiert: Phase D (`safeApplyMcp`) *ist* Paritätspunkt 1; die Skill-Lücke aus F fährt in `shared/projectScaffold.ts` mit; „Kapitel-Tools zielen auf die Wurzel" ist P1-Schreiben. **Wird in der Paritätssequenz abgearbeitet, nicht daneben.**
+
+**Sorte 2 — Oberfläche.** Phase B (Metadaten, `instructions`, Beschreibungen) und Phase E (Renames, Streichungen, Merges). Genuin ein anderes Thema, läuft separat — und die beiden sind sehr unterschiedlich teuer und sicher.
+
+### Die Reihenfolge
+
+| Block | Inhalt | Aufwand | Wann |
+|---|---|---|---|
+| **1** | **Parität fertig** — P4 Schutz (enthält Phase D), P1 Schreiben (enthält Phase F/Skills), P3 Wissen begrenzt, P2 `render_page` | ~4 PT | zuerst |
+| **2** | **Phase B allein** + A2 Wächterskript + A3-Rest | ~2 PT | direkt danach, **vorziehen** |
+| **3** | **Phase C-Rest** — Kapitel-Tools auf Root, `restore_version`-Bestätigung, `replace_in_project`-Dry-Run, Caps, `insert_reference` nimmt Citekeys | ~1,5 PT | danach |
+| **4** | **Eval** — 10–15 nachprüfbare Autorenaufgaben, vor und nach Block 2 | ~1 PT | begleitend |
+| **5** | **Phase E + F** — Renames, Streichungen, Merges, Skill-Rewrite | ~7 PT | **nur wenn das Eval Fehlgriffe zeigt** |
+
+**Warum Phase B vorgezogen wird:** `server.instructions` ist vorhanden, dokumentiert und **ungenutzt** (`server.ts:472` übergibt kein Options-Objekt) — laut Audit der größte Einzelhebel im ganzen Umbau, ein halber Tag. `registerTool()` + Annotations schaltet `readOnlyHint` frei (Auto-Approve für die Leser in Claude Code) und **ändert keinen einzigen Tool-Namen**. Risiko praktisch null: kein Aufruf, der heute funktioniert, funktioniert danach nicht.
+
+**Warum Phase E hinten steht und an einer Messung hängt:** Der teuerste Posten des Umbaus ist nicht `server.ts`, sondern `skillTemplates.ts` — 123 Zeilen mit 39 Tool-Namen, Routing-Tabelle, fünf Rezeptsequenzen, ~25 Call-Beispiele mit vollständiger Argumentform. Inhaltliche Arbeit, kein `sed`, ~2 Tage, und sie **darf genau einmal passieren**. Also erst alle Namens- und Signaturänderungen, dann einmal Skills neu. Ob die Renames überhaupt nötig sind, ist **unbelegt** — es gibt keine publizierte Accuracy-Kurve für MCP-Tool-Anzahl und keine Head-to-Head-Messung. Wenn `instructions` + geschärfte Beschreibungen die Fehlgriffe schon beseitigen, ist die Rename-Frage erledigt. Das ist das wahrscheinlichste Ergebnis.
+
+### Gate am Ende jedes Blocks, der `server.ts` anfasst
+
+`MCP_SETUP_VERSION` bumpen (steht auf `0.19.0` und ist trotz erheblicher Änderungen **nicht** gebumpt) **und** `npm run build:mcp-binary:all`. `ensureInstalledBinary` (`mcpSetup.ts:210`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
+
+---
+
+## 0b. Der Befund, der ursprünglich die Reihenfolge bestimmte *(historisch — behoben)*
 
 Beim Nachprüfen der Migrationsfrage ist etwas aufgetaucht, das schwerer wiegt als der ganze Umbau — und das **heute schon scharf ist**, ohne dass eine Zeile geändert wurde.
 
@@ -94,6 +140,8 @@ Alle Projekte kompilieren heute fehlerfrei. Die Baseline wird **vor** dem ersten
 
 ## 3. Der Plan in Phasen
 
+> **Status je Phase — siehe §0 für die neue Blockeinteilung.** Die Detailbeschreibungen unten bleiben gültig; erledigte Items sind markiert.
+
 Randbedingungen: solo auf `main`, nach jedem Commit ein lauffähiger Server, **kein Test- und kein Lint-Script im Repo**. Der mechanische Absicherer nach jedem Commit ist der Manifest-Roundtrip:
 
 ```sh
@@ -104,7 +152,7 @@ printf '%s\n' \
 | PENWRIGHT_TRIAL_UNTIL=99999999999999 node dist/mcp/server.mjs > /tmp/tools.json
 ```
 
-### Phase A — Netz spannen (≈ 2 Tage)
+### Phase A — Netz spannen ✅ *überwiegend erledigt* (A1/A1b/A3-Teil in Session 41; **offen: A2 Wächterskript + drei A3-Kleinigkeiten, ~1,5 h — gehen in Block 2**)
 
 > Nichts aus späteren Phasen beginnen, bevor A vollständig ist.
 
@@ -140,7 +188,7 @@ Eingebaut an **allen vier** Stellen, die `generateStyleTypst` auf eine echte Dat
 - `compile`-Wegwerf-PDF nach `os.tmpdir()` statt neben das Root-File ([server.ts:530](../src/mcp/server.ts#L530)).
 - **Extension-Guard für die drei Export-Tools** — heute besteht `outputPath: "main.typ"` die Sandbox-Prüfung, Typst überschreibt die Quelldatei mit einem PDF, das Tool meldet Erfolg. 0,5 h, Datenverlust.
 
-### Phase B — Metadaten, in einem Zug (≈ 1,5 Tage)
+### Phase B — Metadaten, in einem Zug ⏳ **offen — Block 2, vorziehen** (≈ 1,5–2 Tage; 0 von 60 Tools auf `registerTool`, `instructions` ungesetzt)
 
 **B1 — `refactor: registerTool + instructions + annotations + Beschreibungs-Chirurgie`**
 Ein einziger Commit über alle 60 Registrierungen, von unten nach oben (`server.ts:2810` → `:414`). Die 60 Stellen werden genau einmal angefasst, deshalb alles zusammen.
@@ -157,7 +205,7 @@ Danach `MCP_SETUP_VERSION = '0.20.0'`.
 
 **B2 — `chore: Eval-Baseline einfrieren`** — der einzige Zeitpunkt, an dem die Namen noch alt und die Beschreibungen schon neu sind. Falls das Eval als Ganzes zu teuer wird: **dieser Teil rechnet sich am ehesten** — 15 Aufgaben kosten unter 10 USD und sind danach der einzige Beleg, dass der Umbau etwas verbessert hat.
 
-### Phase C — Defekte (≈ 4 Tage)
+### Phase C — Defekte ◐ *teilweise* (C1/C4/C5 erledigt; **Rest ~1,5 Tage — Block 3**)
 
 **C1** `fix: sections überleben update_style; Druckfelder überleben jeden Preset` — `deepMergeStyle` + **ein** Preserve-Helfer `preserveProjectLocalStyle(current, next)` an allen vier Aufrufstellen inkl. `DesignPanel.svelte`. (`facingPages`/`binding` sind **nicht** export-only — sie wirken in `generateStyleTypst:355-384` auf die Seitenränder. Der Fix behebt einen sichtbaren Design-Verlust, nicht nur eine Kosmetik.)
 **C2** `fix: Struktur-Tools zielen auf die Projektwurzel` — `get_chapters`, `add_chapter`, `add_citation`, `split_document`, `update_settings`. Root-Resolver **zweistufig** (`findRootFileIn(dir)` → `findRootFile(state.currentFile)`) und bei `null` **hart fehlschlagen** — niemals einen nicht existierenden `main.typ`-Pfad zurückgeben (Befund 1b). `reorder`/`remove` bleiben Phase E, sie werden dort ersetzt.
@@ -165,7 +213,7 @@ Danach `MCP_SETUP_VERSION = '0.20.0'`.
 **C4** `fix: export_print liest die Tokens am richtigen Ort` — inkl. der Rückmeldung, dass `facingPages`/`binding` bei handgestalteten Projekten **nicht** angewandt werden (`buildPrintGeometryOverlay` kennt nur `bleed` und `cropMarks`).
 **C5–C9** einzeln: rekursiver `.bib`-Scan · `restore_version` verlangt `confirmAll` · Caps + `truncated` (inkl. `read_file`, das nach dem `merge_document`-Merge den größtmöglichen Rückgabewert bekommt) · `update_settings` typisiert · `insert_reference.target` akzeptiert Citekeys.
 
-### Phase D — Safe-Apply (≈ 2,5 Tage)
+### Phase D — Safe-Apply ⏳ **offen — läuft als Paritätspunkt 1 in Block 1** (`safeApplyMcp`)
 
 **D1** `refactor: typstRun.ts` — Compile + Diagnostics-Parser herausgezogen.
 **D2** `feat: safeApplyMcp + Undo-Journal`, noch ohne Verbraucher.
@@ -173,11 +221,11 @@ Danach `MCP_SETUP_VERSION = '0.20.0'`.
 
 *Absicherung für D3 — der beste einzelne Nachweis im ganzen Plan:* `scripts/mcp-safeapply-test.mts` **einmal vor D2 laufen lassen, es muss rot sein** (`custom.preamble = '#set text(fill: penwright-does-not-exist)'` landet auf der Platte, Dokument kompiliert nicht mehr). Ohne roten Lauf weiß niemand, ob der Test greift.
 
-### Phase E — Oberfläche (≈ 5 Tage)
+### Phase E — Oberfläche ⏸ **zurückgestellt — Block 5, nur nach Eval** (≈ 5 Tage)
 
 **E1** Renames · **E2** Streichungen · **E3** `apply_design_preset` · **E4** `set_chapter_look` · **E5** `set_chapter_order` (mit Mengen-Assertion: `order` ist eine **Reihenfolge, keine Inhaltsliste** — ein unbekannter Pfad ist ein Tippfehler und wird abgelehnt, nicht angelegt) · **E6** `list_design_presets` · **E7** die neun Listen nachziehen, Manifest generieren, `MCP_SETUP_VERSION = '1.0.0'`, `check:mcp` in `package:*` einhängen.
 
-### Phase F — Skills, genau einmal (≈ 3 Tage)
+### Phase F — Skills, genau einmal ⏸ **Block 5** (≈ 3 Tage) · *die Skill-Deploy-Lücke selbst fährt schon in `projectScaffold` (Block 1) mit*
 
 **F1** Skill-Versionierung + `openProject`-Hook · **F2** Skill-Fallback **in die Binary einbetten** · **F3** Skill-Rewrite (alle fünf in EINEM Commit) · **F4** Migrationskommando *(optional, s. §7)*.
 
@@ -251,17 +299,16 @@ Zwei weitere Festlegungen:
 
 ## 8. Aufwand
 
-| Phase | Tage |
-|---|---:|
-| A — Netz | 2 |
-| B — Metadaten | 1,5 |
-| C — Defekte | 4 |
-| D — Safe-Apply | 2,5 |
-| E — Oberfläche | 5 |
-| F — Skills (ohne F4) | 3 |
-| Doku + Puffer | 2 |
-| **ohne Eval** | **20** |
-| Eval vollständig | +6 bis +7 |
+**Ursprünglich veranschlagt:** ~20 PT ohne Eval. **Heute noch offen: ~13–14 PT**, davon ~7 (Block 5) an ein Messergebnis geknüpft.
+
+| Block | Inhalt | PT |
+|---|---|---:|
+| 1 | Parität fertig (enthält Phase D + die Skill-Deploy-Lücke aus F) | 4 |
+| 2 | Phase B + A2 + A3-Rest | 2 |
+| 3 | Phase C-Rest | 1,5 |
+| 4 | Eval-Set aufbauen + messen | 1 |
+| **Harter Kern (1–4)** | | **~8,5** |
+| 5 | Phase E + F — nur wenn das Eval Fehlgriffe zeigt | 7 |
 
 Systematisch unterschätzt wird erfahrungsgemäß dreierlei: die `registerTool`-Migration (60 Stellen × 4 Vorlagen, eher 8 h als 5), die Doku-Items (drei Dateien zweisprachig zeilensynchron, je 5 h statt 3), und **jedes Item, das eine Svelte-Komponente anfasst** — jede i18n-Ergänzung braucht `en/` **und** `de/`, und die in CLAUDE.md dokumentierte Falle (bare Ternär von String-Literalen → Literal-Union-Rückgabetyp, mit `: string` annotieren) kostet beim ersten Mal garantiert einen Compile-Fehler. Rechne pro Renderer-Item +1 h.
 

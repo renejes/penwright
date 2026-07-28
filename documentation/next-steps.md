@@ -32,7 +32,19 @@ Vier prüfbare Forderungen — **P1 Schreiben**, **P2 Lesen**, **P3 Wissen**, **
 **4. P2 Lesen — eine echte Fähigkeit fehlt**
 - [ ] `penwright_render_page` (~5 h) — **die KI hat das Dokument nie gesehen.** Typst rendert direkt PNG, die Binary ist gebündelt, `type:'image'` ist im MCP-Protokoll vorgesehen und wird nirgends benutzt. Größte einzelne Annäherung an „die KI sieht, was der Mensch sieht" — und Voraussetzung für fundiertes Design-Feedback.
 
-**5. Danach: MCP-Tool-Umbau** — [mcp-rebuild-plan.md](mcp-rebuild-plan.md), ~20 Tage, noch nicht begonnen. Stufe 0 (`server.instructions`, `registerTool()` + Annotations, Beschreibungs-Chirurgie) ist unabhängig und kann jederzeit dazwischen.
+**5. Der MCP-Umbau ist kein eigenes Projekt mehr.** [mcp-rebuild-plan.md](mcp-rebuild-plan.md) ist auf den Stand revidiert: **~1/3 durch die Paritätsarbeit erledigt**, der Rest zur Hälfte in der Paritätsliste aufgegangen. Aus ~20 PT sind ~13–14 geworden. Der Fahrplan (Details in [handover.md](handover.md) §4b):
+
+| Block | Inhalt | PT |
+|---|---|---:|
+| 1 | Parität fertig (Punkte 1–4 oben) — enthält Phase D + die Skill-Lücke aus F | 4 |
+| 2 | **Phase B allein, vorziehen** — `server.instructions` (ungenutzt, größter Einzelhebel, halber Tag), `registerTool()` + Annotations, Beschreibungs-Chirurgie; dazu das Wächterskript + drei A3-Reste | 2 |
+| 3 | Phase C-Rest — u. a. `insert_reference` nimmt Citekeys (**einzige echte Fähigkeitslücke**) | 1,5 |
+| 4 | Eval — 10–15 Autorenaufgaben, vor und nach Block 2 | 1 |
+| 5 | Phase E + F (Renames, Merges, Skill-Rewrite) — **nur wenn das Eval Fehlgriffe zeigt** | 7 |
+
+**Harter Kern (1–4): ~8,5 PT.** Block 5 hängt bewusst an einer Messung: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
+
+**Gate nach jedem Block, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen (steht auf `0.19.0`, **nicht** gebumpt) + `npm run build:mcp-binary:all`.
 
 ### Was bewusst asymmetrisch bleibt — nicht „fixen"
 

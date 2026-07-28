@@ -2,7 +2,7 @@
 
 > **Stand:** 2026-07-29, Ende der Paritäts-Session (Session 41) · Branch `main`, **alles committet** (12 Commits, `561c22e` … `516755d`) · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.19.0** (noch nicht gebumpt — s. §6)
 >
-> **Lies zuerst diese Datei, dann `CLAUDE.md`, dann leg los.** Referenzdokumente dieser Session: [app-mcp-parity.md](app-mcp-parity.md) (Ist-Zustand + Restliste), [mcp-rebuild-plan.md](mcp-rebuild-plan.md) (der größere MCP-Umbau, noch nicht begonnen), [mcp-tool-audit.md](mcp-tool-audit.md) + [mcp-tool-consolidation.md](mcp-tool-consolidation.md) (warum wir die Tool-Zahl **nicht** reduzieren).
+> **Lies zuerst diese Datei, dann `CLAUDE.md`, dann leg los.** Referenzdokumente dieser Session: [app-mcp-parity.md](app-mcp-parity.md) (Ist-Zustand + Restliste), [mcp-rebuild-plan.md](mcp-rebuild-plan.md) (der MCP-Umbau — ~1/3 erledigt, Rest in die Paritätssequenz einsortiert, s. §4b), [mcp-tool-audit.md](mcp-tool-audit.md) + [mcp-tool-consolidation.md](mcp-tool-consolidation.md) (warum wir die Tool-Zahl **nicht** reduzieren).
 
 ---
 
@@ -122,9 +122,29 @@ Vollständige, priorisierte Liste in [app-mcp-parity.md](app-mcp-parity.md) → 
 
 9. **`penwright_render_page`** (5 h) — die KI hat das Dokument **nie gesehen**. Typst rendert direkt PNG (`--format png`, `--pages`), die Binary ist gebündelt, der Rückgabetyp `type:'image'` ist im MCP-Protokoll vorgesehen und wird bisher nirgends benutzt. **Das ist die größte einzelne Annäherung an „die KI sieht, was der Mensch sieht"** — und Voraussetzung dafür, dass Design-Feedback der KI überhaupt fundiert sein kann.
 
-### Danach erst: der MCP-Tool-Umbau
+---
 
-[mcp-rebuild-plan.md](mcp-rebuild-plan.md), ~20 Tage, **noch nicht begonnen**. Stufe 0 (`server.instructions` setzen — vorhanden und ungenutzt, halber Tag, größter Einzelhebel · `registerTool()` + Annotations · Beschreibungs-Chirurgie) ist unabhängig und kann jederzeit dazwischen.
+## 4b. Und der MCP-Umbau? — er ist kein eigenes Projekt mehr
+
+[mcp-rebuild-plan.md](mcp-rebuild-plan.md) wurde geschrieben, **bevor** das Paritätsprinzip formuliert war. Inzwischen ist **rund ein Drittel davon durch die Paritätsarbeit nebenbei erledigt** (A1, A1b, A3-Teil, C1, C4, C5), und der Rest überlappt zur Hälfte mit der offenen Paritätsliste. Der Plan ist auf diesen Stand revidiert (§0 dort). Aus ~20 PT sind **~13–14 PT** geworden, davon ~7 an eine Messung geknüpft.
+
+**Die Gesamtreihenfolge — das ist der Fahrplan:**
+
+| Block | Inhalt | PT |
+|---|---|---:|
+| **1** | **Parität fertig** (§4 oben). Enthält Phase D des Umbauplans (`safeApplyMcp` = Paritätspunkt 1) und die Skill-Deploy-Lücke aus Phase F (fährt in `projectScaffold` mit). | 4 |
+| **2** | **Phase B allein** — `server.instructions`, `registerTool()` + Annotations, Beschreibungs-Chirurgie. Plus A2 (Wächterskript gegen die sechs driftenden Tool-Listen) und die drei A3-Reste: Git-Tools ohne Projekt-Guard, Compile-Temp-PDF liegt neben dem Root, kein Extension-Guard beim Export (`outputPath: "main.typ"` überschreibt heute die Quelldatei mit einem PDF). | 2 |
+| **3** | **Phase C-Rest** — Kapitel-Tools auf die Wurzel, `restore_version` verlangt Bestätigung, `replace_in_project` bekommt Dry-Run, Caps gegen Kontext-Flutung, `insert_reference` nimmt auch Citekeys (**heute die einzige echte Fähigkeitslücke** — „zitiere @chen2021 im dritten Absatz" ist im ganzen Server nicht bedienbar). | 1,5 |
+| **4** | **Eval** — 10–15 nachprüfbare Autorenaufgaben, einmal vor und einmal nach Block 2. | 1 |
+| **5** | **Phase E + F** — Renames, Streichungen, Merges, Skill-Rewrite. **Nur wenn das Eval Fehlgriffe zeigt.** | 7 |
+
+**Warum Block 2 vorgezogen wird, obwohl er „Umbau" heißt:** `server.instructions` ist vorhanden, dokumentiert und **ungenutzt** (`server.ts:472` übergibt kein Options-Objekt) — laut Audit der größte Einzelhebel im ganzen Umbau, ein halber Tag Arbeit. `registerTool()` + Annotations schaltet `readOnlyHint` frei (Auto-Approve für die Leser in Claude Code) und ändert **keinen einzigen Tool-Namen**. Kein Aufruf, der heute funktioniert, funktioniert danach nicht.
+
+**Warum Block 5 hinten steht und an einer Messung hängt:** Der teuerste Posten ist nicht `server.ts`, sondern `skillTemplates.ts` — 39 Tool-Namen, Routing-Tabelle, fünf Rezeptsequenzen, ~25 Call-Beispiele mit vollständiger Argumentform. Inhaltliche Arbeit, kein `sed`, ~2 Tage, und sie **darf genau einmal passieren**: erst alle Namens- und Signaturänderungen, dann einmal Skills neu. Ob die Renames überhaupt nötig sind, ist **unbelegt** — es gibt keine publizierte Accuracy-Kurve für MCP-Tool-Anzahl und keine Head-to-Head-Messung Multiplex vs. granular. Wenn `instructions` + geschärfte Beschreibungen die Fehlgriffe schon beseitigen, ist die ganze Rename-Frage erledigt. Das halte ich für das wahrscheinlichste Ergebnis.
+
+**Harter Kern (Blöcke 1–4): ~8,5 PT.** Danach ist entschieden, ob Block 5 überhaupt gebaut wird.
+
+**Gate am Ende jedes Blocks, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen **und** `npm run build:mcp-binary:all` — siehe §6.
 
 ---
 
