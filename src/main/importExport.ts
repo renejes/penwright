@@ -28,6 +28,7 @@ import { generateStyleTypst } from '../shared/styleParser';
 import { buildPrintGeometryOverlay, injectAfterPrologue } from './printOverlay';
 import { sanitizeProjectStyle, DEFAULT_PROJECT_STYLE } from '../shared/styleTypes';
 import { appState } from './appState';
+import { findBibFiles } from '../shared/bibDiscovery';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
 import { saveZoteroBibPath, getProjectStyle, hasProjectStyle, getLocale } from './persistenceManager';
@@ -850,22 +851,13 @@ export async function handleLinkZotero(): Promise<void> {
 export function handleRequestCitations(): void {
   if (!appState.currentFilePath) return;
 
-  const searchDir = appState.projectDir || path.dirname(appState.currentFilePath);
-  const rootFile = findRootFile(appState.currentFilePath);
-  const rootDir = path.dirname(rootFile);
-
-  const dirsToSearch = new Set([searchDir, rootDir, path.dirname(appState.currentFilePath)]);
-  const bibFilePaths: string[] = [];
-
-  for (const dir of dirsToSearch) {
-    try {
-      const files = fs.readdirSync(dir).filter(f => f.endsWith('.bib'));
-      for (const f of files) {
-        const fullPath = path.join(dir, f);
-        if (!bibFilePaths.includes(fullPath)) bibFilePaths.push(fullPath);
-      }
-    } catch {}
-  }
+  // Shared with penwright_get_citations, so a .bib one side finds is never
+  // invisible to the other — that mismatch is what produced duplicate
+  // bibliographies.
+  const bibFilePaths = findBibFiles(
+    appState.projectDir || path.dirname(appState.currentFilePath),
+    appState.currentFilePath,
+  );
 
   const allEntries: Array<{ citekey: string; author: string; title: string; year: string; type: string }> = [];
 

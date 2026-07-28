@@ -70,6 +70,7 @@ import {
 import { getSectionPreset } from '../shared/sectionPresets';
 import { type ProjectStyle, type SectionStyle, sanitizeProjectStyle, sanitizeSection } from '../shared/styleTypes';
 import { findRootFile } from '../shared/rootFinder';
+import { planBibliography, BIB_HEADER } from '../shared/bibDiscovery';
 import { noteDiskContent, noteDeleted } from '../shared/fileWrite';
 import {
   planStyleWrites,
@@ -416,19 +417,48 @@ export function setupIPC(): void {
       }
 
       case 'ensureBibliography': {
-        if (appState.currentFilePath) {
-          const dir = path.dirname(appState.currentFilePath);
-          const bibPath = path.join(dir, 'references.bib');
-          if (!fs.existsSync(bibPath)) {
-            fs.writeFileSync(bibPath, '// Bibliography\n', 'utf-8');
+        if (appState.projectDir) {
+          // One rule for both processes: the .bib sits next to the design root
+          // and the #bibliography call goes IN the root. Putting it next to the
+          // open file produced chapters/references.bib — consistent in itself,
+          // invisible to everything else; writing the call into a chapter made
+          // the relative path unresolvable and broke the compile.
+          const plan = planBibliography({
+            projectDir: appState.projectDir,
+            currentFile: appState.currentFilePath,
+          });
+          if (!plan.callSite) {
+            dialog.showErrorBox(
+              resolveDict(getLocale()).mainDialogs.couldNotSaveFile,
+              'No root document found — cannot place a bibliography without one.',
+            );
+            break;
           }
-          if (!appState.currentContent.includes('#bibliography')) {
-            appState.currentContent += '\n\n#bibliography("references.bib")\n';
-            appState.isDirty = true;
-            updateTitle();
-            autoSave();
-            appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
+          if (plan.create) {
+            fs.writeFileSync(plan.bibFile, BIB_HEADER, 'utf-8');
+            noteDiskContent(plan.bibFile, BIB_HEADER);
           }
+          if (!plan.alreadyReferenced) {
+            const call = `\n\n#bibliography("${plan.callPath}")\n`;
+            if (path.resolve(plan.callSite) === path.resolve(appState.currentFilePath ?? '')) {
+              appState.currentContent += call;
+              appState.isDirty = true;
+              updateTitle();
+              autoSave();
+              appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
+            } else {
+              // The root is not the open file — write it there directly rather
+              // than into whatever chapter happens to be on screen.
+              try {
+                const updated = fs.readFileSync(plan.callSite, 'utf-8') + call;
+                fs.writeFileSync(plan.callSite, updated, 'utf-8');
+                noteDiskContent(plan.callSite, updated);
+              } catch (err) {
+                dialog.showErrorBox(resolveDict(getLocale()).mainDialogs.couldNotSaveFile, String(err));
+              }
+            }
+          }
+          handleRequestCitations();
           appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
         }
         break;

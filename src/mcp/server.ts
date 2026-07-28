@@ -40,6 +40,7 @@ import {
 } from '../shared/styleParser.js';
 import { SECTION_PRESETS, getSectionPreset } from '../shared/sectionPresets.js';
 import { THEME_PRESETS } from '../shared/themePresets.js';
+import { mergeThemePreset, mergeLayoutPreset } from '../shared/stylePresetMerge.js';
 import { LAYOUT_PRESETS } from '../shared/layoutPresets.js';
 import { PALETTE_PRESETS } from '../shared/palettePresets.js';
 import {
@@ -56,6 +57,7 @@ import {
 import { readActiveProject, readSession, isDirtyInEditor } from '../shared/sessionState.js';
 import { snapshotBeforeWrite } from '../shared/editHistory.js';
 import { checkLock } from '../shared/lockFile.js';
+import { findBibFiles, bibSearchRoots, planBibliography, BIB_HEADER } from '../shared/bibDiscovery.js';
 import { parseBibFile } from '../shared/bibParser.js';
 import { resolveIncludes } from '../shared/mergeDocument.js';
 import { splitIntoChapters, slugify } from '../shared/splitDocument.js';
@@ -1184,11 +1186,11 @@ server.tool(
       return { content: [{ type: 'text' as const, text: `Error: Unknown layout "${layoutId}". Available: ${ids}` }], isError: true };
     }
     const current = readProjectStyle(state.projectDir);
-    const next = {
-      ...current,
-      layout: { ...preset.layout },
-      scale: { ...current.scale, base: preset.baseSize ?? current.scale.base },
-    };
+    // Spreading the preset's layout wholesale let the sanitizer reset the
+    // prepress fields the preset does not carry — a screen layout silently
+    // wiped a configured bleed, and facingPages/binding also change the LIVE
+    // page geometry, not just the print export.
+    const next = mergeLayoutPreset(current, preset);
     const written = writeProjectStyleAndRegenerate(state.projectDir, next);
     return { content: [{ type: 'text' as const, text: `Applied layout "${preset.name}" — ${written.layout.paper}/${written.layout.orientation}/${written.layout.columns}col, base ${written.scale.base}.` }] };
   },
@@ -1313,14 +1315,13 @@ server.tool(
     const theme = THEME_PRESETS.find(t => t.id === themeId)!;
     const layout = LAYOUT_PRESETS.find(l => l.id === layoutId)!;
     const currentStyle = readProjectStyle(state.projectDir);
-    const preservedCustom = currentStyle.custom?.preamble ?? '';
-    writeProjectStyleAndRegenerate(state.projectDir, {
-      ...theme.style,
-      layout: { ...layout.layout },
-      scale: { ...theme.style.scale, base: layout.baseSize ?? theme.style.scale.base },
-      sections: currentStyle.sections,
-      custom: { preamble: preservedCustom },
-    });
+    // Theme first, then layout — the same order the tool documents, through the
+    // one merge that knows which fields belong to the project rather than to
+    // any preset.
+    writeProjectStyleAndRegenerate(
+      state.projectDir,
+      mergeLayoutPreset(mergeThemePreset(currentStyle, theme.style), layout),
+    );
 
     let heroInserted = false;
     // The hero goes into the ROOT file (a document opener) — that is also the
@@ -1802,17 +1803,24 @@ server.tool(
   async () => {
     try {
       const dir = state.projectDir;
-      const bibFiles = fs.readdirSync(dir).filter(f => f.endsWith('.bib'));
+      // Same search the app performs. It used to look only at the project
+      // root, so a .bib under bib/ or next to a chapter was invisible here —
+      // and the agent, concluding there was none, created a second one.
+      const bibFiles = findBibFiles(dir, state.currentFile);
       const allEntries: { file: string; entries: ReturnType<typeof parseBibFile> }[] = [];
 
-      for (const bibFile of bibFiles) {
-        const content = fs.readFileSync(path.join(dir, bibFile), 'utf-8');
-        const entries = parseBibFile(content);
-        allEntries.push({ file: bibFile, entries });
+      for (const abs of bibFiles) {
+        const content = fs.readFileSync(abs, 'utf-8');
+        allEntries.push({ file: path.relative(dir, abs).split(path.sep).join('/'), entries: parseBibFile(content) });
       }
 
       if (allEntries.length === 0) {
-        return { content: [{ type: 'text' as const, text: 'No .bib files found in project directory.' }] };
+        // Structured, so "there is no bibliography" and "I looked in the wrong
+        // place" are distinguishable.
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          bibFiles: [],
+          searchedFrom: bibSearchRoots(dir, state.currentFile).map(d => path.relative(dir, d) || '.'),
+        }, null, 2) }] };
       }
 
       return {
@@ -1835,13 +1843,15 @@ server.tool(
   },
   async ({ bibtex, bibFile }) => {
     try {
-      const targetFile = bibFile || 'references.bib';
-      const bibPath = resolveInsideProject(targetFile);
+      const plan = planBibliography({
+        projectDir: state.projectDir,
+        currentFile: state.currentFile,
+        bibFileName: bibFile,
+      });
+      const bibPath = plan.bibFile;
+      const targetFile = path.relative(state.projectDir, bibPath).split(path.sep).join('/');
 
-      // Create .bib file if needed
-      if (!fs.existsSync(bibPath)) {
-        guardedWrite(bibPath, '// Bibliography\n\n');
-      }
+      if (plan.create) guardedWrite(bibPath, BIB_HEADER);
 
       // Append the entry
       let existing = fs.readFileSync(bibPath, 'utf-8');
@@ -1849,13 +1859,13 @@ server.tool(
       existing += '\n' + bibtex.trim() + '\n';
       guardedWrite(bibPath, existing);
 
-      // Ensure #bibliography in document
-      if (state.currentFile) {
-        const docContent = fs.readFileSync(state.currentFile, 'utf-8');
-        if (!docContent.includes('#bibliography')) {
-          const updated = docContent.trimEnd() + `\n\n#bibliography("${targetFile}")\n`;
-          guardedWrite(state.currentFile, updated);
-        }
+      // The #bibliography call belongs in the ROOT, never in a chapter: Typst
+      // resolves the path relative to the file containing the call, so writing
+      // it into an open chapter produced a path that did not resolve and the
+      // document stopped compiling.
+      if (plan.callSite && !plan.alreadyReferenced) {
+        const docContent = fs.readFileSync(plan.callSite, 'utf-8');
+        guardedWrite(plan.callSite, docContent.trimEnd() + `\n\n#bibliography("${plan.callPath}")\n`);
       }
 
       // Parse to get the citekey for confirmation
@@ -1879,21 +1889,22 @@ server.tool(
   async () => {
     try {
       const dir = state.projectDir;
-      const bibPath = path.join(dir, 'references.bib');
+      const plan = planBibliography({ projectDir: dir, currentFile: state.currentFile });
       const created: string[] = [];
 
-      if (!fs.existsSync(bibPath)) {
-        guardedWrite(bibPath, '// Bibliography\n\n');
-        created.push('references.bib');
+      if (!plan.callSite) {
+        return { content: [{ type: 'text' as const, text: 'Error: no root document found — cannot place a bibliography without one.' }], isError: true };
       }
 
-      if (state.currentFile) {
-        const content = fs.readFileSync(state.currentFile, 'utf-8');
-        if (!content.includes('#bibliography')) {
-          const updated = content.trimEnd() + '\n\n#bibliography("references.bib")\n';
-          guardedWrite(state.currentFile, updated);
-          created.push('#bibliography statement');
-        }
+      if (plan.create) {
+        guardedWrite(plan.bibFile, BIB_HEADER);
+        created.push(path.relative(dir, plan.bibFile).split(path.sep).join('/'));
+      }
+
+      if (!plan.alreadyReferenced) {
+        const content = fs.readFileSync(plan.callSite, 'utf-8');
+        guardedWrite(plan.callSite, content.trimEnd() + `\n\n#bibliography("${plan.callPath}")\n`);
+        created.push(`#bibliography in ${path.basename(plan.callSite)}`);
       }
 
       if (created.length === 0) {

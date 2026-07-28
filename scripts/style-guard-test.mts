@@ -347,5 +347,36 @@ if (fs.existsSync(MCP_ENTRY)) {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+// ─── 8. Preset merges never drop what the preset does not carry ─────
+
+console.log('\nPreset merge keeps project-owned fields');
+{
+  const { mergeLayout, mergeLayoutPreset, mergeThemePreset } = await import('../src/shared/stylePresetMerge.ts');
+  const base = sanitizeProjectStyle({
+    ...DEFAULT_PROJECT_STYLE,
+    layout: { ...DEFAULT_PROJECT_STYLE.layout, bleed: '5mm', cropMarks: true, facingPages: true, binding: '8mm' },
+    sections: [{ id: 'feature', name: 'Feature' }],
+    custom: { preamble: '#let mine = 1' },
+  });
+
+  // A screen layout carries none of the prepress fields; spreading it used to
+  // let the sanitizer reset all four.
+  const afterLayout = mergeLayoutPreset(base, { layout: { paper: 'a5', orientation: 'portrait', columns: 1 } as never });
+  check('bleed survives a layout swap', afterLayout.layout.bleed === '5mm');
+  check('crop marks survive', afterLayout.layout.cropMarks === true);
+  check('facing pages survive (they change the LIVE geometry)', afterLayout.layout.facingPages === true);
+  check('binding survives', afterLayout.layout.binding === '8mm');
+  check('and the new paper actually applied', afterLayout.layout.paper === 'a5');
+
+  const afterTheme = mergeThemePreset(base, { colors: { ...base.colors, primary: '#123456' } } as never);
+  check('a theme keeps the section styles', afterTheme.sections.length === 1);
+  check('a theme keeps the custom preamble', afterTheme.custom?.preamble === '#let mine = 1');
+  check('a theme keeps the prepress setup', afterTheme.layout.bleed === '5mm');
+
+  // A preset that DOES define them must still win.
+  const explicit = mergeLayout(base.layout, { bleed: '3mm', cropMarks: false } as never);
+  check('an explicit preset value overrides', explicit.bleed === '3mm' && explicit.cropMarks === false);
+}
+
 console.log(failures === 0 ? '\nAll checks passed.\n' : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
