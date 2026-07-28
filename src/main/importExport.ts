@@ -29,6 +29,7 @@ import { buildPrintGeometryOverlay, injectAfterPrologue } from './printOverlay';
 import { sanitizeProjectStyle, DEFAULT_PROJECT_STYLE } from '../shared/styleTypes';
 import { appState } from './appState';
 import { findBibFiles } from '../shared/bibDiscovery';
+import { planPrintExport, TEMP_EXPORT_BASENAME, TEMP_STYLE_PRINT_BASENAME } from '../shared/printExportPlan';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
 import { saveZoteroBibPath, getProjectStyle, hasProjectStyle, getLocale } from './persistenceManager';
@@ -144,7 +145,6 @@ function buildFilteredRoot(rootContent: string, selectedIncludes: string[] | nul
   return out;
 }
 
-const TEMP_EXPORT_BASENAME = '.penwright-export-temp.typ';
 
 /**
  * Writes a filtered copy of the root file alongside the original and
@@ -176,7 +176,6 @@ function pngDimensions(buf: Buffer): { width: number; height: number } | null {
 // import is repointed at it, compile that, then delete both. The real
 // style.typ / project is never touched.
 
-const TEMP_STYLE_PRINT_BASENAME = '.penwright-style-print.typ';
 
 /**
  * Stages the print-export temp files next to the root and returns the temp
@@ -184,64 +183,34 @@ const TEMP_STYLE_PRINT_BASENAME = '.penwright-style-print.typ';
  * bibliography filter so a print export can also pick chapters.
  */
 function writePrintExportTemp(rootFile: string, config: ExportConfig): { tempRoot: string; cleanup: () => void } {
-  const rootDir = path.dirname(rootFile);
-  const print = config.print!;
   const original = fs.readFileSync(rootFile, 'utf-8');
-  let rootContent = buildFilteredRoot(original, config.selectedIncludes, config.includeBibliography);
-  const tempRoot = path.join(rootDir, TEMP_EXPORT_BASENAME);
+  const rootContent = buildFilteredRoot(original, config.selectedIncludes, config.includeBibliography);
 
-  // Two project shapes:
-  // (a) Design-Editor project (`.penwright/style.json` exists) — style.typ is
-  //     GENERATED from those tokens, so regenerating it in print mode and
-  //     repointing the import is lossless.
-  // (b) Hand-designed project (no style.json — magazine-pipeline output or a
-  //     hand-written style.typ / inline #set rules). Repointing here used to
-  //     swap the author's entire design for Penwright's DEFAULT look. Instead:
-  //     leave the design untouched and inject an export-only geometry overlay
-  //     (oversized page + bleed-compensated margins + crop marks) after the
-  //     document's own prologue.
-  const hasTokens = appState.projectDir ? hasProjectStyle(appState.projectDir) : false;
+  // The branch between a token project and a hand-designed one lives in
+  // shared/printExportPlan.ts, so penwright_export_print takes the same one —
+  // it used to always regenerate style.typ, which swapped an author's design
+  // for Penwright's defaults.
+  const plan = planPrintExport({
+    rootFile,
+    rootContent,
+    originalRoot: original,
+    print: config.print!,
+    style: appState.projectDir && hasProjectStyle(appState.projectDir)
+      ? getProjectStyle(appState.projectDir)
+      : null,
+    buildOverlay: buildPrintGeometryOverlay,
+    injectOverlay: injectAfterPrologue,
+  });
 
-  if (hasTokens) {
-    // Merge the per-export print overrides over the project style, re-sanitise,
-    // and generate the oversized print style.typ.
-    const base = getProjectStyle(appState.projectDir!);
-    const printStyle = sanitizeProjectStyle({
-      ...base,
-      layout: {
-        ...base.layout,
-        bleed:       print.bleed,
-        cropMarks:   print.cropMarks,
-        facingPages: print.facingPages,
-        binding:     print.binding,
-      },
-    });
-    const stylePrintPath = path.join(rootDir, TEMP_STYLE_PRINT_BASENAME);
-    fs.writeFileSync(stylePrintPath, generateStyleTypst(printStyle, { print: true }), 'utf-8');
+  for (const w of plan.writes) fs.writeFileSync(w.abs, w.content, 'utf-8');
+  for (const warning of plan.warnings) console.warn('[penwright] print export:', warning);
 
-    const hadStyleImport = /#import\s+"style\.typ"/.test(original);
-    rootContent = rootContent.replace(/#import\s+"style\.typ"/g, `#import "${TEMP_STYLE_PRINT_BASENAME}"`);
-    if (!hadStyleImport && !rootContent.includes('#show: apply-style')) {
-      rootContent = `#import "${TEMP_STYLE_PRINT_BASENAME}": *\n#show: apply-style\n\n${rootContent}`;
-    }
-    fs.writeFileSync(tempRoot, rootContent, 'utf-8');
-    return {
-      tempRoot,
-      cleanup: () => {
-        try { fs.unlinkSync(tempRoot); } catch {}
-        try { fs.unlinkSync(stylePrintPath); } catch {}
-      },
-    };
-  }
-
-  // (b) Hand-designed project — geometry overlay only, design untouched.
-  const overlay = buildPrintGeometryOverlay(rootFile, original, print);
-  if (overlay) rootContent = injectAfterPrologue(rootContent, overlay);
-  fs.writeFileSync(tempRoot, rootContent, 'utf-8');
   return {
-    tempRoot,
+    tempRoot: plan.tempRoot,
     cleanup: () => {
-      try { fs.unlinkSync(tempRoot); } catch {}
+      for (const w of plan.writes) {
+        try { fs.unlinkSync(w.abs); } catch {}
+      }
     },
   };
 }

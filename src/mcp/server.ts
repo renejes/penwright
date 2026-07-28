@@ -41,6 +41,8 @@ import {
 import { SECTION_PRESETS, getSectionPreset } from '../shared/sectionPresets.js';
 import { THEME_PRESETS } from '../shared/themePresets.js';
 import { mergeThemePreset, mergeLayoutPreset } from '../shared/stylePresetMerge.js';
+import { planPrintExport } from '../shared/printExportPlan.js';
+import { buildPrintGeometryOverlay, injectAfterPrologue } from '../main/printOverlay.js';
 import { LAYOUT_PRESETS } from '../shared/layoutPresets.js';
 import { PALETTE_PRESETS } from '../shared/palettePresets.js';
 import {
@@ -909,36 +911,43 @@ server.tool(
       const outDir = path.dirname(absOutput);
       if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-      const base = readProjectStyle(dir);
-      const printStyle = sanitizeProjectStyle({
-        ...base,
-        layout: {
-          ...base.layout,
-          bleed:       bleed ?? '5mm',
-          cropMarks:   cropMarks ?? true,
+      // The two project shapes. This branch used to be missing here: the tool
+      // always regenerated style.typ from tokens, so on a hand-designed
+      // project (no style.json) it repointed the import at Penwright's
+      // DEFAULTS — either the compile died on a macro the design defines, or a
+      // generic-looking PDF went to the print shop.
+      const original = fs.readFileSync(rootFile, 'utf-8');
+      const plan = planPrintExport({
+        rootFile,
+        rootContent: original,
+        originalRoot: original,
+        print: {
+          bleed: bleed ?? '5mm',
+          cropMarks: cropMarks ?? true,
           facingPages: facingPages ?? true,
-          binding:     binding ?? '5mm',
+          binding: binding ?? '5mm',
         },
+        style: fs.existsSync(path.join(dir, '.penwright', 'style.json'))
+          ? readProjectStyle(dir)
+          : null,
+        buildOverlay: buildPrintGeometryOverlay,
+        injectOverlay: injectAfterPrologue,
       });
 
-      const STYLE_PRINT = '.penwright-style-print.typ';
-      const stylePrintAbs = path.join(dir, STYLE_PRINT);
-      guardedWrite(stylePrintAbs, generateStyleTypst(printStyle, { print: true }));
-      cleanup.push(stylePrintAbs);
-
-      const original = fs.readFileSync(rootFile, 'utf-8');
-      let rootContent = original.replace(/#import\s+"style\.typ"/g, `#import "${STYLE_PRINT}"`);
-      if (!/#import\s+"style\.typ"/.test(original) && !rootContent.includes('#show: apply-style')) {
-        rootContent = `#import "${STYLE_PRINT}": *\n#show: apply-style\n\n${rootContent}`;
+      for (const w of plan.writes) {
+        guardedWrite(w.abs, w.content);
+        cleanup.push(w.abs);
       }
-      const rootTempAbs = path.join(dir, '.penwright-print-root.typ');
-      guardedWrite(rootTempAbs, rootContent);
-      cleanup.push(rootTempAbs);
+      const rootTempAbs = plan.tempRoot;
 
       await execFileAsync(typstBinary(), typstCompileArgs([rootTempAbs, absOutput]), { cwd: dir, timeout: 60000 });
       const stat = fs.statSync(absOutput);
       const marks = (cropMarks ?? true) ? ' + crop marks' : '';
-      return { content: [{ type: 'text' as const, text: `Print PDF exported to ${absOutput} (${(stat.size / 1024).toFixed(1)} KB) — oversized page + ${bleed ?? '5mm'} bleed${marks}, RGB. The print shop converts to CMYK/PDF-X.` }] };
+      const shape = plan.mode === 'overlay'
+        ? ' The project is hand-designed, so only an export-only geometry overlay was applied — its own design is untouched.'
+        : '';
+      const notes = plan.warnings.length ? `\n\nNOTE: ${plan.warnings.join(' ')}` : '';
+      return { content: [{ type: 'text' as const, text: `Print PDF exported to ${absOutput} (${(stat.size / 1024).toFixed(1)} KB) — oversized page + ${bleed ?? '5mm'} bleed${marks}, RGB. The print shop converts to CMYK/PDF-X.${shape}${notes}` }] };
     } catch (err: unknown) {
       const stderr = (err as { stderr?: string }).stderr || (err instanceof Error ? err.message : String(err));
       return { content: [{ type: 'text' as const, text: `Print export failed:\n${stderr}` }], isError: true };
