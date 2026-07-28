@@ -2856,20 +2856,26 @@ server.tool(
       if (!fs.existsSync(assetAbs)) {
         fs.writeFileSync(assetAbs, srcBuf);
       }
-      const assetRel = `assets/${assetName}`;
+      const assetRel = `assets/${assetName}`;   // project-relative, for reporting only
 
-      // Build the Typst snippet.
+      /**
+       * Typst resolves an `image("…")` path relative to the FILE that contains
+       * the call, not to the project root. A project-relative `assets/x.png`
+       * written into `chapters/c1.typ` therefore sends Typst looking for
+       * `chapters/assets/x.png` — "file not found", and the whole document
+       * stops compiling. The path has to be built from the destination.
+       */
+      const imagePathFrom = (targetAbs: string): string =>
+        path.relative(path.dirname(targetAbs), assetAbs).split(path.sep).join('/');
+
       const widthSpec = width ?? '100%';
       const altPart = alt ? `, alt: "${alt.replace(/"/g, '\\"')}"` : '';
-      const imageCall = `image("${assetRel}", width: ${widthSpec}${altPart})`;
-      let snippet: string;
-      if (caption) {
+      const buildSnippet = (imgPath: string): string => {
+        const imageCall = `image("${imgPath}", width: ${widthSpec}${altPart})`;
+        if (!caption) return `#${imageCall}`;
         const captionEsc = caption.replace(/\\/g, '\\\\').replace(/]/g, '\\]');
-        const labelPart = label ? ` <${label}>` : '';
-        snippet = `#figure(${imageCall}, caption: [${captionEsc}])${labelPart}`;
-      } else {
-        snippet = `#${imageCall}`;
-      }
+        return `#figure(${imageCall}, caption: [${captionEsc}])${label ? ` <${label}>` : ''}`;
+      };
 
       // Optional inline insert.
       if (file && afterText) {
@@ -2882,6 +2888,7 @@ server.tool(
         if ('error' in located) {
           return { content: [{ type: 'text' as const, text: `Error: ${located.error}` }], isError: true };
         }
+        const snippet = buildSnippet(imagePathFrom(absFile));
         const insertPos = located.offset + afterText.length;
         // Figures are block-level — wrap with blank lines so they don't glue onto surrounding paragraphs.
         const updated = content.slice(0, insertPos) + '\n\n' + snippet + '\n\n' + content.slice(insertPos);
@@ -2894,13 +2901,18 @@ server.tool(
         };
       }
 
+      // No destination given: relativise against the current document, since
+      // that is where the agent will most likely paste the snippet. Say which
+      // file the path is valid for, so a paste elsewhere is a conscious act.
+      const snippetTarget = state.currentFile ?? path.join(state.projectDir, 'main.typ');
       return {
         content: [{
           type: 'text' as const,
           text: JSON.stringify({
             assetPath: assetRel,
-            snippet,
-            note: 'Pass {file, afterText} on the next call for inline insertion, or use penwright_update_document / penwright_write_file manually.',
+            snippet: buildSnippet(imagePathFrom(snippetTarget)),
+            snippetIsRelativeTo: path.relative(state.projectDir, snippetTarget).split(path.sep).join('/'),
+            note: 'The image path in `snippet` is relative to `snippetIsRelativeTo` — Typst resolves image paths per file. Pass {file, afterText} to have it inserted (and re-relativised) correctly.',
           }, null, 2),
         }],
       };

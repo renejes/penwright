@@ -30,6 +30,7 @@ import {
   planStyleWrites,
   isHandwrittenStyle,
   readProjectStyleWithCustom,
+  isDesignAdopted,
   resolveDesignRoot,
 } from '../src/shared/styleWrite.ts';
 import { STYLE_TYPST_MARKER, generateStyleTypst } from '../src/shared/styleParser.ts';
@@ -71,7 +72,8 @@ const HANDWRITTEN_STYLE = `// ════════════════�
 }
 `;
 
-const ROOT_DOC = `#import "style.typ": *
+/** Root that CALLS the hand-written macros — the reason regenerating is fatal. */
+const ROOT_AUTHORED = `#import "style.typ": *
 #show: apply-style
 
 #cover(title: "Angebot", subtitle: "2026")
@@ -81,12 +83,22 @@ const ROOT_DOC = `#import "style.typ": *
 #include "chapters/01-intro.typ"
 `;
 
+/** Root for Penwright-managed projects: no authored macros, so it compiles. */
+const ROOT_MANAGED = `#import "style.typ": *
+#show: apply-style
+
+= Angebot
+
+#include "chapters/01-intro.typ"
+`;
+
 function makeProject(kind: 'handwritten' | 'generated' | 'fresh' | 'handwritten-adopted'): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `pw-guard-${kind}-`));
+  const authored = kind === 'handwritten' || kind === 'handwritten-adopted';
   const rootName = kind === 'generated' ? 'main.typ' : 'Angebot.typ';
   fs.mkdirSync(path.join(dir, 'chapters'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'chapters', '01-intro.typ'), '= Intro\n\nText.\n');
-  fs.writeFileSync(path.join(dir, rootName), ROOT_DOC);
+  fs.writeFileSync(path.join(dir, rootName), authored ? ROOT_AUTHORED : ROOT_MANAGED);
 
   if (kind === 'handwritten' || kind === 'handwritten-adopted') {
     fs.writeFileSync(path.join(dir, 'style.typ'), HANDWRITTEN_STYLE);
@@ -147,9 +159,13 @@ console.log('\nplanStyleWrites');
   fs.rmSync(dir, { recursive: true, force: true });
 }
 {
+  // A style.json sitting next to an authored style.typ must NOT count as
+  // adoption. ensureStyleFile creates exactly that file from "Save Version";
+  // if it granted permission, the harmless button would disarm the guard.
+  // Adoption is the marker in style.typ and nothing else.
   const dir = makeProject('handwritten-adopted');
   const plan = planStyleWrites({ projectDir: dir, currentFile: null, style: DEFAULT_PROJECT_STYLE });
-  check('allows once a style.json exists (explicit adoption)', plan.ok === true);
+  check('a stray style.json does NOT grant permission', plan.ok === false);
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
@@ -243,6 +259,92 @@ if (!fs.existsSync(MCP_ENTRY)) {
     check('style.json was written', fs.existsSync(path.join(dir, '.penwright', 'style.json')));
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+// ─── 6. The guard must not be erodible from outside ─────────────────
+
+// projectManager.ts cannot be imported here — it pulls in electron-store,
+// which needs an Electron app context. So: the decision itself is tested
+// where it lives (shared), and the wiring is asserted against the source.
+console.log('\nGuard cannot be disarmed by project infrastructure');
+{
+  const hand = makeProject('handwritten');
+  const gen = makeProject('generated');
+  const fresh = makeProject('fresh');
+  const adopted = makeProject('handwritten-adopted');
+
+  check('isDesignAdopted: hand-written → false', isDesignAdopted(hand) === false);
+  check('isDesignAdopted: generated → true', isDesignAdopted(gen) === true);
+  check('isDesignAdopted: no style.typ → true', isDesignAdopted(fresh) === true);
+  check(
+    'isDesignAdopted: a stray style.json does NOT count as adoption',
+    isDesignAdopted(adopted) === false,
+    'ensureStyleFile used to create exactly this file from "Save Version", which is how the guard got disarmed',
+  );
+
+  [hand, gen, fresh, adopted].forEach(d => fs.rmSync(d, { recursive: true, force: true }));
+}
+{
+  const src = fs.readFileSync(path.join(REPO, 'src', 'main', 'projectManager.ts'), 'utf-8');
+  const fn = src.slice(src.indexOf('export function ensureStyleFile'));
+  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  check(
+    'ensureStyleFile asks isDesignAdopted before writing anything',
+    /if\s*\(!isDesignAdopted\(dir\)\)\s*return;/.test(body) &&
+      body.indexOf('isDesignAdopted') < body.indexOf('writeFileSync'),
+    'the early return must come before the first write',
+  );
+}
+
+// ─── 7. Image paths resolve from the file that contains the call ────
+
+console.log('\npenwright_add_image path relativisation');
+if (fs.existsSync(MCP_ENTRY)) {
+  const dir = makeProject('generated');
+  // Valid 1×1 transparent PNG.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const src = path.join(dir, 'pic.png');
+  fs.writeFileSync(src, png);
+
+  await callMcp(dir, [
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'penwright_set_project', arguments: { projectDir: dir } } },
+    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'penwright_add_image', arguments: { srcPath: src, file: 'chapters/01-intro.typ', afterText: '= Intro' } } },
+  ]);
+
+  const chapter = fs.readFileSync(path.join(dir, 'chapters', '01-intro.typ'), 'utf-8');
+  const m = chapter.match(/image\("([^"]+)"/);
+  check('image was inserted', !!m, chapter.slice(0, 200));
+  check(
+    'path is relative to the chapter, not the project root',
+    m?.[1] === '../assets/pic.png',
+    `got: ${m?.[1]}`,
+  );
+
+  // The real proof: does the document still compile?
+  const typst = path.join(REPO, 'resources', 'bin', `typst-${process.arch === 'arm64' ? 'arm64' : 'x64'}-darwin`);
+  if (fs.existsSync(typst)) {
+    const { execFileSync } = await import('node:child_process');
+    let compiled = true;
+    let err = '';
+    try {
+      execFileSync(typst, [
+        'compile', '--root', dir,
+        '--package-path', path.join(REPO, 'resources', 'typst-packages'),
+        '--font-path', path.join(REPO, 'resources', 'fonts'),
+        path.join(dir, 'main.typ'), path.join(dir, 'out.pdf'),
+      ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e: any) {
+      compiled = false;
+      err = (e.stderr?.toString() ?? String(e)).slice(0, 300);
+    }
+    check('document still compiles with the inserted image', compiled, err);
+  } else {
+    console.log('  ! bundled typst not found — compile check skipped');
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 console.log(failures === 0 ? '\nAll checks passed.\n' : `\n${failures} check(s) FAILED.\n`);

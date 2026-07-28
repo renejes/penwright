@@ -71,6 +71,28 @@ export function isHandwrittenStyle(styleTypSource: string | null): boolean {
   return styleTypSource.split('\n')[0].trim() !== STYLE_TYPST_MARKER;
 }
 
+/**
+ * May Penwright generate this project's `style.typ`?
+ *
+ * True when there is no `style.typ` yet, or when the one on disk carries our
+ * marker. False for an authored file — its look and its `#let` macros are the
+ * project, and regenerating would delete both.
+ *
+ * This is deliberately the ONLY question asked, and it is asked of the file
+ * itself. An earlier version also accepted "a style.json exists beside it" as
+ * adoption, which turned out to be erodible from the outside: `ensureStyleFile`
+ * creates a default style.json unconditionally, and it is reachable from
+ * "Save Version" (git:ensureRepo → ensureProjectInfrastructure). One click on
+ * the most harmless button in the UI disarmed the guard for good. Now the
+ * marker is the whole contract, and `ensureStyleFile` asks this same function
+ * before it writes anything.
+ */
+export function isDesignAdopted(projectDir: string, currentFile: string | null = null): boolean {
+  const rootFile = resolveDesignRoot(projectDir, currentFile);
+  const styleTypPath = path.join(styleTypDir(projectDir, rootFile), STYLE_TYP_BASENAME);
+  return !isHandwrittenStyle(readStyleTyp(styleTypPath));
+}
+
 /** Reads `style.typ` from disk, or null if absent/unreadable. */
 function readStyleTyp(styleTypPath: string): string | null {
   try {
@@ -136,13 +158,10 @@ export type StyleWritePlan =
 /**
  * Computes every file write a design change implies — nothing is touched here.
  *
- * Refuses (`ok: false`) when the project carries a hand-written `style.typ`
- * and has no `style.json` beside it. That combination is unambiguous: the
- * author's design lives entirely in a file Penwright never wrote, and this
- * project has never been through the Design editor. Overwriting it is
- * unrecoverable in the common case (such projects usually have no Git and no
- * backups). Projects Penwright generated are unaffected — their `style.typ`
- * carries the marker.
+ * Refuses (`ok: false`) whenever `isDesignAdopted` says no — i.e. the project
+ * carries an authored `style.typ`. Overwriting it is unrecoverable in the
+ * common case (such projects usually have no Git and no backups). Projects
+ * Penwright generated are unaffected: their `style.typ` carries the marker.
  */
 export function planStyleWrites(args: {
   projectDir: string;
@@ -153,8 +172,7 @@ export function planStyleWrites(args: {
   const rootFile = resolveDesignRoot(args.projectDir, args.currentFile);
   const styleTypPath = path.join(styleTypDir(args.projectDir, rootFile), STYLE_TYP_BASENAME);
 
-  const onDisk = readStyleTyp(styleTypPath);
-  if (isHandwrittenStyle(onDisk) && !fs.existsSync(styleJsonPath(args.projectDir))) {
+  if (isHandwrittenStyle(readStyleTyp(styleTypPath))) {
     return { ok: false, reason: 'handwritten-style', styleTypPath };
   }
 

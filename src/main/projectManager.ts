@@ -10,6 +10,7 @@ import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile, findRootFileIn } from '../shared/rootFinder';
+import { isDesignAdopted } from '../shared/styleWrite';
 import { generateStyleTypst, ensureStyleInclude } from '../shared/styleParser';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleTypes';
 import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
@@ -72,6 +73,14 @@ export async function ensureProjectInfrastructure(dir: string, initialMessage = 
  */
 export function ensureStyleFile(dir: string, injectImport: boolean): void {
   if (!fs.existsSync(dir)) return;
+
+  // A project whose design lives in an authored style.typ gets NOTHING from
+  // here. Creating a default style.json for it would be wrong on its own (the
+  // Design panel would show tokens that describe nothing) and it used to be
+  // actively destructive: this function is reachable from "Save Version" via
+  // git:ensureRepo → ensureProjectInfrastructure, and the style.json it wrote
+  // was what the write guard keyed on. One click disarmed the protection.
+  if (!isDesignAdopted(dir)) return;
 
   const rootFile = findRootFileIn(dir);
   const rootDir = rootFile ? path.dirname(rootFile) : dir;
