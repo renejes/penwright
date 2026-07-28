@@ -6,7 +6,59 @@
 
 ---
 
-## Die Antwort
+---
+
+## Verifikation (2026-07-28, nach neun Commits)
+
+Ein zweiter Durchgang über die gesamte App hat geprüft, ob das Prinzip jetzt eingehalten wird — und zuerst, ob die gebauten Fixes überhaupt halten. **Sechs von acht hielten. Einer hatte eine harte Regression eingebaut**, gefunden, verifiziert und behoben in `f30fe0a`:
+
+| Regression | Wirkung |
+|---|---|
+| `guardedWrite` wies den eigenen Menschen als Fremden ab | Die App sperrt jede geöffnete `.typ`; `isOwnLock` verlangt PID-Gleichheit, der MCP ist ein eigener Prozess → **die KI konnte genau die Datei nicht bearbeiten, über die gerade gesprochen wurde**, mit einer Meldung, die den Nutzer als Blockierer nannte |
+| `publishSession()` lief eine Zeile zu früh | `session.json` nannte die **vorher** offene Datei — die KI zielte eine Datei hinterher |
+| Der Server las die Session nur beim Prozessstart | Claude Desktop startet ihn einmal und er lebt Stunden — er zeigte bis zum Neustart auf das Projekt vom Morgen |
+
+Zusammen: *die KI zielte auf die Datei von vorhin und wurde an der von jetzt abgewiesen.* Kein Test hatte das gefangen — der Lock-Test prüfte den Dropbox-Kollegen, nie den Alltagsfall gleicher Nutzer / gleiche Maschine.
+
+Der Begriff, der im Code fehlte: **Ko-Präsenz** — dieselbe Person, zwei Werkzeuge. `isForeignEditor()` unterscheidet das jetzt: fremder Nutzer oder fremde Maschine bleibt harte Ablehnung, die eigene App wird gesnapshottet und geschrieben.
+
+### Stand pro Prinzip
+
+| | Urteil | Begründung |
+|---|---|---|
+| **P1 Schreiben** | teilweise | Wo ein gemeinsamer Planer existiert (`planStyleWrites`, `planBibliography`, `planPrintExport`, `splitIntoChapters`, `commentManager`), ist die Forderung **wörtlich** erfüllt — dieselben Pfade, dieselben Bytes, nachgemessen. Wo keiner existiert, driftet alles: Projektanlage, Kapitel-Include, Bild-Ablage, `.gitignore`. |
+| **P2 Lesen** | teilweise | Alle Textinhalte sind beidseitig lesbar, oft über dieselbe Funktion. Aber: **alles, was nicht als Datei im Projekt liegt, ist für die KI unsichtbar** — der gerenderte PDF-Zustand, die Auto-Backups, der Undo-Stack. Umgekehrt erzeugt die KI mit den 24 Design-Elementen etwas, wofür der Mensch keine Oberfläche hat. |
+| **P3 Wissen** | schwächste Achse | Nach `f30fe0a` zielt der Kanal richtig und wird laufend gelesen. Er bleibt aber **einseitig** (nur App → MCP) und trägt **vier Felder**: Projekt, Datei, Dirty, PID. Kein Cursor, keine Auswahl, keine Vorschauseite, kein „kompiliert das gerade". Die App kann nicht anzeigen, woran die KI arbeitet. |
+| **P4 Schutz** | nicht erfüllt | Die App verifiziert jede Design-Änderung per Testkompilat und rollt zurück; der MCP schreibt dieselben Dateien ungeprüft. Und der „Rückgängig"-Knopf im Design-Panel behauptet nach einer KI-Änderung etwas Falsches und löscht sie beim Druck mit. |
+
+### Was heute verlässlich geht
+
+Design-Tokens von beiden Seiten byte-identisch, mit demselben Guard · Bibliografie (ein Ort, eine Aufrufstelle) · Kommentare · Versionen inklusive Lazy-git-init · Suche, Querverweise, Quellen-PDFs · **und seit `f30fe0a` auch: die KI die gerade offene Datei bearbeiten lassen.**
+
+### Was nicht
+
+Sich darauf verlassen, dass die KI weiß, wie das Dokument *aussieht* — sie hat es nie gesehen · Design von der KI ändern lassen ohne Absturzrisiko (kein Verify, kein Rollback) · KI-Änderungen an mehreren Dateien zurücknehmen (die Snapshots liegen auf der Platte und sind im Verlaufs-Hub unsichtbar) · erwarten, dass die KI die Projektkonventionen kennt (in praktisch jedem real entstandenen Projekt fehlen alle fünf Skills).
+
+### Restliste, priorisiert
+
+**Klasse 1 — echte Asymmetrie mit heutigem Nutzerschaden (~30 h nach Abzug des Erledigten):**
+`safeApplyMcp` (Verify/Rollback über die Prozessgrenze, 4–5 h) · Undo-Netz lesbar machen — `listSnapshots` hat **null Produktivaufrufer** (4–5 h) · `unsavedEditsNote` in `guardedWrite` hochziehen statt an 3 von 28 Tools (1,5 h) · `insert_design_element` bekommt `file` (2 h) · Skills auf allen Anlagewegen — **0 von 35 Presets** haben `.claude/` (3 h) · Snapshot-Schleife in `replaceInProject`/`restore_version`/Kommentar-Tools/`textfile:write` (4 h) · `shared/projectScaffold.ts` (6 h) · `shared/assetPlacement.ts` — die App überschreibt heute still ein gleichnamiges Bild (3 h) · `get_style` liefert `initialized`/`rootFile` (1 h) · Design-Undo ehrlich machen (2–5 h).
+
+**Klasse 2 — fehlende Fähigkeiten:** `penwright_render_page` (die KI sieht eine gerenderte Seite) · Backup-Tools · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI · Handbuch als Resource.
+
+### Was bewusst asymmetrisch bleibt
+
+- **Die Export-Sandbox der KI.** Der Mensch wählt per Dialog frei und trägt die Entscheidung; das Modell darf nicht irgendwohin schreiben. Richtige Richtung der Ungleichheit.
+- **Der Zustandskanal bleibt einseitig.** Nur die App schreibt `session.json` — ein veralteter Agentenstand darf die App nicht steuern. Ein Rückkanal wäre rein informativ.
+- **Echte Fremd-Locks bleiben harte Ablehnung.** Der Ko-Präsenz-Fix entschärft nur dieselbe Person auf derselben Maschine.
+- **Kein Compile-Verify vor gewöhnlichen Textänderungen** — auf beiden Seiten. Der Verify gehört an Design-Mutationen, weil dort eine einzelne Änderung global bricht.
+- **Zwei Undo-Systeme dürfen bestehen bleiben** — sie lösen verschiedene Probleme. Sie müssen nur beide von beiden Seiten sichtbar sein.
+
+**Schlussurteil:** *Auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht.* Die beiden Prozesse teilen Dateien, aber sie teilen keine Gegenwart.
+
+---
+
+## Die Antwort (Ausgangsbefund, 2026-07-28 vormittags)
 
 **Nein, heute nicht.** Nicht „mit Einschränkungen" — die Kernschleife bricht in ihrer wahrscheinlichsten Ausprägung, und sie bricht **still**.
 
