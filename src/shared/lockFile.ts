@@ -46,7 +46,7 @@ function createLockInfo(): LockInfo {
     machine: os.hostname(),
     pid: process.pid,
     timestamp: Date.now(),
-    app: 'vswrite-desktop',
+    app: 'penwright',
   };
 }
 

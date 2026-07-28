@@ -11,9 +11,9 @@ import { appState } from './appState';
 import { buildMenu } from './menuBuilder';
 import { setupIPC } from './ipcHandlers';
 import { setupGitIPC } from './gitManager';
-import { openFile, saveFile, saveFileAs, closeProjectInteractive, stopFileWatcher, disposeCompiler } from './fileManager';
+import { openFile, saveFile, saveFileAs, closeProjectInteractive, stopFileWatcher, disposeCompiler, publishSession } from './fileManager';
 import { openProject } from './projectManager';
-import { releaseLock } from './lockManager';
+import { releaseLock } from '../shared/lockFile';
 import { getWindowBounds, saveWindowBounds, getLocale, getMcpTarget, setMcpTarget } from './persistenceManager';
 import { ensureMcpTarget, probeMetaMcp } from './mcpRegistration';
 import { resolveDict } from '../shared/i18n';
@@ -255,6 +255,7 @@ app.whenReady().then(() => {
   if (fileArg) {
     const absPath = path.resolve(fileArg);
     appState.projectDir = path.dirname(absPath);
+    publishSession();
     openFile(absPath);
   }
 
@@ -278,5 +279,6 @@ app.on('window-all-closed', () => {
 app.on('open-file', (_event, filePath) => {
   if (!appState.mainWindow) return;
   appState.projectDir = path.dirname(filePath);
+  publishSession();
   openFile(filePath);
 });

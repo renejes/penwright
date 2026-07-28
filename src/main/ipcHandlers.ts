@@ -14,7 +14,7 @@ import { templates as projectTemplates } from '../shared/projectTemplates';
 import { appState } from './appState';
 import { resolveDict } from '../shared/i18n';
 import { buildMenu } from './menuBuilder';
-import { openFile, saveFile, saveFileAs, autoSave, updateTitle, popAiSnapshot, getAiSnapshotsList, getAiSnapshotCount, closeProjectInteractive , applySpellcheckLanguage } from './fileManager';
+import { openFile, saveFile, saveFileAs, autoSave, updateTitle, publishSession, popAiSnapshot, getAiSnapshotsList, getAiSnapshotCount, closeProjectInteractive , applySpellcheckLanguage } from './fileManager';
 import { isPathWithin } from './pathSecurity';
 import { getTypstPath } from './typstPath';
 
@@ -306,9 +306,13 @@ export function setupIPC(): void {
       case 'edit': {
         const content = msg.content as string;
         if (content !== appState.currentContent) {
+          const wasClean = !appState.isDirty;
           appState.currentContent = content;
           appState.isDirty = true;
           updateTitle();
+          // Only on the clean→dirty transition, not per keystroke: the agent
+          // needs to know the buffer diverges from disk, not how often.
+          if (wasClean) publishSession();
           appState.mainWindow?.webContents.send('penwright', { type: 'saveStatus', saved: false });
           autoSave();
         }
@@ -605,6 +609,7 @@ export function setupIPC(): void {
       const parent = path.dirname(dir);
       if (parent !== dir) {
         appState.projectDir = parent;
+        publishSession();
         appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
         return { dir: parent, entries: readDirTree(parent), hasParent: path.dirname(parent) !== parent };
       }
@@ -618,6 +623,7 @@ export function setupIPC(): void {
     });
     if (!result.canceled && result.filePaths[0]) {
       appState.projectDir = result.filePaths[0];
+      publishSession();
       const typFiles = fs.readdirSync(appState.projectDir).filter(f => f.endsWith('.typ'));
       if (typFiles.length > 0) {
         openFile(path.join(appState.projectDir, typFiles[0]));

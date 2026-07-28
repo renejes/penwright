@@ -53,6 +53,9 @@ import {
   resolveDesignRoot,
   handwrittenStyleMessage,
 } from '../shared/styleWrite.js';
+import { readActiveProject, readSession, isDirtyInEditor } from '../shared/sessionState.js';
+import { snapshotBeforeWrite } from '../shared/editHistory.js';
+import { checkLock } from '../shared/lockFile.js';
 import { parseBibFile } from '../shared/bibParser.js';
 import { resolveIncludes } from '../shared/mergeDocument.js';
 import { splitIntoChapters, slugify } from '../shared/splitDocument.js';
@@ -113,7 +116,7 @@ function createMcpSnippetRenderer(baseDir: string): (snippet: string) => Promise
     const inFile = path.join(baseDir, `.penwright-snip-${stamp}.typ`);
     const outFile = path.join(os.tmpdir(), `penwright-snip-${stamp}.png`);
     try {
-      fs.writeFileSync(inFile, snippet, 'utf-8');
+      guardedWrite(inFile, snippet);
       await execFileAsync(typstBinary(), typstCompileArgs(['--ppi', '300', '--root', baseDir, inFile, outFile]), { timeout: 30000 });
       const png = fs.readFileSync(outFile);
       if (png.length < 24 || png.readUInt32BE(0) !== 0x89504e47) return null;
@@ -178,7 +181,7 @@ function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): Proje
 
   for (const w of plan.writes) {
     fs.mkdirSync(path.dirname(w.abs), { recursive: true });
-    fs.writeFileSync(w.abs, w.content, 'utf-8');
+    guardedWrite(w.abs, w.content);
   }
   return plan.style;
 }
@@ -277,36 +280,105 @@ function parseArgs(): void {
     state.projectDir = path.resolve(process.env.PENWRIGHT_PROJECT_DIR);
   }
 
-  // Fallback: cwd
+  // Fallback: whatever the app currently has open. No host sets a project
+  // directory (verified: neither mcpSetup.buildMcpEnv nor
+  // mcpRegistration.buildServerDefinition pass one), so without this the
+  // agent's idea of "the project" was whatever directory it happened to be
+  // spawned in.
   if (!state.projectDir) {
-    state.projectDir = process.cwd();
+    const active = readActiveProject();
+    if (active) state.projectDir = active;
   }
 
-  // Auto-detect main .typ file
-  if (!state.currentFile) {
-    state.currentFile = findRootFileIn(state.projectDir);
-    // Fallback: first .typ file in directory
-    if (!state.currentFile) {
-      try {
-        const typFiles = fs.readdirSync(state.projectDir).filter(f => f.endsWith('.typ'));
-        if (typFiles.length > 0) {
-          state.currentFile = path.join(state.projectDir, typFiles[0]);
-        }
-      } catch {}
+  // Fallback: cwd — but only if it actually looks like a Typst project.
+  // Claude Desktop spawns the binary in the .app's working directory and
+  // Claude Code in the terminal's; declaring either of those "the project"
+  // pointed every file tool at a stranger's files.
+  if (!state.projectDir) {
+    const cwd = process.cwd();
+    if (findRootFileIn(cwd) || fs.existsSync(path.join(cwd, '.penwright'))) {
+      state.projectDir = cwd;
+    }
+  }
+
+  if (state.projectDir && !state.currentFile) {
+    // Prefer the file the user is actually looking at. On a multi-chapter
+    // project the root is almost never it, and "rewrite the last paragraph"
+    // used to land in the wrong file for that reason alone.
+    const session = readSession(state.projectDir);
+    if (session?.currentFile && fs.existsSync(session.currentFile)) {
+      state.currentFile = session.currentFile;
+    } else {
+      state.currentFile = findRootFileIn(state.projectDir);
     }
   }
 }
 
 // ─── Helpers ─────────────────────────────────────────
 
+/**
+ * The one mutating write path on this side.
+ *
+ * The app stages design changes through safeApplyDesign and snapshots whatever
+ * an external edit replaces — but only for the file open in its editor. This
+ * process had neither: everything the agent changed in any other file was
+ * irreversible, and on a project without Git (the magazine-pipeline case, and
+ * every hand-crafted document) there was no fallback whatsoever.
+ *
+ * So before overwriting real project content: refuse if someone else holds the
+ * lock, and preserve the previous version where "Undo AI Edit" and the History
+ * hub already look for it.
+ *
+ * Skipped for temp files, for `.penwright/` state, and for anything outside
+ * the project — none of those is authored work, and snapshotting them would
+ * fill the undo list with noise.
+ */
+function guardedWrite(abs: string, content: string): void {
+  const resolved = path.resolve(abs);
+  const base = path.basename(resolved);
+  const root = state.projectDir ? path.resolve(state.projectDir) : null;
+  const inProject = !!root && resolved.startsWith(root + path.sep);
+  const isTemp = base.startsWith('.penwright-');
+  const isState = resolved.includes(path.sep + '.penwright' + path.sep);
+
+  if (inProject && !isTemp && !isState) {
+    const lock = checkLock(resolved);
+    if (lock) {
+      throw new Error(
+        `"${base}" is locked by ${lock.user} on ${lock.machine} (since ${new Date(lock.timestamp).toISOString()}). ` +
+        `Refusing to write — the other editor would lose its changes. Ask them to close the file, or edit a different one.`,
+      );
+    }
+    snapshotBeforeWrite(root!, resolved);
+  }
+
+  fs.writeFileSync(resolved, content, 'utf-8');
+}
+
+
 function readCurrentDocument(): { content: string; filePath: string } {
+  if (!state.projectDir) {
+    throw new Error('No project set. Call penwright_set_project({ projectDir: "/absolute/path" }) first — this server was not started inside a project.');
+  }
   if (!state.currentFile || !fs.existsSync(state.currentFile)) {
-    throw new Error('No document open. Use penwright_open_file to open a .typ file first.');
+    throw new Error(`No document open in ${state.projectDir}. Use penwright_open_file to pick a .typ file.`);
   }
   return {
     content: fs.readFileSync(state.currentFile, 'utf-8'),
     filePath: state.currentFile,
   };
+}
+
+/**
+ * A note to append when a file is open in Penwright with unsaved edits.
+ *
+ * Both sides are recoverable since the app snapshots whatever it replaces, so
+ * this warns rather than refuses — but the agent must know that what it read
+ * is not what the user sees, and that its write will be contested.
+ */
+function unsavedEditsNote(absFile: string): string {
+  if (!state.projectDir || !isDirtyInEditor(state.projectDir, absFile)) return '';
+  return `\n\nNOTE: ${path.basename(absFile)} is open in Penwright with unsaved changes. What is on disk is NOT what the user sees. Ask them to save before you rely on this, or expect your edit to be contested.`;
 }
 
 function wordCount(text: string): number {
@@ -455,7 +527,7 @@ server.tool(
             projectDir: state.projectDir,
             content,
             wordCount: wordCount(content),
-          }, null, 2),
+          }, null, 2) + unsavedEditsNote(filePath),
         }],
       };
     } catch (err) {
@@ -481,7 +553,7 @@ server.tool(
       return {
         content: [{
           type: 'text' as const,
-          text: `Opened ${path.basename(absPath)} (${wordCount(content)} words)`,
+          text: `Opened ${path.basename(absPath)} (${wordCount(content)} words)` + unsavedEditsNote(absPath),
         }],
       };
     } catch (err) {
@@ -499,11 +571,12 @@ server.tool(
   async ({ content }) => {
     try {
       const { filePath } = readCurrentDocument();
-      fs.writeFileSync(filePath, content, 'utf-8');
+      const contested = unsavedEditsNote(filePath);
+      guardedWrite(filePath, content);
       return {
         content: [{
           type: 'text' as const,
-          text: `Updated and saved ${path.basename(filePath)} (${wordCount(content)} words)`,
+          text: `Updated and saved ${path.basename(filePath)} (${wordCount(content)} words)` + contested,
         }],
       };
     } catch (err) {
@@ -662,7 +735,7 @@ server.tool(
       }
 
       const updated = applySettings(content, merged as DocumentSettings);
-      fs.writeFileSync(filePath, updated, 'utf-8');
+      guardedWrite(filePath, updated);
 
       return {
         content: [{
@@ -763,7 +836,7 @@ server.tool(
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(absPath, content, 'utf-8');
+      guardedWrite(absPath, content);
       return {
         content: [{ type: 'text' as const, text: `Written ${path.basename(absPath)} (${content.length} bytes)` }],
       };
@@ -848,7 +921,7 @@ server.tool(
 
       const STYLE_PRINT = '.penwright-style-print.typ';
       const stylePrintAbs = path.join(dir, STYLE_PRINT);
-      fs.writeFileSync(stylePrintAbs, generateStyleTypst(printStyle, { print: true }), 'utf-8');
+      guardedWrite(stylePrintAbs, generateStyleTypst(printStyle, { print: true }));
       cleanup.push(stylePrintAbs);
 
       const original = fs.readFileSync(rootFile, 'utf-8');
@@ -857,7 +930,7 @@ server.tool(
         rootContent = `#import "${STYLE_PRINT}": *\n#show: apply-style\n\n${rootContent}`;
       }
       const rootTempAbs = path.join(dir, '.penwright-print-root.typ');
-      fs.writeFileSync(rootTempAbs, rootContent, 'utf-8');
+      guardedWrite(rootTempAbs, rootContent);
       cleanup.push(rootTempAbs);
 
       await execFileAsync(typstBinary(), typstCompileArgs([rootTempAbs, absOutput]), { cwd: dir, timeout: 60000 });
@@ -1183,7 +1256,7 @@ server.tool(
       }
 
       const updated = content.slice(0, insertAt) + '\n\n' + snippet + '\n' + content.slice(insertAt);
-      fs.writeFileSync(filePath, updated, 'utf-8');
+      guardedWrite(filePath, updated);
 
       return {
         content: [{
@@ -1274,7 +1347,7 @@ server.tool(
           }
         }
         const updated = content.slice(0, insertAt) + '\n' + snippet + '\n' + content.slice(insertAt);
-        fs.writeFileSync(heroTarget, updated, 'utf-8');
+        guardedWrite(heroTarget, updated);
         heroInserted = true;
       } catch (err) {
         // Non-fatal — the theme + layout still applied.
@@ -1427,7 +1500,7 @@ server.tool(
     const rootDir = path.dirname(findRootFile(chapterAbs));
     const importPath = path.relative(path.dirname(chapterAbs), path.join(rootDir, 'style.typ')).split(path.sep).join('/');
     const src = fs.readFileSync(chapterAbs, 'utf-8');
-    fs.writeFileSync(chapterAbs, ensureSectionStyle(src, styleId, importPath), 'utf-8');
+    guardedWrite(chapterAbs, ensureSectionStyle(src, styleId, importPath));
     return { content: [{ type: 'text' as const, text: JSON.stringify({ file, styleId, importPath, note: 'Run penwright_compile to verify.' }, null, 2) }] };
   },
 );
@@ -1448,7 +1521,7 @@ server.tool(
     }
     const src = fs.readFileSync(chapterAbs, 'utf-8');
     const had = getSectionStyleId(src);
-    fs.writeFileSync(chapterAbs, clearSectionStyle(src), 'utf-8');
+    guardedWrite(chapterAbs, clearSectionStyle(src));
     return { content: [{ type: 'text' as const, text: JSON.stringify({ file, cleared: had ?? null }, null, 2) }] };
   },
 );
@@ -1550,7 +1623,7 @@ server.tool(
       }
 
       const updated = result.join('\n');
-      fs.writeFileSync(filePath, updated, 'utf-8');
+      guardedWrite(filePath, updated);
 
       const note = preserved.length
         ? ` (${preserved.length} chapter(s) not in the order array kept at the end — pass ALL chapters to fully control the order)`
@@ -1589,7 +1662,7 @@ server.tool(
 
       // Create chapter file
       if (!fs.existsSync(chapterPath)) {
-        fs.writeFileSync(chapterPath, `= ${title}\n\n`, 'utf-8');
+        guardedWrite(chapterPath, `= ${title}\n\n`);
       }
 
       // Add #include to document
@@ -1623,7 +1696,7 @@ server.tool(
         }
       }
 
-      fs.writeFileSync(filePath, lines.join('\n'), 'utf-8');
+      guardedWrite(filePath, lines.join('\n'));
 
       return {
         content: [{ type: 'text' as const, text: `Created chapter "${title}" → ${relPath}` }],
@@ -1650,7 +1723,7 @@ server.tool(
         return { content: [{ type: 'text' as const, text: `No #include found for "${chapterPath}"` }], isError: true };
       }
 
-      fs.writeFileSync(filePath, filtered.join('\n'), 'utf-8');
+      guardedWrite(filePath, filtered.join('\n'));
 
       return {
         content: [{ type: 'text' as const, text: `Removed #include "${chapterPath}" from ${path.basename(filePath)}` }],
@@ -1702,12 +1775,12 @@ server.tool(
         const ch = chapters[i];
         const slug = slugify(ch.title, i);
         const chapterPath = path.join(chaptersDir, `${slug}.typ`);
-        fs.writeFileSync(chapterPath, ch.content, 'utf-8');
+        guardedWrite(chapterPath, ch.content);
         includeLines.push(`#include "chapters/${slug}.typ"`);
       }
 
       const updated = config + '\n\n' + includeLines.join('\n') + '\n';
-      fs.writeFileSync(filePath, updated, 'utf-8');
+      guardedWrite(filePath, updated);
 
       return {
         content: [{
@@ -1767,21 +1840,21 @@ server.tool(
 
       // Create .bib file if needed
       if (!fs.existsSync(bibPath)) {
-        fs.writeFileSync(bibPath, '// Bibliography\n\n', 'utf-8');
+        guardedWrite(bibPath, '// Bibliography\n\n');
       }
 
       // Append the entry
       let existing = fs.readFileSync(bibPath, 'utf-8');
       if (!existing.endsWith('\n')) existing += '\n';
       existing += '\n' + bibtex.trim() + '\n';
-      fs.writeFileSync(bibPath, existing, 'utf-8');
+      guardedWrite(bibPath, existing);
 
       // Ensure #bibliography in document
       if (state.currentFile) {
         const docContent = fs.readFileSync(state.currentFile, 'utf-8');
         if (!docContent.includes('#bibliography')) {
           const updated = docContent.trimEnd() + `\n\n#bibliography("${targetFile}")\n`;
-          fs.writeFileSync(state.currentFile, updated, 'utf-8');
+          guardedWrite(state.currentFile, updated);
         }
       }
 
@@ -1810,7 +1883,7 @@ server.tool(
       const created: string[] = [];
 
       if (!fs.existsSync(bibPath)) {
-        fs.writeFileSync(bibPath, '// Bibliography\n\n', 'utf-8');
+        guardedWrite(bibPath, '// Bibliography\n\n');
         created.push('references.bib');
       }
 
@@ -1818,7 +1891,7 @@ server.tool(
         const content = fs.readFileSync(state.currentFile, 'utf-8');
         if (!content.includes('#bibliography')) {
           const updated = content.trimEnd() + '\n\n#bibliography("references.bib")\n';
-          fs.writeFileSync(state.currentFile, updated, 'utf-8');
+          guardedWrite(state.currentFile, updated);
           created.push('#bibliography statement');
         }
       }
@@ -1866,7 +1939,7 @@ server.tool(
         const filePath = path.join(projectDir, relPath);
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(filePath, content, 'utf-8');
+        guardedWrite(filePath, content);
       }
 
       // Switch to new project
@@ -1992,7 +2065,7 @@ async function ensureGitRepo(dir: string): Promise<void> {
   if (missing.length === 0) return;
   const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
   const addition = (existing.length === 0 ? '# Penwright\n' : prefix + '\n# Penwright\n') + missing.join('\n') + '\n';
-  fs.writeFileSync(gitignorePath, existing + addition, 'utf-8');
+  guardedWrite(gitignorePath, existing + addition);
 }
 
 interface DiffFileEntry {
@@ -2514,7 +2587,7 @@ server.tool(
       const refText = (needsSpace ? ' ' : '') + `@${label}`;
       const updated = content.slice(0, insertPos) + refText + content.slice(insertPos);
 
-      fs.writeFileSync(absFile, updated, 'utf-8');
+      guardedWrite(absFile, updated);
 
       return {
         content: [{
@@ -2580,7 +2653,7 @@ server.tool(
       const footnoteText = `#footnote[${body}]`;
       const updated = content.slice(0, insertPos) + footnoteText + content.slice(insertPos);
 
-      fs.writeFileSync(absFile, updated, 'utf-8');
+      guardedWrite(absFile, updated);
 
       return {
         content: [{
@@ -2786,7 +2859,7 @@ server.tool(
       if (!fs.existsSync(destDir)) {
         fs.mkdirSync(destDir, { recursive: true });
       }
-      fs.writeFileSync(absDest, typstContent, 'utf-8');
+      guardedWrite(absDest, typstContent);
 
       return {
         content: [{
@@ -2892,7 +2965,7 @@ server.tool(
         const insertPos = located.offset + afterText.length;
         // Figures are block-level — wrap with blank lines so they don't glue onto surrounding paragraphs.
         const updated = content.slice(0, insertPos) + '\n\n' + snippet + '\n\n' + content.slice(insertPos);
-        fs.writeFileSync(absFile, updated, 'utf-8');
+        guardedWrite(absFile, updated);
         return {
           content: [{
             type: 'text' as const,

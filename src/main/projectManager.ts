@@ -11,6 +11,7 @@ import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile, findRootFileIn } from '../shared/rootFinder';
 import { isDesignAdopted } from '../shared/styleWrite';
+import { writeActiveProject } from '../shared/sessionState';
 import { generateStyleTypst, ensureStyleInclude } from '../shared/styleParser';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleTypes';
 import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
@@ -212,6 +213,7 @@ export async function handleCreateProject(templateId: string, projectName: strin
   ensureStyleFile(dir, true);
 
   appState.projectDir = dir;
+  writeActiveProject(dir);
   const { openFile } = await import('./fileManager');
   openFile(path.join(dir, 'main.typ'));
   appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
@@ -290,6 +292,7 @@ export async function openProject(projectDir?: string): Promise<string | null> {
   }
 
   appState.projectDir = projectDir;
+  writeActiveProject(projectDir);
 
   const entry = findEntryFile(projectDir);
   if (entry) {

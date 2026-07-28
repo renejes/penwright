@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import { watch, type FSWatcher } from 'chokidar';
 import { findRootFile } from '../shared/rootFinder';
 import { isIgnoredWatchPath, normalizeWatchRoot } from '../shared/watchIgnore';
+import { writeSession, clearSession, writeActiveProject } from '../shared/sessionState';
 import {
   noteDiskContent,
   isKnownContent,
@@ -19,7 +20,7 @@ import {
 import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
-import { checkLock, acquireLock, releaseLock } from './lockManager';
+import { checkLock, acquireLock, releaseLock } from '../shared/lockFile';
 import {
   addRecentProject,
   saveProjectBackup,
@@ -262,6 +263,7 @@ export async function openFile(filePath?: string): Promise<void> {
     // bogus entry onto the AI-undo stack — one click on "Undo AI Edit" would
     // then throw away the whole session's work.
     noteDiskContent(filePath, appState.currentContent);
+    publishSession();
     appState.currentFilePath = filePath;
     if (!appState.projectDir) {
       appState.projectDir = path.dirname(filePath);
@@ -371,6 +373,7 @@ export async function saveFile(): Promise<boolean> {
     noteDiskContent(appState.currentFilePath, appState.currentContent);
     appState.isDirty = false;
     updateTitle();
+    publishSession();
     // Recompile the live preview only in 'auto' mode. In 'manual' mode the file
     // is still saved, but the preview waits for an explicit Refresh
     // (preview:compile) — cheaper on long documents while you're just writing.
@@ -427,6 +430,9 @@ export async function saveFileAs(): Promise<boolean> {
  * (see `closeProjectInteractive`).
  */
 export function closeProject(): void {
+  // Captured before the state is torn down — the session file lives inside the
+  // project we are about to forget.
+  const closingProjectDir = appState.projectDir;
   releaseLock();
   stopFileWatcher();
   disposeCompiler();
@@ -446,6 +452,8 @@ export function closeProject(): void {
   // Write provenance is per-project state — a path in the next project must
   // never be mistaken for one we wrote in this one.
   forgetAll();
+  if (closingProjectDir) clearSession(closingProjectDir);
+  writeActiveProject(null);
 
   updateTitle();
   appState.mainWindow?.webContents.send('penwright', { type: 'projectClosed' });
@@ -471,6 +479,24 @@ export async function closeProjectInteractive(): Promise<boolean> {
   }
   closeProject();
   return true;
+}
+
+/**
+ * Publishes what the app is doing so the MCP server can read it — which file
+ * is open and whether it has unsaved edits. Called on every transition that
+ * changes either. Cheap and best-effort: sessionState swallows write errors,
+ * and the watcher ignores the file, so this never feeds back into the app.
+ */
+export function publishSession(): void {
+  if (!appState.projectDir) return;
+  // Two records: which project at all (global, outside any project — that is
+  // the part a reader cannot look up), and which file inside it.
+  writeActiveProject(appState.projectDir);
+  writeSession({
+    projectDir: appState.projectDir,
+    currentFile: appState.currentFilePath,
+    isDirty: appState.isDirty,
+  });
 }
 
 export function updateTitle(): void {
@@ -632,6 +658,7 @@ function setupFileWatcher(): void {
         appState.currentContent = diskContent;
         appState.isDirty = false;
         updateTitle();
+        publishSession();
         appState.mainWindow?.webContents.send('penwright', {
           type: 'update',
           content: appState.currentContent,
