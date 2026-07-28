@@ -1,5 +1,49 @@
 # Penwright Desktop — Next Steps bis zum Release
 
+---
+
+## 🔑 AKTUELLES ARBEITSZIEL (seit 2026-07-29, Session 41): Parität App ↔ KI
+
+> Vollständiger Kontext: [handover.md](handover.md) · Ist-Zustand + Restliste: [app-mcp-parity.md](app-mcp-parity.md)
+
+**Das Prinzip:** Die KI (über den MCP-Server) sieht, was der Mensch sieht, und beide beschreiben dieselben Dateien. Beide arbeiten mit demselben Wissen und haben denselben Zugriff.
+
+Vier prüfbare Forderungen — **P1 Schreiben**, **P2 Lesen**, **P3 Wissen**, **P4 Schutz**. Stand nach Session 41: *auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht.*
+
+**Das Muster, das fortgeschrieben wird:** kein Synchronhalten zweier Implementierungen, sondern ein **gemeinsamer Planer in `src/shared/`**, den beide Prozesse aufrufen — reines Planen, der Aufrufer wendet an. Neun solche Module existieren bereits (`styleWrite`, `fileWrite`, `watchIgnore`, `sessionState`, `editHistory`, `lockFile`, `bibDiscovery`, `stylePresetMerge`, `printExportPlan`).
+
+### Reihenfolge
+
+**1. P4 Schutz vervollständigen (~10 h) — der einzige Bereich mit verbliebenem Schadenspotenzial**
+- [ ] `safeApplyMcp` — Staging → Compile-Verify → commit/rollback nach `shared/`, Verifier injiziert; `style.json` in die Rollback-Menge. *Ein Tool-Call kann das Dokument heute unkompilierbar hinterlassen, ohne Rückweg.*
+- [ ] Undo-Netz **lesbar** machen — `ai:list` auf `listSnapshots(projectDir)` (existiert, null Produktivaufrufer), `popAiSnapshot` mit `filePath`, MCP-Gegenstücke `list_edits`/`undo_last_edit`, **eine** Aufbewahrungsgrenze statt zwei.
+- [ ] `unsavedEditsNote` in `guardedWrite` hochziehen — heute an 3 von 28 Tools.
+
+**2. P1 Schreiben vervollständigen (~9 h) — bekannt, bounded, dasselbe Muster**
+- [ ] `shared/projectScaffold.ts` — `create_project` erzeugt 3 Dateien, die App 12 + Git + `.gitignore` + `sources/` + Skills + `style.typ`. Nimmt die `.gitignore`-Divergenz und die Skill-Lücke mit (**0 von 35 Presets** haben `.claude/`).
+- [ ] `shared/assetPlacement.ts` — drei Ablageschemata; **die App überschreibt heute still ein gleichnamiges Bild**.
+
+**3. P3 Wissen — bewusst BEGRENZT ausbauen**
+> `session.json` soll **kein** Spiegel des Editors werden. Ein Zustandsspiegel mit Cursor, Auswahl und Puffer ist eine zweite Wahrheit, die veralten kann. Nur was zu einer **anderen Entscheidung** der KI führt.
+- [ ] `lastCompileOk` in `session.json` — weiß die KI, ob sie auf einem kaputten Dokument aufsetzt.
+- [ ] `agent-activity.json` als Rückkanal — die App **zeigt** an, woran die KI arbeitet, und gehorcht ihm nicht.
+- [ ] `get_style` liefert `initialized`/`rootFile` — sonst designt die KI gegen eine Fiktion.
+
+**4. P2 Lesen — eine echte Fähigkeit fehlt**
+- [ ] `penwright_render_page` (~5 h) — **die KI hat das Dokument nie gesehen.** Typst rendert direkt PNG, die Binary ist gebündelt, `type:'image'` ist im MCP-Protokoll vorgesehen und wird nirgends benutzt. Größte einzelne Annäherung an „die KI sieht, was der Mensch sieht" — und Voraussetzung für fundiertes Design-Feedback.
+
+**5. Danach: MCP-Tool-Umbau** — [mcp-rebuild-plan.md](mcp-rebuild-plan.md), ~20 Tage, noch nicht begonnen. Stufe 0 (`server.instructions`, `registerTool()` + Annotations, Beschreibungs-Chirurgie) ist unabhängig und kann jederzeit dazwischen.
+
+### Was bewusst asymmetrisch bleibt — nicht „fixen"
+
+Export-Sandbox der KI enger als die des Menschen · Zustandskanal einseitig (App → MCP) · echte Fremd-Locks bleiben harte Ablehnung · kein Compile-Verify vor gewöhnlichen Textänderungen (auf beiden Seiten) · zwei Undo-Systeme dürfen bestehen bleiben, müssen nur beidseitig sichtbar sein · Web-Export ohne MCP-Tool (Produktentscheidung — die Tool-Beschreibungen sollen es aber *sagen*).
+
+### Beantwortet und abgehakt
+
+- [x] **„Können wir die 60 MCP-Tools reduzieren?"** — Nein, und die Frage war die falsche. Manifest = 0,86 % eines 1-M-Fensters; Textkürzung schlägt Tool-Streichen; ein sicheres Rename kostet mehr, als es spart. Volle Messung + drei ausgearbeitete Optionen: [mcp-tool-audit.md](mcp-tool-audit.md), [mcp-tool-consolidation.md](mcp-tool-consolidation.md).
+
+---
+
 > Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-06-30 (Session 39: Web-Export Phase C+D+E-Slice — Mini-Site + Heros; **v0.10.0** nach `main` gemergt + getaggt + DMG gebaut) | App-Version: **0.10.0** (package.json + Doku synchron)
 >
 > **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (57 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / Penwright / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (22 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets, 5 Section-Style-Rubriken), Per-Chapter Section Styles (Phase E), DOCX-Overhaul (journal-submission-tauglich), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
