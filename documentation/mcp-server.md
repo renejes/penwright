@@ -86,7 +86,7 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 |------|-------------|
 | `penwright_set_project` | Projekt-Verzeichnis setzen/wechseln (auto-detect main.typ) |
 | `penwright_list_files` | Projekt-Dateibaum anzeigen |
-| `penwright_read_file` | Projektdatei lesen (Text oder Base64 fuer Binaerdateien) |
+| `penwright_read_file` | Projektdatei lesen (Text oder Base64 fuer Binaerdateien). **Bei ~400 k Zeichen gekappt**, mit sichtbarem Hinweis + Verweis auf `penwright_search_project` — eine einzige Rueckgabe darf den Rest des Gespraechs nicht verdraengen, und still zu kuerzen waere schlimmer als gar nicht. |
 | `penwright_write_file` | Datei schreiben (mit auto-mkdir) |
 | `penwright_create_project` | Neues Projekt aus Template (document, thesis, paper, letter, book, **magazine**). `magazine` ist die Slow-Media-Vorlage fuer ai-magazine-designer. Seit Session 42 laeuft das durch **denselben Scaffold wie „Neues Projekt" in der App** (`shared/projectScaffold`): `assets/` + `sources/`, `.gitignore`, `.penwright/`-Skelett, die fuenf Projekt-Skills unter `.claude/skills/`, `style.typ` in der Wurzel verdrahtet, Git-Repo + erste Version. Vorher entstanden hier drei Dateien und sonst nichts — kein Repo (also nichts, was „Version speichern" haette wiederherstellen koennen) und keine Skills (der naechste Agent wusste nichts ueber die Konventionen des Projekts). |
 
@@ -115,8 +115,8 @@ Document Settings sind seit Session 22 auf `lang` + `bibliographyStyle` reduzier
 
 | Tool | Beschreibung |
 |------|-------------|
-| `penwright_get_settings` | Document Settings lesen (lang + bibliographyStyle) |
-| `penwright_update_settings` | Settings aendern (nur geaenderte Keys angeben) |
+| `penwright_get_settings` | Document Settings der **Wurzel** lesen — genau zwei: `lang` + `bibliographyStyle`. Liefert den Dateinamen mit, damit klar ist, worueber geredet wird. |
+| `penwright_update_settings` | Dieselben zwei Settings in der **Wurzel** aendern (nur geaenderte Keys). Typisiert statt freies Key-Value: vorher wurde jeder unbekannte Key stillschweigend verworfen und Erfolg gemeldet. |
 
 ### Design (16) — Themes, Layouts, Palette, Fonts, Elements, Section Styles, Selection-Handoff
 
@@ -153,7 +153,7 @@ Bei einem Projekt mit **handgeschriebener `style.typ`** verweigern alle Design-T
 | `penwright_reorder_chapters` | #include-Reihenfolge aendern |
 | `penwright_add_chapter` | Neue Kapitel-Datei erstellen + #include einfuegen |
 | `penwright_remove_chapter` | #include-Zeile entfernen (Datei bleibt erhalten) |
-| `penwright_merge_document` | Alle #includes aufloeosen, zusammengefuehrtes Dokument zurueckgeben |
+| `penwright_merge_document` | Alle #includes der **Wurzel** aufloesen und das zusammengefuehrte Dokument zurueckgeben — zum Lesen ueber Kapitelgrenzen (globale Umschreibung, Konsistenzpass). Schreibt nichts; die Umkehrung `penwright_split_document` schon. Gleiche Kappung wie `read_file`. |
 | `penwright_split_document` | An Heading-1-Grenzen in Kapitel aufteilen |
 
 ### Bibliographie & Citations (3)
@@ -171,7 +171,7 @@ Spiegelung der Cross-Reference-Picker- und Footnote-UI aus dem Editor. Anker-bas
 | Tool | Beschreibung |
 |------|-------------|
 | `penwright_list_labels` | Alle `<label>`s im Projekt auflisten, optional nach Typ gefiltert (figure / table / equation / heading / other). Liefert `{ label, type, caption, relPath, line }`. **Vor `insert_reference` aufrufen**, sonst raet der Agent nur. |
-| `penwright_insert_reference` | `@label` an einer Anker-Position einfuegen. Validiert, dass das Label existiert (sonst Vorschlaege). Auto-Space, wenn der vorherige Char alphanumerisch ist (Typst-Syntax-Zwang). |
+| `penwright_insert_reference` | Eine `@`-Referenz an einer Anker-Position einfuegen — **entweder** ein `<label>` (Abbildung / Tabelle / Gleichung / Abschnitt) **oder ein Citekey aus der Bibliographie**. Typst schreibt beides gleich; bis Session 42 nahm das Tool nur Labels, womit die haeufigste Form ueberhaupt, ein `@` zu setzen (eine Quelle mitten im Absatz zitieren), im ganzen Server nicht bedienbar war. Prueft vorab, ob das Ziel existiert (sonst Vorschlaege aus **beiden** Mengen), und setzt ein Leerzeichen davor, wenn Typst es sonst ans vorherige Wort kleben wuerde. |
 | `penwright_add_footnote` | `#footnote[<body>]` an einer Anker-Position einfuegen. Klammer-Balance-Check auf den Body, damit der Typst-Parser nicht bricht. |
 
 ### Comments & Annotations (4)
@@ -192,7 +192,7 @@ Projekt-weite Suche und Citation-Source-Lookup. **Pflicht fuer jeden Konsistenz-
 | Tool | Beschreibung |
 |------|-------------|
 | `penwright_search_project` | Volltext-Suche ueber alle `.typ` (optional `.bib`). Optionen: case-sensitive / whole-word / regex. Whole-Word funktioniert auch bei Tokens, die mit Sonderzeichen anfangen (`@chen2021codex` etc.) — Lookarounds statt `\b`. Cap: 1000 Treffer. |
-| `penwright_replace_in_project` | Bulk-Replace ueber alle Dateien. **Destruktiv** — vorher `penwright_save_version` aufrufen. |
+| `penwright_replace_in_project` | Bulk-Replace ueber alle Dateien. **Erst mit `dryRun: true` laufen lassen** — das meldet pro Datei, was sich aendern wuerde, und schreibt nichts. Ein Regex, der mehr trifft als gemeint, ist der Query allein nicht anzusehen, und das hier fasst alle Dateien auf einmal an. Der Dry-Run benutzt dieselbe Suche wie der Replace, nicht eine aehnliche. |
 | `penwright_find_source_for_citation` | Sucht in `sources/` nach `<citekey>.pdf` oder Suffix-Varianten (`<citekey>_supplement.pdf` etc.). Liefert relativen Pfad oder `{ found: false }`. |
 
 ### Export (2)
@@ -220,7 +220,7 @@ High-Level-API analog zum „Versionen"-Panel im UI. Spricht Schreiber-Vokabular
 | `penwright_save_version` | Benannte Version speichern (Git-Commit). Optional auf bestimmte Dateien einschraenken. Returns `{ sha: null, skipped: true }`, wenn nichts zu speichern ist. |
 | `penwright_list_versions` | Versionsverlauf lesen, neueste zuerst, max. 200 Eintraege. Pro Eintrag: `{ sha, message, date, author, isAuto }`. |
 | `penwright_show_version` | Diff einer einzelnen Version pro Datei: `{ path, status, patch }`. |
-| `penwright_restore_version` | Dateien aus einer historischen Version zurueck in den Working-Tree. **Achtung:** ueberschreibt unkommittete Aenderungen. Vorher `penwright_save_version` aufrufen, um den aktuellen Stand zu sichern. |
+| `penwright_restore_version` | Dateien aus einer historischen Version zurueck in den Working-Tree. **Verlangt `confirm: true`** — als einziges Tool hier, weil `git checkout` unkommittete Arbeit verwirft und dabei **keinen** Snapshot hinterlaesst, auf den `penwright_undo_last_edit` zurueckgreifen koennte. Ohne `confirm` passiert nichts und der Agent bekommt gesagt, was er stattdessen tun soll (vorher `penwright_save_version`). |
 
 **Das Undo-Netz** (`.penwright/ai-snapshots/`) ist etwas anderes als Versionen: `guardedWrite` sichert vor **jedem** Schreibvorgang dieses Servers die Vorversion der Datei — dieselbe Ablage, die „Undo AI Edit" und der Verlaufs-Hub der App lesen. Bis Session 42 konnte diese Seite den Ordner nur fuellen, nie hineinsehen. Begrenzt und pro Datei; fuer alles, was bleiben soll, `penwright_save_version`.
 

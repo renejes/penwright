@@ -25,17 +25,29 @@
 - [x] **`penwright_render_page`** — die KI kann das Dokument jetzt **sehen** (Typst → PNG, `type:'image'`, max. 2 Seiten / 4 MB pro Aufruf).
 - [x] **`scripts/parity-guards-test.mts`** — 55 Checks, acht davon E2E über stdio mit echtem Typst. Der Rollback-Check wurde gegengeprüft (ohne den Fix rot).
 
+### Erledigt (Block 3, Phase C-Rest)
+
+- [x] **Dokument-Tools zielen auf die Wurzel** (`readRootDocument()`): `get_chapters`, `add_chapter`, `split_document`, `get_settings`, `update_settings`, `merge_document`. Sie lasen `state.currentFile` — seit dem Zustandskanal das Kapitel, das der Nutzer ansieht. `add_chapter` schrieb das `#include` also **in ein Kapitel**, `update_settings` setzte `#set text(lang:)` dorthin, wo es nichts regiert. Zweistufig aufgelöst und bei `null` **hart fehlschlagend** — nie ein erfundenes `main.typ` (das würde die Design-Wurzel dauerhaft verschieben; `findRootFileIn` liefert für `Angebot.typ` / `Sichtbarkeitskonzept.typ` `null`, die zweite Stufe ist also tragend). *Gegengeprüft: ohne den Fix wird der Test rot, und man sieht das `#include` im Kapitel landen.*
+- [x] **`restore_version` verlangt `confirm: true`** — als einziges Tool. `git checkout` verwirft unkommittete Arbeit und hinterlässt **keinen** Snapshot, auf den `undo_last_edit` zurückgreifen könnte. Ohne `confirm` passiert nichts, und der Agent bekommt gesagt, was er stattdessen tun soll.
+- [x] **`replace_in_project` bekommt `dryRun`** — meldet pro Datei, was sich ändern *würde*, und schreibt nichts. Der Dry-Run benutzt **dieselbe** Suche wie der Replace, nicht eine ähnliche.
+- [x] **Caps auf die unbegrenzten Leser** (`read_file`, `merge_document`): ~400 k Zeichen, mit sichtbarem Hinweis und dem Verweis, was stattdessen zu tun ist. Still zu kürzen wäre schlimmer als gar nicht.
+- [x] **`update_settings` typisiert** — vorher freies Key-Value: ein Aufruf mit `fontSize` meldete Erfolg und änderte nichts.
+- [x] **`insert_reference` nimmt Citekeys** — die letzte echte Fähigkeitslücke. Typst schreibt Querverweis und Zitat gleich (`@name`); das Tool nahm nur Labels, womit eine Quelle mitten im Absatz zu zitieren gar nicht bedienbar war. Bei einem Fehlschlag kommen Vorschläge aus **beiden** Mengen.
+- [x] **Beide MCP-Testsuiten senden jetzt sequenziell.** Der SDK verteilt Aufrufe nebenläufig, ein Batch konnte also `get_chapters` vor dem `set_project` darüber ausführen — zwei überzeugend aussehende „Fehlschläge", die nichts als die eigene Reihenfolge waren.
+
+**Bewusst nicht in Block 3:** C3 (`update_document` streichen, `write_file` mit Pflicht-`filePath`) ist eine **Signaturänderung** und gehört zu Phase E, wo der Skill-Rewrite einmal stattfindet.
+
 ### Offen — jetzt der Umbauplan
 
 | Block | Inhalt | PT |
 |---|---|---:|
 | ~~1~~ | ~~Parität~~ | ✅ |
 | ~~2~~ | ~~Phase B + A2 + A3-Rest~~ | ✅ |
-| **3** | **Phase C-Rest — als nächstes.** Kapitel-Tools auf die Wurzel · `restore_version` verlangt Bestätigung · `replace_in_project` bekommt Dry-Run · Caps gegen Kontext-Flutung · **`insert_reference` nimmt auch Citekeys** (die einzige verbliebene echte Fähigkeitslücke — „zitiere @chen2021 im dritten Absatz" ist im ganzen Server nicht bedienbar) | 1,5 |
-| 4 | **Eval** — 10–15 nachprüfbare Autorenaufgaben. Der Vergleichspunkt ist jetzt fällig: `instructions` + geschärfte Beschreibungen sind drin, die Namen sind unverändert. **Das ist der Moment, an dem sich messen lässt, ob Block 5 überhaupt gebraucht wird.** | 1 |
+| ~~3~~ | ~~Phase C-Rest~~ | ✅ |
+| **4** | **Eval — jetzt dran, und es ist der Punkt, an dem etwas entschieden wird.** 10–15 nachprüfbare Autorenaufgaben. `instructions`, geschärfte Beschreibungen, Annotations und die C-Fixes sind drin; die Namen sind unverändert. **Genau der Zustand, in dem sich messen lässt, ob Block 5 überhaupt gebraucht wird.** | 1 |
 | 5 | Phase E + F (Renames, Merges, Skill-Rewrite) — **nur wenn das Eval Fehlgriffe zeigt** | 7 |
 
-**Rest des harten Kerns: ~2,5 PT.** Block 5 hängt bewusst an der Messung in Block 4: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
+**Rest des harten Kerns: ~1 PT — das Eval.** Block 5 hängt bewusst an der Messung in Block 4: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
 
 ### Erledigt (Block 2, Phase B + A2 + A3-Rest)
 
@@ -50,7 +62,7 @@
 
 **Kleinere Paritätsreste** (nicht blockierend): `insert_design_element` bekommt `file` · Backup-Tools für die KI (`history/VER-03` — Auto-Backups sind für sie unlesbar, aber ungeschützt beschreibbar) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI sichtbar · Handbuch als MCP-Resource · `writeFileAtomic` + `awaitWriteFinish` (<4 h zusammen).
 
-**Gate nach jedem Block, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen (steht auf **`0.21.0`**, gebumpt) + `npm run build:mcp-binary:all` + `npm run check:mcp`. **Neu:** die Skill-Texte stecken jetzt in der Binary (die MCP-Anlagewege deployen sie), also braucht auch eine `skillTemplates.ts`-Änderung einen Rebuild.
+**Gate nach jedem Block, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen (steht auf **`0.22.0`**, gebumpt) + `npm run build:mcp-binary:all` + `npm run check:mcp`. **Neu:** die Skill-Texte stecken jetzt in der Binary (die MCP-Anlagewege deployen sie), also braucht auch eine `skillTemplates.ts`-Änderung einen Rebuild.
 
 ### Was bewusst asymmetrisch bleibt — nicht „fixen"
 

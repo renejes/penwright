@@ -1,6 +1,6 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-29, Ende von Session 42 · Branch `main` · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.21.0** (gebumpt, Binaries neu gebaut) · **Block 1 (Parität) und Block 2 (Phase B + A2 + A3-Rest) sind fertig**
+> **Stand:** 2026-07-29, Ende von Session 42 · Branch `main` · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.22.0** (gebumpt, Binaries neu gebaut) · **Blöcke 1–3 sind fertig; als Nächstes das Eval (Block 4)**
 >
 > **Lies zuerst diese Datei, dann `CLAUDE.md` → „App ↔ MCP parity", dann leg los.** Referenzdokumente: [app-mcp-parity.md](app-mcp-parity.md) (Ist-Zustand + Restliste), [mcp-rebuild-plan.md](mcp-rebuild-plan.md) (der MCP-Umbau, Rest in die Paritätssequenz einsortiert), [mcp-tool-audit.md](mcp-tool-audit.md) + [mcp-tool-consolidation.md](mcp-tool-consolidation.md) (warum wir die Tool-Zahl **nicht** reduzieren).
 
@@ -75,7 +75,6 @@ Alle bestehenden Suiten grün: `style-guard` · `write-provenance` · `watch-ign
 **Geht nicht:**
 - **Auto-Backups sind für die KI immer noch unlesbar** (aber ungeschützt beschreibbar) — `history/VER-03`.
 - **Der Mensch hat keine Oberfläche für die 24 Design-Elemente**, die die KI einfügen kann.
-- **`insert_reference` nimmt keine Citekeys** — „zitiere @chen2021 im dritten Absatz" ist im ganzen Server nicht bedienbar. Das ist die **einzige verbliebene echte Fähigkeitslücke**, und sie steht in Block 3.
 - **Echte Gleichzeitigkeit auf derselben Datei bleibt Last-Writer-Wins** (sichtbar und sicherbar, nicht auflösbar).
 - **Nicht-atomare Writes** — weder App noch MCP schreiben über temp+rename. Nicht beobachtet, aber ungeschützt. `awaitWriteFinish` + ein gemeinsames `writeFileAtomic` kosten zusammen unter vier Stunden.
 
@@ -106,14 +105,14 @@ Zwei Dinge, die das Skript bewusst durchlässt: `documentation/done/**` und die 
 
 ## 3. Nächste Session — der Fahrplan
 
-Blöcke 1 und 2 sind **abgearbeitet**. Der Rest:
+Blöcke 1 bis 3 sind **abgearbeitet**. Was bleibt:
 
 | Block | Inhalt | PT |
 |---|---|---:|
 | ~~1~~ | ~~Parität~~ | ✅ |
 | ~~2~~ | ~~Phase B + A2 + A3-Rest~~ | ✅ |
-| **3** | **Phase C-Rest — jetzt dran.** Kapitel-Tools auf die Wurzel, `restore_version` verlangt Bestätigung, `replace_in_project` bekommt Dry-Run, Caps gegen Kontext-Flutung, **`insert_reference` nimmt auch Citekeys** (die einzige verbliebene echte Fähigkeitslücke). | 1,5 |
-| **4** | **Eval — und der Zeitpunkt ist jetzt der richtige.** 10–15 nachprüfbare Autorenaufgaben. `instructions` und die geschärften Beschreibungen sind drin, die Namen sind unverändert: genau der Zustand, in dem sich messen lässt, ob Block 5 überhaupt gebraucht wird. | 1 |
+| ~~3~~ | ~~Phase C-Rest~~ | ✅ |
+| **4** | **Eval — jetzt dran.** 10–15 nachprüfbare Autorenaufgaben. `instructions`, die geschärften Beschreibungen, die Annotations und die C-Fixes sind drin; die Namen sind unverändert. Genau der Zustand, in dem sich messen lässt, ob Block 5 überhaupt gebraucht wird — und der einzige Punkt im Fahrplan, an dem eine Messung statt einer Schätzung entscheidet. | 1 |
 | **5** | Phase E + F (Renames, Streichungen, Merges, Skill-Rewrite). **Nur wenn das Eval Fehlgriffe zeigt.** | 7 |
 
 **Warum Block 5 an einer Messung hängt:** der teuerste Posten ist `skillTemplates.ts` (39 Tool-Namen, Routing-Tabelle, ~25 Call-Beispiele) — inhaltliche Arbeit, ~2 Tage, und sie **darf genau einmal passieren**. Ob die Renames überhaupt nötig sind, ist unbelegt. Wenn `instructions` + geschärfte Beschreibungen die Fehlgriffe beseitigen, ist die Frage erledigt. Nach Block 2 halte ich das für noch wahrscheinlicher als vorher — aber das ist eine Vermutung, und Block 4 ist da, um sie zu ersetzen.
@@ -130,7 +129,7 @@ Unverändert, jetzt auch in `CLAUDE.md` festgehalten: engere Export-Sandbox der 
 
 ## 5. Offene Punkte, die man vor dem Weiterarbeiten wissen muss
 
-- **`MCP_SETUP_VERSION` steht auf `0.21.0`, ist gebumpt, und `npm run build:mcp-binary:all` ist gelaufen.** Achtung: `ensureInstalledBinary` (`mcpSetup.ts`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
+- **`MCP_SETUP_VERSION` steht auf `0.22.0`, ist gebumpt, und `npm run build:mcp-binary:all` ist gelaufen.** Achtung: `ensureInstalledBinary` (`mcpSetup.ts`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
 - **Neu und wichtig: die Skill-TEXTE stecken jetzt in der Binary.** `create_project` / `create_from_preset` deployen sie. Eine Änderung an `skillTemplates.ts` braucht also einen Binary-Rebuild, um die MCP-Anlagewege zu erreichen (der Prompt-Pfad liest weiterhin von der Platte, da genügt das Löschen der veralteten SKILL.md).
 - **Die App wurde in dieser Session nie vom Assistenten gestartet.** Alle Verifikation ist Unit-/Integrations-/E2E-Test plus `tsc` + `svelte-check`. **Ein manueller Durchgang steht aus**, besonders: Design-Panel + Kapitel-Look (safeApplyDesign wurde umgebaut), der Verlaufs-Hub (AI-Liste ist jetzt projektweit und zeigt Dateinamen), Bild-Import per Drag-and-Drop (Ablage und eingefügter Pfad haben sich geändert), und die neue KI-Anzeige in der Statusleiste.
 - **Renés echte Projekte bleiben der Härtefall.** `~/Desktop/Marketing/FMM/*` und `~/Desktop/Marketing/Ludwig Maier Mastering/*`: kein Git, keine `.penwright/style.json`, keine `.claude/skills`, handgeschriebene `style.typ`, **keine `main.typ`** (Wurzeln heißen `Angebot.typ` / `Sichtbarkeitskonzept.typ`). Jeder Root-Resolver muss zweistufig sein und bei `null` **hart fehlschlagen**. Der neue Scaffold rührt solche Projekte nicht an — dafür gibt es zwei Tests.
