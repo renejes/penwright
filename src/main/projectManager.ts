@@ -9,111 +9,91 @@ import * as fs from 'fs';
 import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
-import { findRootFile, findRootFileIn } from '../shared/rootFinder';
-import { isDesignAdopted } from '../shared/styleWrite';
+import { findRootFile } from '../shared/rootFinder';
 import { writeActiveProject } from '../shared/sessionState';
-import { generateStyleTypst, ensureStyleInclude } from '../shared/styleParser';
+import { scaffoldProject, ensureStyleFiles, ensureSkills } from '../shared/projectScaffold';
+import { placeAsset, placeAssetFromPath, assetPathFrom, isInsideProject } from '../shared/assetPlacement';
+import { generateStyleTypst } from '../shared/styleParser';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleTypes';
 import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
 import { addBreadcrumb } from './crashReporter';
 import { getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
-import { ensureGitignore } from './gitManager';
 import { ensureGitIdentity } from '../shared/gitIdentity';
 
 /**
- * Ensures a project has a Git repo + .gitignore + initial commit so that
- * "Version speichern" works immediately. Idempotent — safe to call on
- * existing projects.
+ * The five project skills, in the shape `shared/projectScaffold` wants.
+ * Deployed on every creation path — including the MCP ones, which used to
+ * leave the next agent with no idea what the project's conventions were.
  */
-export async function ensureProjectInfrastructure(dir: string, initialMessage = 'Initial version'): Promise<void> {
-  if (!fs.existsSync(dir)) return;
+export const SKILL_FILES = [
+  { slug: 'typst', content: TYPST_SKILL },
+  { slug: 'penwright', content: PENWRIGHT_SKILL },
+  { slug: 'research', content: RESEARCH_SKILL },
+  { slug: 'writing-style', content: WRITING_STYLE_SKILL },
+  { slug: 'design', content: DESIGN_SKILL },
+];
 
-  // .gitignore — create or extend (single shared implementation)
-  ensureGitignore(dir);
+/** The two project-specific pieces `scaffoldProject` needs injected. */
+export function styleScaffoldArgs(): {
+  defaultStyleJson: string;
+  renderStyleTyp: (styleJson: string) => string;
+} {
+  return {
+    defaultStyleJson: JSON.stringify(sanitizeProjectStyle(DEFAULT_PROJECT_STYLE), null, 2),
+    renderStyleTyp: (json) => {
+      let style;
+      try { style = sanitizeProjectStyle(JSON.parse(json)); }
+      catch { style = sanitizeProjectStyle(DEFAULT_PROJECT_STYLE); }
+      return generateStyleTypst(style);
+    },
+  };
+}
 
-  // .penwright/ skeleton
-  const penwrightDir = path.join(dir, '.penwright');
-  if (!fs.existsSync(penwrightDir)) fs.mkdirSync(penwrightDir, { recursive: true });
-  const backupsDir = path.join(penwrightDir, 'backups');
-  if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
-  const aiDir = path.join(penwrightDir, 'ai-snapshots');
-  if (!fs.existsSync(aiDir)) fs.mkdirSync(aiDir, { recursive: true });
-
-  // Every project gets a style.typ — it's the home of the document's "Look"
-  // (opened via the visual Look designer). Files only here: we never touch the
-  // root file on open, so an existing document's appearance can't change.
-  ensureStyleFile(dir, false);
-
-  // Git repo + initial commit (idempotent)
-  try {
-    const git = simpleGit(dir);
-    const isRepo = await git.checkIsRepo();
-    if (!isRepo) {
-      await git.init();
-      try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
-      await ensureGitIdentity(git);
-      await git.add('-A');
-      const status = await git.status();
-      if (status.staged.length > 0 || status.created.length > 0) {
-        await git.commit(initialMessage);
-      }
-    }
-  } catch (err) {
-    console.warn('[penwright] Failed to initialise git repo for project:', err);
-  }
+/**
+ * Ensures a project has a Git repo + .gitignore + `.penwright/` + a `style.typ`
+ * so that "Version speichern" works immediately. Idempotent — safe to call on
+ * existing projects.
+ *
+ * The defaults are the CONSERVATIVE ones, because this is reachable from
+ * `git:ensureRepo` — i.e. from a plain "Save Version" on a folder the user
+ * opened from outside Penwright. That must not start creating `assets/`,
+ * `sources/` and `.claude/skills/` in someone's document folder as a side
+ * effect of saving. The creation paths opt in explicitly.
+ *
+ * `wireRoot` is likewise off by default: silently injecting `#show: apply-style`
+ * into a document somebody already made would change how it looks.
+ */
+export async function ensureProjectInfrastructure(
+  dir: string,
+  initialMessage = 'Initial version',
+  opts: { wireRoot?: boolean; skills?: boolean; standardDirs?: boolean } = {},
+): Promise<void> {
+  const res = await scaffoldProject({
+    dir,
+    skills: opts.skills ? SKILL_FILES : [],
+    standardDirs: opts.standardDirs ?? false,
+    wireRoot: opts.wireRoot ?? false,
+    initialCommitMessage: initialMessage,
+    git: (d) => simpleGit(d),
+    ensureIdentity: ensureGitIdentity,
+    ...styleScaffoldArgs(),
+  });
+  for (const w of res.warnings) console.warn('[penwright]', w);
 }
 
 /**
  * Ensures the project has a `style.typ` (the document's Look) + a `.penwright/
  * style.json` (the design tokens). With `injectImport` it also wires the root
- * file to apply the style — only done for freshly-created projects; on open we
- * pass `false` so an existing document's look is never silently changed (the
- * default fonts already match the templates, so a new project is seamless).
+ * file to apply the style.
+ *
+ * A project whose design lives in an authored style.typ gets NOTHING from here
+ * — the guard lives in `ensureStyleFiles`; see the note there about how a
+ * default style.json used to disarm it.
  */
 export function ensureStyleFile(dir: string, injectImport: boolean): void {
-  if (!fs.existsSync(dir)) return;
-
-  // A project whose design lives in an authored style.typ gets NOTHING from
-  // here. Creating a default style.json for it would be wrong on its own (the
-  // Design panel would show tokens that describe nothing) and it used to be
-  // actively destructive: this function is reachable from "Save Version" via
-  // git:ensureRepo → ensureProjectInfrastructure, and the style.json it wrote
-  // was what the write guard keyed on. One click disarmed the protection.
-  if (!isDesignAdopted(dir)) return;
-
-  const rootFile = findRootFileIn(dir);
-  const rootDir = rootFile ? path.dirname(rootFile) : dir;
-  const styleTypPath = path.join(rootDir, 'style.typ');
-  const styleJsonPath = path.join(dir, '.penwright', 'style.json');
-
-  // style.json (design tokens) — default if absent.
-  let style;
-  if (fs.existsSync(styleJsonPath)) {
-    try { style = sanitizeProjectStyle(JSON.parse(fs.readFileSync(styleJsonPath, 'utf-8'))); }
-    catch { style = sanitizeProjectStyle(DEFAULT_PROJECT_STYLE); }
-  } else {
-    style = sanitizeProjectStyle(DEFAULT_PROJECT_STYLE);
-    try {
-      fs.mkdirSync(path.dirname(styleJsonPath), { recursive: true });
-      fs.writeFileSync(styleJsonPath, JSON.stringify(style, null, 2), 'utf-8');
-    } catch {}
-  }
-
-  // style.typ — generate if absent.
-  if (!fs.existsSync(styleTypPath)) {
-    try { fs.writeFileSync(styleTypPath, generateStyleTypst(style), 'utf-8'); } catch {}
-  }
-
-  // Wire the root to apply it (new projects only).
-  if (injectImport && rootFile && fs.existsSync(rootFile) && fs.existsSync(styleTypPath)) {
-    try {
-      const before = fs.readFileSync(rootFile, 'utf-8');
-      const after = ensureStyleInclude(before);
-      if (after !== before) fs.writeFileSync(rootFile, after, 'utf-8');
-    } catch {}
-  }
+  ensureStyleFiles({ dir, wireRoot: injectImport, ...styleScaffoldArgs() });
 }
 
 // ─── File Tree ────────────────────────────────────────
@@ -195,22 +175,14 @@ export async function handleCreateProject(templateId: string, projectName: strin
     }
   }
 
-  // Standard project folders — created in every project so the file tree
-  // always shows where assets and sources belong, even when empty.
-  for (const sub of ['assets', 'sources']) {
-    const p = path.join(dir, sub);
-    if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
-  }
-
-  ensureClaudeSkills(dir);
-
-  // Initialise Git repo, .gitignore, and the .penwright/ folder so the
-  // "Versionen" UI works from the very first save.
-  await ensureProjectInfrastructure(dir, `Initial version (${template.label})`);
-  // New project: wire the root to apply style.typ from the start (default
-  // fonts match the templates, so this is seamless) — the Look is designable
-  // immediately.
-  ensureStyleFile(dir, true);
+  // Standard folders, .gitignore, .penwright/, skills, style.typ, Git repo and
+  // the first commit — one call, the same one `penwright_create_project` makes.
+  // `wireRoot: true` because this project is being created: the root gets
+  // `#import "style.typ": *` from the start, so the Look is designable
+  // immediately (the default fonts match the templates, so it is seamless).
+  await ensureProjectInfrastructure(dir, `Initial version (${template.label})`, {
+    wireRoot: true, skills: true, standardDirs: true,
+  });
 
   appState.projectDir = dir;
   writeActiveProject(dir);
@@ -424,20 +396,13 @@ export async function openSampleProject(): Promise<string | null> {
     return null;
   }
 
-  // Initialize Git + first version so the Verlauf shows one entry from
-  // the start. Errors here are non-fatal — the project still opens.
-  try {
-    const git = simpleGit(targetDir);
-    await git.init();
-    try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
-    // .gitignore for Penwright-local state — single shared implementation.
-    ensureGitignore(targetDir);
-    await ensureGitIdentity(git);
-    await git.add('-A');
-    await git.commit('Sample 0.7.0 — initial state');
-  } catch (err) {
-    console.warn('[penwright] sample-project git init failed (non-fatal):', err);
-  }
+  // Git + first version so the Verlauf shows one entry from the start, plus
+  // the skills and the .penwright/ skeleton — through the same scaffold every
+  // other creation path uses. `wireRoot: false`: the sample ships its own
+  // finished design and must not be restyled on the way in.
+  // The sample ships its own finished design and folder layout: skills yes,
+  // extra folders no, and definitely no restyling on the way in.
+  await ensureProjectInfrastructure(targetDir, 'Sample — initial state', { skills: true });
 
   return openProject(targetDir);
 }
@@ -500,26 +465,10 @@ export async function handleAddAssets(): Promise<{ added: string[]; error?: stri
   });
   if (result.canceled || result.filePaths.length === 0) return { added: [] };
 
-  const assetsDir = path.join(appState.projectDir, 'assets');
-  if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
-
   const added: string[] = [];
   for (const src of result.filePaths) {
-    const baseName = path.basename(src);
-    let dest = path.join(assetsDir, baseName);
-    // If the name already exists, append " (1)" / " (2)" etc.
-    if (fs.existsSync(dest)) {
-      const ext = path.extname(baseName);
-      const stem = baseName.slice(0, baseName.length - ext.length);
-      let n = 1;
-      while (fs.existsSync(dest)) {
-        dest = path.join(assetsDir, `${stem} (${n})${ext}`);
-        n++;
-      }
-    }
     try {
-      fs.copyFileSync(src, dest);
-      added.push(path.relative(appState.projectDir, dest).replace(/\\/g, '/'));
+      added.push(placeAssetFromPath(appState.projectDir, src).rel);
     } catch (err) {
       console.warn('[penwright] Failed to copy asset:', src, err);
     }
@@ -541,66 +490,70 @@ export async function handlePickImage(): Promise<void> {
   });
   if (result.canceled || !result.filePaths[0]) return;
 
-  const imagePath = result.filePaths[0];
-  if (appState.currentFilePath) {
-    const docDir = path.dirname(appState.currentFilePath);
-    const assetsDir = path.join(docDir, 'assets');
-    if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
+  if (appState.currentFilePath) insertImageIntoDocument(result.filePaths[0]);
+}
 
-    const destPath = path.join(assetsDir, path.basename(imagePath));
-    fs.copyFileSync(imagePath, destPath);
+/**
+ * The project directory an image belongs to. Falls back to the open file's
+ * folder for the (rare) case of a loose file opened without a project.
+ */
+function assetProjectDir(): string | null {
+  if (appState.projectDir) return appState.projectDir;
+  return appState.currentFilePath ? path.dirname(appState.currentFilePath) : null;
+}
 
-    const relPath = 'assets/' + path.basename(imagePath);
-    appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
-    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+/**
+ * Copies an image into the project and tells the renderer to insert it.
+ *
+ * Every image entering the app goes through here, so all three entry points
+ * (picker, dropped file, dropped path) place the file identically and quote a
+ * path Typst can resolve from the file being edited.
+ */
+function insertImageIntoDocument(srcAbs: string, data?: Buffer): void {
+  const projectDir = assetProjectDir();
+  if (!projectDir || !appState.currentFilePath) return;
+  try {
+    const placed = data
+      ? placeAsset(projectDir, path.basename(srcAbs), data)
+      : placeAssetFromPath(projectDir, srcAbs);
+    appState.mainWindow?.webContents.send('penwright', {
+      type: 'insertImage',
+      src: assetPathFrom(appState.currentFilePath, placed.abs),
+    });
+    if (!placed.reused) {
+      appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    }
+  } catch (err) {
+    console.error('[penwright] Failed to place image:', err);
   }
 }
 
 export function handleDropImage(name: string, dataBase64: string): void {
   if (!appState.currentFilePath) return;
-  const docDir = path.dirname(appState.currentFilePath);
-  const assetsDir = path.join(docDir, 'assets');
-  if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
-
-  // SECURITY: `name` comes from the renderer (a dropped File's name). Strip any
-  // directory component so a crafted `../…` can't escape `assets/` and overwrite
-  // arbitrary files (path-traversal write). basename pins the file to assetsDir.
-  const safeName = path.basename(name);
-  if (!safeName || safeName === '.' || safeName === '..') return;
-
-  const destPath = path.join(assetsDir, safeName);
+  // `name` comes from the renderer (a dropped File's name); `placeAsset`
+  // strips any directory component so a crafted `../…` cannot escape assets/.
   const buffer = Buffer.from(dataBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-  fs.writeFileSync(destPath, buffer);
-
-  const relPath = 'assets/' + safeName;
-  appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
-  appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+  insertImageIntoDocument(name, buffer);
 }
 
 export function handleDropImagePath(imagePath: string): void {
   if (!appState.currentFilePath) return;
   const cleanPath = imagePath.replace('file://', '');
-  const docDir = appState.projectDir || path.dirname(appState.currentFilePath);
-  const rootDir = path.dirname(findRootFile(appState.currentFilePath));
+  const projectDir = assetProjectDir();
+  if (!projectDir) return;
 
-  if (cleanPath.startsWith(docDir) || cleanPath.startsWith(rootDir)) {
-    const relPath = path.relative(path.dirname(appState.currentFilePath), cleanPath).replace(/\\/g, '/');
-    appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
+  // Already inside the project — reference it where it is rather than making
+  // a second copy under assets/.
+  const rootDir = path.dirname(findRootFile(appState.currentFilePath));
+  if (isInsideProject(projectDir, cleanPath) || isInsideProject(rootDir, cleanPath)) {
+    appState.mainWindow?.webContents.send('penwright', {
+      type: 'insertImage',
+      src: assetPathFrom(appState.currentFilePath, cleanPath),
+    });
     return;
   }
 
-  const assetsDir = path.join(docDir, 'assets');
-  if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
-
-  const destPath = path.join(assetsDir, path.basename(cleanPath));
-  try {
-    fs.copyFileSync(cleanPath, destPath);
-    const relPath = 'assets/' + path.basename(cleanPath);
-    appState.mainWindow?.webContents.send('penwright', { type: 'insertImage', src: relPath });
-    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
-  } catch (err) {
-    console.error('[penwright] Failed to copy image:', err);
-  }
+  insertImageIntoDocument(cleanPath);
 }
 
 // ─── Settings Handlers ────────────────────────────────
@@ -629,14 +582,6 @@ export function handleUpdateSettings(settings: Record<string, string>): void {
 
 // ─── Claude Code Skills ──────────────────────────────
 
-const SKILL_FILES: Array<{ slug: string; content: string }> = [
-  { slug: 'typst', content: TYPST_SKILL },
-  { slug: 'penwright', content: PENWRIGHT_SKILL },
-  { slug: 'research', content: RESEARCH_SKILL },
-  { slug: 'writing-style', content: WRITING_STYLE_SKILL },
-  { slug: 'design', content: DESIGN_SKILL },
-];
-
 /**
  * Deploys the project's Claude Code skill set to `<dir>/.claude/skills/`.
  *
@@ -644,19 +589,10 @@ const SKILL_FILES: Array<{ slug: string; content: string }> = [
  * deployed skill are preserved across project re-opens. To force-update the
  * canonical content, the user (or the agent) deletes the file first.
  *
- * The skill content lives in `src/shared/skillTemplates.ts` and is shared
- * between this in-app deployment and the MCP server's prompt loader.
+ * The skill content lives in `src/shared/skillTemplates.ts`; the deployment
+ * itself lives in `shared/projectScaffold` so the MCP creation paths — which
+ * used to skip skills entirely — get exactly the same files.
  */
 export function ensureClaudeSkills(dir: string): void {
-  const skillsDir = path.join(dir, '.claude', 'skills');
-  fs.mkdirSync(skillsDir, { recursive: true });
-
-  for (const skill of SKILL_FILES) {
-    const subDir = path.join(skillsDir, skill.slug);
-    fs.mkdirSync(subDir, { recursive: true });
-    const target = path.join(subDir, 'SKILL.md');
-    if (!fs.existsSync(target)) {
-      fs.writeFileSync(target, skill.content, 'utf-8');
-    }
-  }
+  ensureSkills(dir, SKILL_FILES);
 }

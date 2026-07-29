@@ -46,6 +46,7 @@ const INVOKE_CHANNELS = [
   'project:setBackupConfig',
   'ai:list',
   'ai:undoLast',
+  'agent:activity',
   'project:showInFinder',
   'project:findSourceForCitation',
   'project:getInfo',

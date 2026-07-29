@@ -329,7 +329,11 @@ export async function createFromPreset(presetId: string, suggestedName?: string)
 
   // Git + .penwright skeleton + first commit (idempotent; the preset ships its
   // own style.json/style.typ, which ensureProjectInfrastructure leaves intact).
-  await ensureProjectInfrastructure(target, `New from preset — ${localize(manifest.label, 'en')}`);
+  // Skills yes — a preset used to arrive with none, so the agent that opened
+  // it next knew nothing about the project's conventions (nought of the
+  // thirty-five bundled presets carried `.claude/`). Folders no: the preset
+  // brings its own layout.
+  await ensureProjectInfrastructure(target, `New from preset — ${localize(manifest.label, 'en')}`, { skills: true });
   addBreadcrumb('project', `created from preset ${manifest.id}`);
 
   const opened = await openProject(target);

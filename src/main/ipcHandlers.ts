@@ -72,6 +72,10 @@ import { type ProjectStyle, type SectionStyle, sanitizeProjectStyle, sanitizeSec
 import { findRootFile } from '../shared/rootFinder';
 import { planBibliography, BIB_HEADER } from '../shared/bibDiscovery';
 import { noteDiskContent, noteDeleted } from '../shared/fileWrite';
+import { safeApply, fsIO, type SafeApplyIO, type VerifyOutcome } from '../shared/safeApply';
+import { publishSnapshotLimit } from '../shared/editHistory';
+import { readAgentActivity } from '../shared/sessionState';
+import type { TypstCompiler } from './typstCompiler';
 import {
   planStyleWrites,
   readProjectStyleWithCustom,
@@ -210,69 +214,88 @@ function syncOpenBuffer(abs: string, content: string): void {
 }
 
 /**
+ * Filesystem access for the safe-apply engine, with this process's provenance
+ * bookkeeping attached.
+ *
+ * The `noteDiskContent` / `noteDeleted` calls are load-bearing on both the
+ * staging and the rollback path: without them the watcher counts our own write
+ * as foreign, triggers the very recompile a rollback promises not to, and
+ * leaves a stale record that later swallows an identical write coming from the
+ * MCP server.
+ */
+const appSafeApplyIO: SafeApplyIO = {
+  read: fsIO.read,
+  write(abs, content) {
+    fsIO.write(abs, content);
+    noteDiskContent(abs, content);
+  },
+  remove(abs) {
+    if (!fs.existsSync(abs)) return;
+    // Deliberately unguarded: if the unlink fails, the throw propagates and
+    // safeApply reports `restored: false`. Swallowing it would run
+    // `noteDeleted` on a file that is still there, leaving a record claiming
+    // the opposite of the truth — the same class of stale-record bug that
+    // c5f22cd fixed on the rollback-write path.
+    fs.unlinkSync(abs);
+    noteDeleted(abs);
+  },
+};
+
+/**
  * Write the given files, verify the document still compiles, then commit
  * (emit the fresh preview + record an undo entry) or roll back (restore the
  * previous files; the last-good preview stays). When the document was already
  * failing to compile, the change is committed without a verify (a design
  * action shouldn't be blamed for a pre-existing content error).
+ *
+ * The staging / verify / rollback mechanic itself lives in `shared/safeApply`
+ * so the MCP server runs the identical sequence against the identical files.
+ * What stays here is what only this process can do: push the new bytes into
+ * the open editor buffer, record a design-undo entry, and show the PDF the
+ * verify already produced.
  */
 async function safeApplyDesign(
   writes: { abs: string; content: string }[],
   label: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const olds = writes.map((w) => ({
-    abs: w.abs,
-    old: fs.existsSync(w.abs) ? fs.readFileSync(w.abs, 'utf-8') : null,
-  }));
-
-  // Stage the new contents.
-  for (const w of writes) {
-    fs.mkdirSync(path.dirname(w.abs), { recursive: true });
-    fs.writeFileSync(w.abs, w.content, 'utf-8');
-    noteDiskContent(w.abs, w.content);
-  }
-
   const compiler = getCompiler();
 
-  // Can't (or needn't) verify: no compiler yet, or the doc was already broken
-  // → commit and let the normal compile run.
-  if (!compiler || !appState.lastCompileOk) {
-    for (const w of writes) syncOpenBuffer(w.abs, w.content);
-    pushDesignUndo(label, olds);
-    compiler?.compilePdf();
-    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
-    return { ok: true };
+  const res = await safeApply({
+    writes,
+    io: appSafeApplyIO,
+    // No compiler yet → nothing to verify with; commit and let the normal
+    // compile run.
+    verify: compiler ? () => verifyWith(compiler) : null,
+    baseline: !appState.lastCompileOk,
+  });
+
+  if (!res.ok) {
+    // Rolled back already; the preview was never touched, so the last-good
+    // look is still on screen. Only the editor buffer needs reverting.
+    for (const p of res.prior) if (p.old !== null) syncOpenBuffer(p.abs, p.old);
+    return { ok: false, error: res.error };
   }
 
-  const result = await compiler.verify();
-  if (result.ok) {
-    for (const w of writes) syncOpenBuffer(w.abs, w.content);
-    pushDesignUndo(label, olds);
+  for (const w of writes) syncOpenBuffer(w.abs, w.content);
+  pushDesignUndo(label, res.prior);
+
+  if (res.verified && res.pdf) {
     appState.lastCompileOk = true;
     appState.mainWindow?.webContents.send('penwright', {
       type: 'previewPdfUpdate',
-      pdfData: result.pdf.toString('base64'),
+      pdfData: res.pdf.toString('base64'),
     });
-    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
-    return { ok: true };
+  } else {
+    compiler?.compilePdf();
   }
+  appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+  return { ok: true };
+}
 
-  // Roll back to the previous (working) state. Preview is untouched, so the
-  // last-good look stays visible.
-  for (const o of olds) {
-    if (o.old === null) {
-      try { fs.unlinkSync(o.abs); noteDeleted(o.abs); } catch {}
-    } else {
-      // Inside the try: a failed write must not leave a record claiming success.
-      // Without this the rolled-back file counts as foreign — it would trigger
-      // the very recompile the comment above promises not to, and leave a stale
-      // record that later swallows an identical write from the MCP server.
-      try { fs.writeFileSync(o.abs, o.old, 'utf-8'); noteDiskContent(o.abs, o.old); } catch {}
-      syncOpenBuffer(o.abs, o.old);
-    }
-  }
-  const error = result.errors.map((e) => e.message).join('\n') || 'Compilation failed';
-  return { ok: false, error };
+/** Adapts `TypstCompiler.verify()` to the shared engine's outcome shape. */
+async function verifyWith(compiler: TypstCompiler): Promise<VerifyOutcome> {
+  const r = await compiler.verify();
+  return r.ok ? { ok: true, pdf: r.pdf } : { ok: false, errors: r.errors.map((e) => e.message) };
 }
 
 export function setupIPC(): void {
@@ -921,20 +944,38 @@ export function setupIPC(): void {
 
   ipcMain.handle('project:setBackupConfig', (_event, config: BackupConfig) => {
     setBackupConfig(config);
-    return getBackupConfig();
+    const saved = getBackupConfig();
+    // Republish so an agent writing snapshots prunes to the number the user
+    // just picked, rather than to its own fallback.
+    if (appState.projectDir) publishSnapshotLimit(appState.projectDir, saved.maxAiSnapshots);
+    return saved;
   });
 
-  // AI-edit snapshots — read-only listing + "undo last" for the current file.
-  // The stack mechanic is unchanged (popAiSnapshot); these just surface it in
-  // the History & Restore hub instead of only the native "Undo AI Edit" menu.
-  ipcMain.handle('ai:list', () => {
-    if (!appState.currentFilePath) return [];
-    return getAiSnapshotsList(appState.currentFilePath);
+  // AI-edit snapshots — listing + "undo last", for the WHOLE project.
+  //
+  // Both used to be scoped to the open file, reading an in-memory buffer that
+  // only ever held what the app itself had snapshotted. Everything the agent
+  // preserved in `.penwright/ai-snapshots/` — which is every file it touched
+  // that the user was not looking at — was invisible here, in the one place
+  // built to show it. The net now reads from the folder both processes write.
+  // The return leg of the state channel: what the MCP server says it is
+  // touching. Read-only and advisory — the app shows it and changes nothing
+  // about its own behaviour. A stale or crashed agent's record simply ages out
+  // (readAgentActivity checks liveness and freshness), because letting an
+  // agent's claim influence the app is exactly the failure this channel is
+  // shaped to avoid.
+  ipcMain.handle('agent:activity', () => {
+    if (!appState.projectDir) return null;
+    return readAgentActivity(appState.projectDir);
   });
 
-  ipcMain.handle('ai:undoLast', () => {
-    const undone = popAiSnapshot();
-    return { undone, count: getAiSnapshotCount(appState.currentFilePath ?? undefined) };
+  ipcMain.handle('ai:list', (_event, filePath?: string) => {
+    return getAiSnapshotsList(filePath);
+  });
+
+  ipcMain.handle('ai:undoLast', (_event, filePath?: string) => {
+    const undone = popAiSnapshot(filePath);
+    return { undone, count: getAiSnapshotCount(filePath) };
   });
 
   // Looks for a PDF in `<project>/sources/` whose filename starts with the

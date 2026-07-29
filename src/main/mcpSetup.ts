@@ -35,7 +35,15 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // with HTML (buildExportModel), serializer `//`-comment escaping.
 // 0.19.0: git committer-identity fallback (ensureGitIdentity) in the server's
 // version/commit tools + .penwright-* in its gitignore lines.
-export const MCP_SETUP_VERSION = '0.19.0';
+// 0.20.0: parity round — Session 41/42. Design writes are staged, test-compiled
+// and rolled back (shared/safeApply); two new tools (list_edits /
+// undo_last_edit) plus penwright_render_page returning a real image; the
+// unsaved-work warning moved into the write guard so all 28 writing tools
+// carry it; create_project / create_from_preset now run the same scaffold the
+// app does (Git, .gitignore, sources/, .penwright/, the five skills,
+// style.typ) — which means the skill TEXTS now ship inside the binary, so a
+// skillTemplates.ts change requires a rebuild to reach the MCP creation paths.
+export const MCP_SETUP_VERSION = '0.20.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

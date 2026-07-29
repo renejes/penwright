@@ -41,6 +41,22 @@ export interface SessionState {
   currentFile: string | null;
   /** True when the editor buffer differs from what is on disk. */
   isDirty: boolean;
+  /**
+   * Whether the document last compiled.
+   *
+   * The one piece of rendered-state the channel carries, and it is here for a
+   * specific reason: without it an agent cannot tell a break IT caused from one
+   * that was already there. Both look identical from a compile that fails
+   * after a change. Knowing the document was already red turns "undo what I
+   * just did" into "fix what was broken before I started" — a different
+   * decision, which is the bar anything on this channel has to clear.
+   *
+   * Deliberately NOT joined by cursor, selection, scroll position or the
+   * buffer itself. Those would make session.json a mirror of the editor: a
+   * second truth that can go stale, growing a field at a time, and none of
+   * them changes what the agent does.
+   */
+  lastCompileOk: boolean;
   /** Process id of the app that wrote this, for liveness checks. */
   pid: number;
   updatedAt: number;
@@ -119,6 +135,7 @@ export function writeSession(state: Omit<SessionState, 'version' | 'pid' | 'upda
     projectDir: path.resolve(state.projectDir),
     currentFile: state.currentFile ? path.resolve(state.currentFile) : null,
     isDirty: state.isDirty,
+    lastCompileOk: state.lastCompileOk,
     pid: process.pid,
     updatedAt: Date.now(),
   } satisfies SessionState);
@@ -143,6 +160,76 @@ export function readSession(projectDir: string): SessionState | null {
 export function isDirtyInEditor(projectDir: string, absFile: string): boolean {
   const s = readSession(projectDir);
   return !!s && s.isDirty && !!s.currentFile && path.resolve(s.currentFile) === path.resolve(absFile);
+}
+
+// ─── The other direction: what is the agent doing? ───────────────────
+//
+// Everything above flows app → MCP, and that stays one-way on purpose: a
+// stale agent record must never be able to steer the app.
+//
+// This is the return channel, and it is built to be ignorable. The MCP server
+// writes a line about what it is working on; the app SHOWS it and obeys
+// nothing. No file gets locked, no save is deferred, no dialog appears. If the
+// agent crashes mid-task the record simply ages out.
+//
+// The reason it exists at all: today the user watches the file tree flicker
+// and the preview recompile with no idea which of those was them and which was
+// the agent — and "did Claude do anything?" is the question the design panel
+// used to answer wrongly. A caption under the status bar settles it.
+
+/**
+ * How long an activity record is worth showing.
+ *
+ * Long enough that the app's poll reliably catches a burst of edits, short
+ * enough that it clears itself once the agent goes quiet — there is no "I am
+ * done" signal, and inventing one would mean a crashed agent leaves "rewriting
+ * chapter 3" on screen forever.
+ */
+const MAX_ACTIVITY_AGE_MS = 2 * 60 * 1000;
+
+export interface AgentActivity {
+  version: number;
+  /** Short, human-readable: "rewriting chapters/03-method.typ". */
+  what: string;
+  /** Project-relative paths the agent is touching, if it knows them. */
+  files: string[];
+  /** Process id of the agent, so a dead one can be spotted. */
+  pid: number;
+  updatedAt: number;
+}
+
+export function agentActivityPath(projectDir: string): string {
+  return path.join(projectDir, '.penwright', 'agent-activity.json');
+}
+
+/** Written by the MCP server only. */
+export function writeAgentActivity(projectDir: string, what: string, files: string[] = []): void {
+  writeJson(agentActivityPath(projectDir), {
+    version: SESSION_VERSION,
+    what: what.slice(0, 200),
+    files: files.slice(0, 20),
+    pid: process.pid,
+    updatedAt: Date.now(),
+  } satisfies AgentActivity);
+}
+
+export function clearAgentActivity(projectDir: string): void {
+  try { fs.unlinkSync(agentActivityPath(projectDir)); } catch { /* never written */ }
+}
+
+/**
+ * What the agent says it is doing, or null.
+ *
+ * Read by the app for display. Returns null for a record that is stale or
+ * whose process is gone — an agent that died holding "rewriting chapter 3"
+ * must not leave that on screen for the rest of the session.
+ */
+export function readAgentActivity(projectDir: string): AgentActivity | null {
+  const a = readJson<AgentActivity>(agentActivityPath(projectDir));
+  if (!a || typeof a.what !== 'string' || typeof a.updatedAt !== 'number') return null;
+  if (Date.now() - a.updatedAt > MAX_ACTIVITY_AGE_MS) return null;
+  if (!isLive(a.pid, a.updatedAt)) return null;
+  return { ...a, files: Array.isArray(a.files) ? a.files : [] };
 }
 
 function isLive(pid: number | undefined, updatedAt: number): boolean {

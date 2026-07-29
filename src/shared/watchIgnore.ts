@@ -51,6 +51,10 @@ export function isIgnoredWatchPath(watchRoot: string, p: string): boolean {
   // The app writes session.json for the MCP server to read; it never needs to
   // hear about its own ambient state, and it updates on every save.
   if (rel === '.penwright/session.json') return true;
+  // The other direction: the agent writes agent-activity.json on every single
+  // guarded write. The renderer polls it, so a watcher event adds nothing but
+  // would put a filesystem event on the app's critical path for each one.
+  if (rel === '.penwright/agent-activity.json') return true;
 
   return false;
 }

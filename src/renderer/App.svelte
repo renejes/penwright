@@ -202,6 +202,26 @@
     return () => clearTimeout(wordStatsTimer);
   });
 
+  // What the AI is doing, if anything. The one thing that flows MCP → app, and
+  // it is display-only: the app never waits for it, defers to it, or locks
+  // anything because of it. Until now the user watched the file tree flicker
+  // and the preview recompile with no way to tell their own work from Claude's.
+  let agentActivity = $state<{ what: string; files: string[] } | null>(null);
+
+  $effect(() => {
+    if (!hasFileOpen) { agentActivity = null; return; }
+    const api = (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
+    if (!api) return;
+    const read = async () => {
+      try {
+        agentActivity = await api.invoke('agent:activity') as { what: string; files: string[] } | null;
+      } catch { agentActivity = null; }
+    };
+    void read();
+    const poll = setInterval(read, 4000);
+    return () => clearInterval(poll);
+  });
+
   // IPC adapter exposed as window.penwrightApi — used by the editor node-views
   // (image picker, etc.) that postMessage through the legacy VS Code bridge.
   const vscodeBridge = {
@@ -1372,6 +1392,11 @@
       </div>
     {/if}
     <div class="status-right">
+      {#if agentActivity}
+        <span class="status-agent" title={agentActivity.files.join('\n')}>
+          {t().app.agentWorking(agentActivity.what)}
+        </span>
+      {/if}
       {#if hasFileOpen && wordStats.words > 0}
         <span class="status-info" title={t().app.readingTimeTitle}>
           {wordStats.words.toLocaleString()} {t().app.wordsLabel(wordStats.words)} · {t().app.minRead(wordStats.minutes)}
@@ -1795,6 +1820,16 @@
   .status-info {
     font-size: 11px;
     color: #bbb;
+  }
+
+  /* Advisory only — deliberately quiet. It reports, it never demands. */
+  .status-agent {
+    font-size: 11px;
+    color: #8ab4f8;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .status-unsaved {

@@ -25,6 +25,7 @@ import { parseSettings, applySettings, generateSetBlocks, type DocumentSettings 
 import { findRootFile, findRootFileIn } from '../shared/rootFinder.js';
 import {
   sanitizeProjectStyle,
+  DEFAULT_PROJECT_STYLE,
   type ProjectStyle,
   type StyleColors,
   type SectionStyle,
@@ -55,9 +56,27 @@ import {
   readProjectStyleWithCustom,
   resolveDesignRoot,
   handwrittenStyleMessage,
+  isDesignAdopted,
+  styleJsonPath,
 } from '../shared/styleWrite.js';
-import { readActiveProject, readSession, isDirtyInEditor } from '../shared/sessionState.js';
-import { snapshotBeforeWrite } from '../shared/editHistory.js';
+import { safeApply, fsIO, type VerifyOutcome } from '../shared/safeApply.js';
+import { scaffoldProject, planGitignore } from '../shared/projectScaffold.js';
+import { placeAssetFromPath, assetPathFrom } from '../shared/assetPlacement.js';
+import {
+  TYPST_SKILL,
+  PENWRIGHT_SKILL,
+  RESEARCH_SKILL,
+  WRITING_STYLE_SKILL,
+  DESIGN_SKILL,
+} from '../shared/skillTemplates.js';
+import { readActiveProject, readSession, isDirtyInEditor, writeAgentActivity } from '../shared/sessionState.js';
+import {
+  snapshotBeforeWrite,
+  listSnapshotRefs,
+  takeLastSnapshot,
+  countSnapshots,
+  snapshotLimit,
+} from '../shared/editHistory.js';
 import { checkLock, isForeignEditor } from '../shared/lockFile.js';
 import { findBibFiles, bibSearchRoots, planBibliography, BIB_HEADER } from '../shared/bibDiscovery.js';
 import { parseBibFile } from '../shared/bibParser.js';
@@ -168,26 +187,38 @@ function resolveDesignRootFile(projectDir: string): string | null {
 class StyleWriteRefused extends Error {}
 
 /**
- * Writes style.json + style.typ (+ the root's #import when it changes).
+ * Computes the writes a design change implies, refusing on a hand-written
+ * `style.typ`. Same planner the Electron app stages through `safeApplyDesign`,
+ * so both processes touch exactly the same paths with exactly the same bytes.
  *
- * The file set and its contents come from `planStyleWrites`, the same planner
- * the Electron app stages through `safeApplyDesign` — so both processes touch
- * exactly the same paths with exactly the same bytes, and both refuse on a
- * project whose design lives in a hand-written style.typ.
- *
- * Note the remaining asymmetry: the app verifies the document still compiles
- * and rolls back if not; this side does not yet (safeApplyMcp is the next
- * step). Until then a design write here is committed unverified.
+ * Returns the writes rather than performing them: callers add whatever else
+ * belongs to the same logical change (a chapter opt-in, a hero) and hand the
+ * complete set to `safeApplyDesignMcp` in ONE transaction.
  */
-function writeProjectStyleAndRegenerate(projectDir: string, raw: unknown): ProjectStyle {
+function planStyleWritesOrRefuse(
+  projectDir: string,
+  raw: unknown,
+): { writes: { abs: string; content: string }[]; style: ProjectStyle } {
   const plan = planStyleWrites({ projectDir, currentFile: state.currentFile, style: raw });
   if (!plan.ok) throw new StyleWriteRefused(handwrittenStyleMessage(plan.styleTypPath));
+  return { writes: plan.writes, style: plan.style };
+}
 
-  for (const w of plan.writes) {
-    fs.mkdirSync(path.dirname(w.abs), { recursive: true });
-    guardedWrite(w.abs, w.content);
-  }
-  return plan.style;
+/**
+ * Writes style.json + style.typ (+ the root's #import when it changes), test-
+ * compiles the document, and rolls the whole set back if it stopped compiling.
+ *
+ * This is the parity fix for P4: the app has verified and rolled back design
+ * changes since Session 23, while this side committed them unverified — one
+ * `apply_layout` could leave the document uncompilable with no way back.
+ */
+async function writeProjectStyleAndRegenerate(
+  projectDir: string,
+  raw: unknown,
+): Promise<{ style: ProjectStyle; note: string }> {
+  const { writes, style } = planStyleWritesOrRefuse(projectDir, raw);
+  const r = await safeApplyDesignMcp(projectDir, writes);
+  return { style, note: verifyNote(r) };
 }
 
 /** Deep-merges `patch` into `base`. Used by penwright_update_style. */
@@ -374,6 +405,22 @@ function parseArgs(): void {
  * fill the undo list with noise.
  */
 function guardedWrite(abs: string, content: string): void {
+  const resolved = guardWrite(abs);
+  fs.mkdirSync(path.dirname(resolved), { recursive: true });
+  fs.writeFileSync(resolved, content, 'utf-8');
+}
+
+/**
+ * The guard half of `guardedWrite`, callable on its own.
+ *
+ * Split out for the staged path: `safeApplyDesignMcp` needs every file checked
+ * and snapshotted ONCE, before anything is staged — not again on the way back
+ * during a rollback, which would push the rejected content into the undo net
+ * and bury the state the user actually wants to return to.
+ *
+ * Returns the resolved absolute path so callers can write to it directly.
+ */
+function guardWrite(abs: string): string {
   const resolved = path.resolve(abs);
   const base = path.basename(resolved);
   const root = state.projectDir ? path.resolve(state.projectDir) : null;
@@ -393,10 +440,131 @@ function guardedWrite(abs: string, content: string): void {
         `Refusing to write — the other editor would lose its changes. Ask them to close the file, or edit a different one.`,
       );
     }
+    // The user is looking at a buffer that differs from what we are about to
+    // replace. Recoverable (we snapshot, they can undo), but the agent has to
+    // be told — this used to be attached to three tools by hand, so the other
+    // twenty-five overwrote unsaved work in silence.
+    noteContestedWrite(resolved);
     snapshotBeforeWrite(root!, resolved);
+    announceActivity(root!, resolved);
+    touchedDocumentInCall = true;
   }
 
-  fs.writeFileSync(resolved, content, 'utf-8');
+  return resolved;
+}
+
+/**
+ * Tells the app what this process is touching — the return leg of the state
+ * channel, and the only thing that flows this way.
+ *
+ * Derived from the write itself rather than self-reported, so it is accurate
+ * without the agent having to remember to say anything, and cannot describe
+ * work that did not happen. The app displays it and obeys nothing: no lock, no
+ * deferred save, no dialog. Today the user watches the tree flicker and the
+ * preview recompile with no way to tell which of those was them.
+ */
+function announceActivity(projectDir: string, absFile: string): void {
+  activityFiles.add(path.relative(projectDir, absFile));
+  writeAgentActivity(
+    projectDir,
+    currentToolName ? `${currentToolName} · ${path.basename(absFile)}` : path.basename(absFile),
+    [...activityFiles],
+  );
+}
+
+// ─── Safe-apply on this side of the process boundary ──────────────
+// The app has staged design changes, test-compiled them and rolled back on
+// failure since Session 23. This side wrote the same files unverified: a
+// single apply_layout could leave the document uncompilable with no way back,
+// and the tool still reported success because the write had succeeded.
+//
+// The engine itself is `shared/safeApply` — identical order of operations,
+// identical rollback set. Only the verifier and the write primitive differ.
+
+/** Thrown when a staged design change failed to compile and was rolled back. */
+class DesignVerifyFailed extends Error {}
+
+/**
+ * The file that has to compile for a design change to count as good: the
+ * design home if there is one, otherwise the root of whatever is open.
+ * Null when neither resolves — then there is nothing to verify against and
+ * the change is committed unverified rather than blocked.
+ */
+function designVerifyRoot(projectDir: string): string | null {
+  const designRoot = resolveDesignRootFile(projectDir);
+  if (designRoot && fs.existsSync(designRoot)) return designRoot;
+  if (state.currentFile && fs.existsSync(state.currentFile)) return findRootFile(state.currentFile);
+  return null;
+}
+
+/** A one-off `typst compile` into a temp PDF beside the root, then discarded. */
+function makeTypstVerifier(rootFile: string): () => Promise<VerifyOutcome> {
+  return async () => {
+    const dir = path.dirname(rootFile);
+    const out = path.join(dir, `.penwright-verify-${process.pid}.pdf`);
+    try {
+      await execFileAsync(typstBinary(), typstCompileArgs([rootFile, out]), { cwd: dir, timeout: 60000 });
+      return { ok: true };
+    } catch (err) {
+      const stderr = (err as { stderr?: string }).stderr || String(err);
+      const diagnostics = parseCompileDiagnostics(stderr, 'error');
+      const errors = diagnostics.length > 0
+        ? diagnostics.map(d => (d.file ? `${path.basename(d.file)}:${d.line ?? '?'} — ` : '') + d.message)
+        : [stderr.trim().split('\n').slice(0, 8).join('\n')];
+      return { ok: false, errors };
+    } finally {
+      try { fs.unlinkSync(out); } catch { /* never existed */ }
+    }
+  };
+}
+
+/**
+ * Stages a design change, verifies the document still compiles, and rolls the
+ * WHOLE set back if it doesn't.
+ *
+ * All writes belonging to one logical change must come through a single call.
+ * Splitting them (regenerate style.typ here, inject the chapter opt-in there)
+ * is the exact defect `561c22e` fixed on the app side: the failed half rolled
+ * back, the other half stayed, and the user was told nothing had been applied.
+ *
+ * `baseline: 'probe'` gives this side the app's "don't blame a design action
+ * for a pre-existing content error" rule without a second copy of the app's
+ * compile state — see `shared/safeApply`.
+ */
+async function safeApplyDesignMcp(
+  projectDir: string,
+  writes: { abs: string; content: string }[],
+): Promise<{ verified: boolean; baselineBroken: boolean }> {
+  for (const w of writes) guardWrite(w.abs);
+
+  const rootFile = designVerifyRoot(projectDir);
+  const res = await safeApply({
+    writes,
+    io: fsIO,
+    verify: rootFile ? makeTypstVerifier(rootFile) : null,
+    baseline: 'probe',
+  });
+
+  if (!res.ok) {
+    const files = writes.map(w => path.basename(w.abs)).join(', ');
+    throw new DesignVerifyFailed(
+      `The change was NOT applied — ${files} would have stopped the document compiling, so it was rolled back and the project is exactly as it was.\n\n` +
+      `Typst reported:\n${res.error}\n\n` +
+      (res.restored ? '' : 'WARNING: restoring one of the files failed — check the project before continuing.\n') +
+      `Fix the cause and try again, or pick a different preset.`,
+    );
+  }
+  return { verified: res.verified, baselineBroken: res.baselineBroken };
+}
+
+/** Appended to a tool result so the agent knows what the verify actually said. */
+function verifyNote(r: { verified: boolean; baselineBroken: boolean }): string {
+  if (r.baselineBroken) {
+    return '\n\nNOTE: the document was already failing to compile before this change, so it was applied without a verify. Fix the existing error (penwright_compile) to get verification back.';
+  }
+  return r.verified
+    ? '\n\nVerified: the document still compiles with this change.'
+    : '\n\nNot verified — no compilable root file was found, so the change was applied unchecked. Run penwright_compile.';
 }
 
 
@@ -408,6 +576,7 @@ function readCurrentDocument(): { content: string; filePath: string } {
   if (!state.currentFile || !fs.existsSync(state.currentFile)) {
     throw new Error(`No document open in ${state.projectDir}. Use penwright_open_file to pick a .typ file.`);
   }
+  touchedDocumentInCall = true;
   return {
     content: fs.readFileSync(state.currentFile, 'utf-8'),
     filePath: state.currentFile,
@@ -424,6 +593,22 @@ function readCurrentDocument(): { content: string; filePath: string } {
 function unsavedEditsNote(absFile: string): string {
   if (!state.projectDir || !isDirtyInEditor(state.projectDir, absFile)) return '';
   return `\n\nNOTE: ${path.basename(absFile)} is open in Penwright with unsaved changes. What is on disk is NOT what the user sees. Ask them to save before you rely on this, or expect your edit to be contested.`;
+}
+
+/**
+ * A warning when the document was already failing to compile when the user
+ * last looked at it.
+ *
+ * Without it, a compile error after an edit is indistinguishable from one the
+ * edit caused — and the honest response to those two situations is different:
+ * undo yours, or fix theirs. The app publishes the flag; nothing here measures
+ * it, which is the point.
+ */
+function brokenDocumentNote(): string {
+  if (!state.projectDir) return '';
+  const s = readSession(state.projectDir);
+  if (!s || s.lastCompileOk !== false) return '';
+  return `\n\nNOTE: this document was already failing to compile before you touched it (Penwright's live preview is showing an error). If a compile fails now, do not assume it was your change.`;
 }
 
 function wordCount(text: string): number {
@@ -474,6 +659,108 @@ const server = new McpServer({
   version: '0.9.0',
 });
 
+// ─── Tool registration wrapper ───────────────────────
+//
+// Every tool goes through `tool(...)` instead of `server.tool(...)` so the
+// notes the server owes the agent are attached in ONE place.
+//
+// Today that is the "this file has unsaved edits in Penwright" warning. It
+// used to be appended by hand — at three of the twenty-eight tools that write.
+// The other twenty-five overwrote work the user could see on screen and had
+// never saved, and said nothing about it. Feeding it from the write guard
+// means a tool cannot forget it, and a tool added later gets it for free.
+
+/** Files touched by the tool call in flight that the app has open and dirty. */
+let contestedInCall: string[] = [];
+
+/** The tool in flight, and the files it has written — for the back-channel. */
+let currentToolName = '';
+let activityFiles = new Set<string>();
+
+/**
+ * True once a call has read or written real project content — the condition
+ * for warning that the document was already broken. Without it the warning
+ * would ride along on `list_fonts` and `list_layouts` too, where it means
+ * nothing and only trains the reader to skip notes.
+ */
+let touchedDocumentInCall = false;
+
+/**
+ * Records that `absFile` is open in Penwright with unsaved edits.
+ *
+ * Called from the write guard (so every writing tool is covered) and from the
+ * two tools whose whole purpose is reading, where the warning is about what
+ * was read rather than what will be written.
+ *
+ * Note on concurrency: `contestedInCall` is saved and restored around each
+ * call rather than kept per-async-context. Hosts issue tool calls one at a
+ * time; if two ever did overlap, the worst case is a note landing on the
+ * neighbouring result, never a lost or wrong edit.
+ */
+function noteContestedWrite(absFile: string): void {
+  if (!state.projectDir || !isDirtyInEditor(state.projectDir, absFile)) return;
+  if (!contestedInCall.includes(absFile)) contestedInCall.push(absFile);
+}
+
+const noteContestedRead = noteContestedWrite;
+
+interface ToolTextResult {
+  content: { type: string; text?: string; [k: string]: unknown }[];
+  isError?: boolean;
+  [k: string]: unknown;
+}
+
+/** Appends the notes this call earned to the last text block of the result. */
+function withContestedNotes(result: ToolTextResult): ToolTextResult {
+  if (!Array.isArray(result?.content)) return result;
+
+  const notes =
+    contestedInCall.map(unsavedEditsNote).filter(Boolean).join('') +
+    (touchedDocumentInCall ? brokenDocumentNote() : '');
+  if (!notes) return result;
+
+  const lastText = [...result.content].reverse().find(c => c.type === 'text');
+  if (lastText) lastText.text = (lastText.text ?? '') + notes;
+  else result.content.push({ type: 'text', text: notes.trimStart() });
+  return result;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * `server.tool` with the handler wrapped.
+ *
+ * Typed as `typeof server.tool` so all four overloads — and the zod-schema
+ * inference that gives every handler its typed argument object — survive the
+ * indirection. The callback is always the last argument in each overload,
+ * which is what makes the variadic wrap safe.
+ */
+const tool = ((...args: any[]) => {
+  const name = typeof args[0] === 'string' ? args[0].replace(/^penwright_/, '') : '';
+  const handler = args[args.length - 1];
+  if (typeof handler === 'function') {
+    args[args.length - 1] = async (...handlerArgs: any[]) => {
+      const outerContested = contestedInCall;
+      const outerTool = currentToolName;
+      const outerFiles = activityFiles;
+      const outerTouched = touchedDocumentInCall;
+      contestedInCall = [];
+      currentToolName = name;
+      activityFiles = new Set();
+      touchedDocumentInCall = false;
+      try {
+        return withContestedNotes(await handler(...handlerArgs));
+      } finally {
+        contestedInCall = outerContested;
+        currentToolName = outerTool;
+        activityFiles = outerFiles;
+        touchedDocumentInCall = outerTouched;
+      }
+    };
+  }
+  return (server.tool as any)(...args);
+}) as typeof server.tool;
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 // ─── Prompts: Project Skills ─────────────────────────
 
 const SKILL_PROMPTS: Array<{ name: string; description: string; skillDir: string }> = [
@@ -523,7 +810,7 @@ for (const prompt of SKILL_PROMPTS) {
 
 // ─── Tool: penwright_set_project ───────────────────────
 
-server.tool(
+tool(
   'penwright_set_project',
   'Sets the active project directory. Call this first to tell Penwright which Typst project to work with. Automatically detects the main .typ file (main.typ, document.typ, or first .typ found).',
   { projectDir: z.string().describe('Absolute path to the Typst project directory') },
@@ -559,12 +846,16 @@ server.tool(
 
 // ─── Tool: penwright_get_document ──────────────────────
 
-server.tool(
+tool(
   'penwright_get_document',
   'Returns the current Typst document: content, file path, project directory, and word count. Use this to read the document before making changes.',
   async () => {
     try {
       const { content, filePath } = readCurrentDocument();
+      // A read, so the write guard never fires — but this is exactly where the
+      // warning matters most: the agent is about to reason about text the user
+      // has already moved past.
+      noteContestedRead(filePath);
       return {
         content: [{
           type: 'text' as const,
@@ -573,7 +864,7 @@ server.tool(
             projectDir: state.projectDir,
             content,
             wordCount: wordCount(content),
-          }, null, 2) + unsavedEditsNote(filePath),
+          }, null, 2),
         }],
       };
     } catch (err) {
@@ -584,7 +875,7 @@ server.tool(
 
 // ─── Tool: penwright_open_file ─────────────────────────
 
-server.tool(
+tool(
   'penwright_open_file',
   'Opens a .typ file as the current document. Provide an absolute path or a path relative to the project directory.',
   { filePath: z.string().describe('Path to the .typ file (absolute or relative to project)') },
@@ -597,10 +888,11 @@ server.tool(
       state.currentFile = absPath;
       explicitFile = true;
       const content = fs.readFileSync(absPath, 'utf-8');
+      noteContestedRead(absPath);
       return {
         content: [{
           type: 'text' as const,
-          text: `Opened ${path.basename(absPath)} (${wordCount(content)} words)` + unsavedEditsNote(absPath),
+          text: `Opened ${path.basename(absPath)} (${wordCount(content)} words)`,
         }],
       };
     } catch (err) {
@@ -611,19 +903,18 @@ server.tool(
 
 // ─── Tool: penwright_update_document ───────────────────
 
-server.tool(
+tool(
   'penwright_update_document',
   'Replaces the content of the current Typst document and saves it to disk. Use penwright_get_document first to read the current content, modify it, then send the complete new content here.',
   { content: z.string().describe('The complete new Typst document content') },
   async ({ content }) => {
     try {
       const { filePath } = readCurrentDocument();
-      const contested = unsavedEditsNote(filePath);
       guardedWrite(filePath, content);
       return {
         content: [{
           type: 'text' as const,
-          text: `Updated and saved ${path.basename(filePath)} (${wordCount(content)} words)` + contested,
+          text: `Updated and saved ${path.basename(filePath)} (${wordCount(content)} words)`,
         }],
       };
     } catch (err) {
@@ -634,7 +925,7 @@ server.tool(
 
 // ─── Tool: penwright_compile ───────────────────────────
 
-server.tool(
+tool(
   'penwright_compile',
   'Verify the current document compiles. Returns { success, rootFile, sizeBytes, errors[], warnings[] } — errors carry file + line. PDF artefact is discarded; use penwright_export_pdf / _docx for real output.',
   async () => {
@@ -669,6 +960,122 @@ server.tool(
           }],
         };
       }
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: penwright_render_page ───────────────────────
+//
+// The largest single step towards "the AI sees what the human sees".
+//
+// Every other tool reads Typst source. That is enough to reason about text and
+// nothing else: an agent asked whether the pull-quote sits well on page four,
+// or why the cover looks wrong, has been answering from the source code of a
+// document it has never laid eyes on. It cannot see that a heading fell to the
+// bottom of a page, that an image overflows the column, that the accent colour
+// disappears on the dark background.
+//
+// Typst renders PNG directly (`--format png --pages N`), the binary is already
+// bundled, and MCP has carried an image content type since the first spec —
+// this server had simply never returned one.
+//
+// Cost is the reason for the caps below: a page at 144 ppi is roughly 300 KB
+// of base64 in the agent's context. Two pages per call, 100–200 ppi, is the
+// band where the render is legible without crowding out everything else.
+
+const RENDER_MAX_PAGES = 2;
+const RENDER_MAX_BYTES = 4 * 1024 * 1024;
+
+tool(
+  'penwright_render_page',
+  'RENDER a page of the compiled PDF to an image and return it, so you can SEE the layout instead of inferring it from source. Use before judging any visual question — spacing, overflow, colour, where a heading fell, whether a figure sits well. Max 2 pages per call; raise ppi only when you need to read fine print.',
+  {
+    page: z.number().int().min(1).optional().default(1).describe('1-based page number in the compiled document.'),
+    pages: z.number().int().min(1).max(RENDER_MAX_PAGES).optional().default(1).describe(`How many consecutive pages from \`page\` (max ${RENDER_MAX_PAGES}).`),
+    ppi: z.number().int().min(72).max(300).optional().default(144).describe('Resolution. 144 reads body text comfortably; 200+ only for fine detail — it costs context.'),
+  },
+  async ({ page, pages, ppi }) => {
+    try {
+      const { filePath } = readCurrentDocument();
+      const rootFile = findRootFile(filePath);
+      const dir = path.dirname(rootFile);
+      const stamp = `${process.pid}-${page}`;
+      // `{p}` is Typst's page-number placeholder; without it a multi-page
+      // render silently overwrites itself and returns only the last page.
+      const pattern = path.join(dir, `.penwright-render-${stamp}-{p}.png`);
+      const written: string[] = [];
+
+      const count = Math.min(pages ?? 1, RENDER_MAX_PAGES);
+      const last = page + count - 1;
+      const range = count === 1 ? String(page) : `${page}-${last}`;
+
+      try {
+        await execFileAsync(
+          typstBinary(),
+          typstCompileArgs(['--format', 'png', '--ppi', String(ppi), '--pages', range, rootFile, pattern]),
+          { cwd: dir, timeout: 60000 },
+        );
+      } catch (compileErr: unknown) {
+        const stderr = (compileErr as { stderr?: string }).stderr || String(compileErr);
+        const errors = parseCompileDiagnostics(stderr, 'error');
+        // A page number past the end is the common mistake, and Typst's own
+        // message for it is not obvious. Say what the agent should do next.
+        const hint = /page|range/i.test(stderr)
+          ? ' The document may have fewer pages than you asked for — penwright_compile reports the page count.'
+          : '';
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Could not render page ${range}: ${errors.map(e => e.message).join('; ') || stderr.trim().split('\n').slice(0, 5).join('\n')}${hint}`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Typst substitutes {p} with the ABSOLUTE page number, zero-padded to the
+      // width of the document's page count — so the file for page 7 of a
+      // 120-page document is `…-007.png`. Globbing the directory is more
+      // reliable than reconstructing that width.
+      const prefix = `.penwright-render-${stamp}-`;
+      try {
+        for (const name of fs.readdirSync(dir).sort()) {
+          if (name.startsWith(prefix) && name.endsWith('.png')) written.push(path.join(dir, name));
+        }
+      } catch { /* handled by the empty check below */ }
+
+      if (written.length === 0) {
+        return { content: [{ type: 'text' as const, text: `Rendered nothing for page ${range} — the document probably has fewer pages.` }], isError: true };
+      }
+
+      // Mixed text + image blocks. The SDK's result type is built around the
+      // text case, so the array is assembled loosely and asserted once at the
+      // return — the shape below is exactly what the MCP content schema
+      // specifies for an image block.
+      type Block =
+        | { type: 'text'; text: string }
+        | { type: 'image'; data: string; mimeType: string };
+      const content: Block[] = [
+        { type: 'text', text: `${path.basename(rootFile)} — page${written.length > 1 ? 's' : ''} ${range} at ${ppi} ppi:` },
+      ];
+      let total = 0;
+      for (const file of written) {
+        try {
+          const png = fs.readFileSync(file);
+          total += png.length;
+          if (total > RENDER_MAX_BYTES) {
+            content.push({ type: 'text', text: `(further pages omitted — ${ppi} ppi is producing more than ${Math.round(RENDER_MAX_BYTES / 1024 / 1024)} MB. Ask for one page, or a lower ppi.)` });
+            break;
+          }
+          content.push({ type: 'image', data: png.toString('base64'), mimeType: 'image/png' });
+        } catch { /* skip an unreadable page rather than fail the call */ }
+        finally { try { fs.unlinkSync(file); } catch { /* already gone */ } }
+      }
+      // Anything left after an early break.
+      for (const file of written) { try { fs.unlinkSync(file); } catch { /* fine */ } }
+
+      return { content } as unknown as { content: { type: 'text'; text: string }[] };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
@@ -744,7 +1151,7 @@ function parseCompileDiagnostics(stderr: string, kind: 'error' | 'warning'): Com
 
 // ─── Tool: penwright_get_settings ──────────────────────
 
-server.tool(
+tool(
   'penwright_get_settings',
   'Reads the document settings (#set blocks) from the current Typst file. Returns font, size, language, margins, page format, paragraph settings, heading numbering, and bibliography style.',
   async () => {
@@ -762,7 +1169,7 @@ server.tool(
 
 // ─── Tool: penwright_update_settings ───────────────────
 
-server.tool(
+tool(
   'penwright_update_settings',
   'Update document settings (lang + bibliographyStyle since Phase A — everything else lives in style.json via the Design tools). Only changed keys need to be passed.',
   {
@@ -798,7 +1205,7 @@ server.tool(
 
 // ─── Tool: penwright_list_files ────────────────────────
 
-server.tool(
+tool(
   'penwright_list_files',
   'Returns the project file tree. Shows all .typ, .bib, .md, .yaml, .json, .pdf and image files.',
   async () => {
@@ -849,7 +1256,7 @@ function listDir(dir: string, depth: number): string {
 
 // ─── Tool: penwright_read_file ─────────────────────────
 
-server.tool(
+tool(
   'penwright_read_file',
   'Reads a file from the project. Returns content as text for text files. Provide an absolute path or a path relative to the project directory.',
   { filePath: z.string().describe('Path to the file (absolute or relative to project)') },
@@ -869,7 +1276,7 @@ server.tool(
 
 // ─── Tool: penwright_write_file ────────────────────────
 
-server.tool(
+tool(
   'penwright_write_file',
   'Writes content to a file in the project. Creates parent directories if needed. Provide an absolute path or a path relative to the project directory.',
   {
@@ -895,7 +1302,7 @@ server.tool(
 
 // ─── Tool: penwright_export_pdf ────────────────────────
 
-server.tool(
+tool(
   'penwright_export_pdf',
   'Compile + export as PDF. Output path must be inside the project (convention: exports/<name>.pdf). Parent dirs auto-created.',
   { outputPath: z.string().describe('Path for the PDF output file, relative to the project (e.g. "exports/thesis.pdf"). Absolute paths must point inside the project directory.') },
@@ -934,7 +1341,7 @@ server.tool(
 // margins, optional corner crop marks) + a temp root whose style import is
 // repointed at it, compiles that, then deletes both temp files.
 
-server.tool(
+tool(
   'penwright_export_print',
   'Export a print-ready PDF for a print shop: oversized page with bleed + corner crop marks, in RGB (the shop converts to CMYK/PDF-X). Output path must be inside the project (convention: exports/<name>.pdf). Exports the whole document — for chapter selection use the in-app export dialog.',
   {
@@ -1012,7 +1419,7 @@ server.tool(
 // in-doc preamble-injection has been replaced by writing through
 // `style.json`.
 
-server.tool(
+tool(
   'penwright_list_styles',
   'Returns all available theme presets (id, name, description, best-for). Each theme is a complete ProjectStyle that the user can apply via penwright_apply_style.',
   async () => {
@@ -1030,7 +1437,7 @@ server.tool(
 // Applies a built-in theme to the current project's style.json. Preserves
 // the user's custom.preamble (their escape-hatch code).
 
-server.tool(
+tool(
   'penwright_apply_style',
   'Apply a built-in theme preset. Overwrites colors/fonts/layout/headings/elements; preserves custom.preamble. Call penwright_list_styles first.',
   { styleId: z.string().describe('Theme preset ID — see penwright_list_styles for available IDs') },
@@ -1059,22 +1466,50 @@ server.tool(
         binding:     current.layout.binding ?? '',
       },
     });
-    writeProjectStyleAndRegenerate(state.projectDir, next);
-    return { content: [{ type: 'text' as const, text: `Applied theme "${t.name}" — style.json + style.typ regenerated. Run penwright_compile to verify.` }] };
+    const { note } = await writeProjectStyleAndRegenerate(state.projectDir, next);
+    return { content: [{ type: 'text' as const, text: `Applied theme "${t.name}" — style.json + style.typ regenerated.${note}` }] };
   },
 );
 
 // ─── Tool: penwright_get_style ─────────────────────────
 
-server.tool(
+tool(
   'penwright_get_style',
-  'Return the ProjectStyle JSON (colors / fonts / scale / layout / headings / elements / custom). Call before penwright_update_style.',
+  'Return this project\'s design state: { initialized, adopted, rootFile, styleTypFile, style }. `style` is the ProjectStyle JSON (colors / fonts / scale / layout / headings / elements / sections / custom). Call before penwright_update_style — and read `initialized` first: when it is false the tokens shown are Penwright DEFAULTS, not a description of how the document currently looks.',
   async () => {
     if (!state.projectDir) {
       return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const style = readProjectStyle(state.projectDir);
-    return { content: [{ type: 'text' as const, text: JSON.stringify(style, null, 2) }] };
+    const rootFile = resolveDesignRootFile(state.projectDir);
+
+    // Without these three flags the defaults look like facts: an agent asked
+    // "make the accent warmer" would read `#2563eb`, nudge it, and write a
+    // whole design system into a project that never had one — or into one
+    // whose look lives in a hand-written style.typ, where the write is refused
+    // and the refusal arrives as a surprise.
+    const adopted = isDesignAdopted(state.projectDir, state.currentFile);
+    const initialized = fs.existsSync(styleJsonPath(state.projectDir));
+
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          initialized,
+          adopted,
+          rootFile: rootFile ? path.relative(state.projectDir, rootFile) : null,
+          styleTypFile: rootFile
+            ? path.relative(state.projectDir, path.join(path.dirname(rootFile), 'style.typ'))
+            : 'style.typ',
+          note: !adopted
+            ? 'This project carries a hand-written style.typ that Penwright did not generate. The tokens below are defaults and describe nothing; design tools will refuse to write. Edit style.typ directly, or ask the user to rename it first.'
+            : initialized
+              ? undefined
+              : 'No .penwright/style.json yet — the tokens below are Penwright defaults, not a reading of the current document. The first design write creates it.',
+          style,
+        }, null, 2),
+      }],
+    };
   },
 );
 
@@ -1083,7 +1518,7 @@ server.tool(
 // "✨ Design with AI". Returns the passage + a snapshot of the current
 // look so Claude can design that exact spot in harmony with the document.
 
-server.tool(
+tool(
   'penwright_get_selection',
   'Return the pinned selection from `.penwright/selection.json` — the passage the user right-clicked in Penwright → "Design with AI", plus a design snapshot (theme / palette / fonts / layout / sectionStyle / usedElements). Pass anchorText + occurrence to the anchor-based tools (penwright_insert_design_element, …) to act on the exact spot, or write localized Typst there. Returns a clear note if nothing is pinned.',
   async () => {
@@ -1105,7 +1540,7 @@ server.tool(
 
 // ─── Tool: penwright_update_style ──────────────────────
 
-server.tool(
+tool(
   'penwright_update_style',
   'Deep-merge a partial ProjectStyle into style.json. Per-leaf sanitiser: invalid hex / weight / range falls back to existing value (never errors).',
   {
@@ -1117,14 +1552,14 @@ server.tool(
     }
     const current = readProjectStyle(state.projectDir);
     const merged = deepMergeStyle(current, patch);
-    const written = writeProjectStyleAndRegenerate(state.projectDir, merged);
-    return { content: [{ type: 'text' as const, text: `Style updated. Current state:\n${JSON.stringify(written, null, 2)}` }] };
+    const { style: written, note } = await writeProjectStyleAndRegenerate(state.projectDir, merged);
+    return { content: [{ type: 'text' as const, text: `Style updated. Current state:\n${JSON.stringify(written, null, 2)}${note}` }] };
   },
 );
 
 // ─── Tool: penwright_list_fonts ────────────────────────
 
-server.tool(
+tool(
   'penwright_list_fonts',
   'List the 7 bundled OFL fonts (family, category, description). Always available; reference in fonts.body / fonts.heading / fonts.code without system-install check.',
   async () => {
@@ -1155,7 +1590,7 @@ server.tool(
 
 // ─── Tool: penwright_apply_palette ─────────────────────
 
-server.tool(
+tool(
   'penwright_apply_palette',
   'Apply a 5-color palette via `presetId` or per-slot hex overrides (composable). Empty-args call returns available presets.',
   {
@@ -1194,17 +1629,17 @@ server.tool(
     if (background) palette.background = background;
     if (muted)      palette.muted      = muted;
 
-    const written = writeProjectStyleAndRegenerate(state.projectDir, {
+    const { style: written, note } = await writeProjectStyleAndRegenerate(state.projectDir, {
       ...current,
       colors: { ...current.colors, ...palette },
     });
-    return { content: [{ type: 'text' as const, text: `Palette applied. Resulting colors:\n${JSON.stringify(written.colors, null, 2)}` }] };
+    return { content: [{ type: 'text' as const, text: `Palette applied. Resulting colors:\n${JSON.stringify(written.colors, null, 2)}${note}` }] };
   },
 );
 
 // ─── Tool: penwright_list_layouts ──────────────────────
 
-server.tool(
+tool(
   'penwright_list_layouts',
   'Returns the built-in layout presets (id, name, description, best-for, paper, orientation, columns, base-size). Apply one via penwright_apply_layout.',
   async () => {
@@ -1224,7 +1659,7 @@ server.tool(
 
 // ─── Tool: penwright_apply_layout ──────────────────────
 
-server.tool(
+tool(
   'penwright_apply_layout',
   'Apply a layout preset (swaps layout.* + optionally scale.base). Theme + colors + fonts unchanged. Stacks with apply_style.',
   { layoutId: z.string().describe('Layout preset ID — see penwright_list_layouts') },
@@ -1243,14 +1678,14 @@ server.tool(
     // wiped a configured bleed, and facingPages/binding also change the LIVE
     // page geometry, not just the print export.
     const next = mergeLayoutPreset(current, preset);
-    const written = writeProjectStyleAndRegenerate(state.projectDir, next);
-    return { content: [{ type: 'text' as const, text: `Applied layout "${preset.name}" — ${written.layout.paper}/${written.layout.orientation}/${written.layout.columns}col, base ${written.scale.base}.` }] };
+    const { style: written, note } = await writeProjectStyleAndRegenerate(state.projectDir, next);
+    return { content: [{ type: 'text' as const, text: `Applied layout "${preset.name}" — ${written.layout.paper}/${written.layout.orientation}/${written.layout.columns}col, base ${written.scale.base}.${note}` }] };
   },
 );
 
 // ─── Tool: penwright_list_design_elements ──────────────
 
-server.tool(
+tool(
   'penwright_list_design_elements',
   'List the 19 design elements (banner / sidebar / pull-quote × 3 / callout / hero / divider × 3 / drop-cap / article-opener / section-opener / gallery × 3 / image-overlay / stats-box / photo-caption-wrap / magazine-cover) with their params.',
   async () => {
@@ -1266,7 +1701,7 @@ server.tool(
 
 // ─── Tool: penwright_insert_design_element ─────────────
 
-server.tool(
+tool(
   'penwright_insert_design_element',
   'Insert a design element (19 available — call penwright_list_design_elements first) at an anchor. Auto-themes via style-colors / style-fonts.',
   {
@@ -1310,16 +1745,24 @@ server.tool(
       }
 
       const updated = content.slice(0, insertAt) + '\n\n' + snippet + '\n' + content.slice(insertAt);
-      guardedWrite(filePath, updated);
+      // Verified like every other design mutation. The failure this catches is
+      // real and common: the snippets reference `style-colors` / `style-fonts`,
+      // which only exist where `style.typ` has been imported — dropping one
+      // into a chapter that has not stops the whole document compiling.
+      const r = await safeApplyDesignMcp(state.projectDir, [{ abs: filePath, content: updated }]);
 
       return {
         content: [{
           type: 'text' as const,
-          text: `Inserted "${element.name}" into ${path.basename(filePath)} at offset ${insertAt}.`,
+          text: `Inserted "${element.name}" into ${path.basename(filePath)} at offset ${insertAt}.${verifyNote(r)}`,
         }],
       };
     } catch (err) {
-      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
+      // A rolled-back design change already carries its own full explanation
+      // (what was refused, what Typst said, what to do). Wrapping it in
+      // "Error: Error: …" buries the part the agent needs to act on.
+      const text = err instanceof DesignVerifyFailed ? err.message : `Error: ${err}`;
+      return { content: [{ type: 'text' as const, text }], isError: true };
     }
   },
 );
@@ -1333,7 +1776,7 @@ server.tool(
 // orchestrate the individual tools (apply_style + apply_layout +
 // insert_design_element) for finer control.
 
-server.tool(
+tool(
   'penwright_generate_layout',
   'High-level NL composite: intent ("brochure" | "thesis" | "magazine" | "report" | …) → theme + layout + optional hero. Use as scaffolding before fine-tuning.',
   {
@@ -1370,12 +1813,13 @@ server.tool(
     // Theme first, then layout — the same order the tool documents, through the
     // one merge that knows which fields belong to the project rather than to
     // any preset.
-    writeProjectStyleAndRegenerate(
+    const { note } = await writeProjectStyleAndRegenerate(
       state.projectDir,
       mergeLayoutPreset(mergeThemePreset(currentStyle, theme.style), layout),
     );
 
     let heroInserted = false;
+    let heroNote = '';
     // The hero goes into the ROOT file (a document opener) — that is also the
     // only scope where style-colors/style-fonts exist. Never a chapter.
     const heroTarget = resolveDesignRootFile(state.projectDir);
@@ -1400,10 +1844,17 @@ server.tool(
           }
         }
         const updated = content.slice(0, insertAt) + '\n' + snippet + '\n' + content.slice(insertAt);
-        guardedWrite(heroTarget, updated);
+        // Its own transaction, deliberately not merged with the style writes
+        // above: a hero that fails to compile must not take the theme and
+        // layout down with it. Rolling back just the hero keeps the useful
+        // half of the call.
+        await safeApplyDesignMcp(state.projectDir, [{ abs: heroTarget, content: updated }]);
         heroInserted = true;
       } catch (err) {
         // Non-fatal — the theme + layout still applied.
+        heroNote = err instanceof DesignVerifyFailed
+          ? 'The hero was rolled back because it broke the compile; theme and layout are applied.'
+          : `Hero insert failed: ${err instanceof Error ? err.message : String(err)}`;
         console.warn('[mcp] hero insert failed:', err);
       }
     }
@@ -1416,8 +1867,9 @@ server.tool(
           appliedTheme: { id: theme.id, name: theme.name },
           appliedLayout: { id: layout.id, name: layout.name },
           heroInserted,
+          ...(heroNote ? { heroNote } : {}),
           nextSteps: 'Inspect with penwright_get_style, fine-tune with penwright_update_style, or penwright_compile to verify.',
-        }, null, 2),
+        }, null, 2) + note,
       }],
     };
   },
@@ -1444,7 +1896,7 @@ function walkTypFiles(dir: string, out: string[] = []): string[] {
 
 // ─── Tool: penwright_list_section_styles ───────────────
 
-server.tool(
+tool(
   'penwright_list_section_styles',
   'List per-chapter "section styles" (magazine rubrics). Returns the built-in presets, the variants already defined in this project, and which chapters currently use which variant. A section style restyles one chapter (accent / fonts / columns / headings) via a scoped #show — page geometry stays document-level.',
   {},
@@ -1470,7 +1922,7 @@ server.tool(
 
 // ─── Tool: penwright_define_section_style ──────────────
 
-server.tool(
+tool(
   'penwright_define_section_style',
   'Create or update a section style (a per-chapter design overlay). Start from a preset via fromPreset and/or pass explicit overrides; writes style.json + regenerates style.typ so the chapter opt-in resolves. Assign it afterwards with penwright_apply_section_style.',
   {
@@ -1516,18 +1968,23 @@ server.tool(
     const style = readProjectStyle(state.projectDir);
     const sections = style.sections.filter(s => s.id !== a.id);
     sections.push(base);
-    const written = writeProjectStyleAndRegenerate(state.projectDir, { ...style, sections });
-    const saved = written.sections.find(s => s.id === a.id);
+
+    // Sanitiser check BEFORE anything is written: a rejected id used to be
+    // reported as an error after style.json and style.typ had already been
+    // regenerated, so the "error" left the project changed.
+    const planned = planStyleWritesOrRefuse(state.projectDir, { ...style, sections });
+    const saved = planned.style.sections.find(s => s.id === a.id);
     if (!saved) {
-      return { content: [{ type: 'text' as const, text: `Error: section id "${a.id}" was rejected by the sanitizer (must be lowercase letters/digits/hyphens, starting with a letter).` }], isError: true };
+      return { content: [{ type: 'text' as const, text: `Error: section id "${a.id}" was rejected by the sanitizer (must be lowercase letters/digits/hyphens, starting with a letter). Nothing was written.` }], isError: true };
     }
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ defined: saved, note: `Assign it with penwright_apply_section_style({ file, styleId: "${saved.id}" }).` }, null, 2) }] };
+    const r = await safeApplyDesignMcp(state.projectDir, planned.writes);
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ defined: saved, note: `Assign it with penwright_apply_section_style({ file, styleId: "${saved.id}" }).` }, null, 2) + verifyNote(r) }] };
   },
 );
 
 // ─── Tool: penwright_apply_section_style ───────────────
 
-server.tool(
+tool(
   'penwright_apply_section_style',
   'Assign a section style to a chapter file (injects the scoped #show opt-in at the top). If styleId is a built-in preset not yet defined here, it is auto-defined first. Run penwright_compile afterwards.',
   {
@@ -1542,25 +1999,33 @@ server.tool(
     if (!fs.existsSync(chapterAbs)) {
       return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
     }
-    let style = readProjectStyle(state.projectDir);
+    const style = readProjectStyle(state.projectDir);
+
+    // Defining the variant and injecting the chapter opt-in are ONE change.
+    // Splitting them is what `561c22e` fixed on the app side: the failed half
+    // rolled back, the regenerated style.typ stayed, and on a hand-designed
+    // project that was unrecoverable loss behind a "not applied" message.
+    const writes: { abs: string; content: string }[] = [];
     if (!style.sections.some(s => s.id === styleId)) {
       const preset = getSectionPreset(styleId);
       if (!preset) {
         return { content: [{ type: 'text' as const, text: `Error: Unknown section style "${styleId}". Define it with penwright_define_section_style, or use a preset: ${SECTION_PRESETS.map(p => p.id).join(', ')}.` }], isError: true };
       }
-      style = writeProjectStyleAndRegenerate(state.projectDir, { ...style, sections: [...style.sections, preset] });
+      writes.push(...planStyleWritesOrRefuse(state.projectDir, { ...style, sections: [...style.sections, preset] }).writes);
     }
     const rootDir = path.dirname(findRootFile(chapterAbs));
     const importPath = path.relative(path.dirname(chapterAbs), path.join(rootDir, 'style.typ')).split(path.sep).join('/');
     const src = fs.readFileSync(chapterAbs, 'utf-8');
-    guardedWrite(chapterAbs, ensureSectionStyle(src, styleId, importPath));
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, styleId, importPath, note: 'Run penwright_compile to verify.' }, null, 2) }] };
+    writes.push({ abs: chapterAbs, content: ensureSectionStyle(src, styleId, importPath) });
+
+    const r = await safeApplyDesignMcp(state.projectDir, writes);
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, styleId, importPath }, null, 2) + verifyNote(r) }] };
   },
 );
 
 // ─── Tool: penwright_clear_section_style ───────────────
 
-server.tool(
+tool(
   'penwright_clear_section_style',
   'Remove the section-style opt-in from a chapter file (reverts it to the document default look). The variant stays defined in style.json for reuse.',
   { file: z.string().describe('Chapter file, project-relative.') },
@@ -1574,14 +2039,14 @@ server.tool(
     }
     const src = fs.readFileSync(chapterAbs, 'utf-8');
     const had = getSectionStyleId(src);
-    guardedWrite(chapterAbs, clearSectionStyle(src));
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, cleared: had ?? null }, null, 2) }] };
+    const r = await safeApplyDesignMcp(state.projectDir, [{ abs: chapterAbs, content: clearSectionStyle(src) }]);
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ file, cleared: had ?? null }, null, 2) + verifyNote(r) }] };
   },
 );
 
 // ─── Tool: penwright_get_chapters ──────────────────────
 
-server.tool(
+tool(
   'penwright_get_chapters',
   'Returns the #include chapter structure of the current document. Shows which files are included, in what order, and whether they exist on disk.',
   async () => {
@@ -1622,7 +2087,7 @@ server.tool(
 
 // ─── Tool: penwright_reorder_chapters ──────────────────
 
-server.tool(
+tool(
   'penwright_reorder_chapters',
   'Reorders the #include statements in the current document. Provide the new order as an array of chapter paths (relative to project). The #include lines will be rearranged to match.',
   { order: z.array(z.string()).describe('Array of chapter paths in the desired order, e.g. ["chapters/intro.typ", "chapters/methods.typ"]') },
@@ -1692,7 +2157,7 @@ server.tool(
 
 // ─── Tool: penwright_add_chapter ───────────────────────
 
-server.tool(
+tool(
   'penwright_add_chapter',
   'Creates a new chapter file and adds an #include statement to the current document. The chapter file is created in chapters/ with a heading.',
   {
@@ -1762,7 +2227,7 @@ server.tool(
 
 // ─── Tool: penwright_remove_chapter ────────────────────
 
-server.tool(
+tool(
   'penwright_remove_chapter',
   'Removes an #include statement from the current document. Does NOT delete the chapter file itself.',
   { chapterPath: z.string().describe('Relative path of the chapter to remove (e.g. "chapters/intro.typ")') },
@@ -1789,7 +2254,7 @@ server.tool(
 
 // ─── Tool: penwright_merge_document ────────────────────
 
-server.tool(
+tool(
   'penwright_merge_document',
   'Resolves all #include statements recursively and returns the complete merged document as a single string. Does NOT modify files — read-only operation.',
   async () => {
@@ -1807,7 +2272,7 @@ server.tool(
 
 // ─── Tool: penwright_split_document ────────────────────
 
-server.tool(
+tool(
   'penwright_split_document',
   'Splits the current document at = Heading 1 boundaries into separate chapter files. Creates chapters/ directory, writes individual .typ files, and replaces document body with #include statements.',
   async () => {
@@ -1849,7 +2314,7 @@ server.tool(
 
 // ─── Tool: penwright_get_citations ─────────────────────
 
-server.tool(
+tool(
   'penwright_get_citations',
   'Returns all citation entries from .bib files in the project. Each entry includes citekey, type, title, author, year, and all BibTeX fields.',
   async () => {
@@ -1886,7 +2351,7 @@ server.tool(
 
 // ─── Tool: penwright_add_citation ──────────────────────
 
-server.tool(
+tool(
   'penwright_add_citation',
   'Adds a new BibTeX entry to the project bibliography. Creates references.bib if it does not exist. Also ensures the document has a #bibliography statement.',
   {
@@ -1935,7 +2400,7 @@ server.tool(
 
 // ─── Tool: penwright_ensure_bibliography ───────────────
 
-server.tool(
+tool(
   'penwright_ensure_bibliography',
   'Ensures the project has a references.bib file and the current document contains a #bibliography statement. Creates both if missing.',
   async () => {
@@ -1971,9 +2436,60 @@ server.tool(
   },
 );
 
+// ─── Project scaffolding, shared with the app ──────────
+//
+// `penwright_create_project` used to produce a folder with the template files
+// and an `assets/` directory. The app's "New Project" produced the same files
+// plus a Git repo, a `.gitignore`, `sources/`, the `.penwright/` skeleton, five
+// project skills and a `style.typ` wired into the root — twelve files and a
+// commit against three files. Same button, two different projects.
+//
+// `shared/projectScaffold` is now the one implementation. What differs between
+// the processes is injected: how Git is constructed, and the skill texts.
+
+const MCP_SKILL_FILES = [
+  { slug: 'typst', content: TYPST_SKILL },
+  { slug: 'penwright', content: PENWRIGHT_SKILL },
+  { slug: 'research', content: RESEARCH_SKILL },
+  { slug: 'writing-style', content: WRITING_STYLE_SKILL },
+  { slug: 'design', content: DESIGN_SKILL },
+];
+
+function mcpScaffold(dir: string, message: string, wireRoot: boolean, standardDirs = false) {
+  return scaffoldProject({
+    dir,
+    skills: MCP_SKILL_FILES,
+    standardDirs,
+    wireRoot,
+    initialCommitMessage: message,
+    git: (d) => simpleGit(d),
+    ensureIdentity: ensureGitIdentity,
+    // DEFAULT_PROJECT_STYLE explicitly, not `{}`: the sanitiser happens to
+    // produce the same object from either today, but the app passes the
+    // constant and "the same by coincidence" is exactly the kind of agreement
+    // that stops holding without anyone noticing.
+    defaultStyleJson: JSON.stringify(sanitizeProjectStyle(DEFAULT_PROJECT_STYLE), null, 2),
+    renderStyleTyp: (json) => {
+      let style;
+      try { style = sanitizeProjectStyle(JSON.parse(json)); }
+      catch { style = sanitizeProjectStyle(DEFAULT_PROJECT_STYLE); }
+      return generateStyleTypst(style);
+    },
+  });
+}
+
+function scaffoldSummary(r: Awaited<ReturnType<typeof mcpScaffold>>): string {
+  const parts = [
+    r.gitInitialized ? 'Git repo initialised' : 'Git repo already present',
+    r.committed ? 'initial version committed' : 'nothing to commit',
+    r.skillsWritten.length > 0 ? `${r.skillsWritten.length} project skills deployed to .claude/skills/` : 'skills already present',
+  ];
+  return parts.join(' · ') + (r.warnings.length > 0 ? `\nWarnings: ${r.warnings.join('; ')}` : '');
+}
+
 // ─── Tool: penwright_create_project ────────────────────
 
-server.tool(
+tool(
   'penwright_create_project',
   'Create a new Typst project from a template (document | thesis | paper | letter | book | magazine).',
   {
@@ -1996,7 +2512,6 @@ server.tool(
       }
 
       fs.mkdirSync(projectDir, { recursive: true });
-      fs.mkdirSync(path.join(projectDir, 'assets'), { recursive: true });
 
       for (const [relPath, content] of Object.entries(template.files)) {
         const filePath = path.join(projectDir, relPath);
@@ -2005,6 +2520,14 @@ server.tool(
         guardedWrite(filePath, content);
       }
 
+      // Everything else the app's "New Project" does — and this side used to
+      // skip: assets/ + sources/, .gitignore, the .penwright/ skeleton, the
+      // five project skills, style.typ wired into the root, a Git repo and the
+      // first commit. Without it "Save Version" had nothing to restore from in
+      // exactly the projects an agent had just filled with text, and the next
+      // agent to open the folder had no idea what its conventions were.
+      const scaffold = await mcpScaffold(projectDir, `Initial version (${template.label})`, true, true);
+
       // Switch to new project
       state.projectDir = projectDir;
       state.currentFile = path.join(projectDir, 'main.typ');
@@ -2012,7 +2535,9 @@ server.tool(
       return {
         content: [{
           type: 'text' as const,
-          text: `Created project "${projectName}" (${template.label}) at ${projectDir}\nFiles: ${Object.keys(template.files).join(', ')}`,
+          text: `Created project "${projectName}" (${template.label}) at ${projectDir}\n` +
+            `Files: ${Object.keys(template.files).join(', ')}\n` +
+            scaffoldSummary(scaffold),
         }],
       };
     } catch (err) {
@@ -2037,7 +2562,7 @@ function getPresetsDir(): string | null {
   return null;
 }
 
-server.tool(
+tool(
   'penwright_list_presets',
   'List the built-in project presets — ready-made, compile-tested project starters (magazine, report, cookbook, portfolio, thesis, letter, newsletter, picture book, …), each shipping a finished design plus placeholder (Lorem) content. Magazine presets give every chapter a different layout. Instantiate one with penwright_create_from_preset.',
   {
@@ -2058,7 +2583,7 @@ server.tool(
   },
 );
 
-server.tool(
+tool(
   'penwright_create_from_preset',
   'Create a new project from a built-in preset (see penwright_list_presets): copies the ready-made project (design + macros + placeholder assets + Lorem content) verbatim, git-inits it, and switches the active project to it. Then replace the placeholder text with the real content. Prefer this over penwright_create_project when the user wants a designed starting point.',
   {
@@ -2083,14 +2608,23 @@ server.tool(
       }
 
       copyPresetFolder(found.dir, projectDir);
-      await ensureGitRepo(projectDir);
-      try { const g = simpleGit(projectDir); await g.add('-A'); await g.commit(`New from preset — ${localize(found.manifest.label, 'en')}`); } catch { /* non-fatal */ }
+      // `wireRoot: false` — a preset ships its own finished design, often as a
+      // hand-written style.typ. The scaffold leaves that alone (it asks
+      // `isDesignAdopted` first) and only adds what is missing: skills, the
+      // .penwright/ skeleton, .gitignore, Git, the first commit. Not one of
+      // the thirty-five bundled presets carried `.claude/skills`, so every
+      // project made from one started with the agent knowing nothing about it.
+      const scaffold = await mcpScaffold(
+        projectDir,
+        `New from preset — ${localize(found.manifest.label, 'en')}`,
+        false,
+      );
 
       const openRel = found.manifest.openFile ?? found.manifest.root ?? 'main.typ';
       state.projectDir = projectDir;
       state.currentFile = path.join(projectDir, fs.existsSync(path.join(projectDir, openRel)) ? openRel : 'main.typ');
 
-      return { content: [{ type: 'text' as const, text: `Created "${projectName}" from preset "${presetId}" at ${projectDir}.\nActive file: ${path.relative(projectDir, state.currentFile)}\nThe project ships placeholder (Lorem) content — replace it with the real text.` }] };
+      return { content: [{ type: 'text' as const, text: `Created "${projectName}" from preset "${presetId}" at ${projectDir}.\nActive file: ${path.relative(projectDir, state.currentFile)}\n${scaffoldSummary(scaffold)}\nThe project ships placeholder (Lorem) content — replace it with the real text.` }] };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
     }
@@ -2102,8 +2636,6 @@ server.tool(
 // "Versionen" UI in ProjectPanel). All operations are
 // local; nothing is ever pushed to a remote.
 // ═══════════════════════════════════════════════════════
-
-const GITIGNORE_REQUIRED_LINES = ['.penwright/', '.penwright-*', '*.pdf'];
 
 async function ensureGitRepo(dir: string): Promise<void> {
   const git = simpleGit(dir);
@@ -2117,18 +2649,11 @@ async function ensureGitRepo(dir: string): Promise<void> {
   // repo-local fallback the commit hard-fails ("Please tell me who you are").
   await ensureGitIdentity(git);
   // Make sure .gitignore covers Penwright-local state so we don't accidentally
-  // commit auto-backups or generated PDFs.
-  const gitignorePath = path.join(dir, '.gitignore');
-  let existing = '';
-  if (fs.existsSync(gitignorePath)) {
-    existing = fs.readFileSync(gitignorePath, 'utf-8');
-  }
-  const lines = existing.split('\n').map(l => l.trim());
-  const missing = GITIGNORE_REQUIRED_LINES.filter(req => !lines.includes(req));
-  if (missing.length === 0) return;
-  const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  const addition = (existing.length === 0 ? '# Penwright\n' : prefix + '\n# Penwright\n') + missing.join('\n') + '\n';
-  guardedWrite(gitignorePath, existing + addition);
+  // commit auto-backups or generated PDFs. Through the shared planner: this
+  // side used to write a shorter template than the app for a fresh file, so
+  // which process created the project decided whether .DS_Store was ignored.
+  const ignore = planGitignore(dir);
+  if (ignore) guardedWrite(ignore.abs, ignore.content);
 }
 
 interface DiffFileEntry {
@@ -2167,7 +2692,7 @@ function validateProjectRelPaths(files: string[]): string[] {
 
 // ─── Tool: penwright_save_version ──────────────────────
 
-server.tool(
+tool(
   'penwright_save_version',
   'Save a named version (Git commit, local-only). Auto-inits repo if missing. Returns { sha: null, skipped: true } if no changes.',
   {
@@ -2224,7 +2749,7 @@ server.tool(
 
 // ─── Tool: penwright_list_versions ─────────────────────
 
-server.tool(
+tool(
   'penwright_list_versions',
   'List version history (newest first, max 200). Returns { sha, message, date, author, isAuto }; isAuto = Penwright auto-versions.',
   async () => {
@@ -2261,7 +2786,7 @@ server.tool(
 
 // ─── Tool: penwright_show_version ──────────────────────
 
-server.tool(
+tool(
   'penwright_show_version',
   'Returns the per-file diff for a specific version. Each file entry: { path, status, patch } where status is "added" | "modified" | "deleted" | "renamed" and patch contains the unified diff hunks.',
   { sha: z.string().describe('Version id (full or abbreviated Git SHA, 4-40 hex characters) — get this from penwright_list_versions') },
@@ -2287,7 +2812,7 @@ server.tool(
 
 // ─── Tool: penwright_restore_version ───────────────────
 
-server.tool(
+tool(
   'penwright_restore_version',
   'Restore files from a historical version. **Destructive — call penwright_save_version first** to preserve current state.',
   {
@@ -2323,9 +2848,87 @@ server.tool(
   },
 );
 
+// ─── Tools: the edit undo net (both processes write it, both read it) ──────
+//
+// `guardedWrite` preserves the previous version of every file this server
+// touches, in the same `.penwright/ai-snapshots/` folder the app's "Undo AI
+// Edit" reads. Until now this side could only fill that folder, never look
+// into it: the agent could not tell the user what it had made undoable, and
+// could not walk back its own bulk edit without asking them to click through
+// the app. These two close that loop.
+//
+// This is deliberately NOT a second version-control system. It is per-file,
+// bounded, and only knows about writes that went through this server or the
+// app's watcher. For anything you want to keep, use penwright_save_version.
+
+tool(
+  'penwright_list_edits',
+  'List the undoable edit snapshots in `.penwright/ai-snapshots/` — the previous version of every file this server (or Penwright) overwrote, newest first. This is the same net the app\'s History & Restore hub shows. Bounded and per-file; for durable checkpoints use penwright_save_version.',
+  {
+    file: z.string().optional().describe('Project-relative path to narrow the list to one file. Omit for the whole project.'),
+  },
+  async ({ file }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
+    }
+    const abs = file ? resolveInsideProject(file) : undefined;
+    const refs = listSnapshotRefs(state.projectDir, abs);
+    if (refs.length === 0) {
+      return { content: [{ type: 'text' as const, text: file ? `No undoable edits recorded for ${file}.` : 'No undoable edits recorded in this project.' }] };
+    }
+    const rows = refs.map(r => ({
+      file: path.relative(state.projectDir, r.filePath),
+      at: new Date(r.timestamp).toISOString(),
+      timestamp: r.timestamp,
+    }));
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({ count: rows.length, retention: snapshotLimit(state.projectDir), edits: rows }, null, 2),
+      }],
+    };
+  },
+);
+
+tool(
+  'penwright_undo_last_edit',
+  'Restore the newest edit snapshot — undoing the last overwrite, of one file or of whatever was written most recently. Repeat to step further back. Only reaches writes that went through Penwright or this server; use penwright_restore_version for anything else.',
+  {
+    file: z.string().optional().describe('Project-relative path to undo the last edit of. Omit to undo the most recent edit anywhere in the project.'),
+  },
+  async ({ file }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
+    }
+    const abs = file ? resolveInsideProject(file) : undefined;
+    const taken = takeLastSnapshot(state.projectDir, abs);
+    if (!taken) {
+      return { content: [{ type: 'text' as const, text: file ? `Nothing to undo for ${file}.` : 'Nothing to undo in this project.' }] };
+    }
+
+    // Through the guard like any other write: the current content becomes its
+    // own snapshot, so an undo is itself undoable (a redo, in effect) and a
+    // foreign lock still refuses.
+    const target = taken.snapshot.filePath;
+    guardedWrite(target, taken.snapshot.content);
+    // Only now — an undo that failed to write must not have consumed the entry
+    // it needed.
+    taken.commit();
+
+    const rel = path.relative(state.projectDir, target);
+    const remaining = countSnapshots(state.projectDir, abs);
+    return {
+      content: [{
+        type: 'text' as const,
+        text: `Restored ${rel} to its state from ${new Date(taken.snapshot.timestamp).toISOString()}. ${remaining} further undo${remaining === 1 ? '' : 's'} available${file ? ` for ${rel}` : ''}.`,
+      }],
+    };
+  },
+);
+
 // ─── Tool: penwright_git_status ────────────────────────
 
-server.tool(
+tool(
   'penwright_git_status',
   'Returns git status of the project: branch name, ahead/behind counts, and list of changed files.',
   async () => {
@@ -2352,7 +2955,7 @@ server.tool(
 
 // ─── Tool: penwright_git_commit ────────────────────────
 
-server.tool(
+tool(
   'penwright_git_commit',
   'Stages all changes and creates a git commit with the given message.',
   {
@@ -2381,7 +2984,7 @@ server.tool(
 
 // ─── Tool: penwright_git_push ──────────────────────────
 
-server.tool(
+tool(
   'penwright_git_push',
   'Pushes committed changes to the remote repository.',
   async () => {
@@ -2441,7 +3044,7 @@ function findAnchorOffset(
 
 // ─── Tool: penwright_list_comments ─────────────────────
 
-server.tool(
+tool(
   'penwright_list_comments',
   'List comments in the project (lives as .md files in comments/, never compiled). Returns { id, file, anchor, body, resolved, orphaned } per entry; orphaned = anchor text was edited away.',
   {
@@ -2470,7 +3073,7 @@ server.tool(
 
 // ─── Tool: penwright_add_comment ───────────────────────
 
-server.tool(
+tool(
   'penwright_add_comment',
   'Create a comment anchored to a verbatim text snippet (whitespace-exact, single-paragraph). Renders as yellow highlight in Penwright; never compiled.',
   {
@@ -2520,7 +3123,7 @@ server.tool(
 
 // ─── Tool: penwright_resolve_comment ───────────────────
 
-server.tool(
+tool(
   'penwright_resolve_comment',
   'Marks a comment as resolved (or unresolved). Resolved comments are hidden from the comments panel by default but remain in the project until explicitly deleted.',
   {
@@ -2547,7 +3150,7 @@ server.tool(
 
 // ─── Tool: penwright_delete_comment ────────────────────
 
-server.tool(
+tool(
   'penwright_delete_comment',
   'Permanently deletes a comment (removes its .md file from comments/). Use penwright_resolve_comment instead if you only want to hide it.',
   { id: z.string().describe('Comment id') },
@@ -2569,7 +3172,7 @@ server.tool(
 
 // ─── Tool: penwright_list_labels ───────────────────────
 
-server.tool(
+tool(
   'penwright_list_labels',
   'List all <label>s in the project, classified by type (figure / table / equation / heading / other) from prefix. Call before insert_reference to avoid guessing. Capped at 2000.',
   {
@@ -2598,7 +3201,7 @@ server.tool(
 
 // ─── Tool: penwright_insert_reference ──────────────────
 
-server.tool(
+tool(
   'penwright_insert_reference',
   'Insert a Typst cross-reference (@label) at an anchor. Validates label exists (call penwright_list_labels first); auto-inserts a leading space if needed so Typst doesn\'t glue it to the previous word.',
   {
@@ -2666,7 +3269,7 @@ server.tool(
 
 // ─── Tool: penwright_add_footnote ──────────────────────
 
-server.tool(
+tool(
   'penwright_add_footnote',
   'Insert a Typst footnote (#footnote[<body>]) at an anchor. Body may contain inline Typst (italic, citations); brackets must balance.',
   {
@@ -2736,7 +3339,7 @@ server.tool(
 
 // ─── Tool: penwright_search_project ────────────────────
 
-server.tool(
+tool(
   'penwright_search_project',
   'Search across .typ files (optionally .bib) with regex / case / whole-word options; returns matches grouped by file. Whole-word uses lookarounds so it works for @citekey backlinks. Capped at 1000 hits.',
   {
@@ -2774,7 +3377,7 @@ server.tool(
 
 // ─── Tool: penwright_replace_in_project ────────────────
 
-server.tool(
+tool(
   'penwright_replace_in_project',
   'Replace all matches of a query across project files. **Destructive — call penwright_save_version first.** Returns { filesChanged, totalReplacements }.',
   {
@@ -2809,7 +3412,7 @@ server.tool(
 
 // ─── Tool: penwright_find_source_for_citation ──────────
 
-server.tool(
+tool(
   'penwright_find_source_for_citation',
   'Find a PDF in sources/ matching a BibTeX citekey. Exact `<citekey>.pdf` preferred, suffix variants accepted. Returns project-relative path or null.',
   { citekey: z.string().describe('BibTeX citation key (e.g. "chen2021codex")') },
@@ -2843,7 +3446,7 @@ server.tool(
 
 // ─── Tool: penwright_export_docx ───────────────────────
 
-server.tool(
+tool(
   'penwright_export_docx',
   'Export the current document as DOCX with real Word styles + live multilevel numbering. Multi-chapter projects are merged. Output path must be inside the project (convention: exports/<name>.docx).',
   { outputPath: z.string().describe('Path for the DOCX output, relative to the project (e.g. "exports/thesis.docx")') },
@@ -2882,7 +3485,7 @@ server.tool(
 
 // ─── Tool: penwright_import_markdown ───────────────────
 
-server.tool(
+tool(
   'penwright_import_markdown',
   'Convert Markdown to Typst and write to a project file. Provide inline `markdown` OR a `srcPath` (.md file). Errors if destPath exists unless `overwrite: true`.',
   {
@@ -2938,7 +3541,7 @@ server.tool(
 
 // ─── Tool: penwright_add_image ─────────────────────────
 
-server.tool(
+tool(
   'penwright_add_image',
   'Import image into assets/ (content-hash dedup), build a Typst snippet (optionally wrapped in #figure with caption + label), and optionally insert at an anchor in one round-trip.',
   {
@@ -2971,28 +3574,10 @@ server.tool(
         return { content: [{ type: 'text' as const, text: `Error: Source path is not a file: ${srcPath}` }], isError: true };
       }
 
-      // Place asset with content-based deduplication.
-      const assetsDir = path.join(state.projectDir, 'assets');
-      if (!fs.existsSync(assetsDir)) {
-        fs.mkdirSync(assetsDir, { recursive: true });
-      }
-      const ext = path.extname(absSrc);
-      const stem = path.basename(absSrc, ext);
-      const srcBuf = fs.readFileSync(absSrc);
-      let assetName = `${stem}${ext}`;
-      let assetAbs = path.join(assetsDir, assetName);
-      let counter = 2;
-      while (fs.existsSync(assetAbs)) {
-        const existing = fs.readFileSync(assetAbs);
-        if (existing.equals(srcBuf)) break; // same content — reuse
-        assetName = `${stem}-${counter}${ext}`;
-        assetAbs = path.join(assetsDir, assetName);
-        counter++;
-      }
-      if (!fs.existsSync(assetAbs)) {
-        fs.writeFileSync(assetAbs, srcBuf);
-      }
-      const assetRel = `assets/${assetName}`;   // project-relative, for reporting only
+      // One placement rule, shared with the app: <project>/assets, content
+      // dedup, never an overwrite.
+      const placed = placeAssetFromPath(state.projectDir, absSrc);
+      const assetRel = placed.rel;   // project-relative, for reporting only
 
       /**
        * Typst resolves an `image("…")` path relative to the FILE that contains
@@ -3001,8 +3586,7 @@ server.tool(
        * `chapters/assets/x.png` — "file not found", and the whole document
        * stops compiling. The path has to be built from the destination.
        */
-      const imagePathFrom = (targetAbs: string): string =>
-        path.relative(path.dirname(targetAbs), assetAbs).split(path.sep).join('/');
+      const imagePathFrom = (targetAbs: string): string => assetPathFrom(targetAbs, placed.abs);
 
       const widthSpec = width ?? '100%';
       const altPart = alt ? `, alt: "${alt.replace(/"/g, '\\"')}"` : '';

@@ -16,9 +16,9 @@ export const history: HistoryMessages = {
   restore: 'Wiederherstellen',
 
   aiTitle: 'KI-Änderungen',
-  aiDesc: 'Die letzten KI-Bearbeitungen der offenen Datei einzeln rückgängig machen.',
+  aiDesc: 'Die letzten KI-Bearbeitungen im ganzen Projekt einzeln rückgängig machen — auch in Dateien, die nicht geöffnet sind.',
   aiEntryTitle: 'KI-Bearbeitung',
-  aiEmpty: 'Keine KI-Bearbeitungen zum Rückgängigmachen für diese Datei.',
+  aiEmpty: 'Keine KI-Bearbeitungen zum Rückgängigmachen in diesem Projekt.',
   aiNoFile: 'Öffne eine Datei, um ihre KI-Bearbeitungen zu sehen.',
   aiUndoLast: 'Letzte rückgängig',
 };

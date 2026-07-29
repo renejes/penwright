@@ -15,9 +15,9 @@ export const history = {
   restore: 'Restore',
 
   aiTitle: 'AI changes',
-  aiDesc: 'Undo the most recent AI edits to the open file, one at a time.',
+  aiDesc: 'Undo the most recent AI edits anywhere in this project, one at a time — including files you do not have open.',
   aiEntryTitle: 'AI edit',
-  aiEmpty: 'No AI edits to undo for this file.',
+  aiEmpty: 'No AI edits to undo in this project.',
   aiNoFile: 'Open a file to see its AI edits.',
   aiUndoLast: 'Undo last',
 };

@@ -29,6 +29,7 @@ export const app: AppMessages = {
   wordsLabel: (n: number) => (n === 1 ? 'Wort' : 'Wörter'),
   minRead: (m: number) => `${m} Min. Lesezeit`,
   readingTimeTitle: 'Wortanzahl · geschätzte Lesezeit bei 200 WpM',
+  agentWorking: (what: string): string => `KI: ${what}`,
   editorZoom: 'Editor-Zoom',
   editorZoomTitle: 'Editor-Zoom · zum Anpassen klicken',
   zoomOut: 'Verkleinern',

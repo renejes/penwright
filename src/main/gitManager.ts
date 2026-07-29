@@ -29,6 +29,7 @@ function markRestored(dir: string, files: string[]): void {
 import { isPathWithin } from './pathSecurity';
 import { updateTitle } from './fileManager';
 import { ensureGitIdentity } from '../shared/gitIdentity';
+import { planGitignore } from '../shared/projectScaffold';
 
 function getGitDir(): string {
   return appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : process.cwd());
@@ -40,36 +41,19 @@ function isPathWithinGitDir(filePath: string): boolean {
   return isPathWithin(absPath, gitDir);
 }
 
-const GITIGNORE_REQUIRED_LINES = ['.penwright/', '.penwright-*', '*.pdf'];
-
-const GITIGNORE_TEMPLATE = `# Penwright
-${GITIGNORE_REQUIRED_LINES.join('\n')}
-
-# OS
-.DS_Store
-Thumbs.db
-`;
-
 /**
- * THE gitignore-ensure implementation — creates the full template when no
- * .gitignore exists, otherwise appends the missing required lines. Shared by
- * git:saveVersion, ensureProjectInfrastructure and openSampleProject (the
- * logic used to exist as three drifting copies).
+ * Creates the full template when no .gitignore exists, otherwise appends the
+ * missing required lines.
+ *
+ * The decision — which lines, and what a fresh file looks like — lives in
+ * `shared/projectScaffold.planGitignore`, because the MCP server writes this
+ * file too and used to write a shorter version: on a project it created,
+ * `.DS_Store` and `Thumbs.db` were not ignored, so which process had made the
+ * project decided what went into the user's history.
  */
 export function ensureGitignore(dir: string): void {
-  const gitignorePath = path.join(dir, '.gitignore');
-  if (!fs.existsSync(gitignorePath)) {
-    fs.writeFileSync(gitignorePath, GITIGNORE_TEMPLATE, 'utf-8');
-    return;
-  }
-
-  const existing = fs.readFileSync(gitignorePath, 'utf-8');
-  const lines = existing.split('\n').map(l => l.trim());
-  const missing = GITIGNORE_REQUIRED_LINES.filter(req => !lines.includes(req));
-  if (missing.length === 0) return;
-
-  const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  fs.writeFileSync(gitignorePath, existing + prefix + '\n# Penwright\n' + missing.join('\n') + '\n', 'utf-8');
+  const plan = planGitignore(dir);
+  if (plan) fs.writeFileSync(plan.abs, plan.content, 'utf-8');
 }
 
 async function ensureRepo(dir: string): Promise<{ initialized: boolean }> {

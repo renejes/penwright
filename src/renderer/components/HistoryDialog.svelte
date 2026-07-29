@@ -23,7 +23,7 @@
 
   interface Version { sha: string; message: string; date: string; author: string; isAuto: boolean; }
   interface BackupSnapshot { timestamp: string; timestampMs: number; fileCount: number; totalBytes: number; }
-  interface AiSnap { timestamp: number; filePath: string; }
+  interface AiSnap { timestamp: number; filePath: string; bytes: number; }
   interface BackupConfig { intervalSec: number; maxCount: number; maxAiSnapshots: number; }
 
   let versions = $state<Version[]>([]);
@@ -98,6 +98,8 @@
     return new Date(ms).toLocaleDateString();
   }
   function formatDate(ms: number): string { return new Date(ms).toLocaleString(); }
+  /** Which file an AI edit touched — the list now spans the whole project. */
+  function fileLabel(p: string): string { return p.split(/[\\/]/).pop() ?? p; }
   function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -228,8 +230,8 @@
               {#each aiSnaps as s, i (s.timestamp)}
                 <li class="row">
                   <div class="row-info">
-                    <div class="row-main" class:dim={i > 0}>{t().history.aiEntryTitle}</div>
-                    <div class="row-meta">{relativeTime(s.timestamp)}</div>
+                    <div class="row-main" class:dim={i > 0}>{fileLabel(s.filePath)}</div>
+                    <div class="row-meta">{t().history.aiEntryTitle} · {relativeTime(s.timestamp)}</div>
                   </div>
                 </li>
               {/each}

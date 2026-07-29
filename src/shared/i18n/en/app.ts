@@ -28,6 +28,8 @@ export const app = {
   wordsLabel: (n: number): string => (n === 1 ? 'word' : 'words'),
   minRead: (m: number) => `${m} min read`,
   readingTimeTitle: 'Word count · estimated reading time at 200 wpm',
+  /** Advisory: what the connected AI is touching. Display only. */
+  agentWorking: (what: string): string => `AI: ${what}`,
   editorZoom: 'Editor zoom',
   editorZoomTitle: 'Editor zoom · click to adjust',
   zoomOut: 'Zoom out',

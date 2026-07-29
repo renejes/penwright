@@ -17,6 +17,13 @@ import {
   inspectBeforeWrite,
   forgetAll,
 } from '../shared/fileWrite';
+import {
+  recordSnapshot,
+  takeLastSnapshot,
+  listSnapshotRefs,
+  countSnapshots,
+  publishSnapshotLimit,
+} from '../shared/editHistory';
 import { parseSettings } from '../shared/settingsParser';
 import { TypstCompiler } from './typstCompiler';
 import { appState } from './appState';
@@ -27,7 +34,6 @@ import {
   pruneProjectBackups,
   checkForFileRecovery,
   getBackupConfig,
-  aiSnapshotsDir,
   getSelectionPin,
   clearSelectionPin,
   getLocale,
@@ -41,132 +47,98 @@ let fileWatcher: FSWatcher | null = null;
 let autoSaveTimer: NodeJS.Timeout | null = null;
 
 // ─── AI Edit Snapshots ───────────────────────────────
-// Ring buffer that captures editor state before each external file change,
-// so the user can undo AI-driven edits (terminal / MCP). Snapshots are also
-// persisted to <projectDir>/.penwright/ai-snapshots/ so they survive app restarts.
+// Captures what an external write is about to replace, so the user can undo
+// AI-driven edits (terminal / MCP). The store is the project folder itself —
+// `<projectDir>/.penwright/ai-snapshots/`, owned by `shared/editHistory` and
+// written by BOTH processes.
+//
+// This file used to keep an in-memory ring buffer beside it. That buffer was a
+// second truth, and a lossy one: it only ever contained what the app had
+// snapshotted itself, so every file the agent rescued was invisible to the very
+// UI built to surface it. The folder is now read directly — a handful of small
+// JSON files, on user-initiated actions only.
 
-interface AiSnapshot {
-  filePath: string;
-  content: string;
-  timestamp: number;
-  diskName?: string; // basename of the persisted JSON file, when persisted
-}
-
-const aiSnapshots: AiSnapshot[] = [];
-
-function getMaxAiSnapshots(): number {
-  try { return getBackupConfig().maxAiSnapshots; } catch { return 20; }
-}
-
-function aiSnapshotFileName(timestamp: number, filePath: string): string {
-  const safe = path.basename(filePath).replace(/[^a-zA-Z0-9._-]/g, '_');
-  return `${timestamp}_${safe}.json`;
-}
-
-function persistAiSnapshot(snap: AiSnapshot): string | undefined {
-  if (!appState.projectDir) return undefined;
-  try {
-    const dir = aiSnapshotsDir(appState.projectDir);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const name = aiSnapshotFileName(snap.timestamp, snap.filePath);
-    const target = path.join(dir, name);
-    fs.writeFileSync(target, JSON.stringify({
-      filePath: snap.filePath,
-      content: snap.content,
-      timestamp: snap.timestamp,
-    }), 'utf-8');
-    return name;
-  } catch (err) {
-    console.warn('[penwright] Failed to persist AI snapshot:', err);
-    return undefined;
-  }
-}
-
-function deletePersistedAiSnapshot(diskName?: string): void {
-  if (!diskName || !appState.projectDir) return;
-  try {
-    fs.unlinkSync(path.join(aiSnapshotsDir(appState.projectDir), diskName));
-  } catch {}
-}
-
-/**
- * Loads AI snapshots from disk into the in-memory ring buffer.
- * Called when a project is opened so AI undo survives app restarts.
- */
-export function loadAiSnapshotsFromDisk(projectDir: string): void {
-  aiSnapshots.length = 0;
-  const dir = aiSnapshotsDir(projectDir);
-  if (!fs.existsSync(dir)) return;
-  try {
-    const entries = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort();
-    for (const name of entries) {
-      try {
-        const raw = fs.readFileSync(path.join(dir, name), 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (typeof parsed.filePath === 'string' && typeof parsed.content === 'string' && typeof parsed.timestamp === 'number') {
-          aiSnapshots.push({ filePath: parsed.filePath, content: parsed.content, timestamp: parsed.timestamp, diskName: name });
-        }
-      } catch {}
-    }
-  } catch {}
+/** Tells the shared store what retention the user configured. */
+function publishConfiguredLimit(projectDir: string): void {
+  let max = 20;
+  try { max = getBackupConfig().maxAiSnapshots; } catch { /* defaults */ }
+  publishSnapshotLimit(projectDir, max);
 }
 
 function pushAiSnapshot(filePath: string, content: string): void {
-  const snap: AiSnapshot = { filePath, content, timestamp: Date.now() };
-  snap.diskName = persistAiSnapshot(snap);
-  aiSnapshots.push(snap);
+  if (!appState.projectDir) return;
+  recordSnapshot(appState.projectDir, filePath, content);
+  sendAiSnapshotCount();
+}
 
-  // Trim to max — drop oldest, including from disk
-  const max = getMaxAiSnapshots();
-  while (aiSnapshots.length > max) {
-    const dropped = aiSnapshots.shift();
-    if (dropped) deletePersistedAiSnapshot(dropped.diskName);
-  }
-
+function sendAiSnapshotCount(): void {
   appState.mainWindow?.webContents.send('penwright', {
     type: 'aiSnapshotCount',
-    count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
+    count: getAiSnapshotCount(appState.currentFilePath ?? undefined),
   });
 }
 
-export function popAiSnapshot(): boolean {
-  for (let i = aiSnapshots.length - 1; i >= 0; i--) {
-    if (aiSnapshots[i].filePath === appState.currentFilePath) {
-      const snapshot = aiSnapshots.splice(i, 1)[0];
-      deletePersistedAiSnapshot(snapshot.diskName);
-      appState.currentContent = snapshot.content;
-      appState.isDirty = true;
-      updateTitle();
-      if (appState.currentFilePath) {
-        fs.writeFileSync(appState.currentFilePath, snapshot.content, 'utf-8');
-        noteDiskContent(appState.currentFilePath, snapshot.content);
-      }
-      appState.mainWindow?.webContents.send('penwright', {
-        type: 'update',
-        content: appState.currentContent,
-      });
-      appState.mainWindow?.webContents.send('penwright', {
-        type: 'aiSnapshotCount',
-        count: aiSnapshots.filter(s => s.filePath === appState.currentFilePath).length,
-      });
-      compiler?.compilePdf();
-      return true;
-    }
+/**
+ * Steps one AI edit back.
+ *
+ * `filePath` targets a specific file; omitted, it undoes the newest edit in the
+ * project regardless of which file it touched — which is what "undo the last
+ * thing the agent did" has to mean once the agent can rewrite five chapters in
+ * one turn. The old version could only ever reach the file open in the editor,
+ * so a multi-file rewrite had a net that could not be pulled.
+ */
+export function popAiSnapshot(filePath?: string): boolean {
+  if (!appState.projectDir) return false;
+  const taken = takeLastSnapshot(appState.projectDir, filePath);
+  if (!taken) return false;
+
+  const target = taken.snapshot.filePath;
+  try {
+    fs.writeFileSync(target, taken.snapshot.content, 'utf-8');
+    noteDiskContent(target, taken.snapshot.content);
+  } catch (err) {
+    // Leave the entry in place: an undo that failed must not consume its own
+    // way back.
+    console.warn('[penwright] Undo AI edit failed to write:', err);
+    return false;
   }
-  return false;
+  taken.commit();
+
+  if (appState.currentFilePath && path.resolve(target) === path.resolve(appState.currentFilePath)) {
+    appState.currentContent = taken.snapshot.content;
+    appState.isDirty = true;
+    updateTitle();
+    appState.mainWindow?.webContents.send('penwright', {
+      type: 'update',
+      content: appState.currentContent,
+    });
+  } else {
+    // Another file moved — the tree is unchanged but the preview is not.
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+  }
+  sendAiSnapshotCount();
+  compiler?.compilePdf();
+  return true;
 }
 
 export function getAiSnapshotCount(filePath?: string): number {
-  if (!filePath) return aiSnapshots.length;
-  return aiSnapshots.filter(s => s.filePath === filePath).length;
+  if (!appState.projectDir) return 0;
+  return countSnapshots(appState.projectDir, filePath);
 }
 
-// Lightweight listing (no content) for the History & Restore hub — newest first.
-export function getAiSnapshotsList(filePath?: string): { timestamp: number; filePath: string }[] {
-  const list = filePath ? aiSnapshots.filter(s => s.filePath === filePath) : aiSnapshots;
-  return list
-    .map(s => ({ timestamp: s.timestamp, filePath: s.filePath }))
-    .sort((a, b) => b.timestamp - a.timestamp);
+/**
+ * Listing for the History & Restore hub — newest first, without contents.
+ *
+ * Deliberately NOT filtered to the open file: the whole point is that edits to
+ * the other twelve chapters are visible too.
+ */
+export function getAiSnapshotsList(filePath?: string): { timestamp: number; filePath: string; bytes: number }[] {
+  if (!appState.projectDir) return [];
+  return listSnapshotRefs(appState.projectDir, filePath).map(r => ({
+    timestamp: r.timestamp,
+    filePath: r.filePath,
+    bytes: r.bytes,
+  }));
 }
 
 /**
@@ -289,12 +261,10 @@ export async function openFile(filePath?: string): Promise<void> {
         }
       }
 
-      // Restore AI-edit history for this project
-      loadAiSnapshotsFromDisk(appState.projectDir);
-      appState.mainWindow?.webContents.send('penwright', {
-        type: 'aiSnapshotCount',
-        count: aiSnapshots.filter(s => s.filePath === filePath).length,
-      });
+      // Tell the shared store how many entries the user wants kept, so an
+      // agent writing while the app is open prunes to the same number.
+      publishConfiguredLimit(appState.projectDir);
+      sendAiSnapshotCount();
     }
 
     // A freshly opened file is clean — dirty only if backup recovery replaced
@@ -499,6 +469,7 @@ export function publishSession(): void {
     projectDir: appState.projectDir,
     currentFile: appState.currentFilePath,
     isDirty: appState.isDirty,
+    lastCompileOk: appState.lastCompileOk,
   });
 }
 
@@ -520,7 +491,11 @@ function setupCompiler(): void {
   compiler = new TypstCompiler(rootFile);
 
   compiler.on('compiledPdf', (pdfBuffer: Buffer) => {
+    const changed = !appState.lastCompileOk;
     appState.lastCompileOk = true;
+    // Republish so the agent can tell a break it caused from one that was
+    // already there — see SessionState.lastCompileOk.
+    if (changed) publishSession();
     appState.mainWindow?.webContents.send('penwright', {
       type: 'previewPdfUpdate',
       pdfData: pdfBuffer.toString('base64'),
@@ -528,7 +503,9 @@ function setupCompiler(): void {
   });
 
   compiler.on('error', (diagnostics: { message: string }[]) => {
+    const changed = appState.lastCompileOk;
     appState.lastCompileOk = false;
+    if (changed) publishSession();
     const errorText = diagnostics.map(d => d.message).join('\n') || 'Compilation failed';
     appState.mainWindow?.webContents.send('penwright', {
       type: 'compileError',
