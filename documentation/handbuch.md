@@ -752,7 +752,7 @@ Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit de
 
 ### Was kann der MCP-Server?
 
-Die KI kann ueber den MCP-Server (63 Tools):
+Die KI kann ueber den MCP-Server (65 Tools):
 - **Ein komplettes Projekt aus einem Preset anlegen** (`penwright_list_presets` + `penwright_create_from_preset`) — designter Startpunkt inkl. Platzhalter-Text, statt bei null anzufangen; Magazin-Presets mit eigenem Layout pro Kapitel
 - Typst-Dokumente oeffnen, lesen, bearbeiten und verifizieren (`compile` ist reiner Verifier; das Schreiben von Artefakten uebernehmen die Export-Tools)
 - Dokument-Einstellungen aendern (Schriftart, Groesse, Sprache, Raender …) und Style-Templates anwenden
@@ -862,7 +862,7 @@ Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neue
 
 ### Verfuegbare Tools (59)
 
-Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 63 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
+Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 65 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
 **Projekt & Dateien (5)**
 
