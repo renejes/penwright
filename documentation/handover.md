@@ -1,174 +1,160 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-29, Ende von Session 42 · Branch `main` · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.23.0** (gebumpt, Binaries neu gebaut) · **MCP-Umbau abgeschlossen (Blöcke 1–4 gebaut, Block 5 durch Messung erledigt); danach adversariales Nach-Audit mit 7 Funden, 6 behoben**
+> **Stand:** 2026-07-29, Ende Session 43 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.24.0** (Binaries neu) · Typst gebündelt: **0.14.2** · MCP: **65 Tools**
 >
-> **Lies zuerst diese Datei, dann `CLAUDE.md` → „App ↔ MCP parity", dann leg los.** Referenzdokumente: [app-mcp-parity.md](app-mcp-parity.md) (Ist-Zustand + Restliste), [mcp-rebuild-plan.md](mcp-rebuild-plan.md) (der MCP-Umbau, Rest in die Paritätssequenz einsortiert), [mcp-tool-audit.md](mcp-tool-audit.md) + [mcp-tool-consolidation.md](mcp-tool-consolidation.md) (warum wir die Tool-Zahl **nicht** reduzieren).
+> **Lies zuerst diese Datei, dann `CLAUDE.md` → „App ↔ MCP parity".** Was in dieser Session passiert ist, steht im Git-Log (`b5ae021` … `4ca47b8`) und in [app-mcp-parity.md](app-mcp-parity.md); dieses Dokument beschreibt **den Ist-Zustand und was als Nächstes zu tun ist**, nicht die Historie.
 
 ---
 
-## 0. Das Ziel — unverändert
+## 0. Wo wir stehen — in einem Absatz
 
-> **Das Paritätsprinzip:** Die KI (über den MCP-Server) sieht, was der Mensch sieht, und beide beschreiben dieselben Dateien. Beide arbeiten mit demselben Wissen und haben denselben Zugriff.
+Der MCP-Umbau ist abgeschlossen, das Paritätsprinzip ist auf allen vier Achsen eingelöst, und das adversariale Nach-Audit ist abgearbeitet. **Der offene Kern liegt jetzt woanders: im Round-Trip.** Der Editor schreibt beim Öffnen-und-Speichern Dinge um, die er nicht umschreiben dürfte — vier solcher Fälle wurden gestern gefunden und behoben, **zweiundzwanzig weitere sind belegt und stehen noch offen**. Das ist kein Randthema: es ist die Kernschleife des Produkts, und die Fehler landen unsichtbar in echten Kundendokumenten.
 
-Vier prüfbare Forderungen. Stand **nach** dieser Session:
-
-| | | Vorher | Jetzt |
-|---|---|---|---|
-| **P1 Schreiben** | Derselbe Vorgang trifft von beiden Seiten dieselbe Datei mit denselben Bytes und denselben Nebenwirkungen. | teilweise | **erfüllt** für alles, was ein gemeinsamer Planer abdeckt |
-| **P2 Lesen** | Jede Seite kann vollständig lesen, was die andere erzeugt. | teilweise | **die KI kann das Dokument jetzt sehen** (`render_page`); Backups bleiben offen |
-| **P3 Wissen** | Beide kennen denselben Zustand. | schwächste Achse | **beidseitig**, bewusst schmal gehalten |
-| **P4 Schutz** | Was auf einer Seite abgesichert ist, ist es auf der anderen auch. | **nicht erfüllt** | **erfüllt** |
-
-**Der Satz von letzter Session** — *„Auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht"* — **gilt nicht mehr.** Die beiden Prozesse teilen jetzt auch eine Gegenwart: welche Datei, ungespeichert oder nicht, kompiliert das Dokument, und woran die KI gerade arbeitet.
+Der zweite offene Punkt ist eine Strukturentscheidung, keine Bugliste: unser Typst-Parser ist von Hand gebaut und zählt Klammern. Es gibt den echten Parser als Bibliothek. Ob und wie wir den nehmen, ist zu **bewerten** (§3) — nicht heute zu bauen.
 
 ---
 
-## 1. Was diese Session gebaut hat
+## 1. Problem 1 — der Round-Trip verliert Inhalt (22 Fälle, 17 Dateien)
 
-### Drei neue gemeinsame Module in `src/shared/` — jetzt zwölf
+### Worum es geht
 
-| Modul | Löst |
+Öffnen in Penwright heißt: Typst → TipTap-AST → Typst. Jeder Verlust dabei landet beim nächsten Speichern auf der Platte, kompiliert weiterhin, und ist im PDF sichtbar, ohne dass irgendwo ein Fehler auftaucht. Genau so lagen zwei Fehler monatelang in `05-konditionen.typ` beider Kundenangebote.
+
+### Was gestern behoben wurde (als Muster für den Rest)
+
+| | Was passierte |
 |---|---|
-| **`safeApply.ts`** | Staging → Verify → commit/rollback, Verifier + IO injiziert. **Die App verifizierte Design-Änderungen seit Session 23, der MCP schrieb dieselben Dateien ungeprüft.** |
-| **`projectScaffold.ts`** | EIN `scaffoldProject()` für alle vier Anlagewege. Enthält `planGitignore`, `ensureSkills`, `ensureStyleFiles`. |
-| **`assetPlacement.ts`** | EINE Ablageregel für Bilder. Es gab vier, **zwei davon haben ein gleichnamiges Bild still zerstört**. |
+| `~` | Typsts **geschütztes Leerzeichen** wurde zu `\~` escaped = sichtbare Tilde. „Zahlbar bis 24.~August" im Zahlungsziel. Ursache: Deserializer bildete `~` und `\~` auf **dasselbe Zeichen** ab. Jetzt: `~`→U+00A0, `\~`→Tilde, und zurück. |
+| `#pagebreak(weak: true)` | `startsWith('#pagebreak')` schluckte jedes Argument → erzwungener statt kollabierender Umbruch, evtl. Leerseite. Auch `to: "even"` (Ausrichtung der Doppelseite). Jetzt Attribut. |
+| `#align(center + horizon)` | wurde `#align(center)` — vertikale Zentrierung weg, in drei ausgelieferten Titelseiten. |
+| `  == Überschrift` in `#columns[…]` | verschmolz mit dem Folgeabsatz → Typst rendert **den ganzen Absatz als Überschrift**. Zwei Löcher: Block-Trennung auf Spalte 0 verankert, während Magazin-Container ihre Rümpfe *eingerückt* neu parsen; und `escapeLeadingBlockMarker` escapte nur ein einzelnes `=`. |
 
-### Die Befunde, die dabei behoben wurden
+### Was noch offen ist
 
-1. **Ein einziger MCP-Tool-Call konnte das Dokument unkompilierbar hinterlassen, ohne Rückweg** — und meldete Erfolg, weil der *Schreibvorgang* gelungen war. Jetzt: stagen, testkompilieren, bei Bruch **den ganzen Satz** zurückrollen und die Typst-Meldung mitliefern. E2E belegt (`parity-guards-test`), und **gegengeprüft**: ohne den Fix wird der Test rot.
-2. **`apply_section_style` schrieb die Variantendefinition und den Kapitel-Opt-in getrennt** — genau die Aufteilung, die `561c22e` auf der App-Seite behoben hatte. Jetzt eine Transaktion.
-3. **`define_section_style` meldete eine vom Sanitizer abgelehnte ID als Fehler, nachdem `style.json` + `style.typ` schon regeneriert waren.** Der „Fehler" hinterließ das Projekt verändert. Jetzt wird vor dem ersten Write geprüft.
-4. **Das Undo-Netz war unlesbar.** Die App hielt einen In-Memory-Ringpuffer neben `.penwright/ai-snapshots/`, der nur ihre *eigenen* Snapshots enthielt — alles, was die KI gerettet hatte, war in der einen UI unsichtbar, die dafür gebaut wurde (`listSnapshots` hatte null Produktivaufrufer). Jetzt ist der Ordner die einzige Wahrheit, für beide, projektweit statt nur für die offene Datei.
-5. **Zwei Aufbewahrungsgrenzen** (App 20 konfigurierbar, MCP hart 40): wer zuletzt schrieb, setzte seine durch, und die Einstellung des Nutzers bedeutete nichts. Jetzt publiziert die App ihre Zahl ins Projekt, beide lesen sie.
-6. **Die „ungespeicherte Änderungen"-Warnung hing an 3 von 28 schreibenden Tools.** Die anderen 25 überschrieben sichtbare, ungespeicherte Arbeit schweigend. Jetzt hängt sie am Schreib-Guard und an **einer** Stelle im Tool-Wrapper.
-7. **`penwright_create_project` erzeugte drei Dateien**, die App zwölf plus Git, `.gitignore`, `sources/`, Skills, `style.typ`. Kein Repo hieß: „Version speichern" hatte nichts zum Wiederherstellen, ausgerechnet in Projekten, in die eine KI gerade viel Text geschrieben hatte. **0 von 35 Presets** hatten `.claude/skills`.
-8. **Die App überschrieb still ein gleichnamiges Bild** (`copyFileSync` ohne Existenzprüfung, an zwei von drei Eingängen), und zwei Eingänge legten `assets/` neben die *offene Datei* statt ins Projekt.
-9. **`get_style` zeigte Defaults, die wie Tatsachen aussahen.** Jetzt `initialized` / `adopted` / `rootFile` — die KI weiß, ob sie gegen eine Fiktion designt oder gegen eine handgeschriebene `style.typ` laufen wird.
-10. **Die KI hatte das Dokument nie gesehen.** `penwright_render_page` liefert eine gerenderte Seite als Bild.
+`scripts/roundtrip-corpus-baseline.json` — **22 Einträge, 17 Dateien**, alle in Dateien, die wir ausliefern. Grob drei Gruppen:
 
-### Was beim Selbst-Review noch gefunden wurde (vor dem ersten Testlauf grün)
+1. **`#opener(…)` mehrzeilig → einzeilig** (10×, `magazine-*/chapters/02-feature.typ` + `03-interview.typ`). Vermutlich harmlose Normalisierung, **aber ungeprüft** — genau die Annahme, die bei `center + horizon` falsch war.
+2. **Titelseiten der `book-*`-Presets** (3× je zwei Checks). Der Token-Vergleich meldet `#v(0.3em)` → `#align(center)`: ein vertikaler Abstand wird zu einem Align-Wrapper. Das ist ein **echter** Strukturwechsel, kein Whitespace.
+3. **Sample-Projekt** (4×), darunter `#raw("`code`")` → `` ``code`` `` in `07-design-showcase.typ` — das ändert die Ausgabe, und diese Datei ist zusätzlich **nicht idempotent** (zweiter Durchlauf ändert nochmal etwas). Nicht-Idempotenz ist die schlimmste Sorte: das Dokument driftet über eine Woche Bearbeitung immer weiter.
 
-- `ensureProjectInfrastructure` ist von **„Version speichern"** erreichbar. Der erste Wurf legte dort `assets/`, `sources/` und `.claude/` an — ein Speichern hätte den Ordner des Nutzers umstrukturiert. Jetzt sind das explizite Opt-ins der Anlagewege; ein Test hält das fest.
-- `ensureSkills(dir, [])` legte trotzdem ein leeres `.claude/skills/` an.
-- `fsIO.read` gab bei einer *unlesbaren* Datei `null` zurück — und `null` heißt „existierte nicht", was ein Rollback **löscht**. Aus einem Rechteproblem wäre „deine `style.typ` ist weg" geworden. Wirft jetzt.
-- `agent-activity.json` stand nicht in der Watcher-Ignore-Liste: jeder MCP-Schreibvorgang hätte ein Dateisystem-Ereignis auf den kritischen Pfad der App gelegt.
-- Der Tool-Wrapper hatte die Zod-Schema-Inferenz aller Handler gekillt (60 `any`-Fehler). Als `typeof server.tool` typisiert bleiben die Overloads erhalten.
+### Wie man das angeht
 
-### Ein Muster, das ab jetzt gilt
+**Ein Fall nach dem anderen, in dieser Reihenfolge — nicht in Bündeln.**
 
-**Alle 63 Tools werden über den lokalen `tool(...)`-Wrapper registriert, nie direkt über `server.tool` / `server.registerTool`.** Dort hängt alles Querschnittliche an **einer** Stelle statt an dreiundsechzig: die Hinweise, die der Server dem Agenten schuldet, sowie `title` + `annotations` aus der `TOOL_META`-Tabelle (Block 2 hat das direkt darüber gelegt — ein Ort statt dreiundsechzig, und der Wrapper wirft beim Registrieren, wenn ein Tool keinen Eintrag hat). Das Wächterskript erzwingt es.
+1. Fall isolieren: `npx tsx scripts/roundtrip-corpus-test.mts` nennt Datei und erste abweichende Zeile. Daraus ein **minimales** Snippet bauen (drei bis fünf Zeilen), das den Verlust zeigt.
+2. Das Snippet als Assertion in `scripts/roundtrip-test.mts` ablegen — **erst rot sehen.**
+3. Fixen. Fast immer im Deserializer (Information geht beim *Einlesen* verloren, nicht beim Schreiben) oder als fehlendes Attribut auf dem Node.
+4. `npx tsx scripts/roundtrip-corpus-test.mts --write-baseline` **nicht** blind laufen lassen — der Test meldet von selbst, wenn ein Baseline-Eintrag jetzt besteht, und verlangt, ihn zu streichen.
+5. `npm test`.
 
-### Tests
+**Die Ratsche versteht man beim ersten Mal falsch:** die Baseline ist keine Ausredenliste. Neue Verluste werden rot, *und* ein Eintrag, der anfängt zu bestehen, wird auch rot. Sie kann nur schrumpfen. Wer sie erweitert, um grün zu werden, hat den Test abgeschaltet.
 
-Neu: **`scripts/parity-guards-test.mts`** — 55 Checks, davon acht E2E über stdio gegen die gebaute Binary mit echtem Typst. Deckt: Rollback beidseitig, Vorher-schon-kaputt-Fall, Undo-Netz, eine Aufbewahrungsgrenze, Scaffold-Parität, „Save Version strukturiert nichts um", Asset-Ablage, die beiden Hinweise, `get_style`-Ehrlichkeit, `render_page`.
-
-Alle bestehenden Suiten grün: `style-guard` · `write-provenance` · `watch-ignore` · `bibliography` · `print-export` · `session-handoff` · `roundtrip` (76) · `html-export` (230) · `docx-magazine` (19) · `compile-stability` (30, pixel-identisch).
-
-**Eine bestehende Prüfung wurde ersetzt**, nicht gelöscht: `style-guard` verglich den *Quelltext* von `ensureStyleFile` per Regex. Die Funktion ist nach `shared/projectScaffold` gezogen, und eine Regex über die alte Datei wäre **grün durch Abwesenheit** geworden. Ersetzt durch einen Verhaltenstest gegen die echte Funktion.
+**Die Vermutung, die zuerst zu prüfen ist:** alle drei Gruppen riechen nach *derselben* Ursache — Rümpfe von Makro-Aufrufen (`#opener(…)`, `#align(…)[…]`, `#columns[…]`), die zeichenweise zerlegt werden. Wenn das stimmt, sind es nicht 22 Fixes, sondern zwei oder drei. Das ist auch die Brücke zu §3.
 
 ---
 
-## 2. Was jetzt verlässlich geht — und was nicht
+## 2. Problem 2 — die Tests, und was an ihnen umzubauen ist
 
-**Geht:** Design von beiden Seiten mit Verify und Rollback · Design-Tokens byte-identisch mit demselben Guard · KI-Änderungen an **beliebig vielen** Dateien zurücknehmen, aus der App **und** aus dem Chat · die KI eine gerenderte Seite ansehen lassen · Projekte anlegen, die von beiden Seiten gleich aussehen und Skills mitbringen · Bilder importieren, ohne vorhandene zu zerstören · die KI weiß, ob das Dokument schon kaputt war · die App zeigt an, woran die KI arbeitet.
+### Was gestern schon geradegezogen wurde
 
-**Geht nicht:**
-- **„Kapitel hinzufügen" in der App hängt den `#include` an die offene Datei** (F3 aus dem Nach-Audit, ~2 h). Das neue Kapitel ist danach für `penwright_get_chapters` und den Export-Dialog unsichtbar — es kompiliert trotzdem, die Drift ist also still.
-- **Auto-Backups sind für die KI immer noch unlesbar** (aber ungeschützt beschreibbar) — `history/VER-03`.
-- **Der Mensch hat keine Oberfläche für die 24 Design-Elemente**, die die KI einfügen kann.
-- **Echte Gleichzeitigkeit auf derselben Datei bleibt Last-Writer-Wins** (sichtbar und sicherbar, nicht auflösbar).
-- **Nicht-atomare Writes** — weder App noch MCP schreiben über temp+rename. Nicht beobachtet, aber ungeschützt. `awaitWriteFinish` + ein gemeinsames `writeFileAtomic` kosten zusammen unter vier Stunden.
+- **`npm test` existiert** und kettet: `check:mcp` → `typecheck` → `test:unit` → `test:corpus` → `test:mcp`. `package:{mac,win,linux}` führen es aus. Vorher lief beim Packaging **weder** Round-Trip noch Compile-Stability.
+- **`npm run typecheck`** = `tsc --noEmit` + `svelte-check`. Der Grund, warum es das nie gab, war behebbar: `svelte-check` meldete 46 Fehler, **43 davon Phantome**, weil `tsconfig` kein `paths` für `@shared` hatte. Mit `paths` + einer `*.md?raw`-Deklaration steht der Baum bei **0 Fehlern**.
+- **`compile-stability-test.mts` meldet nicht mehr falsch grün.** Es beendete sich mit Exit 0, wenn `~/Desktop/LANGSAM` fehlte — der stärkste Test im Repo meldete also auf **jeder** Maschine außer einer „bestanden", ohne etwas verglichen zu haben. Jetzt Exit 1, `--allow-skip` nur bewusst.
+- **`tsx` und `svelte-check` sind jetzt Dependencies.** Sie waren keine — jede Suite lief über npx-Downloads.
+- **Neu: `scripts/roundtrip-corpus-test.mts`** über 153 echte Dateien. Es hat alle vier Fehler von gestern gefunden; die 85 Unit-Round-Trips keinen einzigen.
 
----
+### Was am Testaufbau noch fehlt — das ist der Auftrag
 
-## 2b. Was Block 2 gebaut hat (Phase B + A2 + die drei A3-Reste)
+1. **Der Korpus muss die echten Projekte erreichen können, ohne sie ins Repo zu ziehen.**
+   Der Test nimmt schon Pfade entgegen (`npx tsx scripts/roundtrip-corpus-test.mts ~/Desktop/Marketing/FMM`). Was fehlt: eine **`penwright.corpus.json`** (git-ignoriert) mit den lokalen Pfaden, die der Test automatisch liest. Dann läuft `npm test` auf Renés Maschine über die Kundenangebote — und genau dort lagen die Fehler. ~1 h.
 
-**Der Server stellt sich jetzt vor.** `instructions` gehört zu `initialize`, ist seit jeher dokumentiert, und dieser Server hat einfach nie ein Options-Objekt übergeben — 63 Tool-Beschreibungen mussten Dinge tragen, die dem Server als Ganzem gehören, und taten es meist nicht. 1770 B, beschränkt auf das, was aus keiner einzelnen Beschreibung hervorgeht: dass das Dokument **gesehen** werden kann, dass Design in Tokens lebt und bei Bruch zurückgerollt wird, dass Anker besser sind als Offsets, dass jeder Write gesichert ist, und dass es für den Web-Export **kein** Tool gibt (statt zu schweigen: „File ▸ Export to Web (HTML)").
+2. **`compile-stability` braucht ein Korpus, das im Repo liegt.**
+   Es hängt an einem privaten Ordner, ist also auf jeder anderen Maschine ein `--allow-skip`. Der stärkste verfügbare Beweis (ORIGINAL vs. ROUND-TRIP **pixelidentisch** gerendert) sollte über die **gebündelten Presets** laufen, nicht nur über LANGSAM. 35 Presets × ~2 s Kompilat ist zu langsam für jeden Lauf — also: eine feste Auswahl von 5–6 Presets, die die Konstruktklassen abdecken (Magazin, Buch-Titelseite, Report, Zwei-Spalter, Bilderbuch), als `test:compile:corpus`, in `package:*` statt in `npm test`. ~3 h. **Das ersetzt die 22 Baseline-Einträge nicht** — es ergänzt sie um „und sieht auch gleich aus", was die Textprüfung nicht kann.
 
-**Alle 63 Tools auf `registerTool()`, mit Titel und vollständigen Annotations — aus EINER Tabelle.** `TOOL_META` statt 63 Registrierungen: die Antwort auf „welche darf ein Host automatisch freigeben?" steht an einer Stelle, die man lesen und prüfen kann, statt an dreiundsechzig, wo sie driftet, sobald jemand den Nachbarn kopiert. Der Wrapper **wirft beim Registrieren**, wenn ein Tool keinen Eintrag hat. **Kein Tool-Name geändert** — kein Aufruf, der vorher ging, geht jetzt nicht.
+3. **Die Testnamen sind Fließtext, die Suiten sind Skripte.**
+   Elf Skripte, jedes mit eigenem `check()`, eigener Zählung, eigenem Exit-Code. Das ist bewusst so gewachsen und hat funktioniert — **kein Framework einführen**, nur weil es üblich wäre. Was fehlt, ist Zusammenfassung: ein `scripts/run-all.mts`, das die Suiten startet, Ergebnisse einsammelt und **eine** Bilanz druckt, statt elf. Vor allem, damit ein Fehlschlag in der Mitte nicht in 400 Zeilen Ausgabe untergeht. ~2 h.
 
-Die Klassifikation ist inhaltlich, nicht mechanisch: `readOnlyHint` heißt „ändert das Projekt nicht" (also auch `compile` und `render_page`, die eine Temp-Datei schreiben und wieder löschen); `destructiveHint` nur, wo unwiederbringliche Arbeit verloren gehen kann — **die verify-und-rollback-gesicherten Design-Tools sind ausdrücklich nicht destruktiv**, alles andere würde beibringen, die sichersten Werkzeuge hier zu fürchten.
+4. **Zwei Testfallen, die uns schon zweimal erwischt haben — als Regel aufschreiben, nicht nur wissen:**
+   - **Grün durch Abwesenheit.** Der erste F4-Test war grün *auch gegen den zurückgepatchten Code*: er startete pro Aufruf einen frischen Prozess, und die Veraltung existiert nur *innerhalb* einer Sitzung. **Jeder neue Test wird einmal gegen den entfernten Fix laufen gelassen.** Wenn er dann nicht rot wird, prüft er etwas anderes als gedacht.
+   - **Quelltext-Assertions.** `style-guard` verglich per Regex den *Quelltext* einer Funktion. Die zog nach `shared/` um — die Regex wäre grün geworden, weil sie nichts mehr fand. Verhaltenstests statt Textsuche.
 
-**Beschreibungs-Chirurgie.** Zwei waren schlicht falsch: `get_settings` versprach acht Felder (es sind zwei), und zwei Tools nannten 19 Design-Elemente (es sind 24). Die Kollisionspaare sagen jetzt, **wann man sie statt der anderen nimmt** — create_project↔create_from_preset, write_file↔update_document, merge↔split, export_pdf↔export_print↔export_docx.
-
-**Die drei A3-Reste, alle drei echte Defekte:**
-1. **Ein Export konnte seine eigene Quelle überschreiben.** `outputPath: "main.typ"` liegt im Projekt, bestand also die Sandbox-Prüfung; Typst schrieb ein PDF über das Dokument, das Tool meldete Erfolg. Jetzt greift die Regel an der Endung, nicht an einer Liste bekannter Dateien — ein Export schreibt ein *Artefakt*, und ein Artefakt hat nie eine Quell-Endung.
-2. **Die Low-Level-Git-Tools arbeiteten auf fremden Repos.** `simpleGit(dir)` scheitert auf einem Ordner ohne Repo nicht, sondern läuft nach oben, bis es eins findet. Auf jedem Projekt, das selbst keines ist — die meisten handgemachten Dokumente — hätte `git_commit` das Working-Tree eines fremden Repos gestaged und `git_push` es verschickt. Nichts am Aufruf hätte falsch ausgesehen. Die High-Level-Versionstools sind bewusst ausgenommen: die legen das Repo *dieses* Projekts an, was dort richtig ist.
-3. **Das Compile-Artefakt lag im Projektordner.** Jetzt in `tmpdir` (Typst beschränkt nur die *Eingabe*-Auflösung auf die Wurzel, nie die Ausgabe — an der gebündelten Binary geprüft).
-
-**`npm run check:mcp` (A2), in `package:*` eingehängt.** `server.ts` ist die Wahrheit; das Skript bricht den Build, wenn ein Dokument, das Handbuch, das Skill oder das `.mcpb`-Manifest ein Tool nennt, das es nicht gibt, eine falsche Zahl behauptet oder eines auslässt. Erster Lauf: **9 echte Drifts**, darunter ein Manifest mit 53 von 63 Tools und ein Tool-Name, der nie existiert hat. **Die Manifest-Toolliste wird jetzt aus `server.ts` generiert** statt gepflegt — eine dritte Kopie weniger.
-
-Zwei Dinge, die das Skript bewusst durchlässt: `documentation/done/**` und die Planungsdokumente sind Geschichte, und ein Plan, der ein Tool beschreibt, das er vorschlug, ist ein Protokoll, kein Drift. Sie zu melden würde allen beibringen, das Skript zu ignorieren — die einzige Art, wie es wirklich versagen kann.
-
-**`scripts/mcp-manifest-test.mts`** liest das Manifest **von der Leitung**, nicht aus dem Quelltext: `npm run build:mcp` typecheckt nicht, ein `annotation:` statt `annotations:` kompiliert, bündelt, wird ausgeliefert und ist unsichtbar, bis sich jemand wundert, warum nichts auto-freigegeben wird.
+5. **Was ausdrücklich NICHT gebaut wird:** kein `.github/`, keine CI. Ein Ein-Personen-Projekt mit lokalem Signieren und manuellem Release braucht kein CI, solange `package:*` die Gates ausführt — und das tut es jetzt. Wenn das später kommt, dann als Job, der `npm test` aufruft, nicht als zweite Testdefinition.
 
 ---
 
-## 2c. Das Nach-Audit (Session 43) — und was es über die eigene Arbeit sagte
+## 3. Problem 3 — der handgeschriebene Parser, und `typst-syntax`
 
-Fünf unabhängige Prüfer über P1–P4 plus eine Linse auf Doppelimplementierungen, danach jeder Fund einzeln adversarial zu **widerlegen** versucht. 32 Kandidaten, **7 überlebt, 0 kritisch**. Vier davon habe ich anschließend selbst am Code nachgeprüft, bevor ich sie berichtet habe.
+### Der Befund
 
-**Zwei der sieben waren Regressionen aus Session 42 — aus dieser Session.** Das ist der eigentliche Wert des Durchgangs:
+`splitIntoBlocks` (deserializer.ts) zerlegt Typst, indem es `{}`/`[]`/`()` zählt und bei jedem `$` den Mathe-Modus umschaltet — **ohne Strings, Kommentare oder Escapes zu kennen**. Dazu kommen sieben unabhängige Klammer-Scanner (`matchBracket`, `matchParen`, `matchParenArgs`, `extractBracketContent`, `extractInlineBrackets`, `findClosingDelim`, `matchTypstParens`) und rund 17 Tiefenzähler-Schleifen allein in dieser Datei. Die 22 offenen Korpus-Verluste sitzen mit hoher Wahrscheinlichkeit genau dort.
 
-- **F1**: Block 3 stellte die MCP-Settings auf die Wurzel um und ließ die App auf der offenen Datei. Vorher waren beide konsistent falsch, danach uneins — mit zwei widersprüchlichen `#set text(lang:)` als möglichem Ergebnis.
-- **F2**: Vier von sechs Kapitel-Tools wurden auf `readRootDocument` migriert, weil der Plan `reorder`/`remove` für Phase E zurückstellte. **Phase E wurde danach gestrichen** — die Zurückstellung lief ins Leere, und der MCP war mit sich selbst uneins. `reorder_chapters` meldete zusätzlich Erfolg, wenn es überhaupt keine `#include`-Zeile gefunden hatte.
+### Was `typst-syntax` ist — zu verifizieren, nicht zu glauben
 
-Behoben: F1, F2, F4 (`refreshAmbientState` lief nur in zwei Dokument-Helfern — **~47 Tools konnten stundenlang in ein geschlossenes Projekt schreiben**, und der Sandbox-Check winkte es durch, weil er sich aus demselben veralteten Wert ableitet), F5 (Design-Undo überschrieb nach einer KI-Änderung deren Layout, unter dem Label der eigenen letzten Änderung), F6 (`style.json` außerhalb des Snapshot-Netzes), F7 (Markdown-Import mit hartcodierter Design-Präambel). Dazu bekam `replaceInProject` endlich einen Snapshot vor dem Schreiben — der größte Blast-Radius beider Prozesse war die einzige Massenschreibstelle ohne Eintrag im Undo-Netz.
+Das Parser-Modul **des Typst-Compilers selbst**, vom Typst-Team als eigenständige Rust-Crate veröffentlicht. Nach Renés Recherche (Stand 2026-07): Version **0.15.1** (17.07.2026), **Apache-2.0**, ~309k Downloads/Monat, 233 nutzende Projekte (u.a. tinymist), **ohne den vollen Compiler nutzbar**.
 
-**Offen geblieben: F3** — die App hängt beim „Kapitel hinzufügen" den `#include` an die **offene Datei**, wodurch das neue Kapitel für `get_chapters` und den Export-Dialog unsichtbar wird. ~2 h, dieselbe Klasse wie F1/F2. Ein `chapterWrite`-Planer würde F1, F2 und F3 zusammen schließen.
+Zwei Eigenschaften sind die relevanten:
 
-**Eine Lehre zum Testen, die teurer war als die Fixes:** mein erster F4-Test war grün — *auch gegen den zurückgepatchten Code*. Er startete pro Aufruf einen frischen Prozess, und der liest den aktiven Projektpfad beim Booten ohnehin neu; die Veraltung existiert nur **innerhalb** einer Sitzung. Ein Test, der die Bedingung gar nicht herstellt, ist grün durch Abwesenheit. Korrigiert auf **eine** Sitzung mit einem Projektwechsel mittendrin — dann wird er ohne den Fix rot und zeigt die Datei des alten Projekts.
+- **Der CST ist verlustfrei.** Aus der Parser-Doku: *„concrete because an in-order tree traversal will recreate the text of the source file exactly."* Jedes Leerzeichen, jeder Kommentar, jede Klammer ist ein Knoten. Das ist exakt die Eigenschaft, die unser Zeichenzählen approximiert.
+- **Inkrementelles Reparsen.** `Source::edit(range, text)` parst nur den betroffenen Bereich; `Source::replace(newText)` macht intern einen Prefix/Suffix-Diff. Derselbe Mechanismus, mit dem tinymist pro Tastendruck live bleibt.
 
----
+**Was es ersetzen würde:** das *Zerlegen* — `splitIntoBlocks`, den `$`-Toggle, die sieben Scanner, die 17 Zählschleifen. **Was bliebe:** unsere Interpretation — „ist dieser Block Prosa oder Raw", die Magazin-Knoten, die Node-Erzeugung. Und: **die vier Fehler von gestern wären damit nicht automatisch weg**, die saßen im Serializer.
 
-## 3. Nächste Session — der Fahrplan
+**Der ehrliche Preis:** kein fertiges npm-/WASM-Paket. Das einzige Typst-WASM-Paket auf npm (`@brief-jetzt/wasm-typst`) *rendert*, es parst nicht, und steht auf 0.13.1. Wir müssten selbst eine `wasm-bindgen`-Crate bauen, die `parse()` aufruft und den Baum als JSON herausgibt, zu WASM kompilieren, **und in beide Prozesse bündeln** — der Deserializer läuft in App *und* MCP-Binary. Realistisch **einige Tage**. Dazu: die Crate ist mit Typst versioniert und müsste an unseren gebündelten Compiler gebunden werden (heute 0.14.2, Crate 0.15.1 — **die Versionen passen aktuell nicht zusammen**).
 
-**Der MCP-Umbau ist abgeschlossen.** Aus ursprünglich ~20 PT wurden 8,5 gebaut — und die restlichen 7 durch eine Messung für **$1,36** erledigt.
+### Der Auftrag für die nächste Session: bewerten, nicht bauen
 
-| Block | Inhalt | |
-|---|---|---|
-| ~~1~~ | ~~Parität~~ | ✅ |
-| ~~2~~ | ~~Phase B + A2 + A3-Rest~~ | ✅ |
-| ~~3~~ | ~~Phase C-Rest~~ | ✅ |
-| ~~4~~ | ~~Eval~~ — 15 Autorenaufgaben | ✅ |
-| ~~5~~ | ~~Phase E + F — Renames, Merges, Skill-Rewrite~~ | **entfällt** |
+Konkret zu klären, in dieser Reihenfolge:
 
-**Das Eval hat Block 5 erledigt, ohne dass er gebaut wurde.** 13 Treffer, **0 Fehlgriffe**, 2 Blindstellen, 0 Schaden. Sechs der fünfzehn Aufgaben waren gezielt auf die verwechselbaren Paare gebaut — `merge`/`split` (eines liest, eines schreibt), `export_pdf`/`export_print`, `create_project`/`create_from_preset`, `update_style`/`update_settings`. **Kein einziger Fehlgriff.** Die These, auf der sieben Personentage standen, ist damit nicht bestätigt; [mcp-tool-consolidation.md](mcp-tool-consolidation.md) ist geprüft und verworfen. Auch die Sicherheitsverdrahtung hielt: Dry-Run vor dem Projekt-Replace, Rückfrage statt `confirm: true`, und der Export auf `main.typ` wurde abgelehnt, ohne den Guard über ein natives Tool zu umgehen.
+1. **Verifizieren.** Crate, Version, Lizenz (Apache-2.0 ist für uns unproblematisch — anders als das LGPL-3.0 von cetz), API-Oberfläche. Ist `parse()` wirklich ohne die Compiler-Crates nutzbar?
+2. **Die Versionsfrage.** Crate 0.15.x gegen gebündelten Compiler 0.14.2 — brauchen wir Gleichstand? (Vermutlich ja: ein Parser, der eine andere Sprachversion liest als der Compiler, ist schlimmer als ein ungenauer.) Das koppelt §3 an §4.
+3. **Zuschnitt.** Voller Ersatz des Zerlegens, oder nur `splitIntoBlocks`? Der kleinste sinnvolle Schnitt ist wahrscheinlich: *Blockgrenzen und Klammerbalance* vom echten Parser, alles andere bleibt.
+4. **Kosten gegen Nutzen.** Zwei Prozesse, zwei Bundles, eine Rust-Toolchain in der Build-Kette, WASM-Ladezeit im Renderer. Gegen: eine ganze Fehlerklasse strukturell weg.
 
-Zwei Dinge, die man beim Lesen wissen muss — beide ausführlich in [mcp-eval-results.md](mcp-eval-results.md):
-
-1. **Eine Aufgabe wurde nach dem ersten Lauf korrigiert, und das war entscheidungsrelevant.** B3 verlangte, „Fazit" zu ersetzen — im englischen Sample gibt es das Wort nicht. Das Modell merkte es und fragte zurück; der Scorer buchte das als Blindstelle. Korrigiert und der **ganze** Satz neu gelaufen: aus 3 Blindstellen (auf der Schwelle → bauen) wurden 2 (darunter → streichen).
-2. **Es gibt kein Vorher/Nachher.** Die Baseline vor Phase B wurde nie eingefroren. Ob `instructions` + Annotations die Fehlgriffe beseitigt haben oder ob es nie welche gab, bleibt offen — für die Block-5-Entscheidung egal, als Beleg für den Nutzen von Phase B aber untauglich.
-
-**Reichweite:** ein Modell (`sonnet`, bewusst das schwächere — ein sauberes Ergebnis dort ist das stärkere Argument), ein Host (Claude Code). Die zwei Blindstellen — `read_file` sieben Mal statt `merge_document`, natives `write_file` statt `insert_reference` — sind **Auffindbarkeit, nicht Verwechslung**; ein Rename hätte bei keiner geholfen, und die zweite fällt in Claude Desktop (keine nativen Datei-Tools) ohnehin weg. Beide Ergebnisse waren inhaltlich trotzdem richtig.
-
-**Kleinere offene Paritätspunkte** (nicht blockierend, aus [app-mcp-parity.md](app-mcp-parity.md) Klasse 1/2): `insert_design_element` bekommt `file` (2 h) · Backup-Tools für die KI (VER-03) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI sichtbar · Handbuch als MCP-Resource.
+**Empfehlung für jetzt: nicht bauen.** Der billigere Schritt mit fast demselben Effekt ist, `splitIntoBlocks` **string-, kommentar- und escape-aware** zu machen — drei korrekte Scanner dafür stehen bereits in derselben Datei (`scanLinkCall`, `matchTypstParens`, `splitTopLevelArgs`). Ein Nachmittag, dieselbe Fehlerklasse. `typst-syntax` ist der saubere **Endzustand**, nicht der nächste Schritt. Die Bewertung soll das belegen oder widerlegen — nicht die Entscheidung vorwegnehmen.
 
 ---
 
-## 4. Was bewusst asymmetrisch bleibt — nicht „fixen"
+## 4. Problem 4 — Typst 0.14.2 ist nicht die neueste Version
 
-Unverändert, jetzt auch in `CLAUDE.md` festgehalten: engere Export-Sandbox der KI · einseitiger Zustandskanal (der Rückkanal ist rein informativ — die App zeigt ihn und gehorcht ihm nicht) · echte Fremd-Locks bleiben harte Ablehnung · **kein Compile-Verify vor gewöhnlichen Textänderungen, auf beiden Seiten** · zwei Undo-Systeme dürfen bestehen bleiben, müssen nur beidseitig sichtbar sein (das sind sie jetzt) · Web-Export ohne MCP-Tool.
+Gebündelt ist **0.14.2** (`resources/bin/typst-{arch}-{platform}`, geprüft per `--version`). Es gibt eine neuere.
+
+**Warum das mehr ist als Versionspflege:** Renés Hinweis auf **„inbound boxes"** (Rahmen/Boxen, die im Textfluss mitlaufen statt zu überlagern) — wenn die neue Version das kann, ersetzt sie eine Klasse handgebauter `#block`/`#place`-Konstrukte in unseren Design-Elementen und Magazin-Makros. Das ist Design-Fähigkeit, nicht Wartung.
+
+**Zu tun:**
+1. Changelog der neuen Version lesen. **Was genau heißt „inbound boxes" dort**, und was können wir damit, was heute Handarbeit ist?
+2. `scripts/fetch-typst-packages.mjs` / die Binary-Beschaffung auf die neue Version ziehen, **beide Architekturen**.
+3. **`compile-stability-test` ist hier der Gradmesser** — ein Compiler-Wechsel, der die Presets pixelidentisch lässt, ist sicher. Einer, der es nicht tut, sagt sofort wo.
+4. Die 24 gebündelten Typst-Packages gegen die neue Version prüfen (`audit:packages` deckt Lizenzen ab, nicht Kompatibilität).
+5. Erst dann §3 Punkt 2 entscheiden — die Parser-Crate-Version muss zum Compiler passen.
+
+**Reihenfolge:** Typst-Update **vor** der `typst-syntax`-Bewertung. Sonst bewertet man gegen ein Ziel, das sich gleich bewegt.
 
 ---
 
-## 5. Offene Punkte, die man vor dem Weiterarbeiten wissen muss
+## 5. Was sonst noch offen ist
 
-- **`MCP_SETUP_VERSION` steht auf `0.23.0`, ist gebumpt, und `npm run build:mcp-binary:all` ist gelaufen.** Achtung: `ensureInstalledBinary` (`mcpSetup.ts`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
-- **Neu und wichtig: die Skill-TEXTE stecken jetzt in der Binary.** `create_project` / `create_from_preset` deployen sie. Eine Änderung an `skillTemplates.ts` braucht also einen Binary-Rebuild, um die MCP-Anlagewege zu erreichen (der Prompt-Pfad liest weiterhin von der Platte, da genügt das Löschen der veralteten SKILL.md).
-- **Die App wurde in dieser Session nie vom Assistenten gestartet.** Alle Verifikation ist Unit-/Integrations-/E2E-Test plus `tsc` + `svelte-check`. **Ein manueller Durchgang steht aus**, besonders: Design-Panel + Kapitel-Look (safeApplyDesign wurde umgebaut), der Verlaufs-Hub (AI-Liste ist jetzt projektweit und zeigt Dateinamen), Bild-Import per Drag-and-Drop (Ablage und eingefügter Pfad haben sich geändert), und die neue KI-Anzeige in der Statusleiste.
-- **Renés echte Projekte bleiben der Härtefall.** `~/Desktop/Marketing/FMM/*` und `~/Desktop/Marketing/Ludwig Maier Mastering/*`: kein Git, keine `.penwright/style.json`, keine `.claude/skills`, handgeschriebene `style.typ`, **keine `main.typ`** (Wurzeln heißen `Angebot.typ` / `Sichtbarkeitskonzept.typ`). Jeder Root-Resolver muss zweistufig sein und bei `null` **hart fehlschlagen**. Der neue Scaffold rührt solche Projekte nicht an — dafür gibt es zwei Tests.
-- **Ungetrackt im Working-Tree** (Renés eigene Arbeit, nicht anfassen): `resources/*/manifest.json`-Timestamps.
+- **Manueller Durchgang durch die App steht weiterhin aus.** Der Assistent hat sie in drei Sessions nie gestartet; alles ist durch Tests und Quelltext belegt. Besonders zu prüfen, weil sie **heute in andere Dateien schreiben als vorher**: Document-Settings-Dialog (schreibt jetzt die Wurzel), „Kapitel hinzufügen" (`#include` in die Wurzel), Bild-Drag-and-Drop (Ablage + eingefügter Pfad geändert). Dazu neu: Design-Panel → „Bausteine", Verlaufs-Hub (projektweit), KI-Anzeige in der Statusleiste.
+- **Renés echte Projekte bleiben der Härtefall.** `~/Desktop/Marketing/FMM/*`, `~/Desktop/Marketing/Ludwig Maier Mastering/*`: kein Git, keine `style.json`, keine Skills, handgeschriebene `style.typ`, **keine `main.typ`** (Wurzeln `Angebot.typ` / `Sichtbarkeitskonzept.typ`). Jeder Root-Resolver zweistufig, bei `null` **hart fehlschlagen**.
 - **Der Web-Export-Branch `feat/web-export`** ist unverändert und **nicht** nach `main` gemergt.
-- **Launch-Blocker unverändert:** `penwright.online` registrieren · finales QA auf realer 100-Seiten-Thesis + Design-Use-Cases · Windows als Fast-Follow.
+- **Launch-Blocker:** `penwright.online` registrieren · QA auf realer 100-Seiten-Thesis + Design-Use-Cases · Windows als Fast-Follow.
+- **Ungetrackt, nicht anfassen:** `resources/*/manifest.json`-Timestamps (Renés eigene Arbeit).
 
 ---
 
-## 6. Arbeitsweise, die sich bewährt hat
+## 6. Was man vor dem ersten Commit wissen muss
 
-- **Erst prüfen, ob die eigenen Fixes halten, dann nach neuen Lücken suchen.** Diesmal fand der Selbst-Review fünf Defekte im eigenen frischen Code, darunter zwei, die Nutzerdaten betroffen hätten.
-- **Gemeinsamer Planer statt synchron gehaltener Kopien.** Reines Planen, der Aufrufer wendet an. Testbar ohne Electron.
-- **Jeder Fix bekommt einen Test, der ihn ohne den Fix rot sieht.** Beim MCP-Rollback explizit gegengeprüft (Fix rausgepatcht → rot → wieder rein → grün).
-- **Verhaltenstests schlagen Quelltext-Assertions.** Eine Regex über eine Datei, aus der die Funktion weggezogen wurde, wird grün durch Abwesenheit.
-- **E2E über stdio gegen die gebaute Binary** ist die härteste verfügbare Evidenz und kostet wenig. **Aber `npm run build:mcp` vorher** — sonst testet man den Vorgängerstand.
-- **Beim Testen den häufigsten Fall zuerst.** (Der Lock-Test war grün und die Funktion kaputt, weil er nur den Dropbox-Kollegen prüfte.)
+- **`MCP_SETUP_VERSION` = 0.24.0**, Binaries sind gebaut. `ensureInstalledBinary` kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten *Build*, nicht den Quellstand. Nach jeder `server.ts`-Änderung: bumpen **und** `npm run build:mcp-binary:all`.
+- **Die Skill-TEXTE stecken in der Binary** (die MCP-Anlagewege deployen sie). Eine `skillTemplates.ts`-Änderung braucht einen Binary-Rebuild.
+- **`npm test` vor jedem Commit.** Es ist schnell genug (~2 min ohne Compile-Stability) und deckt Doku-Drift, Typen, Round-Trip, Korpus und MCP ab.
+- **`tsconfig` hat jetzt `paths`.** Die alte CLAUDE.md-Regel „in `.ts`-Dateien nur relative Imports, nie `@shared`" ist damit **nicht mehr tragend** — sie schadet nicht, ist aber kein Zwang mehr. In `.svelte`-Dateien gilt weiterhin: relative Imports für geteilten Code, `@shared/i18n/store.svelte` nur für den i18n-Store.
+
+---
+
+## 7. Arbeitsweise, die sich bewährt hat
+
+- **Erst prüfen, ob die eigenen Fixes halten, dann nach neuen Lücken suchen.** Der Selbst-Review fand fünf Defekte im eigenen frischen Code; das Nach-Audit fand zwei Regressionen aus derselben Session.
+- **Gemeinsamer Planer statt synchron gehaltener Kopien.** Reines Planen (`plan*` gibt Writes zurück), der Aufrufer wendet an. Dreizehn solche Module in `src/shared/`.
+- **Jeder Fix bekommt einen Test, der ihn ohne den Fix rot sieht** — und das wird *ausprobiert*, nicht angenommen.
+- **Echte Dokumente schlagen ausgedachte Snippets.** 85 handgeschriebene Round-Trips fanden null der vier Korruptionen; ein Lauf über 153 echte Dateien fand alle vier.
+- **E2E über stdio gegen die gebaute Binary** ist die härteste verfügbare Evidenz — aber `npm run build:mcp` vorher, sonst testet man den Vorgängerstand.
+- **Eine Messung schlägt eine Schätzung.** Block 5 des MCP-Umbaus (7 Personentage) wurde durch ein Eval für $1,36 erledigt.
