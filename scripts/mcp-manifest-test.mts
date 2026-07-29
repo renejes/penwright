@@ -188,7 +188,12 @@ import os from 'node:os';
  * version of this file produced two convincing "failures" that were nothing
  * but its own ordering. Hosts issue tool calls sequentially; so does this.
  */
-async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
+async function callMcp(
+  cwd: string,
+  calls: { id: number }[],
+  /** Runs before the call with this id is sent — lets the world change mid-session. */
+  before?: { id: number; run: () => Promise<void> | void },
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [MCP], {
       cwd,
@@ -203,9 +208,10 @@ async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
     const finish = () => { if (settled) return; settled = true; clearTimeout(cap); child.kill(); resolve(out); };
     const cap = setTimeout(finish, 60000);
 
-    const sendNext = () => {
+    const sendNext = async () => {
       const next = queue.shift();
       if (!next) { finish(); return; }
+      if (before && before.id === next.id) await before.run();
       pending = next.id;
       child.stdin.write(JSON.stringify(next) + '\n');
     };
@@ -216,11 +222,11 @@ async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
         // Still waiting on `initialize` (id 1).
         if (/"id":1(\D|$)/.test(out)) {
           child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
-          sendNext();
+          void sendNext();
         }
         return;
       }
-      if (new RegExp(`"id":${pending}(\\D|$)`).test(out)) sendNext();
+      if (new RegExp(`"id":${pending}(\\D|$)`).test(out)) void sendNext();
     });
     child.on('error', reject);
     child.on('close', finish);
@@ -486,6 +492,131 @@ console.log('\nA huge file cannot silently eat the conversation');
   const text = replyText(out, 3);
   check('the return is capped', text.length < 500_000, `${text.length} chars`);
   check('…and says so, with what to do instead', text.includes('truncated') && text.includes('penwright_search_project'), text.slice(-200));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ─── The parity-audit fixes (session 43) ────────────────────────────
+
+console.log('\nEvery tool sees the project the user actually has open');
+{
+  // The refresh used to hang off two document helpers, so the ~47 tools that
+  // read state.projectDir directly kept whatever the process saw at boot. The
+  // sandbox derives from the same value, so a write into a CLOSED project
+  // passed its own check.
+  const { writeActiveProject } = await import('../src/shared/sessionState.ts');
+
+  const a = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-stale-A-'));
+  const b = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-stale-B-'));
+  for (const d of [a, b]) {
+    fs.mkdirSync(path.join(d, '.penwright'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'main.typ'), `= ${path.basename(d)}\n\nNutzer everywhere.\n`);
+  }
+
+  // A file whose name identifies which project a tool actually looked at.
+  fs.writeFileSync(path.join(a, 'ONLY-IN-A.typ'), '= A\n');
+  fs.writeFileSync(path.join(b, 'ONLY-IN-B.typ'), '= B\n');
+
+  // ONE process across both calls. A fresh spawn per call re-reads the active
+  // project in parseArgs() and would pass whether or not the fix exists — the
+  // first version of this check did exactly that and was green against the
+  // reverted code. The staleness only exists inside a session, so the switch
+  // has to happen inside one.
+  writeActiveProject(a);
+  const out = await callMcp(
+    a,
+    [call(2, 'penwright_list_files', {}), call(3, 'penwright_list_files', {})],
+    {
+      id: 3,
+      run: async () => {
+        writeActiveProject(b);
+        await new Promise(r => setTimeout(r, 2300));   // past the 2 s ambient throttle
+      },
+    },
+  );
+
+  check('a non-document tool finds the active project', replyText(out, 2).includes('ONLY-IN-A'), replyText(out, 2).slice(0, 200));
+  check('…and follows the user to the next one, in the SAME session',
+    replyText(out, 3).includes('ONLY-IN-B') && !replyText(out, 3).includes('ONLY-IN-A'),
+    replyText(out, 3).slice(0, 300));
+
+  writeActiveProject(null);
+  for (const d of [a, b]) fs.rmSync(d, { recursive: true, force: true });
+}
+
+console.log('\nThe design tokens are inside the undo net');
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-tokens-'));
+  fs.mkdirSync(path.join(dir, '.penwright'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'main.typ'), '#import "style.typ": *\n#show: apply-style\n\n= T\n\nBody.\n');
+
+  const typst = ['typst-arm64-darwin', 'typst-x64-darwin']
+    .map(n => path.join(REPO, 'resources', 'bin', n)).find(p => fs.existsSync(p));
+  if (!typst) {
+    console.log('  (bundled Typst not found — skipped)');
+  } else {
+    await callMcp(dir, [
+      call(2, 'penwright_set_project', { projectDir: dir }),
+      call(3, 'penwright_apply_palette', { presetId: 'editorial' }),
+      call(4, 'penwright_apply_palette', { presetId: 'modern-tech' }),
+    ]);
+    const snaps = fs.existsSync(path.join(dir, '.penwright', 'ai-snapshots'))
+      ? fs.readdirSync(path.join(dir, '.penwright', 'ai-snapshots')).filter(f => f.endsWith('.json'))
+      : [];
+    const forStyleJson = snaps.filter(f => f.includes('style.json'));
+    check('style.json is snapshotted like any other design write', forStyleJson.length > 0,
+      `snapshots: ${snaps.join(', ') || 'none'}`);
+    check('…and so is style.typ', snaps.some(f => f.includes('style.typ')));
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\nChapter tools all mean the same file');
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-chapters-'));
+  fs.mkdirSync(path.join(dir, 'chapters'), { recursive: true });
+  const root = path.join(dir, 'Konzept.typ');
+  const ch = path.join(dir, 'chapters', '01.typ');
+  fs.writeFileSync(root, '#include "chapters/01.typ"\n#include "chapters/02.typ"\n');
+  fs.writeFileSync(ch, '= Eins\n\nEin Absatz, der "chapters/02.typ" im Fließtext erwähnt.\n');
+  fs.writeFileSync(path.join(dir, 'chapters', '02.typ'), '= Zwei\n');
+
+  const chBefore = fs.readFileSync(ch, 'utf-8');
+  const out = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_open_file', { filePath: 'chapters/01.typ' }),
+    call(4, 'penwright_reorder_chapters', { order: ['chapters/02.typ', 'chapters/01.typ'] }),
+  ]);
+  const rootAfter = fs.readFileSync(root, 'utf-8');
+  check('reorder acts on the root while a chapter is open',
+    rootAfter.indexOf('02.typ') < rootAfter.indexOf('01.typ'), rootAfter);
+  check('…and does not touch the open chapter', fs.readFileSync(ch, 'utf-8') === chBefore);
+  check('…and does not claim a reorder it did not do', !replyText(out, 4).includes('01.typ"\n#include'));
+
+  // The unanchored filter deleted any line merely mentioning the path.
+  const rm = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_remove_chapter', { chapterPath: 'chapters/02.typ' }),
+  ]);
+  check('remove_chapter drops the #include', !fs.readFileSync(root, 'utf-8').includes('#include "chapters/02.typ"'), replyText(rm, 3));
+  check('…and leaves prose that merely mentions the path alone',
+    fs.readFileSync(ch, 'utf-8').includes('im Fließtext erwähnt'));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\nA document with no chapters says so instead of reporting success');
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-nochapters-'));
+  fs.writeFileSync(path.join(dir, 'main.typ'), '= Single file\n\nNo includes here.\n');
+  const before = fs.readFileSync(path.join(dir, 'main.typ'), 'utf-8');
+
+  const out = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_reorder_chapters', { order: ['chapters/a.typ', 'chapters/b.typ'] }),
+  ]);
+  check('it reports no chapter order to change', replyText(out, 3).includes('no #include'), replyText(out, 3).slice(0, 200));
+  check('…and writes nothing', fs.readFileSync(path.join(dir, 'main.typ'), 'utf-8') === before);
 
   fs.rmSync(dir, { recursive: true, force: true });
 }

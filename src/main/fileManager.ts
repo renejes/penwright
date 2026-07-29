@@ -425,6 +425,11 @@ export function closeProject(): void {
   // Write provenance is per-project state — a path in the next project must
   // never be mistaken for one we wrote in this one.
   forgetAll();
+  // Same reason, for the design undo: its entries hold absolute paths into the
+  // project being closed. Left in place, the Design panel of the NEXT project
+  // offers to undo a change made in the previous one, and pressing it writes
+  // into a project the user has closed.
+  import('./ipcHandlers').then(({ clearDesignUndo }) => clearDesignUndo());
   if (closingProjectDir) clearSession(closingProjectDir);
   writeActiveProject(null);
 
@@ -614,6 +619,11 @@ function setupFileWatcher(): void {
     // snapshot on the next slider move.
     if (appState.projectDir &&
         path.resolve(changedPath) === path.resolve(appState.projectDir, '.penwright', 'style.json')) {
+      // Someone else — the agent — now owns the design. Our undo entries
+      // describe a state that no longer leads anywhere sensible: applying one
+      // would restore the bytes from before OUR last change and wipe theirs,
+      // under a button still labelled with our change.
+      import('./ipcHandlers').then(({ clearDesignUndo }) => clearDesignUndo());
       appState.mainWindow?.webContents.send('penwright', { type: 'designChangedExternally' });
     }
 

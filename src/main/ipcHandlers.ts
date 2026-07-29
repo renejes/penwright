@@ -203,6 +203,24 @@ function pushDesignUndo(label: string, files: { abs: string; old: string | null 
   if (designUndoStack.length > DESIGN_UNDO_MAX) designUndoStack.shift();
 }
 
+/**
+ * Drops every pending design undo.
+ *
+ * The stack holds byte snapshots taken before OUR design writes. It knows
+ * nothing about writes from the MCP server, so once the agent has changed the
+ * design, an entry says "restore the bytes from before the human's last
+ * palette" — and applying it overwrites the agent's whole layout while the
+ * button still reads "Farbpalette" and reports success. On a project without
+ * Git that is unrecoverable: the restore records its own write as ours, so the
+ * watcher never snapshots what it replaced.
+ *
+ * Called when the design changes underneath us and when a project closes (the
+ * entries hold absolute paths into a project nobody has open any more).
+ */
+export function clearDesignUndo(): void {
+  designUndoStack.length = 0;
+}
+
 /** If `abs` is the currently-open file, push the new content into the editor. */
 function syncOpenBuffer(abs: string, content: string): void {
   if (appState.currentFilePath && path.resolve(abs) === path.resolve(appState.currentFilePath)) {

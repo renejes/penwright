@@ -58,7 +58,14 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // are capped with a visible truncation note; update_settings is typed to the
 // two settings that exist; insert_reference accepts a citekey as well as a
 // label — the last real capability gap.
-export const MCP_SETUP_VERSION = '0.22.0';
+// 0.23.0: parity audit follow-up — refreshAmbientState() runs for EVERY tool
+// (it hung off two document helpers, so ~47 tools could act on a project the
+// user closed hours ago, and the sandbox derived from the same stale value);
+// style.json is inside the snapshot net (undo_last_edit restored style.typ and
+// left the tokens on the new value); reorder/remove_chapter act on the root
+// like the other four chapter tools and no longer report a reorder they did
+// not perform; remove_chapter's filter is anchored to a real #include line.
+export const MCP_SETUP_VERSION = '0.23.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

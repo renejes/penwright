@@ -670,13 +670,14 @@ export async function handleImportMarkdown(): Promise<void> {
     const mdContent = fs.readFileSync(mdPath, 'utf-8');
     const typstContent = markdownToTypst(mdContent);
 
-    const preamble = `#set text(font: "Georgia", size: 11pt)
-#set page(paper: "a4", margin: 2.5cm)
-#set par(justify: true, leading: 0.65em)
-#set heading(numbering: "1.1")
-
-`;
-    const fullContent = preamble + typstContent;
+    // No preamble. This used to prepend a hard-coded look — Georgia 11pt, A4,
+    // justified, numbered headings — which is (a) not what the project's own
+    // design says, and (b) the exact category of write `applyStyleTemplate`
+    // refuses outside the root, since an import usually lands in a chapter.
+    // The MCP's import writes the converted Markdown and nothing else; the
+    // same file imported from the two sides produced two different files.
+    // Design belongs in style.typ, which the document already applies.
+    const fullContent = typstContent;
 
     const defaultName = path.basename(mdPath).replace(/\.(md|markdown|txt)$/i, '.typ');
     const saveResult = await dialog.showSaveDialog(appState.mainWindow!, {
@@ -688,7 +689,9 @@ export async function handleImportMarkdown(): Promise<void> {
     if (saveResult.canceled || !saveResult.filePath) return;
 
     fs.writeFileSync(saveResult.filePath, fullContent, 'utf-8');
-    ensureClaudeSkills(path.dirname(saveResult.filePath));
+    // The PROJECT, not the directory the user happened to save into — saving
+    // an import under chapters/ used to scaffold a stray chapters/.claude/.
+    if (appState.projectDir) ensureClaudeSkills(appState.projectDir);
     const { openFile } = await import('./fileManager');
     openFile(saveResult.filePath);
 

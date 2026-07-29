@@ -1,6 +1,6 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-29, Ende von Session 42 · Branch `main` · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.22.0** (gebumpt, Binaries neu gebaut) · **Blöcke 1–3 sind fertig; als Nächstes das Eval (Block 4)**
+> **Stand:** 2026-07-29, Ende von Session 42 · Branch `main` · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.23.0** (gebumpt, Binaries neu gebaut) · **MCP-Umbau abgeschlossen (Blöcke 1–4 gebaut, Block 5 durch Messung erledigt); danach adversariales Nach-Audit mit 7 Funden, 6 behoben**
 >
 > **Lies zuerst diese Datei, dann `CLAUDE.md` → „App ↔ MCP parity", dann leg los.** Referenzdokumente: [app-mcp-parity.md](app-mcp-parity.md) (Ist-Zustand + Restliste), [mcp-rebuild-plan.md](mcp-rebuild-plan.md) (der MCP-Umbau, Rest in die Paritätssequenz einsortiert), [mcp-tool-audit.md](mcp-tool-audit.md) + [mcp-tool-consolidation.md](mcp-tool-consolidation.md) (warum wir die Tool-Zahl **nicht** reduzieren).
 
@@ -73,6 +73,7 @@ Alle bestehenden Suiten grün: `style-guard` · `write-provenance` · `watch-ign
 **Geht:** Design von beiden Seiten mit Verify und Rollback · Design-Tokens byte-identisch mit demselben Guard · KI-Änderungen an **beliebig vielen** Dateien zurücknehmen, aus der App **und** aus dem Chat · die KI eine gerenderte Seite ansehen lassen · Projekte anlegen, die von beiden Seiten gleich aussehen und Skills mitbringen · Bilder importieren, ohne vorhandene zu zerstören · die KI weiß, ob das Dokument schon kaputt war · die App zeigt an, woran die KI arbeitet.
 
 **Geht nicht:**
+- **„Kapitel hinzufügen" in der App hängt den `#include` an die offene Datei** (F3 aus dem Nach-Audit, ~2 h). Das neue Kapitel ist danach für `penwright_get_chapters` und den Export-Dialog unsichtbar — es kompiliert trotzdem, die Drift ist also still.
 - **Auto-Backups sind für die KI immer noch unlesbar** (aber ungeschützt beschreibbar) — `history/VER-03`.
 - **Der Mensch hat keine Oberfläche für die 24 Design-Elemente**, die die KI einfügen kann.
 - **Echte Gleichzeitigkeit auf derselben Datei bleibt Last-Writer-Wins** (sichtbar und sicherbar, nicht auflösbar).
@@ -100,6 +101,23 @@ Die Klassifikation ist inhaltlich, nicht mechanisch: `readOnlyHint` heißt „ä
 Zwei Dinge, die das Skript bewusst durchlässt: `documentation/done/**` und die Planungsdokumente sind Geschichte, und ein Plan, der ein Tool beschreibt, das er vorschlug, ist ein Protokoll, kein Drift. Sie zu melden würde allen beibringen, das Skript zu ignorieren — die einzige Art, wie es wirklich versagen kann.
 
 **`scripts/mcp-manifest-test.mts`** liest das Manifest **von der Leitung**, nicht aus dem Quelltext: `npm run build:mcp` typecheckt nicht, ein `annotation:` statt `annotations:` kompiliert, bündelt, wird ausgeliefert und ist unsichtbar, bis sich jemand wundert, warum nichts auto-freigegeben wird.
+
+---
+
+## 2c. Das Nach-Audit (Session 43) — und was es über die eigene Arbeit sagte
+
+Fünf unabhängige Prüfer über P1–P4 plus eine Linse auf Doppelimplementierungen, danach jeder Fund einzeln adversarial zu **widerlegen** versucht. 32 Kandidaten, **7 überlebt, 0 kritisch**. Vier davon habe ich anschließend selbst am Code nachgeprüft, bevor ich sie berichtet habe.
+
+**Zwei der sieben waren Regressionen aus Session 42 — aus dieser Session.** Das ist der eigentliche Wert des Durchgangs:
+
+- **F1**: Block 3 stellte die MCP-Settings auf die Wurzel um und ließ die App auf der offenen Datei. Vorher waren beide konsistent falsch, danach uneins — mit zwei widersprüchlichen `#set text(lang:)` als möglichem Ergebnis.
+- **F2**: Vier von sechs Kapitel-Tools wurden auf `readRootDocument` migriert, weil der Plan `reorder`/`remove` für Phase E zurückstellte. **Phase E wurde danach gestrichen** — die Zurückstellung lief ins Leere, und der MCP war mit sich selbst uneins. `reorder_chapters` meldete zusätzlich Erfolg, wenn es überhaupt keine `#include`-Zeile gefunden hatte.
+
+Behoben: F1, F2, F4 (`refreshAmbientState` lief nur in zwei Dokument-Helfern — **~47 Tools konnten stundenlang in ein geschlossenes Projekt schreiben**, und der Sandbox-Check winkte es durch, weil er sich aus demselben veralteten Wert ableitet), F5 (Design-Undo überschrieb nach einer KI-Änderung deren Layout, unter dem Label der eigenen letzten Änderung), F6 (`style.json` außerhalb des Snapshot-Netzes), F7 (Markdown-Import mit hartcodierter Design-Präambel). Dazu bekam `replaceInProject` endlich einen Snapshot vor dem Schreiben — der größte Blast-Radius beider Prozesse war die einzige Massenschreibstelle ohne Eintrag im Undo-Netz.
+
+**Offen geblieben: F3** — die App hängt beim „Kapitel hinzufügen" den `#include` an die **offene Datei**, wodurch das neue Kapitel für `get_chapters` und den Export-Dialog unsichtbar wird. ~2 h, dieselbe Klasse wie F1/F2. Ein `chapterWrite`-Planer würde F1, F2 und F3 zusammen schließen.
+
+**Eine Lehre zum Testen, die teurer war als die Fixes:** mein erster F4-Test war grün — *auch gegen den zurückgepatchten Code*. Er startete pro Aufruf einen frischen Prozess, und der liest den aktiven Projektpfad beim Booten ohnehin neu; die Veraltung existiert nur **innerhalb** einer Sitzung. Ein Test, der die Bedingung gar nicht herstellt, ist grün durch Abwesenheit. Korrigiert auf **eine** Sitzung mit einem Projektwechsel mittendrin — dann wird er ohne den Fix rot und zeigt die Datei des alten Projekts.
 
 ---
 
@@ -136,7 +154,7 @@ Unverändert, jetzt auch in `CLAUDE.md` festgehalten: engere Export-Sandbox der 
 
 ## 5. Offene Punkte, die man vor dem Weiterarbeiten wissen muss
 
-- **`MCP_SETUP_VERSION` steht auf `0.22.0`, ist gebumpt, und `npm run build:mcp-binary:all` ist gelaufen.** Achtung: `ensureInstalledBinary` (`mcpSetup.ts`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
+- **`MCP_SETUP_VERSION` steht auf `0.23.0`, ist gebumpt, und `npm run build:mcp-binary:all` ist gelaufen.** Achtung: `ensureInstalledBinary` (`mcpSetup.ts`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
 - **Neu und wichtig: die Skill-TEXTE stecken jetzt in der Binary.** `create_project` / `create_from_preset` deployen sie. Eine Änderung an `skillTemplates.ts` braucht also einen Binary-Rebuild, um die MCP-Anlagewege zu erreichen (der Prompt-Pfad liest weiterhin von der Platte, da genügt das Löschen der veralteten SKILL.md).
 - **Die App wurde in dieser Session nie vom Assistenten gestartet.** Alle Verifikation ist Unit-/Integrations-/E2E-Test plus `tsc` + `svelte-check`. **Ein manueller Durchgang steht aus**, besonders: Design-Panel + Kapitel-Look (safeApplyDesign wurde umgebaut), der Verlaufs-Hub (AI-Liste ist jetzt projektweit und zeigt Dateinamen), Bild-Import per Drag-and-Drop (Ablage und eingefügter Pfad haben sich geändert), und die neue KI-Anzeige in der Statusleiste.
 - **Renés echte Projekte bleiben der Härtefall.** `~/Desktop/Marketing/FMM/*` und `~/Desktop/Marketing/Ludwig Maier Mastering/*`: kein Git, keine `.penwright/style.json`, keine `.claude/skills`, handgeschriebene `style.typ`, **keine `main.typ`** (Wurzeln heißen `Angebot.typ` / `Sichtbarkeitskonzept.typ`). Jeder Root-Resolver muss zweistufig sein und bei `null` **hart fehlschlagen**. Der neue Scaffold rührt solche Projekte nicht an — dafür gibt es zwei Tests.

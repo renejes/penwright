@@ -11,6 +11,8 @@ import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile } from '../shared/rootFinder';
 import { writeActiveProject } from '../shared/sessionState';
+import { resolveDesignRoot } from '../shared/styleWrite';
+import { noteDiskContent } from '../shared/fileWrite';
 import { scaffoldProject, ensureStyleFiles, ensureSkills } from '../shared/projectScaffold';
 import { placeAsset, placeAssetFromPath, assetPathFrom, isInsideProject } from '../shared/assetPlacement';
 import { generateStyleTypst } from '../shared/styleParser';
@@ -558,8 +560,38 @@ export function handleDropImagePath(imagePath: string): void {
 
 // ─── Settings Handlers ────────────────────────────────
 
+/**
+ * The file document settings belong to: the project's root.
+ *
+ * `lang` and `bibliographyStyle` are `#set` rules that govern the DOCUMENT.
+ * Both handlers used to read and write `appState.currentContent` — the file in
+ * the editor — so choosing a language while a chapter was open put
+ * `#set text(lang: "de")` into that chapter alone, where it governs only the
+ * chapter, while the root kept its old value. The MCP side resolves the root
+ * (`readRootDocument`), so the two processes then disagreed about which file
+ * "the document settings" even lives in, and could produce two conflicting
+ * `#set text(lang:)` rules in one document with neither aware of the other.
+ *
+ * Null is not fatal here — a loose file opened without a project is still
+ * editable, and its own buffer is the honest target.
+ */
+function settingsTarget(): { file: string | null; content: string } {
+  if (appState.projectDir) {
+    const root = resolveDesignRoot(appState.projectDir, appState.currentFilePath);
+    if (root && fs.existsSync(root)) {
+      // The open buffer wins when it IS the root — it may hold unsaved edits
+      // that the file on disk does not.
+      if (appState.currentFilePath && path.resolve(root) === path.resolve(appState.currentFilePath)) {
+        return { file: root, content: appState.currentContent };
+      }
+      try { return { file: root, content: fs.readFileSync(root, 'utf-8') }; } catch { /* fall through */ }
+    }
+  }
+  return { file: appState.currentFilePath, content: appState.currentContent };
+}
+
 export function handleRequestSettings(): void {
-  const settings = parseSettings(appState.currentContent);
+  const settings = parseSettings(settingsTarget().content);
   appState.mainWindow?.webContents.send('penwright', {
     type: 'settingsData',
     settings,
@@ -567,17 +599,39 @@ export function handleRequestSettings(): void {
 }
 
 export function handleUpdateSettings(settings: Record<string, string>): void {
-  appState.currentContent = applySettings(appState.currentContent, settings as unknown as import('../shared/settingsParser').DocumentSettings);
-  appState.isDirty = true;
-  import('./fileManager').then(({ updateTitle, autoSave }) => {
-    updateTitle();
-    autoSave();
-  });
+  const target = settingsTarget();
+  const updated = applySettings(
+    target.content,
+    settings as unknown as import('../shared/settingsParser').DocumentSettings,
+  );
 
-  appState.mainWindow?.webContents.send('penwright', {
-    type: 'update',
-    content: appState.currentContent,
-  });
+  const isOpenFile = !!appState.currentFilePath && !!target.file &&
+    path.resolve(target.file) === path.resolve(appState.currentFilePath);
+
+  if (isOpenFile) {
+    appState.currentContent = updated;
+    appState.isDirty = true;
+    import('./fileManager').then(({ updateTitle, autoSave }) => {
+      updateTitle();
+      autoSave();
+    });
+    appState.mainWindow?.webContents.send('penwright', {
+      type: 'update',
+      content: appState.currentContent,
+    });
+    return;
+  }
+
+  // The root is not the file on screen: write it directly and record the write
+  // so the watcher does not bounce it back as a foreign change.
+  if (!target.file) return;
+  try {
+    fs.writeFileSync(target.file, updated, 'utf-8');
+    noteDiskContent(target.file, updated);
+    appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+  } catch (err) {
+    console.warn('[penwright] Could not write document settings to the root file:', err);
+  }
 }
 
 // ─── Claude Code Skills ──────────────────────────────

@@ -11,6 +11,7 @@
 
 import * as fs from 'fs';
 import { noteDiskContent } from '../shared/fileWrite';
+import { snapshotBeforeWrite } from '../shared/editHistory';
 import * as path from 'path';
 import { appState } from './appState';
 import { isPathWithin } from './pathSecurity';
@@ -249,6 +250,12 @@ export function replaceInProject(opts: ReplaceOptions, projectDir?: string | nul
     if (count === 0 || replaced === content) continue;
 
     try {
+      // Before the write, not after: a project-wide replace is the single
+      // largest blast radius either process has, and it was the one bulk
+      // writer with no entry in the undo net. `snapshotBeforeWrite` is
+      // best-effort and cheap; the app reaches this through a confirm dialog,
+      // the MCP through a dry run, and now both leave a way back.
+      if (projectRoot) snapshotBeforeWrite(projectRoot, absPath);
       fs.writeFileSync(absPath, replaced, 'utf-8');
       noteDiskContent(absPath, replaced);
       filesChanged++;

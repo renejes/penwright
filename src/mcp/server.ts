@@ -426,7 +426,15 @@ function guardWrite(abs: string): string {
   const root = state.projectDir ? path.resolve(state.projectDir) : null;
   const inProject = !!root && resolved.startsWith(root + path.sep);
   const isTemp = base.startsWith('.penwright-');
-  const isState = resolved.includes(path.sep + '.penwright' + path.sep);
+  // Only the genuinely volatile parts of `.penwright/` are outside the undo
+  // net. `style.json` is NOT volatile — it is half of every design change
+  // (planStyleWrites always writes it beside style.typ), so excluding it meant
+  // `undo_last_edit` restored style.typ, reported success, and left the tokens
+  // on the new value. The Design panel reads the tokens, so it kept showing
+  // what had just been undone, and the next slider move regenerated style.typ
+  // from them and silently re-applied the change.
+  const isState = /(^|[\\/])\.penwright[\\/](session\.json|agent-activity\.json|preferences\.json|backups|ai-snapshots)([\\/]|$)/
+    .test(resolved);
 
   if (inProject && !isTemp && !isState) {
     // Only a genuinely different editor blocks a write. The app holds a lock on
@@ -1015,6 +1023,15 @@ const tool = ((...args: any[]) => {
     currentToolName = shortName;
     activityFiles = new Set();
     touchedDocumentInCall = false;
+    // Every tool, not just the two document helpers that happened to call it.
+    // This process lives for hours while the user moves between projects; with
+    // the refresh reachable from only `readCurrentDocument` and
+    // `readRootDocument`, the other ~47 tools read whatever `state.projectDir`
+    // held at boot. `replace_in_project` on a project the user closed an hour
+    // ago passes the sandbox check — because the sandbox is derived from the
+    // same stale value — and rewrites files nobody is looking at. Throttled to
+    // 2 s internally, so calling it per tool costs nothing.
+    refreshAmbientState();
     try {
       return withContestedNotes(await handler(...handlerArgs));
     } finally {
@@ -2400,7 +2417,7 @@ tool(
   { order: z.array(z.string()).describe('Array of chapter paths in the desired order, e.g. ["chapters/intro.typ", "chapters/methods.typ"]') },
   async ({ order }) => {
     try {
-      const { content, filePath } = readCurrentDocument();
+      const { content, filePath } = readRootDocument();
       const lines = content.split('\n');
       const includeLines: string[] = [];
       const otherLines: string[] = [];
@@ -2411,6 +2428,20 @@ tool(
         } else {
           otherLines.push(line);
         }
+      }
+
+      // A document with no includes cannot be reordered. Without this the
+      // whole routine was a no-op that still wrote the file and still
+      // announced "Reordered 5 chapters" — a structural change the agent then
+      // reported to the user as done, having changed nothing.
+      if (includeLines.length === 0) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `${path.basename(filePath)} contains no #include lines, so there is no chapter order to change. Check penwright_get_chapters — this document may be a single file.`,
+          }],
+          isError: true,
+        };
       }
 
       // Rebuild include lines in new order
@@ -2536,13 +2567,20 @@ tool(
 
 tool(
   'penwright_remove_chapter',
-  'Removes an #include statement from the current document. Does NOT delete the chapter file itself.',
+  'Remove a chapter\'s #include from the root document. Does NOT delete the chapter file — the text stays on disk and can be included again.',
   { chapterPath: z.string().describe('Relative path of the chapter to remove (e.g. "chapters/intro.typ")') },
   async ({ chapterPath }) => {
     try {
-      const { content, filePath } = readCurrentDocument();
+      const { content, filePath } = readRootDocument();
       const lines = content.split('\n');
-      const filtered = lines.filter(l => !l.includes(`"${chapterPath}"`));
+      // Anchored to a real #include line. The old substring test dropped ANY
+      // line merely mentioning the path — a comment, a `#figure(image("…"))`,
+      // a sentence quoting the filename — which silently deleted content while
+      // reporting that a chapter had been unlinked.
+      const includeRe = new RegExp(
+        `^\\s*#include\\s+"${chapterPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"\\s*$`,
+      );
+      const filtered = lines.filter(l => !includeRe.test(l));
 
       if (filtered.length === lines.length) {
         return { content: [{ type: 'text' as const, text: `No #include found for "${chapterPath}"` }], isError: true };

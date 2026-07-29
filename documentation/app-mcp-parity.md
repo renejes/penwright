@@ -14,12 +14,34 @@ Alles unter „Restliste, priorisiert" aus der Verifikation unten ist gebaut, bi
 |---|---|---|
 | **P1 Schreiben** | **erfüllt** | `shared/projectScaffold` (alle vier Anlagewege, inkl. Skills und `.gitignore`) und `shared/assetPlacement` (eine Ablageregel, Dedup per Inhalt, nie ein Overwrite, Pfad relativ zur Zieldatei) schließen die letzten beiden Divergenzen ohne gemeinsamen Planer. |
 | **P2 Lesen** | **erfüllt bis auf die Backups** | `penwright_render_page` — die KI sieht eine gerenderte Seite. Der Undo-Stack ist beidseitig lesbar. **Offen bleibt `history/VER-03`**: Auto-Backups sind für die KI unlesbar, aber ungeschützt beschreibbar. |
-| **P3 Wissen** | **beidseitig, bewusst schmal** | `lastCompileOk` im Kanal (die KI unterscheidet einen selbst verursachten Bruch von einem vorbestehenden), `get_style` meldet `initialized`/`adopted`/`rootFile`, und `agent-activity.json` ist der **rein informative** Rückkanal: die App zeigt an, woran die KI arbeitet, und gehorcht ihm nicht. Kein Cursor, keine Auswahl, kein Puffer — der Kanal trägt nur, woraus eine **andere Entscheidung** folgt. |
+| **P3 Wissen** | **beidseitig, bewusst schmal** | `lastCompileOk` im Kanal (die KI unterscheidet einen selbst verursachten Bruch von einem vorbestehenden), `get_style` meldet `initialized`/`adopted`/`rootFile`, und `agent-activity.json` ist der **rein informative** Rückkanal: die App zeigt an, woran die KI arbeitet, und gehorcht ihm nicht. Kein Cursor, keine Auswahl, kein Puffer — der Kanal trägt nur, woraus eine **andere Entscheidung** folgt. **Korrektur (Session 43):** dieser Abschnitt behauptete, der Kanal werde laufend gelesen — das galt für 16 von 63 Tools. `refreshAmbientState()` hing an zwei Dokument-Helfern; die übrigen lasen `state.projectDir` roh und konnten stundenlang auf ein geschlossenes Projekt zeigen. Jetzt läuft der Refresh im Tool-Wrapper, also bei **jedem** Aufruf. |
 | **P4 Schutz** | **erfüllt** | `shared/safeApply` — Staging → Verify → commit/rollback, Verifier + IO injiziert, auf beiden Seiten. Der Undo-Stack ist beidseitig sichtbar und bedienbar, mit **einer** Aufbewahrungsgrenze. Die Warnung vor ungespeicherter Arbeit hängt am Schreib-Guard statt an drei Tools. |
 
 **Nicht mehr wahr:** *„Auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht."* Die beiden Prozesse teilen jetzt auch eine Gegenwart.
 
 **Was aus Klasse 1 offen bleibt:** `insert_design_element` bekommt `file` (2 h) · Backup-Tools (VER-03) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI · Handbuch als Resource. Nichts davon hat heutiges Schadenspotenzial.
+
+---
+
+## Adversariales Nach-Audit (Session 43) — sieben Funde, zwei davon selbst verursacht
+
+Fünf unabhängige Prüfer über P1/P2/P3/P4 plus eine Linse auf verbliebene Doppelimplementierungen; jeder Fund danach einzeln adversarial zu **widerlegen** versucht. 32 Kandidaten, 7 überlebt, davon 0 kritisch. Vier habe ich anschließend selbst am Code gegengeprüft.
+
+**Der Befund hinter den Befunden:** dieselbe Frage, an drei Stellen unterschiedlich beantwortet — **die App fragt „welche Datei ist offen?", der MCP fragt „welche Datei ist die Wurzel?"**.
+
+| | Fund | Status |
+|---|---|---|
+| F1 | Dokument-Settings: App schrieb die **offene Datei**, MCP die Wurzel — zwei widersprüchliche `#set text(lang:)` in einem Dokument möglich | ✅ behoben |
+| F2 | `reorder_chapters` / `remove_chapter` blieben auf `readCurrentDocument`, die anderen vier Kapitel-Tools nicht — **der MCP war mit sich selbst uneins**; `reorder` meldete zudem Erfolg, wenn es nichts gefunden hatte | ✅ behoben |
+| F3 | App-`add_chapter` hängt den `#include` an die **offene Datei** — das neue Kapitel ist danach für `get_chapters` und den Export-Dialog unsichtbar | ⏳ offen (~2 h) |
+| F4 | `refreshAmbientState()` hing an zwei Dokument-Helfern → **~47 Tools konnten stundenlang in ein geschlossenes Projekt schreiben**, Sandbox-Check inklusive (er leitet sich aus demselben veralteten Wert ab) | ✅ behoben |
+| F5 | Design-Undo-Stack: In-Memory, MCP-blind, nie geleert — „↩ Rückgängig" konnte nach einer KI-Designänderung deren komplettes Layout überschreiben, unter dem Label der eigenen letzten Änderung | ✅ behoben (billige Variante) |
+| F6 | `.penwright/style.json` lag außerhalb des Snapshot-Netzes → `undo_last_edit` stellte `style.typ` her und ließ die Tokens auf dem neuen Wert | ✅ behoben |
+| F7 | Markdown-Import: die App schrieb eine hartcodierte Design-Präambel, der MCP nicht — dieselbe `.md`, zwei verschiedene Dateien | ✅ behoben |
+
+**Zwei der sieben (F1, F2) waren Regressionen aus Session 42.** F1 entstand, weil Block 3 die MCP-Seite auf die Wurzel umstellte und die App-Seite nicht — vorher waren beide konsistent falsch, danach uneins. F2 entstand, weil der Plan `reorder`/`remove` für Phase E zurückstellte („werden dort ersetzt") — **und Phase E wurde danach gestrichen**, womit die Zurückstellung ins Leere lief. Beides ist die Art Fehler, die nur ein zweiter Durchgang findet.
+
+**Was der Prüfer ausdrücklich als sauber bestätigt hat:** alle ~40 Schreibstellen der App gegen alle 27 mutierenden MCP-Tools auf Pfad, Bytes und Nebenwirkungen verglichen — die Planer halten. Verify/Rollback ist symmetrisch ohne Ausnahme. Die Sandbox hält unter Symlink- und `..`-Traversal auf beiden Seiten. Vier weitere Doppelimplementierungen existieren (Theme-Preset-Preserve, Git-Diff-Parser, zwei Wortzähler, zwei Dateibaum-Walker), unterscheiden sich heute aber **nicht** im Verhalten — Drift von morgen, kein Fehler von heute.
 
 ---
 
