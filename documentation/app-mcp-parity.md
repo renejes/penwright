@@ -2,7 +2,7 @@
 
 > Stand: 2026-07-28 · Anlass: der Style-Fix in `561c22e` war *eine* Instanz einer Klasse. Diese Untersuchung sucht den Rest.
 > Frage: arbeiten Mensch (App) und KI (MCP) verlässlich am selben Projekt — schreiben beide dasselbe, sieht jede Seite, was die andere tut?
-> Verwandt: [mcp-rebuild-plan.md](mcp-rebuild-plan.md) · [mcp-tool-audit.md](mcp-tool-audit.md)
+> Verwandt: [mcp-rebuild-plan.md](done/mcp-rebuild-plan.md) · [mcp-tool-audit.md](done/mcp-tool-audit.md)
 
 ---
 
@@ -271,5 +271,5 @@ Nicht jeder gemeldete Befund hielt stand — festgehalten, damit sie nicht wiede
 - **„Der `StyleWriteRefused`-Throw kommt bei Claude als Stacktrace an."** Falsch. Das SDK (`mcp.js:135-141`) fängt und liefert `createToolError` — Claude bekommt exakt den Text als sauberes `isError`. Übrig bleibt nur: `DESIGN_SKILL` könnte eine Regel „bei dieser Meldung nicht per `write_file` auf `style.typ` ausweichen" gebrauchen.
 - **„`safeApplyDesign` hält den 3-s-Guard über den ganzen Verify offen."** Umgekehrt: der Stempel steht bei `T`, der Guard läuft nach 3 s **ab**, mitten im Verify. Der echte Defekt liegt woanders (Rollback ohne Ist-Vergleich, CONC-09).
 - **„`add`/`unlink` senden `filetreeChanged` unconditional."** Nein, beide tragen denselben Guard. Die Schlussfolgerung hält trotzdem, aus zwei Gründen statt einem.
-- **„`sections` muss in `deepMergeStyle`."** Kollidiert mit einer bereits getroffenen Entscheidung ([mcp-tool-consolidation.md](mcp-tool-consolidation.md) §6): ein Teil-Patch würde die übrigen Sections löschen. Das aktuelle Verhalten ist gewollt.
+- **„`sections` muss in `deepMergeStyle`."** Kollidiert mit einer bereits getroffenen Entscheidung ([mcp-tool-consolidation.md](done/mcp-tool-consolidation.md) §6): ein Teil-Patch würde die übrigen Sections löschen. Das aktuelle Verhalten ist gewollt.
 - **`D1` ist `high`, nicht `critical`.** `export_print` schreibt eine *Temp*-Datei und repointet den *Temp*-Root; die Autoren-`style.typ` überlebt. Das Ergebnis ist ein falsches PDF, nicht der Verlust des Designs.

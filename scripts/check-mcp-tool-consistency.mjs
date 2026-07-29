@@ -104,7 +104,7 @@ const CONSUMERS = [
  * drift — it is a record. Flagging those would train everyone to ignore this
  * script, which is the only way it can actually fail.
  */
-const HISTORY = /^documentation\/(done\/|project_status\.md|mcp-tool-audit\.md|mcp-tool-consolidation\.md|mcp-rebuild-plan\.md|app-mcp-parity\.md|handover\.md|next-steps\.md)/;
+const HISTORY = /^documentation\/(done\/|eval-transcripts\/|project_status\.md|app-mcp-parity\.md|handover\.md|next-steps\.md)/;
 
 for (const rel of CONSUMERS) {
   const abs = path.join(REPO, rel);

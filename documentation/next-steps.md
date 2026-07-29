@@ -66,7 +66,7 @@ Der Serializer ist seit Session 25 journal-tauglich (echte Word-Styles, Multilev
 ### Erledigt und abgehakt — nicht neu aufmachen
 
 - [x] **MCP-Umbau** (Blöcke 1–4). Parität auf allen vier Achsen; das adversariale Nach-Audit abgearbeitet. Historie: [handover.md](handover.md), [app-mcp-parity.md](app-mcp-parity.md), Git-Log.
-- [x] **„Können wir die 60 MCP-Tools reduzieren?"** — **gemessen und verworfen.** 15 Autorenaufgaben, **0 Fehlgriffe**, $1,36. [mcp-eval-results.md](mcp-eval-results.md); [mcp-tool-consolidation.md](mcp-tool-consolidation.md) trägt das Ergebnis oben als Banner.
+- [x] **„Können wir die 60 MCP-Tools reduzieren?"** — **gemessen und verworfen.** 15 Autorenaufgaben, **0 Fehlgriffe**, $1,36. [mcp-eval-results.md](eval-transcripts/mcp-eval-results.md); [mcp-tool-consolidation.md](done/mcp-tool-consolidation.md) trägt das Ergebnis oben als Banner.
 - [x] **Web-Export „Editorial Web Pack"** — Phasen 0/A/B/C/D/E gebaut auf `feat/web-export`; **noch nicht nach `main` gemergt**.
 
 **Was bewusst asymmetrisch bleibt** (App ↔ KI) steht in [CLAUDE.md](../CLAUDE.md) → „App ↔ MCP parity" und ist **keine** offene Arbeit: engere Export-Sandbox der KI · einseitiger Zustandskanal · echte Fremd-Locks bleiben harte Ablehnung · kein Compile-Verify vor gewöhnlichen Textänderungen · zwei Undo-Systeme · Web-Export ohne MCP-Tool.
