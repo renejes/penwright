@@ -336,5 +336,44 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   }
 }
 
+// ─── Typst characters that mean something (found in real client work) ───────
+//
+// Both of these were found in René's own client offers, in the rendered PDF —
+// not by a test. They are the shape of bug that only shows up on real
+// documents: the round trip stays plausible, compiles fine, and quietly
+// changes what the reader sees.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+
+  // `~` in Typst is a NON-BREAKING SPACE, not a tilde. The serializer escaped
+  // it to `\~`, which renders as a visible tilde: "Zahlbar bis 24.~August"
+  // became "24.~August" in a client's payment terms.
+  for (const src of [
+    'Zahlbar bis 24.~August 2026.',
+    'Ein Preis von 1.200~€ netto.',
+    'Prof.~Dr.~Müller',
+  ]) {
+    check(`nbsp survives: ${src.slice(0, 28)}…`, ser(src) === src, { got: ser(src) });
+  }
+
+  // …and the inverse must still hold: an ESCAPED tilde is a real tilde and has
+  // to stay escaped, or it would silently turn into a space.
+  check('escaped tilde stays a tilde', ser('Ein \\~ Zeichen.') === 'Ein \\~ Zeichen.', { got: ser('Ein \\~ Zeichen.') });
+  check('both in one line', ser('24.~August und \\~tilde') === '24.~August und \\~tilde', { got: ser('24.~August und \\~tilde') });
+
+  // `#pagebreak(weak: true)` collapses when the page is already fresh;
+  // `#pagebreak()` never does. Dropping `weak` turns a tidy break into a
+  // forced one — potentially a blank page. `to: "even"` is how the
+  // double-truck spread aligns to a left-hand page.
+  for (const src of ['#pagebreak()', '#pagebreak(weak: true)', '#pagebreak(to: "even")']) {
+    check(`pagebreak args survive: ${src}`, ser(src) === src, { got: ser(src) });
+  }
+  check(
+    'pagebreak args survive between paragraphs',
+    ser('Davor.\n\n#pagebreak(weak: true)\n\nDanach.') === 'Davor.\n\n#pagebreak(weak: true)\n\nDanach.',
+    { got: ser('Davor.\n\n#pagebreak(weak: true)\n\nDanach.') },
+  );
+}
+
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);
 process.exit(fail > 0 ? 1 : 0);

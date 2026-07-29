@@ -115,7 +115,14 @@ function splitIntoBlocks(text: string): string[] {
     // directly under a paragraph) glue into one paragraph and the heading
     // markers leak into the text. The math-parity guard keeps `= x` lines
     // inside a multi-line `$ … $` display equation untouched.
-    if (/^={1,6}\s+\S/.test(line) && !wasNested && !isNested && !wasInMath) {
+    //
+    // `^\s*` matters: the bodies of the magazine containers (`#columns[…]`,
+    // `#notiz[…]`, `#bildtafel[…]`) are re-parsed recursively, and their
+    // contents are INDENTED. Anchored at column 0, an indented `== Title`
+    // stayed glued to the paragraph under it, the pair was serialized as one
+    // line, and Typst then rendered the ENTIRE paragraph as the heading — in
+    // a shipped preset.
+    if (/^\s*={1,6}\s+\S/.test(line) && !wasNested && !isNested && !wasInMath) {
       if (current.length > 0) {
         blocks.push(current.join('\n'));
         current = [];
@@ -245,9 +252,17 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
     return tableNode;
   }
 
-  // 7.6. Pagebreak: #pagebreak()
-  if (block.trimStart().startsWith('#pagebreak')) {
-    return { type: 'pagebreak' };
+  // 7.6. Pagebreak: #pagebreak(), #pagebreak(weak: true), #pagebreak(to: "even")
+  //
+  // The arguments are kept. `startsWith('#pagebreak')` used to match them all
+  // and return a bare node, and the serializer wrote `#pagebreak()` back —
+  // so `weak: true` (collapses when the page is already fresh) silently became
+  // a FORCED break, which can insert a blank page, and `to: "even"` (how the
+  // double-truck spread aligns to a left-hand page) was lost outright.
+  const pagebreak = block.trimStart().match(/^#pagebreak\(([^)]*)\)\s*$/);
+  if (pagebreak) {
+    const args = pagebreak[1].trim();
+    return args ? { type: 'pagebreak', attrs: { args } } : { type: 'pagebreak' };
   }
 
   // 7.7. Bibliography: #bibliography(...)
@@ -561,6 +576,12 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
       ? 'left'
       : 'center';
 
+  // The full spec, when it says more than the horizontal alignment does.
+  // `center + horizon` also centres VERTICALLY — reducing it to `center` and
+  // re-emitting that dropped the vertical centring from three shipped title
+  // pages, silently, on the first save.
+  const alignSpec = spec === alignment ? undefined : spec;
+
   // Special-case: a single image inside the align block.
   const innerImageAttrs = parseImageCall(inner);
   if (innerImageAttrs) {
@@ -575,7 +596,11 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
   if (innerHeadingMatch) {
     return {
       type: 'heading',
-      attrs: { level: innerHeadingMatch[1].length, textAlign: alignment },
+      attrs: {
+        level: innerHeadingMatch[1].length,
+        textAlign: alignment,
+        ...(alignSpec ? { alignSpec } : {}),
+      },
       content: parseInline(innerHeadingMatch[2]),
     };
   }
@@ -1327,6 +1352,16 @@ function extractArgAndBracket(
  * text of `*`/`_` marks are unescaped (`\x` → `x`); `code` spans are kept raw
  * (Typst raw text does not process escapes), mirroring the serializer.
  */
+/**
+ * Typst's non-breaking-space shorthand, and the character it means.
+ *
+ * Keeping them apart matters: `~` in source is a SPACE, `\~` in source is a
+ * tilde. Both used to arrive in the editor as the character `~`, so the
+ * serializer could not tell them apart and escaped every one of them.
+ */
+const NBSP_SOURCE = '~';
+const NBSP = '\u00A0';
+
 function parseFormattedText(text: string): TipTapNode[] {
   if (!text) return [];
 
@@ -1347,6 +1382,18 @@ function parseFormattedText(text: string): TipTapNode[] {
     if (ch === '\\' && i + 1 < text.length) {
       buf += text[i + 1];
       i += 2;
+      continue;
+    }
+
+    // An UNESCAPED `~` is Typst's non-breaking space, not a tilde. It has to
+    // become the actual character, or the distinction from an escaped `\~`
+    // (which is a real tilde, handled just above) is gone by the time the
+    // serializer runs — and the serializer, correctly escaping a literal
+    // tilde, then wrote `\~` back. That turned "Zahlbar bis 24.~August" into a
+    // visible "24.~August" in the rendered PDF of a client offer.
+    if (ch === NBSP_SOURCE) {
+      buf += NBSP;
+      i++;
       continue;
     }
 

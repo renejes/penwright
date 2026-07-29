@@ -68,12 +68,12 @@ function serializeNode(node: TipTapNode): string {
       const label = node.attrs?.label as string | undefined;
       const labelSuffix = label ? ` <${label}>` : '';
       const headingText = `${prefix} ${text}${labelSuffix}`;
-      return wrapWithAlign(headingText, node.attrs?.textAlign as string);
+      return wrapWithAlign(headingText, node.attrs?.textAlign as string, node.attrs?.alignSpec as string);
     }
 
     case 'paragraph': {
       const paraText = escapeLeadingBlockMarker(serializeInline(node.content ?? []));
-      return wrapWithAlign(paraText, node.attrs?.textAlign as string);
+      return wrapWithAlign(paraText, node.attrs?.textAlign as string, node.attrs?.alignSpec as string);
     }
 
     case 'bulletList': {
@@ -128,7 +128,12 @@ function serializeNode(node: TipTapNode): string {
     }
 
     case 'pagebreak': {
-      return '#pagebreak()';
+      // Round-trip the arguments. Emitting a bare `#pagebreak()` turned
+      // `weak: true` into a forced break (a possible blank page) and dropped
+      // `to: "even"` (the spread's left-page alignment) — both silently, in
+      // documents that had been laid out deliberately.
+      const args = typeof node.attrs?.args === 'string' ? node.attrs.args.trim() : '';
+      return args ? `#pagebreak(${args})` : '#pagebreak()';
     }
 
     // Bibliography: passthrough — original #bibliography(...) preserved
@@ -214,7 +219,15 @@ function serializeBlockBody(nodes: TipTapNode[]): string {
  * Wraps block content in #align(direction)[...] if alignment is not left/default.
  * Justify is typically document-wide via #set par(justify: true), so we skip it.
  */
-function wrapWithAlign(content: string, align: string | undefined | null): string {
+/**
+ * `spec` is the original `#align(…)` argument when it carried more than the
+ * horizontal alignment — `center + horizon` centres vertically too, and
+ * re-emitting the reduced `center` silently flattened three shipped title
+ * pages. The editor only ever edits the horizontal part, so the spec is
+ * passed through untouched when present.
+ */
+function wrapWithAlign(content: string, align: string | undefined | null, spec?: string | null): string {
+  if (spec) return `#align(${spec})[${content}]`;
   if (!align || align === 'left' || align === 'justify') {
     return content;
   }
@@ -276,6 +289,12 @@ function escapeTypstText(text: string): string {
       // into `/*` (text "and/" + bold "or" → `and/*or*` = unterminated block
       // comment, silently eating the rest of the document). Escape it.
       .replace(/\/$/, '\\/')
+      // A real non-breaking space becomes Typst's `~` shorthand. LAST, so the
+      // escape pass above cannot turn it into `\~` — which is a visible tilde
+      // and was exactly the corruption this pairs with: the deserializer now
+      // maps source `~` to U+00A0 and `\~` to a literal tilde, and this line
+      // maps them back.
+      .replace(/\u00A0/g, '~')
   );
 }
 
@@ -287,7 +306,11 @@ function escapeTypstText(text: string): string {
  */
 function escapeLeadingBlockMarker(text: string): string {
   return text
-    .replace(/^(\s*)([=\-+/])(\s)/, '$1\\$2$3')
+    // `={1,6}`, not a single `=`: a paragraph starting `== Foo` was left alone
+    // (the old pattern needed whitespace right after ONE `=`), so on the next
+    // open Typst read it as a level-2 heading and swallowed the paragraph.
+    .replace(/^(\s*)(={1,6})(\s)/, '$1\\$2$3')
+    .replace(/^(\s*)([\-+/])(\s)/, '$1\\$2$3')
     .replace(/^(\s*)(\d+)\.(\s)/, '$1$2\\.$3');
 }
 

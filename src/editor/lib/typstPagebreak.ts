@@ -8,12 +8,33 @@ export const TypstPagebreak = Node.create({
   draggable: true,
   selectable: true,
 
+  /**
+   * The call's arguments, verbatim — `weak: true`, `to: "even"`, or empty.
+   *
+   * They are not editable here and they are not meant to be; the node exists so
+   * the break is visible and movable. The attribute is what stops a round trip
+   * from rewriting a deliberate `#pagebreak(weak: true)` as a forced break.
+   */
+  addAttributes() {
+    return {
+      args: {
+        default: '',
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-pagebreak-args') ?? '',
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.args ? { 'data-pagebreak-args': String(attrs.args) } : {},
+      },
+    };
+  },
+
   parseHTML() {
     return [{ tag: 'div[data-pagebreak]' }];
   },
 
-  renderHTML() {
-    return ['div', { 'data-pagebreak': '', class: 'typst-pagebreak' }, 'Page Break'];
+  renderHTML({ HTMLAttributes }) {
+    // Carry the args through the HTML round trip too — copy/paste inside the
+    // editor goes via HTML, and a paste that dropped them would reintroduce
+    // exactly the bug the attribute exists to prevent.
+    return ['div', { ...HTMLAttributes, 'data-pagebreak': '', class: 'typst-pagebreak' }, 'Page Break'];
   },
 
   addNodeView() {
