@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **62 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **63 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
 
 ---
 
@@ -78,7 +78,7 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 
 ---
 
-## Verfuegbare Tools (62)
+## Verfuegbare Tools (63)
 
 ### Projekt & Dateien (5)
 
@@ -532,7 +532,7 @@ Das gilt fuer **alle In-App-Registrierungswege** (Claude-Desktop-Wizard, Meta-MC
 Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft die (gebuendelte oder System-)`typst`-Binary fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts             <- Alle 57 Tools in einer Datei (~2.800 Zeilen)
+src/mcp/server.ts             <- Alle 63 Tools in einer Datei
 esbuild.mcp.mjs               <- Build (ESM, Node 20) -> dist/mcp/server.mjs (Dev / manueller Node-Pfad)
 scripts/build-mcp-binary.mjs  <- Bun `--compile` -> dist/mcp/bin/penwright-mcp-<triple> (die ausgelieferte Standalone-Binary)
 ```

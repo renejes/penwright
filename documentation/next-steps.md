@@ -8,7 +8,7 @@
 
 **Das Prinzip:** Die KI (über den MCP-Server) sieht, was der Mensch sieht, und beide beschreiben dieselben Dateien. Beide arbeiten mit demselben Wissen und haben denselben Zugriff.
 
-**Stand nach Session 42:** **P1 / P3 / P4 erfüllt, P2 bis auf die Backups.** Der Satz von Session 41 — *„auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht"* — gilt nicht mehr; die beiden Prozesse teilen jetzt auch eine Gegenwart.
+**Stand nach Session 42 (Block 1 + 2):** **P1 / P3 / P4 erfüllt, P2 bis auf die Backups.** Der Satz von Session 41 — *„auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht"* — gilt nicht mehr; die beiden Prozesse teilen jetzt auch eine Gegenwart.
 
 **Das Muster, das fortgeschrieben wird:** kein Synchronhalten zweier Implementierungen, sondern ein **gemeinsamer Planer in `src/shared/`**, den beide Prozesse aufrufen — reines Planen, der Aufrufer wendet an. **Zwölf** solche Module (`safeApply`, `projectScaffold`, `assetPlacement`, `styleWrite`, `fileWrite`, `watchIgnore`, `sessionState`, `editHistory`, `lockFile`, `bibDiscovery`, `stylePresetMerge`, `printExportPlan`).
 
@@ -30,16 +30,27 @@
 | Block | Inhalt | PT |
 |---|---|---:|
 | ~~1~~ | ~~Parität~~ | ✅ |
-| **2** | **Phase B — als nächstes.** `server.instructions` (vorhanden, dokumentiert und **ungenutzt** — größter Einzelhebel, halber Tag), `registerTool()` + Annotations (`readOnlyHint` → Auto-Approve; ändert **keinen** Tool-Namen), Beschreibungs-Chirurgie; dazu das Wächterskript gegen die sechs driftenden Tool-Listen + drei A3-Reste (Git-Tools ohne Projekt-Guard, Compile-Temp-PDF neben dem Root, **kein Extension-Guard beim Export — `outputPath: "main.typ"` überschreibt die Quelldatei mit einem PDF**). | 2 |
-| 3 | Phase C-Rest — u. a. **`insert_reference` nimmt Citekeys** (die einzige verbliebene echte Fähigkeitslücke) | 1,5 |
-| 4 | Eval — 10–15 Autorenaufgaben, vor und nach Block 2 | 1 |
+| ~~2~~ | ~~Phase B + A2 + A3-Rest~~ | ✅ |
+| **3** | **Phase C-Rest — als nächstes.** Kapitel-Tools auf die Wurzel · `restore_version` verlangt Bestätigung · `replace_in_project` bekommt Dry-Run · Caps gegen Kontext-Flutung · **`insert_reference` nimmt auch Citekeys** (die einzige verbliebene echte Fähigkeitslücke — „zitiere @chen2021 im dritten Absatz" ist im ganzen Server nicht bedienbar) | 1,5 |
+| 4 | **Eval** — 10–15 nachprüfbare Autorenaufgaben. Der Vergleichspunkt ist jetzt fällig: `instructions` + geschärfte Beschreibungen sind drin, die Namen sind unverändert. **Das ist der Moment, an dem sich messen lässt, ob Block 5 überhaupt gebraucht wird.** | 1 |
 | 5 | Phase E + F (Renames, Merges, Skill-Rewrite) — **nur wenn das Eval Fehlgriffe zeigt** | 7 |
 
-**Rest des harten Kerns: ~4,5 PT.** Block 5 hängt bewusst an einer Messung: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
+**Rest des harten Kerns: ~2,5 PT.** Block 5 hängt bewusst an der Messung in Block 4: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
+
+### Erledigt (Block 2, Phase B + A2 + A3-Rest)
+
+- [x] **`server.instructions`** — vorhanden, dokumentiert und seit jeher ungenutzt (es wurde nie ein Options-Objekt übergeben). 1770 B, hält sich an das, was keine einzelne Tool-Beschreibung sagen kann: dass das Dokument **gesehen** werden kann, dass Design in Tokens lebt und bei Bruch zurückgerollt wird, dass Anker besser sind als Offsets, dass jeder Write gesichert ist, und dass es für den Web-Export kein Tool gibt.
+- [x] **`registerTool()` + `title` + vollständige Annotations für alle 63 Tools** — über **eine** `TOOL_META`-Tabelle statt über 63 Registrierungen; der Wrapper wirft beim Registrieren, wenn ein Tool fehlt. `readOnlyHint` schaltet Auto-Approve für die Leser frei. **Kein Tool-Name geändert.** Kein `outputSchema` (das erzwänge `structuredContent` in jedem Return).
+- [x] **Beschreibungs-Chirurgie** — zwei sachlich falsche korrigiert (`get_settings` versprach 8 Felder, es sind 2; „19 design elements", es sind 24) und die Kollisionspaare geschärft, sodass jede sagt, **wann man sie statt der anderen nimmt**: create_project↔create_from_preset, write_file↔update_document, merge↔split, export_pdf↔export_print↔export_docx.
+- [x] **A3 — Extension-Guard für die drei Export-Tools.** `outputPath: "main.typ"` bestand die Sandbox-Prüfung, Typst überschrieb die Quelldatei mit einem PDF, das Tool meldete Erfolg. **Datenverlust, jetzt zu.**
+- [x] **A3 — `requireProjectGit()`.** `simpleGit(dir)` läuft nach oben weiter, bis es ein Repo findet: auf jedem Projekt, das selbst keines ist (die meisten handgemachten Dokumente), hätte `git_commit` das Working-Tree eines fremden Repos gestaged und `git_push` es verschickt. Die High-Level-Versionstools sind bewusst ausgenommen — sie legen das Repo des Projekts an, was dort richtig ist.
+- [x] **A3 — Compile-Artefakt nach `os.tmpdir()`** statt neben die Wurzel.
+- [x] **A2 — `npm run check:mcp`**, in `package:*` eingehängt. Es fand beim ersten Lauf 9 echte Drifts (Manifest 53 von 63, vier falsche Zählungen, ein Tool-Name der nie existierte). **Die `.mcpb`-Manifest-Toolliste wird jetzt aus `server.ts` generiert** statt gepflegt.
+- [x] **`scripts/mcp-manifest-test.mts`** — liest das Manifest **von der Leitung**, nicht aus dem Quelltext (`npm run build:mcp` typecheckt nicht, ein `annotation:` statt `annotations:` fällt still durch), und prüft die drei neuen Guards E2E.
 
 **Kleinere Paritätsreste** (nicht blockierend): `insert_design_element` bekommt `file` · Backup-Tools für die KI (`history/VER-03` — Auto-Backups sind für sie unlesbar, aber ungeschützt beschreibbar) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI sichtbar · Handbuch als MCP-Resource · `writeFileAtomic` + `awaitWriteFinish` (<4 h zusammen).
 
-**Gate nach jedem Block, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen (steht auf **`0.20.0`**, gebumpt) + `npm run build:mcp-binary:all`. **Neu:** die Skill-Texte stecken jetzt in der Binary (die MCP-Anlagewege deployen sie), also braucht auch eine `skillTemplates.ts`-Änderung einen Rebuild.
+**Gate nach jedem Block, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen (steht auf **`0.21.0`**, gebumpt) + `npm run build:mcp-binary:all` + `npm run check:mcp`. **Neu:** die Skill-Texte stecken jetzt in der Binary (die MCP-Anlagewege deployen sie), also braucht auch eine `skillTemplates.ts`-Änderung einen Rebuild.
 
 ### Was bewusst asymmetrisch bleibt — nicht „fixen"
 

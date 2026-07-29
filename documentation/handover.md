@@ -1,6 +1,6 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-29, Ende der zweiten Paritäts-Session (Session 42) · Branch `main` · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.20.0** (gebumpt, Binaries neu gebaut)
+> **Stand:** 2026-07-29, Ende von Session 42 · Branch `main` · App-Version **0.12.0** · `MCP_SETUP_VERSION` **0.21.0** (gebumpt, Binaries neu gebaut) · **Block 1 (Parität) und Block 2 (Phase B + A2 + A3-Rest) sind fertig**
 >
 > **Lies zuerst diese Datei, dann `CLAUDE.md` → „App ↔ MCP parity", dann leg los.** Referenzdokumente: [app-mcp-parity.md](app-mcp-parity.md) (Ist-Zustand + Restliste), [mcp-rebuild-plan.md](mcp-rebuild-plan.md) (der MCP-Umbau, Rest in die Paritätssequenz einsortiert), [mcp-tool-audit.md](mcp-tool-audit.md) + [mcp-tool-consolidation.md](mcp-tool-consolidation.md) (warum wir die Tool-Zahl **nicht** reduzieren).
 
@@ -52,11 +52,11 @@ Vier prüfbare Forderungen. Stand **nach** dieser Session:
 - `ensureSkills(dir, [])` legte trotzdem ein leeres `.claude/skills/` an.
 - `fsIO.read` gab bei einer *unlesbaren* Datei `null` zurück — und `null` heißt „existierte nicht", was ein Rollback **löscht**. Aus einem Rechteproblem wäre „deine `style.typ` ist weg" geworden. Wirft jetzt.
 - `agent-activity.json` stand nicht in der Watcher-Ignore-Liste: jeder MCP-Schreibvorgang hätte ein Dateisystem-Ereignis auf den kritischen Pfad der App gelegt.
-- Der Tool-Wrapper hatte die Zod-Schema-Inferenz aller 62 Handler gekillt (60 `any`-Fehler). Als `typeof server.tool` typisiert bleiben alle vier Overloads erhalten.
+- Der Tool-Wrapper hatte die Zod-Schema-Inferenz aller Handler gekillt (60 `any`-Fehler). Als `typeof server.tool` typisiert bleiben die Overloads erhalten.
 
 ### Ein Muster, das ab jetzt gilt
 
-**Alle Tools werden über den lokalen `tool(...)`-Wrapper registriert, nicht über `server.tool(...)`.** Dort hängen die Hinweise, die der Server dem Agenten schuldet — an **einer** Stelle statt an siebenundzwanzig. Neue querschnittliche Hinweise gehören dorthin. (Das ist außerdem die Stelle, an der Block 2 des Umbauplans auf `registerTool()` + Annotations umstellen wird — ein Ort statt sechzig.)
+**Alle 63 Tools werden über den lokalen `tool(...)`-Wrapper registriert, nie direkt über `server.tool` / `server.registerTool`.** Dort hängt alles Querschnittliche an **einer** Stelle statt an dreiundsechzig: die Hinweise, die der Server dem Agenten schuldet, sowie `title` + `annotations` aus der `TOOL_META`-Tabelle (Block 2 hat das direkt darüber gelegt — ein Ort statt dreiundsechzig, und der Wrapper wirft beim Registrieren, wenn ein Tool keinen Eintrag hat). Das Wächterskript erzwingt es.
 
 ### Tests
 
@@ -75,27 +75,48 @@ Alle bestehenden Suiten grün: `style-guard` · `write-provenance` · `watch-ign
 **Geht nicht:**
 - **Auto-Backups sind für die KI immer noch unlesbar** (aber ungeschützt beschreibbar) — `history/VER-03`.
 - **Der Mensch hat keine Oberfläche für die 24 Design-Elemente**, die die KI einfügen kann.
-- **`insert_reference` nimmt keine Citekeys** — „zitiere @chen2021 im dritten Absatz" ist im ganzen Server nicht bedienbar. Das ist die **einzige verbliebene echte Fähigkeitslücke**.
+- **`insert_reference` nimmt keine Citekeys** — „zitiere @chen2021 im dritten Absatz" ist im ganzen Server nicht bedienbar. Das ist die **einzige verbliebene echte Fähigkeitslücke**, und sie steht in Block 3.
 - **Echte Gleichzeitigkeit auf derselben Datei bleibt Last-Writer-Wins** (sichtbar und sicherbar, nicht auflösbar).
 - **Nicht-atomare Writes** — weder App noch MCP schreiben über temp+rename. Nicht beobachtet, aber ungeschützt. `awaitWriteFinish` + ein gemeinsames `writeFileAtomic` kosten zusammen unter vier Stunden.
 
 ---
 
+## 2b. Was Block 2 gebaut hat (Phase B + A2 + die drei A3-Reste)
+
+**Der Server stellt sich jetzt vor.** `instructions` gehört zu `initialize`, ist seit jeher dokumentiert, und dieser Server hat einfach nie ein Options-Objekt übergeben — 63 Tool-Beschreibungen mussten Dinge tragen, die dem Server als Ganzem gehören, und taten es meist nicht. 1770 B, beschränkt auf das, was aus keiner einzelnen Beschreibung hervorgeht: dass das Dokument **gesehen** werden kann, dass Design in Tokens lebt und bei Bruch zurückgerollt wird, dass Anker besser sind als Offsets, dass jeder Write gesichert ist, und dass es für den Web-Export **kein** Tool gibt (statt zu schweigen: „File ▸ Export to Web (HTML)").
+
+**Alle 63 Tools auf `registerTool()`, mit Titel und vollständigen Annotations — aus EINER Tabelle.** `TOOL_META` statt 63 Registrierungen: die Antwort auf „welche darf ein Host automatisch freigeben?" steht an einer Stelle, die man lesen und prüfen kann, statt an dreiundsechzig, wo sie driftet, sobald jemand den Nachbarn kopiert. Der Wrapper **wirft beim Registrieren**, wenn ein Tool keinen Eintrag hat. **Kein Tool-Name geändert** — kein Aufruf, der vorher ging, geht jetzt nicht.
+
+Die Klassifikation ist inhaltlich, nicht mechanisch: `readOnlyHint` heißt „ändert das Projekt nicht" (also auch `compile` und `render_page`, die eine Temp-Datei schreiben und wieder löschen); `destructiveHint` nur, wo unwiederbringliche Arbeit verloren gehen kann — **die verify-und-rollback-gesicherten Design-Tools sind ausdrücklich nicht destruktiv**, alles andere würde beibringen, die sichersten Werkzeuge hier zu fürchten.
+
+**Beschreibungs-Chirurgie.** Zwei waren schlicht falsch: `get_settings` versprach acht Felder (es sind zwei), und zwei Tools nannten 19 Design-Elemente (es sind 24). Die Kollisionspaare sagen jetzt, **wann man sie statt der anderen nimmt** — create_project↔create_from_preset, write_file↔update_document, merge↔split, export_pdf↔export_print↔export_docx.
+
+**Die drei A3-Reste, alle drei echte Defekte:**
+1. **Ein Export konnte seine eigene Quelle überschreiben.** `outputPath: "main.typ"` liegt im Projekt, bestand also die Sandbox-Prüfung; Typst schrieb ein PDF über das Dokument, das Tool meldete Erfolg. Jetzt greift die Regel an der Endung, nicht an einer Liste bekannter Dateien — ein Export schreibt ein *Artefakt*, und ein Artefakt hat nie eine Quell-Endung.
+2. **Die Low-Level-Git-Tools arbeiteten auf fremden Repos.** `simpleGit(dir)` scheitert auf einem Ordner ohne Repo nicht, sondern läuft nach oben, bis es eins findet. Auf jedem Projekt, das selbst keines ist — die meisten handgemachten Dokumente — hätte `git_commit` das Working-Tree eines fremden Repos gestaged und `git_push` es verschickt. Nichts am Aufruf hätte falsch ausgesehen. Die High-Level-Versionstools sind bewusst ausgenommen: die legen das Repo *dieses* Projekts an, was dort richtig ist.
+3. **Das Compile-Artefakt lag im Projektordner.** Jetzt in `tmpdir` (Typst beschränkt nur die *Eingabe*-Auflösung auf die Wurzel, nie die Ausgabe — an der gebündelten Binary geprüft).
+
+**`npm run check:mcp` (A2), in `package:*` eingehängt.** `server.ts` ist die Wahrheit; das Skript bricht den Build, wenn ein Dokument, das Handbuch, das Skill oder das `.mcpb`-Manifest ein Tool nennt, das es nicht gibt, eine falsche Zahl behauptet oder eines auslässt. Erster Lauf: **9 echte Drifts**, darunter ein Manifest mit 53 von 63 Tools und ein Tool-Name, der nie existiert hat. **Die Manifest-Toolliste wird jetzt aus `server.ts` generiert** statt gepflegt — eine dritte Kopie weniger.
+
+Zwei Dinge, die das Skript bewusst durchlässt: `documentation/done/**` und die Planungsdokumente sind Geschichte, und ein Plan, der ein Tool beschreibt, das er vorschlug, ist ein Protokoll, kein Drift. Sie zu melden würde allen beibringen, das Skript zu ignorieren — die einzige Art, wie es wirklich versagen kann.
+
+**`scripts/mcp-manifest-test.mts`** liest das Manifest **von der Leitung**, nicht aus dem Quelltext: `npm run build:mcp` typecheckt nicht, ein `annotation:` statt `annotations:` kompiliert, bündelt, wird ausgeliefert und ist unsichtbar, bis sich jemand wundert, warum nichts auto-freigegeben wird.
+
+---
+
 ## 3. Nächste Session — der Fahrplan
 
-Die Paritätsliste (Block 1) ist **abgearbeitet**. Der Rest ist der revidierte Umbauplan:
+Blöcke 1 und 2 sind **abgearbeitet**. Der Rest:
 
 | Block | Inhalt | PT |
 |---|---|---:|
-| ~~1~~ | ~~Parität fertig~~ | ✅ |
-| **2** | **Phase B allein — jetzt dran.** `server.instructions` (vorhanden, dokumentiert und **ungenutzt**: `server.ts` übergibt kein Options-Objekt — laut Audit der größte Einzelhebel, ein halber Tag), `registerTool()` + Annotations (`readOnlyHint` → Auto-Approve für die Leser in Claude Code; **ändert keinen einzigen Tool-Namen**), Beschreibungs-Chirurgie. Dazu A2 (Wächterskript gegen die sechs driftenden Tool-Listen) und die drei A3-Reste: Git-Tools ohne Projekt-Guard, Compile-Temp-PDF liegt neben dem Root, **kein Extension-Guard beim Export (`outputPath: "main.typ"` überschreibt heute die Quelldatei mit einem PDF)**. | 2 |
-| **3** | Phase C-Rest — Kapitel-Tools auf die Wurzel, `restore_version` verlangt Bestätigung, `replace_in_project` bekommt Dry-Run, Caps gegen Kontext-Flutung, **`insert_reference` nimmt auch Citekeys**. | 1,5 |
-| **4** | Eval — 10–15 nachprüfbare Autorenaufgaben, einmal vor und einmal nach Block 2. | 1 |
+| ~~1~~ | ~~Parität~~ | ✅ |
+| ~~2~~ | ~~Phase B + A2 + A3-Rest~~ | ✅ |
+| **3** | **Phase C-Rest — jetzt dran.** Kapitel-Tools auf die Wurzel, `restore_version` verlangt Bestätigung, `replace_in_project` bekommt Dry-Run, Caps gegen Kontext-Flutung, **`insert_reference` nimmt auch Citekeys** (die einzige verbliebene echte Fähigkeitslücke). | 1,5 |
+| **4** | **Eval — und der Zeitpunkt ist jetzt der richtige.** 10–15 nachprüfbare Autorenaufgaben. `instructions` und die geschärften Beschreibungen sind drin, die Namen sind unverändert: genau der Zustand, in dem sich messen lässt, ob Block 5 überhaupt gebraucht wird. | 1 |
 | **5** | Phase E + F (Renames, Streichungen, Merges, Skill-Rewrite). **Nur wenn das Eval Fehlgriffe zeigt.** | 7 |
 
-**Warum Block 2 zuerst:** kein Aufruf, der heute funktioniert, funktioniert danach nicht. Reiner Gewinn.
-
-**Warum Block 5 an einer Messung hängt:** der teuerste Posten ist `skillTemplates.ts` (39 Tool-Namen, Routing-Tabelle, ~25 Call-Beispiele) — inhaltliche Arbeit, ~2 Tage, und sie **darf genau einmal passieren**. Ob die Renames überhaupt nötig sind, ist unbelegt. Wenn `instructions` + geschärfte Beschreibungen die Fehlgriffe beseitigen, ist die Frage erledigt. Das halte ich weiterhin für das wahrscheinlichste Ergebnis.
+**Warum Block 5 an einer Messung hängt:** der teuerste Posten ist `skillTemplates.ts` (39 Tool-Namen, Routing-Tabelle, ~25 Call-Beispiele) — inhaltliche Arbeit, ~2 Tage, und sie **darf genau einmal passieren**. Ob die Renames überhaupt nötig sind, ist unbelegt. Wenn `instructions` + geschärfte Beschreibungen die Fehlgriffe beseitigen, ist die Frage erledigt. Nach Block 2 halte ich das für noch wahrscheinlicher als vorher — aber das ist eine Vermutung, und Block 4 ist da, um sie zu ersetzen.
 
 **Kleinere offene Paritätspunkte** (nicht blockierend, aus [app-mcp-parity.md](app-mcp-parity.md) Klasse 1/2): `insert_design_element` bekommt `file` (2 h) · Backup-Tools für die KI (VER-03) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI sichtbar · Handbuch als MCP-Resource.
 
@@ -109,7 +130,7 @@ Unverändert, jetzt auch in `CLAUDE.md` festgehalten: engere Export-Sandbox der 
 
 ## 5. Offene Punkte, die man vor dem Weiterarbeiten wissen muss
 
-- **`MCP_SETUP_VERSION` steht auf `0.20.0`, ist gebumpt, und `npm run build:mcp-binary:all` ist gelaufen.** Achtung: `ensureInstalledBinary` (`mcpSetup.ts`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
+- **`MCP_SETUP_VERSION` steht auf `0.21.0`, ist gebumpt, und `npm run build:mcp-binary:all` ist gelaufen.** Achtung: `ensureInstalledBinary` (`mcpSetup.ts`) kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten Build, nicht den Quellstand.
 - **Neu und wichtig: die Skill-TEXTE stecken jetzt in der Binary.** `create_project` / `create_from_preset` deployen sie. Eine Änderung an `skillTemplates.ts` braucht also einen Binary-Rebuild, um die MCP-Anlagewege zu erreichen (der Prompt-Pfad liest weiterhin von der Platte, da genügt das Löschen der veralteten SKILL.md).
 - **Die App wurde in dieser Session nie vom Assistenten gestartet.** Alle Verifikation ist Unit-/Integrations-/E2E-Test plus `tsc` + `svelte-check`. **Ein manueller Durchgang steht aus**, besonders: Design-Panel + Kapitel-Look (safeApplyDesign wurde umgebaut), der Verlaufs-Hub (AI-Liste ist jetzt projektweit und zeigt Dateinamen), Bild-Import per Drag-and-Drop (Ablage und eingefügter Pfad haben sich geändert), und die neue KI-Anzeige in der Statusleiste.
 - **Renés echte Projekte bleiben der Härtefall.** `~/Desktop/Marketing/FMM/*` und `~/Desktop/Marketing/Ludwig Maier Mastering/*`: kein Git, keine `.penwright/style.json`, keine `.claude/skills`, handgeschriebene `style.typ`, **keine `main.typ`** (Wurzeln heißen `Angebot.typ` / `Sichtbarkeitskonzept.typ`). Jeder Root-Resolver muss zweistufig sein und bei `null` **hart fehlschlagen**. Der neue Scaffold rührt solche Projekte nicht an — dafür gibt es zwei Tests.
