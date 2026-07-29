@@ -87,9 +87,33 @@ copyFileSync(TYPST_BINARY, join(STAGING, 'server', 'typst', 'typst'));
 cpSync(TYPST_PACKAGES, join(STAGING, 'server', 'typst-packages'), { recursive: true });
 cpSync(FONTS,           join(STAGING, 'server', 'fonts'),          { recursive: true });
 
-// Manifest: copy verbatim. We could template-substitute version etc.
-// later; for now the template IS the manifest.
-copyFileSync(MANIFEST_TEMPLATE, join(STAGING, 'manifest.json'));
+// Manifest: template plus a tools list DERIVED from the server.
+//
+// The template used to carry its own hand-written tools array. It was a third
+// copy of the list, and it drifted the way third copies do: ten tools missing
+// and a count that had been true two releases earlier. Whoever installed the
+// .mcpb by hand simply did not get those ten. Reading the registrations means
+// the list cannot be stale — adding a tool updates it by definition.
+const manifestTemplate = JSON.parse(readFileSync(MANIFEST_TEMPLATE, 'utf-8'));
+const serverSource = readFileSync(join(ROOT, 'src', 'mcp', 'server.ts'), 'utf-8');
+
+const derivedTools = [...serverSource.matchAll(
+  /^tool\(\s*\n\s*'(penwright_[a-z_]+)',\s*\n\s*'((?:[^'\\]|\\.)*)'/gm,
+)].map(m => ({
+  name: m[1],
+  // The description is a single-quoted TS literal; unescape what that implies.
+  description: m[2].replace(/\\'/g, "'").replace(/\\\\/g, '\\'),
+}));
+
+if (derivedTools.length === 0) {
+  console.error('[build-mcpb] could not derive any tools from src/mcp/server.ts — refusing to ship an empty list.');
+  process.exit(1);
+}
+
+manifestTemplate.tools = derivedTools;
+manifestTemplate.tools_generated = true;
+writeFileSync(join(STAGING, 'manifest.json'), JSON.stringify(manifestTemplate, null, 2) + '\n');
+console.log(`[build-mcpb] manifest lists ${derivedTools.length} tools (derived from server.ts)`);
 
 // ─── Validate manifest before packing ───────────────
 

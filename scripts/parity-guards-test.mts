@@ -165,6 +165,29 @@ async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
 const call = (id: number, name: string, args: unknown = {}) =>
   ({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
 
+/**
+ * The text of one specific response, not the whole stream.
+ *
+ * Substring-matching raw stdout looked fine until `initialize` started
+ * carrying `instructions` — which necessarily describes the very notes some of
+ * these checks assert the ABSENCE of. Two tests went red for a sentence in the
+ * server's own documentation. Asking the right response is the fix.
+ */
+function replyText(out: string, id: number): string {
+  for (const line of out.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const msg = JSON.parse(line);
+      if (msg.id !== id || !msg.result) continue;
+      return (msg.result.content ?? [])
+        .filter((c: { type: string }) => c.type === 'text')
+        .map((c: { text?: string }) => c.text ?? '')
+        .join('\n');
+    } catch { /* partial line */ }
+  }
+  return '';
+}
+
 if (!fs.existsSync(MCP)) {
   console.log(`\n! ${path.relative(REPO, MCP)} missing — run "npm run build:mcp" first.\n`);
   process.exit(1);
@@ -280,14 +303,14 @@ console.log('\nThe unsaved-work warning is on every writing tool, not three');
     call(2, 'penwright_set_project', { projectDir: dir }),
     call(3, 'penwright_add_footnote', { file: 'main.typ', afterText: 'Some prose here.', body: 'A note.' }),
   ]);
-  check('a tool that never had the note now carries it', out.includes('open in Penwright with unsaved changes'), out.slice(-500));
+  check('a tool that never had the note now carries it', replyText(out, 3).includes('open in Penwright with unsaved changes'), replyText(out, 3).slice(-300));
 
   // And it must NOT ride along on a tool that touched nothing.
   const clean = await callMcp(dir, [
     call(2, 'penwright_set_project', { projectDir: dir }),
     call(3, 'penwright_list_fonts', {}),
   ]);
-  check('but not on one that touched no document', !clean.includes('unsaved changes'), clean.slice(-300));
+  check('but not on one that touched no document', !replyText(clean, 3).includes('unsaved changes'), replyText(clean, 3).slice(-300));
 
   fs.rmSync(dir, { recursive: true, force: true });
 }
@@ -304,14 +327,14 @@ console.log('\nAn already-broken document is not blamed on the agent');
     call(2, 'penwright_set_project', { projectDir: dir }),
     call(3, 'penwright_get_document', {}),
   ]);
-  check('the agent is warned before it starts', out.includes('already failing to compile'), out.slice(-500));
+  check('the agent is warned before it starts', replyText(out, 3).includes('already failing to compile'), replyText(out, 3).slice(-300));
 
   writeSession({ projectDir: dir, currentFile: file, isDirty: false, lastCompileOk: true });
   const fine = await callMcp(dir, [
     call(2, 'penwright_set_project', { projectDir: dir }),
     call(3, 'penwright_get_document', {}),
   ]);
-  check('and not warned when the document is fine', !fine.includes('already failing to compile'));
+  check('and not warned when the document is fine', !replyText(fine, 3).includes('already failing to compile'), replyText(fine, 3).slice(-300));
 
   fs.rmSync(dir, { recursive: true, force: true });
 }
