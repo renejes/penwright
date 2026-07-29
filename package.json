@@ -9,9 +9,9 @@
     "dev": "unset ELECTRON_RUN_AS_NODE && electron-vite dev",
     "build": "unset ELECTRON_RUN_AS_NODE && electron-vite build",
     "start": "unset ELECTRON_RUN_AS_NODE && electron-vite preview",
-    "package:mac": "npm run check:mcp && npm run build && npm run build:mcp-binary:all && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --mac",
-    "package:win": "npm run check:mcp && npm run build && npm run build:mcp-binary:win && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --win",
-    "package:linux": "npm run check:mcp && npm run build && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --linux",
+    "package:mac": "npm test && npm run build && npm run build:mcp-binary:all && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --mac",
+    "package:win": "npm test && npm run build && npm run build:mcp-binary:win && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --win",
+    "package:linux": "npm test && npm run build && npm run fetch:packages && npm run fetch:fonts && npm run audit:packages && electron-builder --linux",
     "build:mcp": "node esbuild.mcp.mjs",
     "build:mcp-binary": "node scripts/build-mcp-binary.mjs",
     "build:mcp-binary:all": "node scripts/build-mcp-binary.mjs --all",
@@ -23,7 +23,13 @@
     "presets:build": "node scripts/presets-build.mjs",
     "presets:check": "node scripts/presets-build.mjs --check",
     "mcp": "node dist/mcp/server.mjs",
-    "check:mcp": "node scripts/check-mcp-tool-consistency.mjs"
+    "check:mcp": "node scripts/check-mcp-tool-consistency.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && svelte-check --threshold error",
+    "test:unit": "tsx scripts/roundtrip-test.mts && tsx scripts/html-export-test.mts && tsx scripts/docx-magazine-test.mts && tsx scripts/watch-ignore-test.mts && tsx scripts/write-provenance-test.mts",
+    "test:corpus": "tsx scripts/roundtrip-corpus-test.mts",
+    "test:mcp": "npm run build:mcp && tsx scripts/mcp-manifest-test.mts && tsx scripts/parity-guards-test.mts && tsx scripts/session-handoff-test.mts && tsx scripts/style-guard-test.mts && tsx scripts/bibliography-test.mts && tsx scripts/print-export-test.mts",
+    "test:compile": "tsx scripts/compile-stability-test.mts",
+    "test": "npm run check:mcp && npm run typecheck && npm run test:unit && npm run test:corpus && npm run test:mcp"
   },
   "bin": {
     "penwright-mcp": "./dist/mcp/server.mjs"
@@ -70,6 +76,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "svelte": "^5.0.0",
+    "svelte-check": "^4.7.4",
+    "tsx": "^4.23.1",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
   },
@@ -96,6 +104,14 @@
       {
         "from": "documentation/penwright-logo.svg",
         "to": "logo.svg"
+      },
+      {
+        "from": "documentation/",
+        "to": "docs/",
+        "filter": [
+          "handbook.md",
+          "handbuch.md"
+        ]
       },
       {
         "from": "resources/bin/",

@@ -32,8 +32,23 @@ const repo = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LANGSAM = process.env.LANGSAM_DIR || path.join(os.homedir(), 'Desktop', 'LANGSAM');
 
 if (!fs.existsSync(path.join(LANGSAM, 'macros.typ'))) {
-  console.log(`\n⚠ LANGSAM artifact not found at ${LANGSAM} — skipping compile-stability test (set LANGSAM_DIR).\n`);
-  process.exit(0);
+  // Exit 1, not 0.
+  //
+  // This used to exit 0 with a warning, which means the strongest test in the
+  // repo reported GREEN on every machine except one — having compiled nothing
+  // and compared nothing. A skip that looks like a pass is worse than no test:
+  // it buys confidence it did not earn. Two round-trip bugs sat in real client
+  // documents for months behind exactly this.
+  //
+  // Set LANGSAM_DIR to a real magazine project, or pass --allow-skip if you
+  // are deliberately running without one (CI on a fresh checkout).
+  const allowSkip = process.argv.includes('--allow-skip');
+  console.log(
+    `\n${allowSkip ? '⚠' : '✗'} compile-stability needs a real magazine project and found none at ${LANGSAM}.\n` +
+    `  Set LANGSAM_DIR=/path/to/project, or pass --allow-skip to accept that nothing was verified.\n` +
+    `  The corpus round-trip (npm run test:roundtrip) covers the bundled projects and always runs.\n`,
+  );
+  process.exit(allowSkip ? 0 : 1);
 }
 
 // Resolve the typst binary: bundled (preferred — the version we ship) else PATH.
