@@ -32,6 +32,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeFileAtomic } from './fileWrite';
 
 export interface PlannedWrite {
   abs: string;
@@ -71,9 +72,13 @@ export const fsIO: SafeApplyIO = {
     if (!fs.existsSync(abs)) return null;
     return fs.readFileSync(abs, 'utf-8');
   },
+  /**
+   * Atomic, because the verify compile reads these files the moment they are
+   * staged — a truncate-then-fill would hand Typst a half-written style.typ
+   * and fail the very check this engine exists to run.
+   */
   write(abs, content) {
-    fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, content, 'utf-8');
+    writeFileAtomic(abs, content);
   },
   remove(abs) {
     try {

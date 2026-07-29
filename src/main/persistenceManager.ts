@@ -18,6 +18,7 @@ import {
   sanitizeProjectStyle,
 } from '../shared/styleTypes';
 import type { SelectionPin } from '../shared/selectionTypes';
+import { listBackups, loadBackup } from '../shared/backupStore';
 
 export interface RecentProject {
   path: string;
@@ -460,54 +461,20 @@ export async function saveProjectBackup(
   };
 }
 
-/** Lists all backup snapshots for a project, newest first. */
+/**
+ * Lists all backup snapshots for a project, newest first.
+ *
+ * Delegates to `shared/backupStore` — the MCP server needs the same reader and
+ * cannot load this module (electron-store). Keeping a second copy here is how
+ * the agent ended up able to write into a store it could not inspect.
+ */
 export function listProjectBackups(projectDir: string): BackupSnapshot[] {
-  const dir = backupsDir(projectDir);
-  if (!fs.existsSync(dir)) return [];
-
-  const result: BackupSnapshot[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const metaPath = path.join(dir, entry.name, '.meta.json');
-    let timestampMs = parseTimestamp(entry.name);
-    let fileCount = 0;
-    let totalBytes = 0;
-    if (fs.existsSync(metaPath)) {
-      try {
-        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
-        if (typeof meta.timestampMs === 'number') timestampMs = meta.timestampMs;
-        if (Array.isArray(meta.files)) fileCount = meta.files.length;
-        if (typeof meta.totalBytes === 'number') totalBytes = meta.totalBytes;
-      } catch {}
-    }
-    result.push({ timestamp: entry.name, timestampMs, fileCount, totalBytes });
-  }
-  result.sort((a, b) => b.timestampMs - a.timestampMs);
-  return result;
+  return listBackups(projectDir);
 }
 
 /** Loads a single backup snapshot's files into memory. */
 export function loadProjectBackup(projectDir: string, timestamp: string): BackupFile[] {
-  const dir = path.join(backupsDir(projectDir), timestamp);
-  if (!fs.existsSync(dir)) return [];
-
-  const result: BackupFile[] = [];
-  function walk(sub: string, relBase: string): void {
-    for (const entry of fs.readdirSync(sub, { withFileTypes: true })) {
-      if (entry.name === '.meta.json') continue;
-      const full = path.join(sub, entry.name);
-      const relPath = path.posix.join(relBase, entry.name);
-      if (entry.isDirectory()) {
-        walk(full, relPath);
-      } else {
-        try {
-          result.push({ relPath, content: fs.readFileSync(full, 'utf-8') });
-        } catch {}
-      }
-    }
-  }
-  walk(dir, '');
-  return result;
+  return loadBackup(projectDir, timestamp);
 }
 
 /** Deletes oldest backups when count exceeds the configured maximum. */

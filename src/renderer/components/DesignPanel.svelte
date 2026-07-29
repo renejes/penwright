@@ -30,6 +30,7 @@
   import { THEME_PRESETS } from '../../shared/themePresets';
   import { mergeLayout } from '../../shared/stylePresetMerge';
   import { LAYOUT_PRESETS } from '../../shared/layoutPresets';
+  import DesignElementPicker from './DesignElementPicker.svelte';
   import { SECTION_PRESETS, getSectionPreset } from '../../shared/sectionPresets';
   import CodeEditor from './CodeEditor.svelte';
   import { t, getLocale } from '@shared/i18n/store.svelte';
@@ -986,6 +987,11 @@
       {/each}
     </div>
   </section>
+
+  <!-- The 24 ready-made layout blocks. Until now these could only be reached
+       by asking the AI (penwright_insert_design_element was the sole entry
+       point) — the parity principle failing towards the human. -->
+  <DesignElementPicker canTheme={initialized} />
 
   <section class="design-section">
     <header class="design-section-header">

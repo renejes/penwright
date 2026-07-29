@@ -16,6 +16,7 @@ import {
   wasDeletedByUs,
   inspectBeforeWrite,
   forgetAll,
+  writeFileAtomic,
 } from '../shared/fileWrite';
 import {
   recordSnapshot,
@@ -342,8 +343,9 @@ export async function saveFile(): Promise<boolean> {
       addBreadcrumb('file', `save overwrote a foreign change in ${path.basename(appState.currentFilePath)} (snapshotted)`);
     }
 
-    await fs.promises.writeFile(appState.currentFilePath, appState.currentContent, 'utf-8');
-    noteDiskContent(appState.currentFilePath, appState.currentContent);
+    // Atomic: the MCP server and every Typst compile read these files while we
+    // write them, and a truncate-then-fill hands a reader half a document.
+    writeFileAtomic(appState.currentFilePath, appState.currentContent);
     appState.isDirty = false;
     updateTitle();
     publishSession();
@@ -588,6 +590,13 @@ function setupFileWatcher(): void {
     // chapters/section/assets/ or a preset's nested folder never fired.
     depth: 6,
     ignored: (p: string) => isIgnoredWatchPath(watchRoot, p),
+    // Wait for the file to stop changing before reporting it. Without this a
+    // slow or chunked write — a large asset dropped in, a Dropbox/iCloud sync
+    // landing a file in pieces — fires `change` mid-write, and everything
+    // downstream reads a truncated document: the editor adopts half a chapter,
+    // the compiler reports a syntax error at the cut. 200 ms is below the
+    // threshold of noticing and far above a local write.
+    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
   });
 
   fileWatcher.on('change', async (changedPath: string) => {
@@ -611,7 +620,7 @@ function setupFileWatcher(): void {
     // Provenance, not a stopwatch: ignore only what WE put there.
     if (isKnownContent(changedPath, disk)) return;
 
-    const isText = /\.(typ|bib|md|json|toml|txt|csl)$/i.test(changedPath);
+    const isText = isTextLike(changedPath);
     const diskContent = isText ? disk.toString('utf-8') : null;
 
     // The design tokens changed underneath us — tell the renderer so the
@@ -689,6 +698,15 @@ function setupFileWatcher(): void {
   // debounce keeps a bulk operation (restore, preset copy) to one refresh.
   fileWatcher.on('add', (addedPath: string) => {
     if (path.basename(addedPath).startsWith('.penwright-')) return;
+    // An atomic write (temp + rename) surfaces as `add` on some platforms
+    // rather than `change`. Content we already have on record is not news —
+    // without this, every atomic save would refresh the tree and recompile a
+    // second time.
+    if (isTextLike(addedPath)) {
+      try {
+        if (isKnownContent(addedPath, fs.readFileSync(addedPath))) return;
+      } catch { /* vanished again — fall through to the refresh */ }
+    }
     scheduleFiletreeRefresh();
     if (affectsCompiledOutput(addedPath)) scheduleRecompile();
   });
@@ -700,6 +718,11 @@ function setupFileWatcher(): void {
     if (ours) return;   // our own delete needs no recompile — we triggered one
     if (affectsCompiledOutput(removedPath)) scheduleRecompile();
   });
+}
+
+/** Text we track the content of — the same set on every watcher branch. */
+function isTextLike(p: string): boolean {
+  return /\.(typ|bib|md|json|toml|txt|csl)$/i.test(p);
 }
 
 /** Files whose content ends up in the compiled PDF. */

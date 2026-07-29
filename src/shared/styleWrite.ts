@@ -19,7 +19,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { findRootFile, findRootFileIn } from './rootFinder';
+import { resolveDocumentRoot } from './chapterWrite';
 import {
   STYLE_TYPST_MARKER,
   extractCustomBlock,
@@ -36,22 +36,20 @@ export function styleJsonPath(projectDir: string): string {
 }
 
 /**
- * The file document-wide design belongs to: a project-root candidate first
- * (so global style never lands in an open chapter), then the root of the
- * current file's `#include` chain.
+ * The file document-wide design belongs to.
  *
- * Returns `null` when neither resolves — deliberately. The previous app-side
- * version returned `<dir>/main.typ` here, a path that need not exist; writing
- * to it would create a `main.typ` that then *wins* `findRootFileIn` against
- * the project's real root (e.g. `Angebot.typ`) and permanently moves the
- * design home. Callers must handle null instead.
+ * Deliberately an alias, not a second implementation: "where does the design
+ * live" and "which file is the document" are the SAME question, and answering
+ * it twice is how the app and the MCP server came to disagree about it in
+ * three separate places. The implementation is `chapterWrite.resolveDocumentRoot`
+ * — including the rule that null is an answer and `<dir>/main.typ` must never
+ * be fabricated (writing to one creates a file that then wins root resolution
+ * against the project's real root and moves the design home for good).
+ *
+ * The name survives because at these call sites "design root" is what the
+ * reader is thinking about.
  */
-export function resolveDesignRoot(projectDir: string, currentFile: string | null): string | null {
-  const candidate = findRootFileIn(projectDir);
-  if (candidate) return candidate;
-  if (currentFile && fs.existsSync(currentFile)) return findRootFile(currentFile);
-  return null;
-}
+export const resolveDesignRoot = resolveDocumentRoot;
 
 /** Directory `style.typ` lives in: next to the design root, else the project. */
 export function styleTypDir(projectDir: string, rootFile: string | null): string {

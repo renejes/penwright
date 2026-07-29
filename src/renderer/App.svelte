@@ -304,6 +304,7 @@
     window.addEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
     window.addEventListener('penwright:citation-hover', handleCitationHover as EventListener);
     window.addEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
+    window.addEventListener('penwright:insert-design-element', handleInsertDesignElement as EventListener);
     window.addEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.addEventListener('penwright:project-closed', onProjectClosed as EventListener);
     // Named handlers (not inline closures) so onDestroy can remove them.
@@ -658,6 +659,28 @@
   // `Edit → Insert Reference…` menu (Cmd+Alt+L), or the window event from
   // messageHandler. The picker calls back via `onPick` with the chosen
   // ProjectLabel; we then insert a `reference` node at the current cursor.
+  /**
+   * Insert a ready-made design element at the cursor.
+   *
+   * Dispatched by the Design panel's block library. Goes through the same
+   * window-event path every other sidebar surface uses, so App.svelte keeps
+   * the single editor reference.
+   *
+   * A `typstRawBlock` rather than parsed nodes: these are hand-tuned layout
+   * macros, and re-emitting them from the AST would normalise the very spacing
+   * they depend on. The deserializer relabels the block on reload.
+   */
+  function handleInsertDesignElement(e: Event) {
+    const detail = (e as CustomEvent<{ snippet: string; name: string }>).detail;
+    const editor = editorRef.current;
+    if (!editor || !detail?.snippet) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent({ type: 'typstRawBlock', attrs: { content: detail.snippet, blockType: 'code' } })
+      .run();
+  }
+
   function handleOpenReferencePicker() {
     if (!editorRef.current) return;
     showReferencePicker = true;
@@ -1062,6 +1085,7 @@
     window.removeEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
     window.removeEventListener('penwright:citation-hover', handleCitationHover as EventListener);
     window.removeEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
+    window.removeEventListener('penwright:insert-design-element', handleInsertDesignElement as EventListener);
     window.removeEventListener('penwright:comment-created', onCommentCreatedAtApp as EventListener);
     window.removeEventListener('penwright:external-write-overwritten', onExternalWriteOverwritten as EventListener);
     window.removeEventListener('penwright:project-closed', onProjectClosed as EventListener);

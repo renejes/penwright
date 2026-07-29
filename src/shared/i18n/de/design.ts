@@ -135,6 +135,13 @@ export const design: DesignMessages = {
 
   // Elements
   elementsTitle: 'Elements',
+  elementLibraryTitle: 'Bausteine',
+  elementLibraryDesc: 'Fertige Layout-Bausteine — Pull-Quotes, Hinweiskästen, Initialen, Galerien, Aufmacher. Sie nehmen Farben und Schriften aus diesem Projekt und ändern sich mit, wenn der Look wechselt.',
+  elementLibraryNoStyle: 'Diese Datei importiert style.typ nicht — ein Baustein hier findet die Projektfarben nicht und das Dokument kompiliert nicht mehr. Füge ihn stattdessen im Wurzeldokument ein.',
+  elementLibraryFilter: 'Bausteine filtern…',
+  elementLibraryEmpty: 'Kein Treffer.',
+  elementLibraryInsert: 'An Cursorposition einfügen',
+  elementLibraryMissing: (fields: string): string => `Bitte ausfüllen: ${fields}`,
   elementsHint1: 'Blockquote, Code-Block, Figure, Table. Komplexere Effekte (Callouts, Pull-Quotes, etc.) gehen in den Custom-Code-Block unten — das Paket ',
   elementsHint2: ' deckt z.B. Info/Warning/Tip-Boxen ab.',
   elementBlockquote: 'Blockquote',

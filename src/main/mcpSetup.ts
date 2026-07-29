@@ -65,7 +65,12 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // left the tokens on the new value); reorder/remove_chapter act on the root
 // like the other four chapter tools and no longer report a reorder they did
 // not perform; remove_chapter's filter is anchored to a real #include line.
-export const MCP_SETUP_VERSION = '0.23.0';
+// 0.24.0: chapterWrite planner (one root resolver + add/remove/reorder for
+// both processes), atomic writes, the backup store readable by the AI and
+// closed to its writes, user presets visible, insert_design_element takes a
+// file, the handbook as an MCP resource, and four round-trip corruptions
+// fixed (nbsp `~`, pagebreak args, `center + horizon`, indented headings).
+export const MCP_SETUP_VERSION = '0.24.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
@@ -278,6 +283,13 @@ export function buildMcpEnv(): { env: Record<string, string>; access: Access } {
   if (pkgPath) {
     const presetsPath = path.join(path.dirname(pkgPath), 'presets');
     if (fs.existsSync(presetsPath)) env['PENWRIGHT_PRESETS'] = presetsPath;
+    // Same idea for the handbook: the server exposes it as an MCP resource so
+    // the agent can answer "how do I do X in Penwright" from the actual manual
+    // instead of guessing, and point the user at the right menu item. Shipped
+    // as a file rather than embedded, so a doc fix does not need a binary
+    // rebuild.
+    const docsPath = path.join(path.dirname(pkgPath), 'docs');
+    if (fs.existsSync(docsPath)) env['PENWRIGHT_DOCS'] = docsPath;
   }
   return { env, access: ent.access };
 }

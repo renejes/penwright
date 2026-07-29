@@ -135,6 +135,13 @@ export const design = {
 
   // Elements
   elementsTitle: 'Elements',
+  elementLibraryTitle: 'Building blocks',
+  elementLibraryDesc: 'Ready-made layout pieces — pull-quotes, callouts, drop caps, galleries, openers. They take their colours and fonts from this project, so they restyle themselves when the look changes.',
+  elementLibraryNoStyle: 'This file does not import style.typ, so a block inserted here will not find the project colours and the document will stop compiling. Insert it in the root document instead.',
+  elementLibraryFilter: 'Filter blocks…',
+  elementLibraryEmpty: 'Nothing matches.',
+  elementLibraryInsert: 'Insert at cursor',
+  elementLibraryMissing: (fields: string): string => `Fill in: ${fields}`,
   elementsHint1: 'Blockquote, code block, figure, table. More complex effects (callouts, pull-quotes, etc.) go in the custom-code block below — the ',
   elementsHint2: ' package covers info/warning/tip boxes, for example.',
   elementBlockquote: 'Blockquote',

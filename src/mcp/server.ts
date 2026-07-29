@@ -60,7 +60,18 @@ import {
   styleJsonPath,
 } from '../shared/styleWrite.js';
 import { safeApply, fsIO, type VerifyOutcome } from '../shared/safeApply.js';
+import { writeFileAtomic } from '../shared/fileWrite.js';
+import { listBackups, loadBackup, readBackupFile, isManagedStore } from '../shared/backupStore.js';
 import { scaffoldProject, planGitignore } from '../shared/projectScaffold.js';
+import {
+  planAddChapter,
+  planRemoveChapter,
+  planReorderChapters,
+  parseChapters,
+  chapterFileName,
+  resolveDocumentRoot,
+  noDocumentRootMessage,
+} from '../shared/chapterWrite.js';
 import { placeAssetFromPath, assetPathFrom } from '../shared/assetPlacement.js';
 import {
   TYPST_SKILL,
@@ -69,7 +80,7 @@ import {
   WRITING_STYLE_SKILL,
   DESIGN_SKILL,
 } from '../shared/skillTemplates.js';
-import { readActiveProject, readSession, isDirtyInEditor, writeAgentActivity } from '../shared/sessionState.js';
+import { readActiveProject, readSession, isDirtyInEditor, writeAgentActivity, penwrightAppDataDir } from '../shared/sessionState.js';
 import {
   snapshotBeforeWrite,
   listSnapshotRefs,
@@ -406,8 +417,10 @@ function parseArgs(): void {
  */
 function guardedWrite(abs: string, content: string): void {
   const resolved = guardWrite(abs);
-  fs.mkdirSync(path.dirname(resolved), { recursive: true });
-  fs.writeFileSync(resolved, content, 'utf-8');
+  // Atomic: the app's watcher fires on `change` and reads immediately, and
+  // every Typst compile reads the whole project. A truncate-then-fill hands
+  // either of them a half-written document.
+  writeFileAtomic(resolved, content);
 }
 
 /**
@@ -435,6 +448,17 @@ function guardWrite(abs: string): string {
   // from them and silently re-applied the change.
   const isState = /(^|[\\/])\.penwright[\\/](session\.json|agent-activity\.json|preferences\.json|backups|ai-snapshots)([\\/]|$)/
     .test(resolved);
+
+  // The app's own stores. Both have their own pruning, naming and readers, and
+  // neither appears in the file tree — a stray write into either corrupts a
+  // recovery net invisibly. The agent READS them (list_backups / list_edits);
+  // producing entries is the app's job.
+  if (inProject && isManagedStore(resolved)) {
+    throw new Error(
+      `"${path.relative(root!, resolved)}" is inside a store Penwright manages (auto-backups / edit snapshots). ` +
+      `Those are the user's recovery net — read them with penwright_list_backups or penwright_list_edits, but do not write into them.`,
+    );
+  }
 
   if (inProject && !isTemp && !isState) {
     // Only a genuinely different editor blocks a write. The app holds a lock on
@@ -966,6 +990,8 @@ const TOOL_META: Record<string, ToolMeta> = {
   penwright_create_from_preset: W('Create project from a preset'),
 
   // History
+  penwright_list_backups:    R('List automatic backups'),
+  penwright_read_backup:     R('Read a backup'),
   penwright_save_version:    W('Save a version', { idempotent: true }),
   penwright_list_versions:   R('List versions'),
   penwright_show_version:    R('Show a version'),
@@ -1091,6 +1117,63 @@ const SKILL_PROMPTS: Array<{ name: string; description: string; skillDir: string
     skillDir: 'design',
   },
 ];
+
+// ─── Resource: the user's handbook ──────────────────────────────────
+//
+// The five skills tell the agent how to write Typst and how this project is
+// organised. They say nothing about the APP — where the export dialog lives,
+// what "Für den Druck" does, how versions differ from auto-backups. So when
+// the user asked "how do I turn on facing pages?", the agent had to guess at a
+// user interface it has never seen, and guessing about a UI reads exactly like
+// knowing.
+//
+// Shipped as a file and located by env (like the preset library) rather than
+// embedded, so correcting the manual does not need a binary rebuild.
+
+function getDocsDir(): string | null {
+  const candidates: string[] = [];
+  if (process.env.PENWRIGHT_DOCS) candidates.push(process.env.PENWRIGHT_DOCS);
+  if (process.env.TYPST_PACKAGE_PATH) candidates.push(path.join(path.dirname(process.env.TYPST_PACKAGE_PATH), 'docs'));
+  candidates.push(path.resolve(process.cwd(), 'documentation'));
+  for (const c of candidates) {
+    try { if (fs.existsSync(c) && fs.statSync(c).isDirectory()) return c; } catch { /* keep looking */ }
+  }
+  return null;
+}
+
+for (const doc of [
+  { lang: 'en', file: 'handbook.md', title: 'Penwright User Guide (English)' },
+  { lang: 'de', file: 'handbuch.md', title: 'Penwright Handbuch (Deutsch)' },
+]) {
+  server.registerResource(
+    `handbook-${doc.lang}`,
+    `penwright://handbook/${doc.lang}`,
+    {
+      title: doc.title,
+      description:
+        `The manual the user reads, in ${doc.lang === 'de' ? 'German' : 'English'}. Consult it before explaining how something is DONE in Penwright — ` +
+        `menus, dialogs, the Design panel, versions vs. auto-backups, print export, keyboard shortcuts. ` +
+        `It describes the app; the skill prompts describe Typst and this project's conventions.`,
+      mimeType: 'text/markdown',
+    },
+    async (uri) => {
+      const dir = getDocsDir();
+      const abs = dir ? path.join(dir, doc.file) : null;
+      if (!abs || !fs.existsSync(abs)) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: 'The handbook is not available to this server (it ships with the Penwright app). Answer from the tool descriptions, and say plainly when you are unsure how a part of the interface works.',
+          }],
+        };
+      }
+      return {
+        contents: [{ uri: uri.href, mimeType: 'text/markdown', text: fs.readFileSync(abs, 'utf-8') }],
+      };
+    },
+  );
+}
 
 for (const prompt of SKILL_PROMPTS) {
   server.prompt(
@@ -2032,9 +2115,10 @@ tool(
     elementId: z.string().describe('Design element id — see penwright_list_design_elements'),
     afterText: z.string().describe('Anchor text. Element is inserted on a new line after this match. Pass empty string to insert at the document end.'),
     occurrence: z.number().int().min(1).optional().default(1).describe('Which 1-based occurrence of `afterText` to target if it appears multiple times.'),
+    file: z.string().optional().describe('Project-relative file to insert into. Omit for the file the user has open — pass it explicitly when acting on a pinned selection or on a chapter they are not looking at.'),
     params: z.record(z.string()).optional().describe('Element-specific values. e.g. { title: "Welcome", subtitle: "..." } for the Hero element. See penwright_list_design_elements for each element\'s param list.'),
   },
-  async ({ elementId, afterText, occurrence, params }) => {
+  async ({ elementId, afterText, occurrence, file, params }) => {
     try {
       const element = getDesignElement(elementId);
       if (!element) {
@@ -2049,7 +2133,22 @@ tool(
       }
 
       const snippet = renderDesignElement(element, supplied);
-      const { content, filePath } = readCurrentDocument();
+      // An explicit target beats the ambient one. Without it the tool always
+      // wrote `currentFile`, so acting on a pinned selection in another
+      // chapter — the whole point of the "Design with AI" handoff — put the
+      // element in the wrong file.
+      let filePath: string;
+      let content: string;
+      if (file) {
+        filePath = resolveInsideProject(file);
+        if (!fs.existsSync(filePath)) {
+          return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
+        }
+        content = fs.readFileSync(filePath, 'utf-8');
+        touchedDocumentInCall = true;
+      } else {
+        ({ content, filePath } = readCurrentDocument());
+      }
 
       let insertAt: number;
       if (afterText.length === 0) {
@@ -2372,30 +2471,26 @@ tool(
 
 tool(
   'penwright_get_chapters',
-  'Returns the #include chapter structure of the current document. Shows which files are included, in what order, and whether they exist on disk.',
+  'List the chapters of the ROOT document — which files are #included, in what order, and whether each exists on disk. Use the paths it returns for reorder/remove.',
   async () => {
     try {
       const { content, filePath } = readRootDocument();
       const dir = path.dirname(filePath);
-      const includes: { index: number; path: string; exists: boolean; title: string }[] = [];
-
-      const lines = content.split('\n');
-      let idx = 0;
-      for (const line of lines) {
-        const match = line.match(/^#include\s+"([^"]+)"/);
-        if (match) {
-          const relPath = match[1];
-          const absPath = path.join(dir, relPath);
-          let title = relPath;
-          if (fs.existsSync(absPath)) {
-            const chContent = fs.readFileSync(absPath, 'utf-8');
-            const headingMatch = chContent.match(/^=\s+(.+)$/m);
-            if (headingMatch) title = headingMatch[1].trim();
-          }
-          includes.push({ index: idx, path: relPath, exists: fs.existsSync(absPath), title });
-          idx++;
+      // The same parser the reorder/remove planners use, so "which chapters
+      // are there" cannot mean one thing when listing and another when
+      // rearranging.
+      const includes = parseChapters(content).map((c, index) => {
+        const absPath = path.join(dir, c.relPath);
+        const exists = fs.existsSync(absPath);
+        let title = c.relPath;
+        if (exists) {
+          try {
+            const heading = fs.readFileSync(absPath, 'utf-8').match(/^=\s+(.+)$/m);
+            if (heading) title = heading[1].trim();
+          } catch { /* unreadable — keep the path as the label */ }
         }
-      }
+        return { index, path: c.relPath, exists, title };
+      });
 
       return {
         content: [{
@@ -2414,78 +2509,21 @@ tool(
 tool(
   'penwright_reorder_chapters',
   'Reorders the #include statements in the current document. Provide the new order as an array of chapter paths (relative to project). The #include lines will be rearranged to match.',
-  { order: z.array(z.string()).describe('Array of chapter paths in the desired order, e.g. ["chapters/intro.typ", "chapters/methods.typ"]') },
+  { order: z.array(z.string()).describe('Array of chapter paths in the desired order, e.g. ["chapters/intro.typ", "chapters/methods.typ"]. Chapters you leave out keep their relative order at the end.') },
   async ({ order }) => {
     try {
       const { content, filePath } = readRootDocument();
-      const lines = content.split('\n');
-      const includeLines: string[] = [];
-      const otherLines: string[] = [];
-
-      for (const line of lines) {
-        if (line.match(/^#include\s+"/)) {
-          includeLines.push(line);
-        } else {
-          otherLines.push(line);
-        }
+      const plan = planReorderChapters({ rootFile: filePath, rootContent: content, order });
+      if (!plan.ok) {
+        return { content: [{ type: 'text' as const, text: `${plan.reason} See penwright_get_chapters.` }], isError: true };
       }
-
-      // A document with no includes cannot be reordered. Without this the
-      // whole routine was a no-op that still wrote the file and still
-      // announced "Reordered 5 chapters" — a structural change the agent then
-      // reported to the user as done, having changed nothing.
-      if (includeLines.length === 0) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: `${path.basename(filePath)} contains no #include lines, so there is no chapter order to change. Check penwright_get_chapters — this document may be a single file.`,
-          }],
-          isError: true,
-        };
-      }
-
-      // Rebuild include lines in new order
-      const newIncludes: string[] = [];
-      const used = new Set<string>();
-      for (const chPath of order) {
-        const found = includeLines.find(l => !used.has(l) && l.includes(`"${chPath}"`));
-        if (found) {
-          newIncludes.push(found);
-          used.add(found);
-        } else {
-          newIncludes.push(`#include "${chPath}"`);
-        }
-      }
-
-      // NEVER drop chapters the caller didn't mention: a partial `order`
-      // (e.g. "move one chapter to the front") used to silently delete every
-      // unlisted #include from the document. Unlisted chapters keep their
-      // original relative order, appended after the ordered ones.
-      const preserved = includeLines.filter(l => !used.has(l));
-      newIncludes.push(...preserved);
-
-      // Find where includes were and replace them
-      const result: string[] = [];
-      let includesInserted = false;
-      for (const line of lines) {
-        if (line.match(/^#include\s+"/)) {
-          if (!includesInserted) {
-            result.push(...newIncludes);
-            includesInserted = true;
-          }
-        } else {
-          result.push(line);
-        }
-      }
-
-      const updated = result.join('\n');
-      guardedWrite(filePath, updated);
-
-      const note = preserved.length
-        ? ` (${preserved.length} chapter(s) not in the order array kept at the end — pass ALL chapters to fully control the order)`
+      for (const w of plan.writes) guardedWrite(w.abs, w.content);
+      const unlisted = plan.order.length - order.length;
+      const note = unlisted > 0
+        ? ` (${unlisted} chapter(s) you did not list kept their order at the end — pass all of them to control the whole sequence)`
         : '';
       return {
-        content: [{ type: 'text' as const, text: `Reordered ${newIncludes.length} chapters in ${path.basename(filePath)}${note}` }],
+        content: [{ type: 'text' as const, text: `Order in ${path.basename(filePath)} is now: ${plan.order.join(', ')}${note}` }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
@@ -2497,65 +2535,32 @@ tool(
 
 tool(
   'penwright_add_chapter',
-  'Creates a new chapter file and adds an #include statement to the current document. The chapter file is created in chapters/ with a heading.',
+  'Create a chapter file and include it in the ROOT document (not in whatever file is currently open). Chapters live in chapters/.',
   {
     title: z.string().describe('Chapter title (e.g. "Methodology")'),
-    position: z.number().optional().describe('Position in include list (0-based). Omit to append at end.'),
+    position: z.number().optional().describe('Position among the existing includes (0-based). Omit to append at the end.'),
   },
   async ({ title, position }) => {
     try {
       const { content, filePath } = readRootDocument();
-      const dir = path.dirname(filePath);
-      const chaptersDir = path.join(dir, 'chapters');
-      if (!fs.existsSync(chaptersDir)) {
-        fs.mkdirSync(chaptersDir, { recursive: true });
+      const chapterAbs = path.join(path.dirname(filePath), 'chapters', chapterFileName(title));
+      const plan = planAddChapter({
+        rootFile: filePath,
+        rootContent: content,
+        chapterAbs,
+        initialContent: `= ${title}\n\n`,
+        position,
+      });
+      if (!plan.ok) {
+        return { content: [{ type: 'text' as const, text: plan.reason }], isError: true };
       }
-
-      // Generate filename
-      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'chapter';
-      const chapterPath = path.join(chaptersDir, `${slug}.typ`);
-      const relPath = `chapters/${slug}.typ`;
-
-      // Create chapter file
-      if (!fs.existsSync(chapterPath)) {
-        guardedWrite(chapterPath, `= ${title}\n\n`);
-      }
-
-      // Add #include to document
-      const lines = content.split('\n');
-      const includeLine = `#include "${relPath}"`;
-
-      if (position !== undefined) {
-        // Insert at specific position among includes
-        let includeCount = 0;
-        let insertIdx = lines.length;
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^#include\s+"/)) {
-            if (includeCount === position) {
-              insertIdx = i;
-              break;
-            }
-            includeCount++;
-          }
-        }
-        lines.splice(insertIdx, 0, includeLine);
-      } else {
-        // Append after last include, or at end
-        let lastIncludeIdx = -1;
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^#include\s+"/)) lastIncludeIdx = i;
-        }
-        if (lastIncludeIdx >= 0) {
-          lines.splice(lastIncludeIdx + 1, 0, includeLine);
-        } else {
-          lines.push(includeLine);
-        }
-      }
-
-      guardedWrite(filePath, lines.join('\n'));
-
+      fs.mkdirSync(path.dirname(chapterAbs), { recursive: true });
+      for (const w of plan.writes) guardedWrite(w.abs, w.content);
       return {
-        content: [{ type: 'text' as const, text: `Created chapter "${title}" → ${relPath}` }],
+        content: [{
+          type: 'text' as const,
+          text: `${plan.created ? 'Created' : 'Included existing'} chapter "${title}" → ${plan.relPath}, included from ${path.basename(filePath)}.`,
+        }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
@@ -2572,24 +2577,16 @@ tool(
   async ({ chapterPath }) => {
     try {
       const { content, filePath } = readRootDocument();
-      const lines = content.split('\n');
-      // Anchored to a real #include line. The old substring test dropped ANY
-      // line merely mentioning the path — a comment, a `#figure(image("…"))`,
-      // a sentence quoting the filename — which silently deleted content while
-      // reporting that a chapter had been unlinked.
-      const includeRe = new RegExp(
-        `^\\s*#include\\s+"${chapterPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"\\s*$`,
-      );
-      const filtered = lines.filter(l => !includeRe.test(l));
-
-      if (filtered.length === lines.length) {
-        return { content: [{ type: 'text' as const, text: `No #include found for "${chapterPath}"` }], isError: true };
+      const plan = planRemoveChapter({ rootFile: filePath, rootContent: content, relPath: chapterPath });
+      if (!plan.ok) {
+        return { content: [{ type: 'text' as const, text: plan.reason }], isError: true };
       }
-
-      guardedWrite(filePath, filtered.join('\n'));
-
+      for (const w of plan.writes) guardedWrite(w.abs, w.content);
       return {
-        content: [{ type: 'text' as const, text: `Removed #include "${chapterPath}" from ${path.basename(filePath)}` }],
+        content: [{
+          type: 'text' as const,
+          text: `Removed #include "${chapterPath}" from ${path.basename(filePath)}. The file itself is untouched.`,
+        }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
@@ -2914,24 +2911,61 @@ function getPresetsDir(): string | null {
   return null;
 }
 
+/**
+ * Every preset root the gallery shows, in the gallery's order.
+ *
+ * The user's OWN presets — what "Save as preset" produces — live in userData
+ * beside the installed MCP binary, and this side only ever looked at the
+ * bundled library. So a user could build their house style, save it as a
+ * preset, ask the agent to start a new project from it, and be told it does
+ * not exist. `penwrightAppDataDir()` is the same formula both processes use
+ * for the binary itself, so they agree without either being told.
+ */
+function getPresetRoots(): { dir: string; origin: 'bundled' | 'user' }[] {
+  const roots: { dir: string; origin: 'bundled' | 'user' }[] = [];
+  const bundled = getPresetsDir();
+  if (bundled) roots.push({ dir: bundled, origin: 'bundled' });
+  const user = path.join(penwrightAppDataDir(), 'presets');
+  try {
+    if (fs.existsSync(user) && fs.statSync(user).isDirectory()) roots.push({ dir: user, origin: 'user' });
+  } catch { /* none saved yet */ }
+  return roots;
+}
+
+/** All presets from all roots. A user preset with the same id wins. */
+function scanAllPresets(): (ReturnType<typeof scanPresetsDir>[number] & { origin: 'bundled' | 'user' })[] {
+  const seen = new Map<string, ReturnType<typeof scanPresetsDir>[number] & { origin: 'bundled' | 'user' }>();
+  for (const root of getPresetRoots()) {
+    for (const s of scanPresetsDir(root.dir)) {
+      seen.set(s.manifest.id, { ...s, origin: root.origin });
+    }
+  }
+  return [...seen.values()];
+}
+
 tool(
   'penwright_list_presets',
-  'List the built-in project presets: finished, compile-tested designs with placeholder content (magazine, report, cookbook, portfolio, thesis, letter, newsletter, picture book, …). Optionally filter by `type`. Instantiate with penwright_create_from_preset.',
+  'List the project presets: finished, compile-tested designs with placeholder content — the bundled library AND the user\'s own saved presets. `origin` says which. Optionally filter by `type`. Instantiate with penwright_create_from_preset.',
   {
     type: z.string().optional().describe('Optional project-type filter, e.g. "magazine", "report", "document", "cookbook", "portfolio".'),
   },
   async ({ type }) => {
-    const root = getPresetsDir();
-    if (!root) return { content: [{ type: 'text' as const, text: 'Error: the preset library was not found.' }], isError: true };
-    let presets = scanPresetsDir(root).map(s => s.manifest);
-    if (type) presets = presets.filter(m => m.type === type);
-    presets.sort((a, b) => a.type.localeCompare(b.type) || ((a.order ?? 100) - (b.order ?? 100)));
-    const list = presets.map(m => ({
-      id: m.id, type: m.type,
-      label: localize(m.label, 'en'), tagline: localize(m.tagline, 'en'),
-      openFile: m.openFile ?? m.root ?? 'main.typ',
+    let presets = scanAllPresets();
+    if (presets.length === 0) return { content: [{ type: 'text' as const, text: 'Error: the preset library was not found.' }], isError: true };
+    if (type) presets = presets.filter(p => p.manifest.type === type);
+    presets.sort((a, b) =>
+      a.manifest.type.localeCompare(b.manifest.type) ||
+      ((a.manifest.order ?? 100) - (b.manifest.order ?? 100)));
+    const list = presets.map(p => ({
+      id: p.manifest.id, type: p.manifest.type, origin: p.origin,
+      label: localize(p.manifest.label, 'en'), tagline: localize(p.manifest.tagline, 'en'),
+      openFile: p.manifest.openFile ?? p.manifest.root ?? 'main.typ',
     }));
-    return { content: [{ type: 'text' as const, text: `Available presets (${list.length}):\n${JSON.stringify(list, null, 2)}\n\nCreate one with penwright_create_from_preset({ presetId, projectName, parentDir }).` }] };
+    const own = list.filter(l => l.origin === 'user').length;
+    const note = own > 0
+      ? `\n\n${own} of these are the user's OWN saved presets (origin: "user") — prefer those when they ask for something in "their" style.`
+      : '';
+    return { content: [{ type: 'text' as const, text: `Available presets (${list.length}):\n${JSON.stringify(list, null, 2)}${note}\n\nCreate one with penwright_create_from_preset({ presetId, projectName, parentDir }).` }] };
   },
 );
 
@@ -2945,9 +2979,8 @@ tool(
   },
   async ({ presetId, projectName, parentDir }) => {
     try {
-      const root = getPresetsDir();
-      if (!root) return { content: [{ type: 'text' as const, text: 'Error: the preset library was not found.' }], isError: true };
-      const all = scanPresetsDir(root);
+      const all = scanAllPresets();
+      if (all.length === 0) return { content: [{ type: 'text' as const, text: 'Error: the preset library was not found.' }], isError: true };
       const found = all.find(s => s.manifest.id === presetId);
       if (!found) {
         return { content: [{ type: 'text' as const, text: `Error: unknown preset "${presetId}". Available: ${all.map(s => s.manifest.id).join(', ')}` }], isError: true };
@@ -3262,6 +3295,69 @@ tool(
 // This is deliberately NOT a second version-control system. It is per-file,
 // bounded, and only knows about writes that went through this server or the
 // app's watcher. For anything you want to keep, use penwright_save_version.
+
+// ─── Tools: the auto-backup net (read-only from this side) ─────────
+//
+// The app snapshots the whole project every few minutes. Until now the agent
+// could not see any of it — the reader lived behind electron-store — while
+// nothing stopped it writing into the folder. Readable now; writing is refused
+// in `guardWrite`, because producing entries is the app's job and a foreign
+// write would corrupt a net the user's recovery depends on.
+
+tool(
+  'penwright_list_backups',
+  'List Penwright\'s automatic backups of this project — timed snapshots of every text file, newest first. Different from versions (deliberate, named, Git) and from edit snapshots (per-file, per-write): these are the crash net. Read one with penwright_read_backup.',
+  {},
+  async () => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
+    }
+    const snaps = listBackups(state.projectDir);
+    if (snaps.length === 0) {
+      return { content: [{ type: 'text' as const, text: 'No automatic backups yet. They appear once the project has been open and edited for a while.' }] };
+    }
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify(snaps.map(s => ({
+          id: s.timestamp,
+          at: new Date(s.timestampMs).toISOString(),
+          files: s.fileCount,
+          bytes: s.totalBytes,
+        })), null, 2),
+      }],
+    };
+  },
+);
+
+tool(
+  'penwright_read_backup',
+  'Read what a backup holds — the file list, or one file\'s content. Use it to compare against the current state before proposing a recovery. Restoring is the user\'s call: point them at History & Restore in Penwright rather than writing the old content back yourself.',
+  {
+    id: z.string().describe('Backup id from penwright_list_backups (the timestamp folder name).'),
+    file: z.string().optional().describe('Project-relative path of one file in that backup. Omit to list what the backup contains.'),
+  },
+  async ({ id, file }) => {
+    if (!state.projectDir) {
+      return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
+    }
+    if (!listBackups(state.projectDir).some(s => s.timestamp === id)) {
+      return { content: [{ type: 'text' as const, text: `No backup "${id}". See penwright_list_backups.` }], isError: true };
+    }
+
+    if (!file) {
+      const files = loadBackup(state.projectDir, id).map(f => ({ file: f.relPath, chars: f.content.length }));
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ id, files }, null, 2) }] };
+    }
+
+    const content = readBackupFile(state.projectDir, id, file);
+    if (content === null) {
+      return { content: [{ type: 'text' as const, text: `"${file}" is not in backup ${id}. Call without \`file\` to see what is.` }], isError: true };
+    }
+    const capped = capText(content, `${file} in backup ${id}`, 'Ask for a different file, or compare a section at a time.');
+    return { content: [{ type: 'text' as const, text: capped.text }] };
+  },
+);
 
 tool(
   'penwright_list_edits',

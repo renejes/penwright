@@ -74,6 +74,7 @@ import { planBibliography, BIB_HEADER } from '../shared/bibDiscovery';
 import { noteDiskContent, noteDeleted } from '../shared/fileWrite';
 import { safeApply, fsIO, type SafeApplyIO, type VerifyOutcome } from '../shared/safeApply';
 import { publishSnapshotLimit } from '../shared/editHistory';
+import { planAddChapter, resolveDocumentRoot, noDocumentRootMessage } from '../shared/chapterWrite';
 import { readAgentActivity } from '../shared/sessionState';
 import type { TypstCompiler } from './typstCompiler';
 import {
@@ -748,30 +749,80 @@ export function setupIPC(): void {
     applySpellcheckLanguage(lang);
   });
 
+  /**
+   * Add a chapter to the DOCUMENT.
+   *
+   * This used to derive everything from the open file: the dialog defaulted to
+   * `<openFile>/chapters/` (so `chapters/chapters/` when a chapter was open)
+   * and — the part that mattered — appended the `#include` to
+   * `appState.currentContent`, i.e. into the chapter itself. Typst nests
+   * includes happily, so it compiled; the new chapter simply became invisible
+   * to `penwright_get_chapters`, to the export dialog's chapter list, and to
+   * both reorder paths. Silent drift, and the mirror image of the bug the MCP
+   * side had.
+   *
+   * Now: one planner, the same one the MCP calls, writing the root.
+   */
   ipcMain.handle('includes:add', async () => {
-    if (!appState.currentFilePath) return;
-    const dir = path.dirname(appState.currentFilePath);
-    const chaptersDir = path.join(dir, 'chapters');
+    const md = resolveDict(getLocale()).mainDialogs;
+    const rootFile = resolveDocumentRoot(appState.projectDir, appState.currentFilePath);
+    if (!rootFile) {
+      await dialog.showMessageBox(appState.mainWindow!, {
+        type: 'warning',
+        message: md.noProjectOpen,
+        detail: noDocumentRootMessage(appState.projectDir),
+      });
+      return;
+    }
+    const rootDir = path.dirname(rootFile);
 
     const result = await dialog.showSaveDialog(appState.mainWindow!, {
-      defaultPath: path.join(chaptersDir, 'new-chapter.typ'),
-      filters: [{ name: resolveDict(getLocale()).mainDialogs.filterTypstFiles, extensions: ['typ'] }],
+      defaultPath: path.join(rootDir, 'chapters', 'new-chapter.typ'),
+      filters: [{ name: md.filterTypstFiles, extensions: ['typ'] }],
     });
-
     if (result.canceled || !result.filePath) return;
 
-    if (!fs.existsSync(result.filePath)) {
-      const name = path.basename(result.filePath, '.typ').replace(/-/g, ' ');
-      const title = name.charAt(0).toUpperCase() + name.slice(1);
-      fs.writeFileSync(result.filePath, `= ${title}\n\n`, 'utf-8');
+    const name = path.basename(result.filePath, '.typ').replace(/-/g, ' ');
+    const title = name.charAt(0).toUpperCase() + name.slice(1);
+
+    let rootContent: string;
+    try {
+      // The open buffer wins when it IS the root — it may hold unsaved edits.
+      rootContent = appState.currentFilePath && path.resolve(appState.currentFilePath) === path.resolve(rootFile)
+        ? appState.currentContent
+        : fs.readFileSync(rootFile, 'utf-8');
+    } catch (err) {
+      console.warn('[penwright] Could not read the root document:', err);
+      return;
     }
 
-    const relPath = path.relative(dir, result.filePath).replace(/\\/g, '/');
-    appState.currentContent += `\n#include "${relPath}"\n`;
-    appState.isDirty = true;
-    updateTitle();
-    autoSave();
-    appState.mainWindow?.webContents.send('penwright', { type: 'update', content: appState.currentContent });
+    const plan = planAddChapter({
+      rootFile,
+      rootContent,
+      chapterAbs: result.filePath,
+      initialContent: `= ${title}\n\n`,
+    });
+    if (!plan.ok) {
+      await dialog.showMessageBox(appState.mainWindow!, {
+        type: 'warning', message: md.noProjectOpen, detail: plan.reason,
+      });
+      return;
+    }
+
+    fs.mkdirSync(path.dirname(result.filePath), { recursive: true });
+    for (const w of plan.writes) {
+      if (appState.currentFilePath && path.resolve(w.abs) === path.resolve(appState.currentFilePath)) {
+        // The root IS on screen: go through the buffer so the editor shows it.
+        appState.currentContent = w.content;
+        appState.isDirty = true;
+        updateTitle();
+        autoSave();
+        appState.mainWindow?.webContents.send('penwright', { type: 'update', content: w.content });
+      } else {
+        fs.writeFileSync(w.abs, w.content, 'utf-8');
+        noteDiskContent(w.abs, w.content);
+      }
+    }
     appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 

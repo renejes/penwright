@@ -28,9 +28,8 @@
  * valid until the next change to that path, so a watcher that fires twice for
  * one write needs no bookkeeping.
  *
- * Deliberately NOT included: atomic temp+rename writes. They change which
- * events a watcher emits (`unlink`+`add` instead of `change` on some
- * platforms) and belong in their own change with their own verification.
+ * `writeFileAtomic` lives here too — see its own note for why the record is
+ * written BEFORE the rename.
  */
 
 import * as fs from 'fs';
@@ -105,14 +104,51 @@ export function hasRecord(abs: string): boolean {
 }
 
 /**
+ * Writes `abs` so a reader never sees it half-written.
+ *
+ * Two processes share this folder and both write it while the other may be
+ * reading — the app's watcher fires on `change`, the MCP server reads whatever
+ * is there, and Typst reads every file on every compile. A plain
+ * `writeFileSync` truncates and then fills, so a read landing in between gets
+ * a truncated document. Nobody has reported it; there was also nothing at all
+ * standing in its way.
+ *
+ * Temp file in the SAME directory (rename is only atomic within a filesystem),
+ * then `rename`, which is atomic on POSIX and on Windows for an existing
+ * target.
+ *
+ * **The record is written before the rename, deliberately.** The watcher can
+ * fire the instant the rename lands — before a statement after it would have
+ * run — and a change with no record yet is classified as foreign, bounced into
+ * the editor and snapshotted as if somebody else had made it. Recording first
+ * costs nothing if the rename then fails: the entry describes what we believe
+ * is on disk, and the next inspection corrects it.
+ */
+export function writeFileAtomic(abs: string, content: string | Buffer): void {
+  const target = path.resolve(abs);
+  const dir = path.dirname(target);
+  fs.mkdirSync(dir, { recursive: true });
+
+  // `.penwright-` prefix: both processes' watcher-ignore predicates already
+  // skip it, so the temp file itself never surfaces as a project change.
+  const tmp = path.join(dir, `.penwright-tmp-${process.pid}-${Date.now()}-${path.basename(target)}`);
+  try {
+    fs.writeFileSync(tmp, content as never);
+    noteDiskContent(target, content);
+    fs.renameSync(tmp, target);
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch { /* never created */ }
+    throw err;
+  }
+}
+
+/**
  * Write a file and record the new state in one step. Every write to a watched
  * file should go through here — one that skips it is treated as a foreign
  * change and bounces back into the editor.
  */
 export function writeFileTracked(abs: string, content: string | Buffer): void {
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, content as never);
-  noteDiskContent(abs, content);
+  writeFileAtomic(abs, content);
 }
 
 /**
