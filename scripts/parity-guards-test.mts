@@ -122,12 +122,13 @@ console.log('\nA design change that breaks the document is rolled back');
 /**
  * Runs a batch of tool calls against the built server over stdio.
  *
- * Resolves as soon as the LAST call's response arrives rather than on a fixed
- * timer — some of these compile real documents and some do nothing, and a
- * timer long enough for the first makes the whole suite take minutes.
+ * ONE CALL AT A TIME, each awaited before the next is sent: the SDK dispatches
+ * concurrently, so a whole batch written at once can run `get_chapters` before
+ * the `set_project` above it. Also resolves as soon as the last response
+ * arrives rather than on a fixed timer — some of these compile real documents
+ * and some do nothing.
  */
 async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
-  const lastId = Math.max(...calls.map(c => c.id));
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [MCP], {
       cwd,
@@ -136,6 +137,9 @@ async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
     });
     let out = '';
     let settled = false;
+    let pending = 0;
+    const queue = [...calls];
+
     const finish = () => {
       if (settled) return;
       settled = true;
@@ -145,20 +149,31 @@ async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
     };
     const cap = setTimeout(finish, 90000);   // hard stop for a hung compile
 
+    const sendNext = () => {
+      const next = queue.shift();
+      if (!next) { finish(); return; }
+      pending = next.id;
+      child.stdin.write(JSON.stringify(next) + '\n');
+    };
+
     child.stdout.on('data', d => {
       out += d.toString();
-      // Responses are newline-delimited JSON; the id we want is the last one.
-      if (new RegExp(`"id":${lastId}(\\D|$)`).test(out)) setTimeout(finish, 50);
+      if (pending === 0) {
+        if (/"id":1(\D|$)/.test(out)) {
+          child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+          sendNext();
+        }
+        return;
+      }
+      if (new RegExp(`"id":${pending}(\\D|$)`).test(out)) sendNext();
     });
     child.on('error', (err) => { if (!settled) { settled = true; clearTimeout(cap); reject(err); } });
     child.on('close', finish);
 
-    const lines = [
-      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } } },
-      { jsonrpc: '2.0', method: 'notifications/initialized' },
-      ...calls,
-    ];
-    child.stdin.write(lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+    child.stdin.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } },
+    }) + '\n');
   });
 }
 

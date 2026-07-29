@@ -584,6 +584,41 @@ function readCurrentDocument(): { content: string; filePath: string } {
 }
 
 /**
+ * The file a DOCUMENT-LEVEL operation belongs to — the project's root.
+ *
+ * Not the same question as `readCurrentDocument`, and conflating them was a
+ * defect: the chapter list, `#include` insertion, the split, the citation call
+ * site and the document settings all live in the root, but they read
+ * `state.currentFile`, which since Session 41 is the chapter the user is
+ * looking at. So `add_chapter` while a chapter was open wrote an `#include`
+ * INTO that chapter, `get_chapters` reported a chapter's includes as the
+ * document's, and `update_settings` put `#set text(lang:)` inside a chapter
+ * where it governs nothing.
+ *
+ * Two stages, and null is a hard failure. Never fabricate `<dir>/main.typ`:
+ * writing to it would create a file that then WINS `findRootFileIn` against
+ * the project's real root (`Angebot.typ`, `Sichtbarkeitskonzept.typ`) and move
+ * the document's home for good.
+ */
+function readRootDocument(): { content: string; filePath: string } {
+  refreshAmbientState();
+  if (!state.projectDir) {
+    throw new Error('No project set. Call penwright_set_project({ projectDir: "/absolute/path" }) first.');
+  }
+  // Same resolution the design writers use — it is the same question.
+  const root = resolveDesignRoot(state.projectDir, state.currentFile);
+  if (!root || !fs.existsSync(root)) {
+    throw new Error(
+      `Could not identify the root document of ${path.basename(state.projectDir)}. ` +
+      `A root is a .typ file at the project's top level that the others are #included from. ` +
+      `Open one with penwright_open_file, or create the document first — this operation changes the document as a whole and must not guess a file.`,
+    );
+  }
+  touchedDocumentInCall = true;
+  return { content: fs.readFileSync(root, 'utf-8'), filePath: root };
+}
+
+/**
  * A note to append when a file is open in Penwright with unsaved edits.
  *
  * Both sides are recoverable since the app snapshots whatever it replaces, so
@@ -613,6 +648,30 @@ function brokenDocumentNote(): string {
 
 function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
+}
+
+// ─── Caps on what a single call can return ──────────────────────────
+//
+// `search_project` and `list_labels` have always been capped. The tools that
+// return whole documents were not, and they are the ones that can be enormous:
+// a merged 100-page thesis is a megabyte of Typst, and `read_file` will hand
+// back whatever is on disk. One such call can crowd out the rest of a
+// conversation, and the agent has no way to know it happened.
+//
+// So: return the beginning, say plainly that it is the beginning, and say what
+// to do instead. Truncating in silence would be worse than not truncating.
+
+const MAX_RETURNED_CHARS = 400_000;
+
+function capText(text: string, what: string, remedy: string): { text: string; truncated: boolean } {
+  if (text.length <= MAX_RETURNED_CHARS) return { text, truncated: false };
+  return {
+    truncated: true,
+    text:
+      text.slice(0, MAX_RETURNED_CHARS) +
+      `\n\n[… truncated: ${what} is ${text.length.toLocaleString('en-US')} characters, ` +
+      `showing the first ${MAX_RETURNED_CHARS.toLocaleString('en-US')}. ${remedy}]`,
+  };
 }
 
 /**
@@ -1388,10 +1447,16 @@ tool(
   'Read the document settings: exactly two, `lang` and `bibliographyStyle`. Everything typographic — fonts, sizes, margins, page format, spacing, heading numbering — lives in the design tokens instead; use penwright_get_style for those.',
   async () => {
     try {
-      const { content } = readCurrentDocument();
+      // The root, the same file update_settings writes. Reading the open
+      // chapter and writing the root would make get/update disagree about
+      // which document they are talking about.
+      const { content, filePath } = readRootDocument();
       const settings = parseSettings(content);
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify(settings, null, 2) }],
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ file: path.relative(state.projectDir, filePath), ...settings }, null, 2),
+        }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
@@ -1403,13 +1468,19 @@ tool(
 
 tool(
   'penwright_update_settings',
-  'Change `lang` and/or `bibliographyStyle`; pass only what changes. These are the only two document settings — for anything typographic use penwright_update_style.',
+  'Change `lang` and/or `bibliographyStyle` in the ROOT document; pass only what changes. These are the only two document settings — for anything typographic use penwright_update_style.',
   {
-    settings: z.record(z.string()).describe('Key-value pairs of settings to update'),
+    // Typed, not a free record: the untyped version accepted any key and
+    // silently dropped everything the parser does not know, so a call setting
+    // "fontSize" reported success and changed nothing.
+    settings: z.object({
+      lang: z.string().optional().describe('Document language tag, e.g. "de" or "en" — drives hyphenation and spell-check.'),
+      bibliographyStyle: z.string().optional().describe('Citation style for #bibliography(style: …), e.g. "apa", "ieee".'),
+    }).describe('The settings to change. Only these two exist.'),
   },
   async ({ settings }) => {
     try {
-      const { content, filePath } = readCurrentDocument();
+      const { content, filePath } = readRootDocument();
 
       // Merge with existing settings
       const current = parseSettings(content);
@@ -1498,8 +1569,12 @@ tool(
       if (!fs.existsSync(absPath)) {
         return { content: [{ type: 'text' as const, text: `Error: File not found: ${absPath}` }], isError: true };
       }
-      const content = fs.readFileSync(absPath, 'utf-8');
-      return { content: [{ type: 'text' as const, text: content }] };
+      const capped = capText(
+        fs.readFileSync(absPath, 'utf-8'),
+        path.basename(absPath),
+        'Use penwright_search_project to find the part you need.',
+      );
+      return { content: [{ type: 'text' as const, text: capped.text }] };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
@@ -2283,7 +2358,7 @@ tool(
   'Returns the #include chapter structure of the current document. Shows which files are included, in what order, and whether they exist on disk.',
   async () => {
     try {
-      const { content, filePath } = readCurrentDocument();
+      const { content, filePath } = readRootDocument();
       const dir = path.dirname(filePath);
       const includes: { index: number; path: string; exists: boolean; title: string }[] = [];
 
@@ -2398,7 +2473,7 @@ tool(
   },
   async ({ title, position }) => {
     try {
-      const { content, filePath } = readCurrentDocument();
+      const { content, filePath } = readRootDocument();
       const dir = path.dirname(filePath);
       const chaptersDir = path.join(dir, 'chapters');
       if (!fs.existsSync(chaptersDir)) {
@@ -2491,10 +2566,17 @@ tool(
   'Return the whole document as one string, with every #include resolved — for reading across chapters (a global search-and-rewrite, a consistency pass). Writes nothing. The inverse, penwright_split_document, DOES rewrite the project.',
   async () => {
     try {
-      const { filePath } = readCurrentDocument();
-      const merged = resolveIncludes(filePath);
+      // The root: merging is a whole-document operation, and starting from an
+      // open chapter would resolve that chapter's includes and call the result
+      // "the document".
+      const { filePath } = readRootDocument();
+      const capped = capText(
+        resolveIncludes(filePath),
+        'the merged document',
+        'Use penwright_search_project for a targeted pass, or penwright_read_file per chapter.',
+      );
       return {
-        content: [{ type: 'text' as const, text: merged }],
+        content: [{ type: 'text' as const, text: capped.text }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
@@ -2509,7 +2591,7 @@ tool(
   'Splits the current document at = Heading 1 boundaries into separate chapter files. Creates chapters/ directory, writes individual .typ files, and replaces document body with #include statements.',
   async () => {
     try {
-      const { content, filePath } = readCurrentDocument();
+      const { content, filePath } = readRootDocument();
       const { config, chapters } = splitIntoChapters(content);
 
       if (chapters.length === 0) {
@@ -3082,15 +3164,29 @@ tool(
 
 tool(
   'penwright_restore_version',
-  'Restore files from a historical version. **Destructive — call penwright_save_version first** to preserve current state.',
+  'Roll files back to a historical version, DISCARDING everything written since. Call penwright_list_versions first, and penwright_save_version before this so the current state can be returned to. Requires confirm: true — the user should have agreed to lose the current state.',
   {
     sha: z.string().describe('Version id (Git SHA, 4-40 hex chars) — get this from penwright_list_versions'),
     files: z.array(z.string()).optional().describe('Restrict restore to these project-relative paths. Omit to restore everything from that version.'),
+    confirm: z.boolean().optional().describe('Must be true. Set it only after the user has agreed to discard the current state — this cannot be undone by penwright_undo_last_edit.'),
   },
-  async ({ sha, files }) => {
+  async ({ sha, files, confirm }) => {
     try {
       if (!state.projectDir) {
         return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
+      }
+      // A deliberate second step, and the only tool here that has one. Every
+      // other write leaves a snapshot; `git checkout` does not — it discards
+      // uncommitted work outright, including anything the user typed since.
+      // Making that a plain argument means it cannot happen on a misread.
+      if (confirm !== true) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Not restored. Restoring ${sha.slice(0, 7)} would discard every change made since that version, and unlike an ordinary edit it leaves no snapshot to come back to.\n\n` +
+              `Check with the user first, then call again with confirm: true. To keep the current state as well, run penwright_save_version before restoring.`,
+          }],
+        };
       }
       if (!/^[0-9a-f]{4,40}$/i.test(sha)) {
         return { content: [{ type: 'text' as const, text: `Error: Invalid version id "${sha}". Expected 4-40 hex characters.` }], isError: true };
@@ -3471,11 +3567,11 @@ tool(
 
 tool(
   'penwright_insert_reference',
-  'Insert a Typst cross-reference (@label) at an anchor. Validates label exists (call penwright_list_labels first); auto-inserts a leading space if needed so Typst doesn\'t glue it to the previous word.',
+  'Insert an @-reference at an anchor — EITHER a cross-reference to a <label> (a figure, table, equation, section) OR a citation to a citekey from the bibliography. Both use Typst\'s @name syntax and this tool takes either. It verifies the target exists before writing and adds a leading space so Typst does not glue it to the previous word.',
   {
     file: z.string().describe('Project-relative path of the file (e.g. "chapters/05-discussion.typ")'),
-    afterText: z.string().describe('Verbatim text after which "@label" is inserted. Whitespace-sensitive.'),
-    label: z.string().describe('Label name without "@" or angle brackets, e.g. "fig:scaling". Must exist in the project — see penwright_list_labels.'),
+    afterText: z.string().describe('Verbatim text after which the reference is inserted. Whitespace-sensitive.'),
+    label: z.string().describe('The target without "@": a label like "fig:scaling" (see penwright_list_labels) or a citekey like "chen2021codex" (see penwright_get_citations).'),
     occurrence: z.number().int().min(1).optional().describe('1-based occurrence of afterText if it appears multiple times.'),
   },
   async ({ file, afterText, label, occurrence }) => {
@@ -3488,23 +3584,46 @@ tool(
         return { content: [{ type: 'text' as const, text: `Error: File not found: ${file}` }], isError: true };
       }
 
-      // Validate the label exists. Suggest similar labels on miss.
+      // Typst writes both with the same `@name` syntax, and the target may be
+      // either: a `<label>` somewhere in the .typ files, or a citekey from a
+      // .bib. Only labels were accepted, so "cite @chen2021 in the third
+      // paragraph" — an ordinary request, and the commonest reason to insert an
+      // @ at all — could not be served by this server at all. The agent's way
+      // round was to hand-edit the file, losing the anchor validation and the
+      // spacing fix along with it.
+      const strip = label.replace(/^@/, '');
       const all = listProjectLabels(state.projectDir);
-      const exists = all.labels.find(l => l.label === label);
-      if (!exists) {
-        const lower = label.toLowerCase();
-        const suggestions = all.labels
-          .map(l => l.label)
-          .filter(l => l.toLowerCase().includes(lower) || lower.includes(l.toLowerCase()))
-          .slice(0, 5);
-        const hint = suggestions.length > 0 ? `\nSimilar labels: ${suggestions.join(', ')}` : '';
-        return {
-          content: [{
-            type: 'text' as const,
-            text: `Error: Label "${label}" not found in project.${hint}\nUse penwright_list_labels to see all labels.`,
-          }],
-          isError: true,
-        };
+      const isLabel = all.labels.some(l => l.label === strip);
+
+      let kind: 'label' | 'citation' = 'label';
+      if (!isLabel) {
+        const citekeys = new Set<string>();
+        for (const bib of findBibFiles(state.projectDir, state.currentFile)) {
+          try {
+            for (const entry of parseBibFile(fs.readFileSync(bib, 'utf-8'))) citekeys.add(entry.citekey);
+          } catch { /* an unreadable .bib must not block the label path */ }
+        }
+        if (citekeys.has(strip)) {
+          kind = 'citation';
+        } else {
+          const lower = strip.toLowerCase();
+          const near = (xs: string[]) => xs.filter(x => x.toLowerCase().includes(lower) || lower.includes(x.toLowerCase())).slice(0, 5);
+          const labelHits = near(all.labels.map(l => l.label));
+          const citeHits = near([...citekeys]);
+          const hint = [
+            labelHits.length ? `Similar labels: ${labelHits.join(', ')}` : '',
+            citeHits.length ? `Similar citekeys: ${citeHits.join(', ')}` : '',
+          ].filter(Boolean).join('\n');
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: "${strip}" is neither a label in this project nor a citekey in its bibliography.` +
+                (hint ? `\n${hint}` : '') +
+                `\nSee penwright_list_labels for labels and penwright_get_citations for citekeys.`,
+            }],
+            isError: true,
+          };
+        }
       }
 
       const content = fs.readFileSync(absFile, 'utf-8');
@@ -3518,7 +3637,7 @@ tool(
       // otherwise parse "word@label" as a single content unit and not as a ref.
       const prevChar = insertPos > 0 ? content[insertPos - 1] : '';
       const needsSpace = /[\p{L}\p{N}]/u.test(prevChar);
-      const refText = (needsSpace ? ' ' : '') + `@${label}`;
+      const refText = (needsSpace ? ' ' : '') + `@${strip}`;
       const updated = content.slice(0, insertPos) + refText + content.slice(insertPos);
 
       guardedWrite(absFile, updated);
@@ -3526,7 +3645,7 @@ tool(
       return {
         content: [{
           type: 'text' as const,
-          text: `Inserted "${refText}" into ${file} at offset ${insertPos}. Run penwright_compile to verify the cross-reference resolves.`,
+          text: `Inserted "${refText}" into ${file} at offset ${insertPos} (${kind === 'citation' ? 'citation — it will render through the bibliography style' : 'cross-reference'}). Run penwright_compile to verify it resolves.`,
         }],
       };
     } catch (err) {
@@ -3647,7 +3766,7 @@ tool(
 
 tool(
   'penwright_replace_in_project',
-  'Replace all matches of a query across project files. **Destructive — call penwright_save_version first.** Returns { filesChanged, totalReplacements }.',
+  'Replace every match across the project in one pass. Run it once with dryRun: true first — that reports exactly which files and how many hits, changing nothing — and only then for real. A regex that matches more than you meant is not visible from the query alone, and this touches every file at once.',
   {
     query: z.string().describe('Search term'),
     replacement: z.string().describe('Replacement text. For regex mode, $1, $2 etc. backreferences are honored.'),
@@ -3655,20 +3774,46 @@ tool(
     wholeWord: z.boolean().optional().describe('Default: false.'),
     regex: z.boolean().optional().describe('Default: false.'),
     includeBib: z.boolean().optional().describe('Default: false.'),
+    dryRun: z.boolean().optional().describe('Report what WOULD change, per file, and write nothing. Do this first.'),
   },
-  async ({ query, replacement, caseSensitive, wholeWord, regex, includeBib }) => {
+  async ({ query, replacement, caseSensitive, wholeWord, regex, includeBib, dryRun }) => {
     try {
       if (!state.projectDir) {
         return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
-      const result = replaceInProject({
-        query,
-        replacement,
+      const options = {
         caseSensitive: caseSensitive ?? false,
         wholeWord: wholeWord ?? false,
         regex: regex ?? false,
         includeBib: includeBib ?? false,
-      }, state.projectDir);
+      };
+
+      // The preview runs the SAME search the replace runs — a dry run built on
+      // a second, similar query would be a dry run of something else.
+      if (dryRun) {
+        const found = searchProject({ query, ...options }, state.projectDir);
+        if (found.error) {
+          return { content: [{ type: 'text' as const, text: `Error: ${found.error}` }], isError: true };
+        }
+        const perFile = found.files.map(f => ({ file: f.relPath, matches: f.matches.length }));
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              dryRun: true,
+              wouldChangeFiles: perFile.length,
+              wouldReplace: found.totalMatches,
+              truncated: found.truncated,
+              files: perFile,
+              note: found.totalMatches === 0
+                ? 'Nothing matches — check the query before running for real.'
+                : `Nothing was written. Repeat without dryRun to apply${found.truncated ? ' (the search hit its cap, so the real count may be higher)' : ''}.`,
+            }, null, 2),
+          }],
+        };
+      }
+
+      const result = replaceInProject({ query, replacement, ...options }, state.projectDir);
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
       };

@@ -179,9 +179,16 @@ console.log('\nThe few always-loaded tools are the few');
 
 import os from 'node:os';
 
-/** Runs tool calls in a throwaway project and returns the raw stdout. */
+/**
+ * Runs tool calls in a throwaway project and returns the raw stdout.
+ *
+ * ONE CALL AT A TIME, each awaited before the next is sent. The SDK dispatches
+ * concurrently, so writing a whole batch at once means `get_chapters` can run
+ * before the `set_project` above it in the list — which is how a batched
+ * version of this file produced two convincing "failures" that were nothing
+ * but its own ordering. Hosts issue tool calls sequentially; so does this.
+ */
 async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
-  const lastId = Math.max(...calls.map(c => c.id));
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [MCP], {
       cwd,
@@ -190,19 +197,38 @@ async function callMcp(cwd: string, calls: { id: number }[]): Promise<string> {
     });
     let out = '';
     let settled = false;
+    let pending = 0;
+    let queue = [...calls];
+
     const finish = () => { if (settled) return; settled = true; clearTimeout(cap); child.kill(); resolve(out); };
-    const cap = setTimeout(finish, 45000);
+    const cap = setTimeout(finish, 60000);
+
+    const sendNext = () => {
+      const next = queue.shift();
+      if (!next) { finish(); return; }
+      pending = next.id;
+      child.stdin.write(JSON.stringify(next) + '\n');
+    };
+
     child.stdout.on('data', d => {
       out += d.toString();
-      if (new RegExp(`"id":${lastId}(\\D|$)`).test(out)) setTimeout(finish, 50);
+      if (pending === 0) {
+        // Still waiting on `initialize` (id 1).
+        if (/"id":1(\D|$)/.test(out)) {
+          child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+          sendNext();
+        }
+        return;
+      }
+      if (new RegExp(`"id":${pending}(\\D|$)`).test(out)) sendNext();
     });
     child.on('error', reject);
     child.on('close', finish);
-    child.stdin.write([
-      JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } } }),
-      JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-      ...calls.map(c => JSON.stringify(c)),
-    ].join('\n') + '\n');
+
+    child.stdin.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } },
+    }) + '\n');
   });
 }
 const call = (id: number, name: string, args: unknown = {}) =>
@@ -303,6 +329,164 @@ console.log('\nCompile leaves nothing behind in the project');
     const strays = fs.readdirSync(dir).filter(f => f !== 'main.typ');
     check('no verification artefact in the project folder', strays.length === 0, strays.join(', '));
   }
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ─── Block 3: the document-level tools, and the bulk operations ─────
+
+/** The text of one response, rather than a substring of the whole stream. */
+function replyText(out: string, id: number): string {
+  for (const line of out.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const msg = JSON.parse(line);
+      if (msg.id !== id || !msg.result) continue;
+      return (msg.result.content ?? [])
+        .filter((c: { type: string }) => c.type === 'text')
+        .map((c: { text?: string }) => c.text ?? '').join('\n');
+    } catch { /* partial line */ }
+  }
+  return '';
+}
+
+/** A multi-chapter project whose root is NOT called main.typ. */
+function chapterProject(): { dir: string; root: string; chapter: string } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-root-'));
+  fs.mkdirSync(path.join(dir, 'chapters'));
+  const root = path.join(dir, 'Sichtbarkeitskonzept.typ');
+  const chapter = path.join(dir, 'chapters', '01-intro.typ');
+  fs.writeFileSync(root, '#set text(lang: "de")\n\n#include "chapters/01-intro.typ"\n');
+  fs.writeFileSync(chapter, '= Einleitung\n\nDer erste Absatz.\n');
+  return { dir, root, chapter };
+}
+
+console.log('\nDocument-level tools act on the document, not on the open chapter');
+{
+  const { dir, root, chapter } = chapterProject();
+  const chapterBefore = fs.readFileSync(chapter, 'utf-8');
+
+  // The user is reading a chapter — which is what state.currentFile means
+  // since the session channel landed. Adding a chapter is a change to the
+  // DOCUMENT; it used to write the #include into whatever was open.
+  const out = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_open_file', { filePath: 'chapters/01-intro.typ' }),
+    call(4, 'penwright_add_chapter', { title: 'Methodik' }),
+    call(5, 'penwright_get_chapters', {}),
+  ]);
+
+  // Specifically the NEW include — `/#include/` alone would have passed on the
+  // one that was already there, which is no test at all.
+  check('the new #include went into the root', fs.readFileSync(root, 'utf-8').includes('chapters/methodik.typ'), replyText(out, 4));
+  check('the open chapter is untouched', fs.readFileSync(chapter, 'utf-8') === chapterBefore);
+  check('get_chapters reports the root', replyText(out, 5).includes('Sichtbarkeitskonzept.typ'), replyText(out, 5).slice(0, 300));
+
+  // Settings are document-level too, and get/update must mean the same file.
+  const settings = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_open_file', { filePath: 'chapters/01-intro.typ' }),
+    call(4, 'penwright_get_settings', {}),
+    call(5, 'penwright_update_settings', { settings: { lang: 'en' } }),
+  ]);
+  check('get_settings reads the root', replyText(settings, 4).includes('Sichtbarkeitskonzept.typ'), replyText(settings, 4));
+  check('update_settings writes the root', fs.readFileSync(root, 'utf-8').includes('lang: "en"'), fs.readFileSync(root, 'utf-8').slice(0, 200));
+  check('and still not the chapter', !fs.readFileSync(chapter, 'utf-8').includes('lang:'));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\nA project with no identifiable root fails loudly');
+{
+  // No .typ at the top level at all. The old code would have handed back a
+  // fabricated <dir>/main.typ — and writing to it creates a file that then
+  // WINS root resolution against the project's real root for good.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-noroot-'));
+  fs.mkdirSync(path.join(dir, '.penwright'), { recursive: true });
+
+  const out = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_get_chapters', {}),
+  ]);
+  check('it says so instead of guessing', /root|No document open|not/i.test(replyText(out, 3)), replyText(out, 3).slice(0, 300));
+  check('and no main.typ was fabricated', !fs.existsSync(path.join(dir, 'main.typ')));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\nBulk operations are previewable, and the irreversible one asks');
+{
+  const { dir, root, chapter } = chapterProject();
+  const before = fs.readFileSync(chapter, 'utf-8');
+
+  const dry = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_replace_in_project', { query: 'Absatz', replacement: 'Paragraph', dryRun: true }),
+  ]);
+  const dryText = replyText(dry, 3);
+  check('a dry run reports what would change', dryText.includes('"wouldReplace": 1'), dryText.slice(0, 300));
+  check('…and writes nothing', fs.readFileSync(chapter, 'utf-8') === before);
+
+  const real = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_replace_in_project', { query: 'Absatz', replacement: 'Paragraph' }),
+  ]);
+  check('without dryRun it actually replaces', fs.readFileSync(chapter, 'utf-8').includes('Paragraph'), replyText(real, 3).slice(0, 200));
+
+  // restore_version discards uncommitted work with no snapshot to return to —
+  // the only tool here that cannot be undone, so the only one that asks.
+  const restore = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_restore_version', { sha: 'abc1234' }),
+  ]);
+  check('restore_version refuses without confirm', replyText(restore, 3).includes('Not restored'), replyText(restore, 3).slice(0, 300));
+  check('…and explains how to keep the current state', replyText(restore, 3).includes('penwright_save_version'));
+  check('the files are untouched', fs.readFileSync(root, 'utf-8').includes('#include'));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\n@-references take a citekey as well as a label');
+{
+  const { dir, chapter } = chapterProject();
+  fs.writeFileSync(path.join(dir, 'references.bib'),
+    '@article{chen2021codex,\n  title = {Evaluating Code},\n  author = {Chen, Mark},\n  year = {2021},\n}\n');
+
+  const out = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_insert_reference', {
+      file: 'chapters/01-intro.typ', afterText: 'Der erste Absatz.', label: 'chen2021codex',
+    }),
+  ]);
+  check('a citekey is accepted', fs.readFileSync(chapter, 'utf-8').includes('@chen2021codex'), replyText(out, 3).slice(0, 300));
+  check('…and named as a citation, not a cross-reference', replyText(out, 3).includes('citation'), replyText(out, 3).slice(0, 200));
+
+  const bogus = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_insert_reference', {
+      file: 'chapters/01-intro.typ', afterText: 'Der erste Absatz.', label: 'chen2021',
+    }),
+  ]);
+  const bogusText = replyText(bogus, 3);
+  check('a near-miss is refused', bogusText.includes('neither a label'), bogusText.slice(0, 300));
+  check('…with the citekey it probably meant', bogusText.includes('chen2021codex'), bogusText.slice(0, 300));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\nA huge file cannot silently eat the conversation');
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-cap-'));
+  fs.writeFileSync(path.join(dir, 'main.typ'), '= Title\n');
+  fs.writeFileSync(path.join(dir, 'huge.typ'), 'x'.repeat(600_000));
+
+  const out = await callMcp(dir, [
+    call(2, 'penwright_set_project', { projectDir: dir }),
+    call(3, 'penwright_read_file', { filePath: 'huge.typ' }),
+  ]);
+  const text = replyText(out, 3);
+  check('the return is capped', text.length < 500_000, `${text.length} chars`);
+  check('…and says so, with what to do instead', text.includes('truncated') && text.includes('penwright_search_project'), text.slice(-200));
+
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

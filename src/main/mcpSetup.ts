@@ -50,7 +50,15 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // "main.typ" used to overwrite the document with its own PDF and report
 // success), the low-level git tools refuse a repository this project only sits
 // inside, and the compile artefact goes to tmpdir instead of the project.
-export const MCP_SETUP_VERSION = '0.21.0';
+// 0.22.0: phase C-rest — document-level tools (get/add_chapter, split,
+// get/update_settings, merge) act on the ROOT instead of on whatever chapter
+// the user has open, and fail loudly rather than fabricate a main.typ;
+// restore_version requires confirm (it is the one write with no snapshot to
+// return to); replace_in_project gains dryRun; read_file and merge_document
+// are capped with a visible truncation note; update_settings is typed to the
+// two settings that exist; insert_reference accepts a citekey as well as a
+// label — the last real capability gap.
+export const MCP_SETUP_VERSION = '0.22.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
