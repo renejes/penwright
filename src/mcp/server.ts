@@ -633,6 +633,40 @@ function resolveInsideProject(userPath: string): string {
   return absPath;
 }
 
+/**
+ * Resolves an export destination, and refuses to aim it at source material.
+ *
+ * `resolveInsideProject` answers "is this inside the project?" — and
+ * `main.typ` is. So `penwright_export_pdf({ outputPath: "main.typ" })` passed
+ * the sandbox check, Typst wrote a PDF over the document, and the tool
+ * reported success. A plausible-looking argument, no warning, and the source
+ * gone. The same held for `.bib`, for `style.typ`, and for every chapter.
+ *
+ * The rule is about the extension, not about a list of known files: the point
+ * is that an export writes an ARTEFACT, and an artefact never has a source
+ * extension.
+ */
+const SOURCE_EXTENSIONS = new Set(['.typ', '.bib', '.md', '.json', '.toml', '.yaml', '.yml', '.csl']);
+
+function resolveExportTarget(outputPath: string, expected: string): string {
+  const abs = resolveInsideProject(outputPath);
+  const ext = path.extname(abs).toLowerCase();
+
+  if (SOURCE_EXTENSIONS.has(ext)) {
+    throw new Error(
+      `Refusing to export to "${outputPath}": ${ext} is a source file extension, and exporting there would overwrite ` +
+      `the document with the exported artefact. Use ${expected} — the convention is exports/<name>${expected}.`,
+    );
+  }
+  if (ext !== expected) {
+    throw new Error(
+      `Refusing to export to "${outputPath}": expected a ${expected} file. ` +
+      `The convention is exports/<name>${expected}.`,
+    );
+  }
+  return abs;
+}
+
 function safeRealpath(target: string): string {
   let current = path.resolve(target);
   try {
@@ -654,10 +688,42 @@ function safeRealpath(target: string): string {
 
 // ─── Server Setup ────────────────────────────────────
 
-const server = new McpServer({
-  name: 'penwright',
-  version: '0.9.0',
-});
+/**
+ * What the host shows the model before it has called anything.
+ *
+ * The field is part of `initialize` and has always been available; this server
+ * simply never passed an options object, so sixty-three tool descriptions had
+ * to carry facts that belong to the server as a whole — and mostly didn't.
+ *
+ * Kept to what a reader cannot infer from any single tool description, and to
+ * what changes what they DO. Not a tool index (the manifest is that already),
+ * not marketing. Under 2 KB by design: it is prepended to every conversation.
+ */
+const SERVER_INSTRUCTIONS = `Penwright edits Typst documents — a project folder of .typ files that a desktop app may have open at the same time as you.
+
+Start of a task: the project and the open file are detected automatically. penwright_get_document tells you where you are; penwright_set_project only if you mean a different folder.
+
+SEE the document before judging anything visual. penwright_render_page returns a rendered page as an image. Spacing, overflow, colour, where a heading landed, whether a figure sits well — none of that is knowable from the source, and guessing at it is the most common way to be confidently wrong here.
+
+Design lives in tokens, not in ad-hoc Typst. penwright_get_style first: "initialized": false means you are looking at defaults, not at the document; "adopted": false means the author wrote style.typ by hand and the design tools will refuse. Then apply_palette / apply_layout / apply_style / update_style. Design writes are staged, test-compiled and rolled back if the document stops compiling — the project is never left broken, so try things.
+
+Anchors, not offsets. Editing tools take afterText plus an optional 1-based occurrence.
+
+Every write is snapshotted: penwright_list_edits, penwright_undo_last_edit. That net is bounded and per-file — for anything the user should be able to return to, penwright_save_version.
+
+Watch for two notes on results: a file open with unsaved changes (what you read is not what they see) and a document that was already failing to compile before you touched it (do not assume the next failure is yours).
+
+Web/HTML export has no tool. Tell the user: File ▸ Export to Web (HTML).
+
+The project's own conventions are prompts: penwright-conventions, typst-reference, design-conventions, writing-style, research-workflow.`;
+
+const server = new McpServer(
+  {
+    name: 'penwright',
+    version: '0.12.0',
+  },
+  { instructions: SERVER_INSTRUCTIONS },
+);
 
 // ─── Tool registration wrapper ───────────────────────
 //
@@ -725,39 +791,198 @@ function withContestedNotes(result: ToolTextResult): ToolTextResult {
   return result;
 }
 
+// ─── Tool metadata: one table, not sixty-three call sites ───────────
+//
+// `registerTool` wants a `title` and `annotations` per tool. Spreading those
+// across the registrations would put the answer to "which of these are safe to
+// auto-approve?" in sixty-three places, where it cannot be reviewed and drifts
+// the moment someone copies a nearby tool. It lives here instead, and
+// the `tool()` wrapper THROWS for a tool that is missing — so a new tool cannot
+// ship unclassified.
+//
+// What the flags mean (MCP spec: hints, not guarantees — a host may ignore
+// them, so they are never a substitute for the guards in guardWrite):
+//   readOnlyHint     does not modify the project. Lets a host auto-approve.
+//   destructiveHint  can discard work that is not otherwise recoverable.
+//   idempotentHint   calling it twice with the same arguments changes nothing.
+//   openWorldHint    talks to something outside this machine.
+//
+// Note on `readOnlyHint` for set_project / open_file / compile / render_page:
+// they change in-process state or write a temp file they then delete. Nothing
+// in the project changes, which is what the hint is about.
+
+interface ToolMeta {
+  title: string;
+  readOnly?: boolean;
+  destructive?: boolean;
+  idempotent?: boolean;
+  openWorld?: boolean;
+  /** Kept in the model's context without being requested. Very few. */
+  alwaysLoad?: boolean;
+}
+
+const R = (title: string, extra: Partial<ToolMeta> = {}): ToolMeta =>
+  ({ title, readOnly: true, idempotent: true, ...extra });
+const W = (title: string, extra: Partial<ToolMeta> = {}): ToolMeta =>
+  ({ title, readOnly: false, ...extra });
+
+const TOOL_META: Record<string, ToolMeta> = {
+  // Where am I
+  penwright_set_project:   R('Set project', { alwaysLoad: true }),
+  penwright_get_document:  R('Read current document', { alwaysLoad: true }),
+  penwright_open_file:     R('Open file'),
+  penwright_list_files:    R('List project files'),
+  penwright_read_file:     R('Read file'),
+
+  // Writing
+  penwright_update_document: W('Replace document', { destructive: true, alwaysLoad: true }),
+  penwright_write_file:      W('Write file', { destructive: true, alwaysLoad: true }),
+  penwright_import_markdown: W('Import Markdown'),
+  penwright_add_image:       W('Add image'),
+
+  // Verify + see
+  penwright_compile:     R('Check it compiles', { alwaysLoad: true }),
+  penwright_render_page: R('Render a page as an image'),
+
+  // Settings
+  penwright_get_settings:    R('Read document settings'),
+  penwright_update_settings: W('Change document settings', { idempotent: true }),
+
+  // Design — all verified and rolled back on failure, hence not destructive
+  penwright_get_style:              R('Read design state', { alwaysLoad: true }),
+  penwright_update_style:           W('Patch design tokens'),
+  penwright_list_styles:            R('List themes'),
+  penwright_apply_style:            W('Apply theme', { idempotent: true }),
+  penwright_list_fonts:             R('List bundled fonts'),
+  penwright_apply_palette:          W('Apply palette', { idempotent: true }),
+  penwright_list_layouts:           R('List layouts'),
+  penwright_apply_layout:           W('Apply layout', { idempotent: true }),
+  penwright_list_design_elements:   R('List design elements'),
+  penwright_insert_design_element:  W('Insert design element'),
+  penwright_generate_layout:        W('Generate a look from an intent'),
+  penwright_list_section_styles:    R('List chapter looks'),
+  penwright_define_section_style:   W('Define a chapter look', { idempotent: true }),
+  penwright_apply_section_style:    W('Assign a chapter look', { idempotent: true }),
+  penwright_clear_section_style:    W('Remove a chapter look', { idempotent: true }),
+  penwright_get_selection:          R('Read the pinned selection'),
+
+  // Structure
+  penwright_get_chapters:     R('List chapters'),
+  penwright_reorder_chapters: W('Reorder chapters'),
+  penwright_add_chapter:      W('Add chapter'),
+  penwright_remove_chapter:   W('Remove a chapter include'),
+  penwright_merge_document:   R('Read the merged document'),
+  penwright_split_document:   W('Split into chapter files', { destructive: true }),
+
+  // Bibliography
+  penwright_get_citations:            R('List citations'),
+  penwright_add_citation:             W('Add citation'),
+  penwright_ensure_bibliography:      W('Set up the bibliography', { idempotent: true }),
+  penwright_find_source_for_citation: R('Find the source PDF'),
+
+  // Cross-refs, footnotes, comments
+  penwright_list_labels:      R('List labels'),
+  penwright_insert_reference: W('Insert cross-reference'),
+  penwright_add_footnote:     W('Add footnote'),
+  penwright_list_comments:    R('List comments'),
+  penwright_add_comment:      W('Add comment'),
+  penwright_resolve_comment:  W('Resolve comment', { idempotent: true }),
+  penwright_delete_comment:   W('Delete comment', { destructive: true, idempotent: true }),
+
+  // Search
+  penwright_search_project:     R('Search the project'),
+  penwright_replace_in_project: W('Replace across the project', { destructive: true }),
+
+  // Projects
+  penwright_create_project:     W('Create project'),
+  penwright_list_presets:       R('List project presets'),
+  penwright_create_from_preset: W('Create project from a preset'),
+
+  // History
+  penwright_save_version:    W('Save a version', { idempotent: true }),
+  penwright_list_versions:   R('List versions'),
+  penwright_show_version:    R('Show a version'),
+  penwright_restore_version: W('Restore a version', { destructive: true }),
+  penwright_list_edits:      R('List undoable edits'),
+  penwright_undo_last_edit:  W('Undo the last edit', { destructive: true }),
+
+  // Git
+  penwright_git_status: R('Git status'),
+  penwright_git_commit: W('Git commit'),
+  penwright_git_push:   W('Git push', { openWorld: true, idempotent: true }),
+
+  // Export
+  penwright_export_pdf:   W('Export PDF', { idempotent: true }),
+  penwright_export_print: W('Export print-ready PDF', { idempotent: true }),
+  penwright_export_docx:  W('Export DOCX', { idempotent: true }),
+};
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * `server.tool` with the handler wrapped.
+ * Registers a tool: same call shape as the old `server.tool` (name,
+ * description, optional schema, handler), routed to `registerTool` and given
+ * its metadata from `TOOL_META`.
  *
- * Typed as `typeof server.tool` so all four overloads — and the zod-schema
- * inference that gives every handler its typed argument object — survive the
- * indirection. The callback is always the last argument in each overload,
- * which is what makes the variadic wrap safe.
+ * Typed as `typeof server.tool` so the zod-schema inference that gives every
+ * handler its typed argument object survives. The callback is always the last
+ * argument, which is what makes the variadic wrap safe.
+ *
+ * The handler wrap is where the notes the server owes the agent are attached —
+ * in ONE place. See `withContestedNotes`.
+ *
+ * Deliberately no `outputSchema`: declaring one obliges every single return to
+ * carry `structuredContent`, and these tools answer in prose.
  */
 const tool = ((...args: any[]) => {
-  const name = typeof args[0] === 'string' ? args[0].replace(/^penwright_/, '') : '';
+  const fullName: string = typeof args[0] === 'string' ? args[0] : '';
+  const shortName = fullName.replace(/^penwright_/, '');
+  const description: string = typeof args[1] === 'string' ? args[1] : '';
+  const schema = args.length > 3 ? args[2] : undefined;
   const handler = args[args.length - 1];
-  if (typeof handler === 'function') {
-    args[args.length - 1] = async (...handlerArgs: any[]) => {
-      const outerContested = contestedInCall;
-      const outerTool = currentToolName;
-      const outerFiles = activityFiles;
-      const outerTouched = touchedDocumentInCall;
-      contestedInCall = [];
-      currentToolName = name;
-      activityFiles = new Set();
-      touchedDocumentInCall = false;
-      try {
-        return withContestedNotes(await handler(...handlerArgs));
-      } finally {
-        contestedInCall = outerContested;
-        currentToolName = outerTool;
-        activityFiles = outerFiles;
-        touchedDocumentInCall = outerTouched;
-      }
-    };
+
+  const meta = TOOL_META[fullName];
+  if (!meta) {
+    // Registration-time, not call-time: a tool without a classification would
+    // otherwise ship and simply never be auto-approvable, silently.
+    throw new Error(`No TOOL_META entry for "${fullName}" — add one before registering it.`);
   }
-  return (server.tool as any)(...args);
+
+  const wrapped = async (...handlerArgs: any[]) => {
+    const outerContested = contestedInCall;
+    const outerTool = currentToolName;
+    const outerFiles = activityFiles;
+    const outerTouched = touchedDocumentInCall;
+    contestedInCall = [];
+    currentToolName = shortName;
+    activityFiles = new Set();
+    touchedDocumentInCall = false;
+    try {
+      return withContestedNotes(await handler(...handlerArgs));
+    } finally {
+      contestedInCall = outerContested;
+      currentToolName = outerTool;
+      activityFiles = outerFiles;
+      touchedDocumentInCall = outerTouched;
+    }
+  };
+
+  return (server.registerTool as any)(
+    fullName,
+    {
+      title: meta.title,
+      description,
+      ...(schema ? { inputSchema: schema } : {}),
+      annotations: {
+        title: meta.title,
+        readOnlyHint: meta.readOnly === true,
+        destructiveHint: meta.destructive === true,
+        idempotentHint: meta.idempotent === true,
+        openWorldHint: meta.openWorld === true,
+      },
+      ...(meta.alwaysLoad ? { _meta: { 'anthropic/alwaysLoad': true } } : {}),
+    },
+    wrapped,
+  );
 }) as typeof server.tool;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -933,7 +1158,14 @@ tool(
       const { filePath } = readCurrentDocument();
       const rootFile = findRootFile(filePath);
       const dir = path.dirname(rootFile);
-      const tempPath = path.join(dir, '.penwright-compile-output.pdf');
+      // In tmpdir, not beside the root file. A verification artefact has no
+      // business appearing in the user's project folder — it showed up in the
+      // file tree, in `git status` on a project without our .gitignore, and in
+      // a "what changed?" glance at the folder, for a file that exists for
+      // half a second. Typst restricts INPUT resolution to the root, never the
+      // output, so writing outside it is fine (verified against the bundled
+      // binary); `cwd: dir` keeps the root where it was.
+      const tempPath = path.join(os.tmpdir(), `penwright-compile-${process.pid}-${Date.now()}.pdf`);
 
       try {
         const result = await execFileAsync(typstBinary(), typstCompileArgs([rootFile, tempPath]), { cwd: dir, timeout: 30000 });
@@ -1153,7 +1385,7 @@ function parseCompileDiagnostics(stderr: string, kind: 'error' | 'warning'): Com
 
 tool(
   'penwright_get_settings',
-  'Reads the document settings (#set blocks) from the current Typst file. Returns font, size, language, margins, page format, paragraph settings, heading numbering, and bibliography style.',
+  'Read the document settings: exactly two, `lang` and `bibliographyStyle`. Everything typographic — fonts, sizes, margins, page format, spacing, heading numbering — lives in the design tokens instead; use penwright_get_style for those.',
   async () => {
     try {
       const { content } = readCurrentDocument();
@@ -1171,7 +1403,7 @@ tool(
 
 tool(
   'penwright_update_settings',
-  'Update document settings (lang + bibliographyStyle since Phase A — everything else lives in style.json via the Design tools). Only changed keys need to be passed.',
+  'Change `lang` and/or `bibliographyStyle`; pass only what changes. These are the only two document settings — for anything typographic use penwright_update_style.',
   {
     settings: z.record(z.string()).describe('Key-value pairs of settings to update'),
   },
@@ -1278,7 +1510,7 @@ tool(
 
 tool(
   'penwright_write_file',
-  'Writes content to a file in the project. Creates parent directories if needed. Provide an absolute path or a path relative to the project directory.',
+  'Write a file in the project, replacing it wholesale (parent dirs auto-created). For editing the document the user is looking at, penwright_update_document is the one that keeps their editor in step. The previous version is snapshotted, so penwright_undo_last_edit can bring it back.',
   {
     filePath: z.string().describe('Path to the file (absolute or relative to project)'),
     content: z.string().describe('File content to write'),
@@ -1304,14 +1536,14 @@ tool(
 
 tool(
   'penwright_export_pdf',
-  'Compile + export as PDF. Output path must be inside the project (convention: exports/<name>.pdf). Parent dirs auto-created.',
+  'Export the document as a PDF for screen or office printing. Output must be a .pdf inside the project (convention: exports/<name>.pdf; parent dirs auto-created). For a print shop use penwright_export_print instead — it adds bleed and crop marks. There is no web/HTML export tool: point the user at File ▸ Export to Web (HTML).',
   { outputPath: z.string().describe('Path for the PDF output file, relative to the project (e.g. "exports/thesis.pdf"). Absolute paths must point inside the project directory.') },
   async ({ outputPath }) => {
     try {
       const { filePath } = readCurrentDocument();
       const rootFile = findRootFile(filePath);
       const dir = path.dirname(rootFile);
-      const absOutput = resolveInsideProject(outputPath);
+      const absOutput = resolveExportTarget(outputPath, '.pdf');
 
       // Auto-create the parent dir (e.g. exports/) so a fresh project doesn't error on first export.
       const outDir = path.dirname(absOutput);
@@ -1343,7 +1575,7 @@ tool(
 
 tool(
   'penwright_export_print',
-  'Export a print-ready PDF for a print shop: oversized page with bleed + corner crop marks, in RGB (the shop converts to CMYK/PDF-X). Output path must be inside the project (convention: exports/<name>.pdf). Exports the whole document — for chapter selection use the in-app export dialog.',
+  'Export a PDF FOR A PRINT SHOP: oversized page with bleed and corner crop marks, RGB (the shop converts to CMYK/PDF-X). Use penwright_export_pdf for anything read on screen. Output must be a .pdf inside the project. Whole document only — chapter selection lives in the in-app export dialog. Writes temp files and never changes the project design.',
   {
     outputPath: z.string().describe('Path for the PDF, relative to the project (e.g. "exports/magazine-print.pdf").'),
     bleed: z.string().optional().describe('Bleed length, e.g. "3mm" or "5mm" (default "5mm"; magazines often want 5mm). "" disables the oversized page.'),
@@ -1357,7 +1589,7 @@ tool(
       const { filePath } = readCurrentDocument();
       const rootFile = findRootFile(filePath);
       const dir = path.dirname(rootFile);
-      const absOutput = resolveInsideProject(outputPath);
+      const absOutput = resolveExportTarget(outputPath, '.pdf');
       const outDir = path.dirname(absOutput);
       if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
@@ -1520,7 +1752,7 @@ tool(
 
 tool(
   'penwright_get_selection',
-  'Return the pinned selection from `.penwright/selection.json` — the passage the user right-clicked in Penwright → "Design with AI", plus a design snapshot (theme / palette / fonts / layout / sectionStyle / usedElements). Pass anchorText + occurrence to the anchor-based tools (penwright_insert_design_element, …) to act on the exact spot, or write localized Typst there. Returns a clear note if nothing is pinned.',
+  'Return the passage the user pinned in Penwright ("Design with AI"), with a snapshot of the current look. Call it when they ask you to design "this" or "here" — the anchorText + occurrence it returns go straight into the anchor-based tools. Says so plainly when nothing is pinned.',
   async () => {
     if (!state.projectDir) {
       return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
@@ -1687,7 +1919,7 @@ tool(
 
 tool(
   'penwright_list_design_elements',
-  'List the 19 design elements (banner / sidebar / pull-quote × 3 / callout / hero / divider × 3 / drop-cap / article-opener / section-opener / gallery × 3 / image-overlay / stats-box / photo-caption-wrap / magazine-cover) with their params.',
+  'List the 24 ready-made design elements with their parameters — pull-quotes, callouts, drop caps, dividers, galleries, article and spread openers, full-bleed images, margin notes, stats boxes, magazine covers. Read this before hand-writing layout Typst: these re-theme themselves from the project palette, hand-written blocks do not.',
   async () => {
     const list = DESIGN_ELEMENTS.map(e => ({
       id: e.id,
@@ -1703,7 +1935,7 @@ tool(
 
 tool(
   'penwright_insert_design_element',
-  'Insert a design element (19 available — call penwright_list_design_elements first) at an anchor. Auto-themes via style-colors / style-fonts.',
+  'Insert one of the 24 design elements at an anchor (call penwright_list_design_elements first for ids and params). Themes itself from style-colors / style-fonts, so it needs a file that imports style.typ — the change is test-compiled and rolled back if it does not.',
   {
     elementId: z.string().describe('Design element id — see penwright_list_design_elements'),
     afterText: z.string().describe('Anchor text. Element is inserted on a new line after this match. Pass empty string to insert at the document end.'),
@@ -2256,7 +2488,7 @@ tool(
 
 tool(
   'penwright_merge_document',
-  'Resolves all #include statements recursively and returns the complete merged document as a single string. Does NOT modify files — read-only operation.',
+  'Return the whole document as one string, with every #include resolved — for reading across chapters (a global search-and-rewrite, a consistency pass). Writes nothing. The inverse, penwright_split_document, DOES rewrite the project.',
   async () => {
     try {
       const { filePath } = readCurrentDocument();
@@ -2491,7 +2723,7 @@ function scaffoldSummary(r: Awaited<ReturnType<typeof mcpScaffold>>): string {
 
 tool(
   'penwright_create_project',
-  'Create a new Typst project from a template (document | thesis | paper | letter | book | magazine).',
+  'Create a new project from a BLANK template (document | thesis | paper | letter | book | magazine) — structure and Penwright defaults, no design and no content. For a finished look the user can start writing into, prefer penwright_create_from_preset. Sets up Git, .gitignore, assets/, sources/, the project skills and style.typ, and switches to the new project.',
   {
     templateId: z.enum(['document', 'thesis', 'paper', 'letter', 'book', 'magazine']).describe('Template ID'),
     projectName: z.string().describe('Project name (becomes the folder name)'),
@@ -2564,7 +2796,7 @@ function getPresetsDir(): string | null {
 
 tool(
   'penwright_list_presets',
-  'List the built-in project presets — ready-made, compile-tested project starters (magazine, report, cookbook, portfolio, thesis, letter, newsletter, picture book, …), each shipping a finished design plus placeholder (Lorem) content. Magazine presets give every chapter a different layout. Instantiate one with penwright_create_from_preset.',
+  'List the built-in project presets: finished, compile-tested designs with placeholder content (magazine, report, cookbook, portfolio, thesis, letter, newsletter, picture book, …). Optionally filter by `type`. Instantiate with penwright_create_from_preset.',
   {
     type: z.string().optional().describe('Optional project-type filter, e.g. "magazine", "report", "document", "cookbook", "portfolio".'),
   },
@@ -2636,6 +2868,42 @@ tool(
 // "Versionen" UI in ProjectPanel). All operations are
 // local; nothing is ever pushed to a remote.
 // ═══════════════════════════════════════════════════════
+
+/**
+ * Git access that is definitely THIS project's.
+ *
+ * `simpleGit(dir)` on a folder without a repo does not fail — it walks up
+ * until it finds one. So on any project that is not itself a repo (which is
+ * most hand-made documents, and every magazine-pipeline folder) the low-level
+ * git tools operated on whatever repository happened to contain it: `git_commit`
+ * would `add -A` a stranger's working tree, and `git_push` would send it to a
+ * stranger's remote. Nothing in the call would have looked wrong.
+ *
+ * The high-level version tools are unaffected — they lazily `git init` the
+ * project itself, which is the right behaviour there.
+ */
+async function requireProjectGit(): Promise<ReturnType<typeof simpleGit>> {
+  if (!state.projectDir) {
+    throw new Error('No project set. Call penwright_set_project first.');
+  }
+  const git = simpleGit(state.projectDir);
+  if (!(await git.checkIsRepo())) {
+    throw new Error(
+      `${path.basename(state.projectDir)} is not a Git repository. ` +
+      `Use penwright_save_version — it initialises one for this project. ` +
+      `(The low-level git tools refuse to act here because Git would otherwise resolve to an enclosing repository that is not this project.)`,
+    );
+  }
+  const top = (await git.revparse(['--show-toplevel'])).trim();
+  const project = fs.realpathSync(state.projectDir);
+  if (fs.realpathSync(top) !== project) {
+    throw new Error(
+      `${path.basename(state.projectDir)} is not the root of its Git repository — that is ${top}. ` +
+      `Refusing to stage, commit or push a repository this project only happens to sit inside.`,
+    );
+  }
+  return git;
+}
 
 async function ensureGitRepo(dir: string): Promise<void> {
   const git = simpleGit(dir);
@@ -2933,7 +3201,7 @@ tool(
   'Returns git status of the project: branch name, ahead/behind counts, and list of changed files.',
   async () => {
     try {
-      const git = simpleGit(state.projectDir);
+      const git = await requireProjectGit();
       const status = await git.status();
       return {
         content: [{
@@ -2964,7 +3232,7 @@ tool(
   },
   async ({ message, stageAll }) => {
     try {
-      const git = simpleGit(state.projectDir);
+      const git = await requireProjectGit();
       await ensureGitIdentity(git);
       if (stageAll) {
         await git.add('-A');
@@ -2989,7 +3257,7 @@ tool(
   'Pushes committed changes to the remote repository.',
   async () => {
     try {
-      const git = simpleGit(state.projectDir);
+      const git = await requireProjectGit();
       await git.push();
       return {
         content: [{ type: 'text' as const, text: 'Pushed to remote.' }],
@@ -3448,14 +3716,14 @@ tool(
 
 tool(
   'penwright_export_docx',
-  'Export the current document as DOCX with real Word styles + live multilevel numbering. Multi-chapter projects are merged. Output path must be inside the project (convention: exports/<name>.docx).',
+  'Export as DOCX for someone who needs to edit or comment in Word — real Word styles, live multilevel numbering, figures, tables, footnotes and citations. Multi-chapter projects are merged first. Output must be a .docx inside the project. Layout is Word\'s, not Typst\'s; for the design as designed, export a PDF.',
   { outputPath: z.string().describe('Path for the DOCX output, relative to the project (e.g. "exports/thesis.docx")') },
   async ({ outputPath }) => {
     try {
       const { filePath } = readCurrentDocument();
       const rootFile = findRootFile(filePath);
       const rootDir = path.dirname(rootFile);
-      const absOutput = resolveInsideProject(outputPath);
+      const absOutput = resolveExportTarget(outputPath, '.docx');
 
       const outDir = path.dirname(absOutput);
       if (!fs.existsSync(outDir)) {

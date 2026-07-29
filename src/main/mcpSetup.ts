@@ -43,7 +43,14 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // app does (Git, .gitignore, sources/, .penwright/, the five skills,
 // style.typ) — which means the skill TEXTS now ship inside the binary, so a
 // skillTemplates.ts change requires a rebuild to reach the MCP creation paths.
-export const MCP_SETUP_VERSION = '0.20.0';
+// 0.21.0: phase B — the server introduces itself (`instructions`, which the
+// SDK has always supported and this server never passed), all 63 tools on
+// registerTool with a title and a full set of annotations from ONE table, and
+// the three A3 guards: exports refuse a source extension (outputPath:
+// "main.typ" used to overwrite the document with its own PDF and report
+// success), the low-level git tools refuse a repository this project only sits
+// inside, and the compile artefact goes to tmpdir instead of the project.
+export const MCP_SETUP_VERSION = '0.21.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
