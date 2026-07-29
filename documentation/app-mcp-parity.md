@@ -6,6 +6,21 @@
 
 ---
 
+## Stand nach Session 42 — Block 1 abgeschlossen
+
+Alles unter „Restliste, priorisiert" aus der Verifikation unten ist gebaut, bis auf die dort genannten Reste. Kurzfassung; Details in [handover.md](handover.md).
+
+| | Urteil | Was sich geändert hat |
+|---|---|---|
+| **P1 Schreiben** | **erfüllt** | `shared/projectScaffold` (alle vier Anlagewege, inkl. Skills und `.gitignore`) und `shared/assetPlacement` (eine Ablageregel, Dedup per Inhalt, nie ein Overwrite, Pfad relativ zur Zieldatei) schließen die letzten beiden Divergenzen ohne gemeinsamen Planer. |
+| **P2 Lesen** | **erfüllt bis auf die Backups** | `penwright_render_page` — die KI sieht eine gerenderte Seite. Der Undo-Stack ist beidseitig lesbar. **Offen bleibt `history/VER-03`**: Auto-Backups sind für die KI unlesbar, aber ungeschützt beschreibbar. |
+| **P3 Wissen** | **beidseitig, bewusst schmal** | `lastCompileOk` im Kanal (die KI unterscheidet einen selbst verursachten Bruch von einem vorbestehenden), `get_style` meldet `initialized`/`adopted`/`rootFile`, und `agent-activity.json` ist der **rein informative** Rückkanal: die App zeigt an, woran die KI arbeitet, und gehorcht ihm nicht. Kein Cursor, keine Auswahl, kein Puffer — der Kanal trägt nur, woraus eine **andere Entscheidung** folgt. |
+| **P4 Schutz** | **erfüllt** | `shared/safeApply` — Staging → Verify → commit/rollback, Verifier + IO injiziert, auf beiden Seiten. Der Undo-Stack ist beidseitig sichtbar und bedienbar, mit **einer** Aufbewahrungsgrenze. Die Warnung vor ungespeicherter Arbeit hängt am Schreib-Guard statt an drei Tools. |
+
+**Nicht mehr wahr:** *„Auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht."* Die beiden Prozesse teilen jetzt auch eine Gegenwart.
+
+**Was aus Klasse 1 offen bleibt:** `insert_design_element` bekommt `file` (2 h) · Backup-Tools (VER-03) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI · Handbuch als Resource. Nichts davon hat heutiges Schadenspotenzial.
+
 ---
 
 ## Verifikation (2026-07-28, nach neun Commits)

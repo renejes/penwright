@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **57 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **62 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
 
 ---
 
@@ -78,7 +78,7 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 
 ---
 
-## Verfuegbare Tools (59)
+## Verfuegbare Tools (62)
 
 ### Projekt & Dateien (5)
 
@@ -88,7 +88,7 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 | `penwright_list_files` | Projekt-Dateibaum anzeigen |
 | `penwright_read_file` | Projektdatei lesen (Text oder Base64 fuer Binaerdateien) |
 | `penwright_write_file` | Datei schreiben (mit auto-mkdir) |
-| `penwright_create_project` | Neues Projekt aus Template (document, thesis, paper, letter, book, **magazine**). `magazine` ist die Slow-Media-Vorlage fuer ai-magazine-designer. |
+| `penwright_create_project` | Neues Projekt aus Template (document, thesis, paper, letter, book, **magazine**). `magazine` ist die Slow-Media-Vorlage fuer ai-magazine-designer. Seit Session 42 laeuft das durch **denselben Scaffold wie „Neues Projekt" in der App** (`shared/projectScaffold`): `assets/` + `sources/`, `.gitignore`, `.penwright/`-Skelett, die fuenf Projekt-Skills unter `.claude/skills/`, `style.typ` in der Wurzel verdrahtet, Git-Repo + erste Version. Vorher entstanden hier drei Dateien und sonst nichts — kein Repo (also nichts, was „Version speichern" haette wiederherstellen koennen) und keine Skills (der naechste Agent wusste nichts ueber die Konventionen des Projekts). |
 
 ### Presets — fertige Projekt-Starter (2)
 
@@ -97,9 +97,9 @@ Die **Preset-Bibliothek**: fertige, compile-getestete Projekt-Ordner (Magazin, R
 | Tool | Beschreibung |
 |------|-------------|
 | `penwright_list_presets` | Alle Built-in-Presets auflisten (`id` / `type` / `label` / `tagline` / `openFile`), optional nach `type` gefiltert (magazine, report, document, cookbook, portfolio, thesis, letter, newsletter, book, paper) |
-| `penwright_create_from_preset` | Neues Projekt aus einem Preset anlegen — kopiert den Ordner verbatim (Design + Makros + Assets + Lorem, ohne `preset.json`/`thumbnail`), `git init` + erste Version, wechselt auf die Startdatei des Presets. **Bevorzugt gegen&uuml;ber `create_project`, wenn ein designter Startpunkt gew&uuml;nscht ist.** |
+| `penwright_create_from_preset` | Neues Projekt aus einem Preset anlegen — kopiert den Ordner verbatim (Design + Makros + Assets + Lorem, ohne `preset.json`/`thumbnail`), dann derselbe Scaffold wie oben (ohne Restyling und ohne zusaetzliche Ordner — das Preset bringt seine eigene Struktur mit): `.penwright/`, `.gitignore`, **die fuenf Projekt-Skills**, `git init` + erste Version; wechselt auf die Startdatei des Presets. Bis Session 42 trug **kein einziges** der 35 geb&uuml;ndelten Presets `.claude/`. **Bevorzugt gegen&uuml;ber `create_project`, wenn ein designter Startpunkt gew&uuml;nscht ist.** |
 
-### Dokument-Operationen (4)
+### Dokument-Operationen (5)
 
 | Tool | Beschreibung |
 |------|-------------|
@@ -107,6 +107,7 @@ Die **Preset-Bibliothek**: fertige, compile-getestete Projekt-Ordner (Magazin, R
 | `penwright_open_file` | .typ Datei als aktuelles Dokument oeffnen |
 | `penwright_update_document` | Dokumentinhalt ersetzen und speichern |
 | `penwright_compile` | Verifiziert, dass das Dokument kompiliert. Liefert `{ success, rootFile, sizeBytes }` oder strukturierte `errors[]`. Ergebnisdatei wird verworfen — fuer ein echtes Artefakt `penwright_export_pdf` / `penwright_export_docx` nutzen. |
+| `penwright_render_page` | **Rendert eine Seite des kompilierten PDFs als Bild und liefert sie zurueck** (`type: 'image'`) — der Agent *sieht* das Layout, statt es aus dem Quelltext zu erraten. Vor jeder visuellen Beurteilung (Abstaende, Ueberlauf, Farbe, wo eine Ueberschrift gelandet ist) benutzen. Max. 2 Seiten / 4 MB pro Aufruf, `ppi` 72–300 (Default 144); hoehere Werte kosten Kontext. |
 
 ### Settings & Styles (2)
 
@@ -121,9 +122,13 @@ Document Settings sind seit Session 22 auf `lang` + `bibliographyStyle` reduzier
 
 Die strukturierte Design-Surface aus dem Design-Editor-Tab. Schreibt direkt nach `.penwright/style.json`, regeneriert `style.typ`, und stellt sicher dass die root-`.typ` Datei `#import "style.typ": *` + `#show: apply-style` ganz oben hat. Operationen sind idempotent und preservieren `style.custom.preamble` (User-Escape-Hatch-Code) **und `style.sections`** (per-Chapter Section Styles) bei Theme- und Layout-Swaps.
 
+**Jede Design-Mutation ist ein sicheres Experiment (seit Session 42).** Die Schreibvorgaenge werden gestaged, das Dokument wird testweise kompiliert, und wenn es danach nicht mehr kompiliert, wird **der komplette Satz** zurueckgerollt — das Projekt ist exakt wie vorher, und das Tool sagt das mit der Typst-Fehlermeldung dazu (`shared/safeApply`, dieselbe Maschinerie wie `safeApplyDesign` in der App). Vorher schrieb diese Seite ungeprueft: ein einziges `apply_layout` konnte das Dokument unkompilierbar hinterlassen, ohne Rueckweg, und das Tool meldete Erfolg, weil der Schreibvorgang gelungen war. War das Dokument **schon vorher** kaputt, wird die Aenderung trotzdem angewendet (ein Design-Schritt wird nicht fuer einen vorbestehenden Inhaltsfehler bestraft) und der Hinweis sagt das.
+
+Bei einem Projekt mit **handgeschriebener `style.typ`** verweigern alle Design-Tools den Schreibvorgang — `penwright_get_style` meldet das vorab als `adopted: false`, damit die Absage keine Ueberraschung ist.
+
 | Tool | Beschreibung |
 |------|-------------|
-| `penwright_get_style` | Full ProjectStyle JSON lesen — colors / fonts / scale / layout / headings / elements / custom |
+| `penwright_get_style` | Design-Zustand lesen: `{ initialized, adopted, rootFile, styleTypFile, style }`. **`initialized` zuerst lesen** — ist es `false`, sind die gezeigten Tokens Penwright-**Defaults** und beschreiben nicht, wie das Dokument aussieht; `adopted: false` heisst handgeschriebene `style.typ`, die Design-Tools verweigern. Ohne diese Flags sahen Defaults aus wie Tatsachen. |
 | `penwright_update_style` | Partial-Patch (deep-merge mit Per-Leaf-Sanitizer). z.B. `{ colors: { primary: "#0f172a" } }` reicht; Rest bleibt. Invalid hex/weight/range faellt auf alten Wert zurueck statt zu erroren |
 | `penwright_list_styles` | Built-in Themes auflisten (id / name / description / bestFor) — Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis |
 | `penwright_apply_style` | Theme komplett anwenden — \`styleId: "marketing-brochure"\`. Ueberschreibt colors/fonts/scale/layout/headings/elements; behaelt `custom.preamble` |
@@ -206,7 +211,7 @@ PDF und DOCX schreiben in den Projektordner — Konvention: `exports/<name>.<ext
 | `penwright_import_markdown` | Konvertiert Markdown nach Typst (Headings, Bold/Italic, Links, Bilder, Listen, Code-Bloecke, Blockquotes; YAML-Frontmatter wird uebersprungen). Source: inline `markdown`-Text ODER `srcPath` (kann ausserhalb des Projekts liegen). Destination ist immer im Projekt. |
 | `penwright_add_image` | Kopiert ein Bild nach `assets/` (Content-Hash-Dedup) und liefert ein Typst-Snippet zurueck. Mit `caption` wird daraus ein `#figure(...)`, mit `caption + label` ein referenzierbares Figure-Target. Optional sofortiger Inline-Insert via `file + afterText` — spart eine Round-Trip. |
 
-### Versionen (4)
+### Versionen (4) + Rueckgaengig (2)
 
 High-Level-API analog zum „Versionen"-Panel im UI. Spricht Schreiber-Vokabular („Version speichern" statt „Commit") und arbeitet rein lokal — kein Push zum Remote. Initialisiert das Git-Repo automatisch, wenn das Projekt noch keines hat.
 
@@ -216,6 +221,13 @@ High-Level-API analog zum „Versionen"-Panel im UI. Spricht Schreiber-Vokabular
 | `penwright_list_versions` | Versionsverlauf lesen, neueste zuerst, max. 200 Eintraege. Pro Eintrag: `{ sha, message, date, author, isAuto }`. |
 | `penwright_show_version` | Diff einer einzelnen Version pro Datei: `{ path, status, patch }`. |
 | `penwright_restore_version` | Dateien aus einer historischen Version zurueck in den Working-Tree. **Achtung:** ueberschreibt unkommittete Aenderungen. Vorher `penwright_save_version` aufrufen, um den aktuellen Stand zu sichern. |
+
+**Das Undo-Netz** (`.penwright/ai-snapshots/`) ist etwas anderes als Versionen: `guardedWrite` sichert vor **jedem** Schreibvorgang dieses Servers die Vorversion der Datei — dieselbe Ablage, die „Undo AI Edit" und der Verlaufs-Hub der App lesen. Bis Session 42 konnte diese Seite den Ordner nur fuellen, nie hineinsehen. Begrenzt und pro Datei; fuer alles, was bleiben soll, `penwright_save_version`.
+
+| Tool | Beschreibung |
+|------|-------------|
+| `penwright_list_edits` | Die rueckgaengig machbaren Snapshots auflisten, neueste zuerst (`file` / `at` / `timestamp`) plus die geltende Aufbewahrungsgrenze. Optional auf eine Datei eingeschraenkt. |
+| `penwright_undo_last_edit` | Den neuesten Snapshot zurueckspielen — die letzte Ueberschreibung einer Datei, oder ohne `file` die zuletzt geschriebene ueberhaupt. Mehrfach aufrufbar. Laeuft selbst durch `guardedWrite`, ist also seinerseits rueckgaengig machbar. |
 
 ### Git — Low-Level (3)
 

@@ -2,49 +2,44 @@
 
 ---
 
-## 🔑 AKTUELLES ARBEITSZIEL (seit 2026-07-29, Session 41): Parität App ↔ KI
+## 🔑 AKTUELLES ARBEITSZIEL (seit 2026-07-29): Parität App ↔ KI — **Block 1 abgeschlossen**
 
-> Vollständiger Kontext: [handover.md](handover.md) · Ist-Zustand + Restliste: [app-mcp-parity.md](app-mcp-parity.md)
+> Vollständiger Kontext: [handover.md](handover.md) · Ist-Zustand + Restliste: [app-mcp-parity.md](app-mcp-parity.md) · Die Regel selbst steht jetzt in [CLAUDE.md](../CLAUDE.md) → „App ↔ MCP parity"
 
 **Das Prinzip:** Die KI (über den MCP-Server) sieht, was der Mensch sieht, und beide beschreiben dieselben Dateien. Beide arbeiten mit demselben Wissen und haben denselben Zugriff.
 
-Vier prüfbare Forderungen — **P1 Schreiben**, **P2 Lesen**, **P3 Wissen**, **P4 Schutz**. Stand nach Session 41: *auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht.*
+**Stand nach Session 42:** **P1 / P3 / P4 erfüllt, P2 bis auf die Backups.** Der Satz von Session 41 — *„auf der Ebene der Dateien weitgehend eingelöst, auf der Ebene des Zustands noch nicht"* — gilt nicht mehr; die beiden Prozesse teilen jetzt auch eine Gegenwart.
 
-**Das Muster, das fortgeschrieben wird:** kein Synchronhalten zweier Implementierungen, sondern ein **gemeinsamer Planer in `src/shared/`**, den beide Prozesse aufrufen — reines Planen, der Aufrufer wendet an. Neun solche Module existieren bereits (`styleWrite`, `fileWrite`, `watchIgnore`, `sessionState`, `editHistory`, `lockFile`, `bibDiscovery`, `stylePresetMerge`, `printExportPlan`).
+**Das Muster, das fortgeschrieben wird:** kein Synchronhalten zweier Implementierungen, sondern ein **gemeinsamer Planer in `src/shared/`**, den beide Prozesse aufrufen — reines Planen, der Aufrufer wendet an. **Zwölf** solche Module (`safeApply`, `projectScaffold`, `assetPlacement`, `styleWrite`, `fileWrite`, `watchIgnore`, `sessionState`, `editHistory`, `lockFile`, `bibDiscovery`, `stylePresetMerge`, `printExportPlan`).
 
-### Reihenfolge
+### Erledigt (Session 42)
 
-**1. P4 Schutz vervollständigen (~10 h) — der einzige Bereich mit verbliebenem Schadenspotenzial**
-- [ ] `safeApplyMcp` — Staging → Compile-Verify → commit/rollback nach `shared/`, Verifier injiziert; `style.json` in die Rollback-Menge. *Ein Tool-Call kann das Dokument heute unkompilierbar hinterlassen, ohne Rückweg.*
-- [ ] Undo-Netz **lesbar** machen — `ai:list` auf `listSnapshots(projectDir)` (existiert, null Produktivaufrufer), `popAiSnapshot` mit `filePath`, MCP-Gegenstücke `list_edits`/`undo_last_edit`, **eine** Aufbewahrungsgrenze statt zwei.
-- [ ] `unsavedEditsNote` in `guardedWrite` hochziehen — heute an 3 von 28 Tools.
+- [x] **`safeApply`** — Staging → Compile-Verify → commit/rollback in `shared/`, Verifier + IO injiziert. Beide Seiten. *Ein Tool-Call konnte das Dokument unkompilierbar hinterlassen, ohne Rückweg — und meldete Erfolg.* Dabei mitgefixt: `apply_section_style` schrieb Definition und Kapitel-Opt-in getrennt; `define_section_style` meldete einen Fehler, nachdem es schon geschrieben hatte.
+- [x] **Undo-Netz lesbar** — der Ordner ist die einzige Wahrheit für beide, **projektweit** statt nur für die offene Datei; `ai:list`/`ai:undoLast` mit optionalem `filePath`, MCP-Gegenstücke `penwright_list_edits` / `penwright_undo_last_edit`; **eine** Aufbewahrungsgrenze (die App publiziert die Zahl des Nutzers ins Projekt).
+- [x] **`unsavedEditsNote` hochgezogen** — hing an 3 von 28 Tools, hängt jetzt am Schreib-Guard + an einer Stelle im Tool-Wrapper.
+- [x] **`shared/projectScaffold.ts`** — ein `scaffoldProject()` für alle vier Anlagewege, inklusive der Skill-Lücke (**0 von 35 Presets** hatten `.claude/`) und der `.gitignore`-Divergenz. Konservative Defaults, weil „Version speichern" dort hineinläuft.
+- [x] **`shared/assetPlacement.ts`** — eine Ablageregel; **zwei von drei App-Eingängen zerstörten still ein gleichnamiges Bild**.
+- [x] **`lastCompileOk` in `session.json`** — die KI unterscheidet einen Bruch, den sie verursacht hat, von einem, der schon da war.
+- [x] **`agent-activity.json` als Rückkanal** — die App **zeigt** in der Statusleiste an, woran die KI arbeitet, und gehorcht ihm nicht.
+- [x] **`get_style` liefert `initialized` / `adopted` / `rootFile`** — Defaults sahen aus wie Tatsachen.
+- [x] **`penwright_render_page`** — die KI kann das Dokument jetzt **sehen** (Typst → PNG, `type:'image'`, max. 2 Seiten / 4 MB pro Aufruf).
+- [x] **`scripts/parity-guards-test.mts`** — 55 Checks, acht davon E2E über stdio mit echtem Typst. Der Rollback-Check wurde gegengeprüft (ohne den Fix rot).
 
-**2. P1 Schreiben vervollständigen (~9 h) — bekannt, bounded, dasselbe Muster**
-- [ ] `shared/projectScaffold.ts` — `create_project` erzeugt 3 Dateien, die App 12 + Git + `.gitignore` + `sources/` + Skills + `style.typ`. Nimmt die `.gitignore`-Divergenz und die Skill-Lücke mit (**0 von 35 Presets** haben `.claude/`).
-- [ ] `shared/assetPlacement.ts` — drei Ablageschemata; **die App überschreibt heute still ein gleichnamiges Bild**.
-
-**3. P3 Wissen — bewusst BEGRENZT ausbauen**
-> `session.json` soll **kein** Spiegel des Editors werden. Ein Zustandsspiegel mit Cursor, Auswahl und Puffer ist eine zweite Wahrheit, die veralten kann. Nur was zu einer **anderen Entscheidung** der KI führt.
-- [ ] `lastCompileOk` in `session.json` — weiß die KI, ob sie auf einem kaputten Dokument aufsetzt.
-- [ ] `agent-activity.json` als Rückkanal — die App **zeigt** an, woran die KI arbeitet, und gehorcht ihm nicht.
-- [ ] `get_style` liefert `initialized`/`rootFile` — sonst designt die KI gegen eine Fiktion.
-
-**4. P2 Lesen — eine echte Fähigkeit fehlt**
-- [ ] `penwright_render_page` (~5 h) — **die KI hat das Dokument nie gesehen.** Typst rendert direkt PNG, die Binary ist gebündelt, `type:'image'` ist im MCP-Protokoll vorgesehen und wird nirgends benutzt. Größte einzelne Annäherung an „die KI sieht, was der Mensch sieht" — und Voraussetzung für fundiertes Design-Feedback.
-
-**5. Der MCP-Umbau ist kein eigenes Projekt mehr.** [mcp-rebuild-plan.md](mcp-rebuild-plan.md) ist auf den Stand revidiert: **~1/3 durch die Paritätsarbeit erledigt**, der Rest zur Hälfte in der Paritätsliste aufgegangen. Aus ~20 PT sind ~13–14 geworden. Der Fahrplan (Details in [handover.md](handover.md) §4b):
+### Offen — jetzt der Umbauplan
 
 | Block | Inhalt | PT |
 |---|---|---:|
-| 1 | Parität fertig (Punkte 1–4 oben) — enthält Phase D + die Skill-Lücke aus F | 4 |
-| 2 | **Phase B allein, vorziehen** — `server.instructions` (ungenutzt, größter Einzelhebel, halber Tag), `registerTool()` + Annotations, Beschreibungs-Chirurgie; dazu das Wächterskript + drei A3-Reste | 2 |
-| 3 | Phase C-Rest — u. a. `insert_reference` nimmt Citekeys (**einzige echte Fähigkeitslücke**) | 1,5 |
+| ~~1~~ | ~~Parität~~ | ✅ |
+| **2** | **Phase B — als nächstes.** `server.instructions` (vorhanden, dokumentiert und **ungenutzt** — größter Einzelhebel, halber Tag), `registerTool()` + Annotations (`readOnlyHint` → Auto-Approve; ändert **keinen** Tool-Namen), Beschreibungs-Chirurgie; dazu das Wächterskript gegen die sechs driftenden Tool-Listen + drei A3-Reste (Git-Tools ohne Projekt-Guard, Compile-Temp-PDF neben dem Root, **kein Extension-Guard beim Export — `outputPath: "main.typ"` überschreibt die Quelldatei mit einem PDF**). | 2 |
+| 3 | Phase C-Rest — u. a. **`insert_reference` nimmt Citekeys** (die einzige verbliebene echte Fähigkeitslücke) | 1,5 |
 | 4 | Eval — 10–15 Autorenaufgaben, vor und nach Block 2 | 1 |
 | 5 | Phase E + F (Renames, Merges, Skill-Rewrite) — **nur wenn das Eval Fehlgriffe zeigt** | 7 |
 
-**Harter Kern (1–4): ~8,5 PT.** Block 5 hängt bewusst an einer Messung: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
+**Rest des harten Kerns: ~4,5 PT.** Block 5 hängt bewusst an einer Messung: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
 
-**Gate nach jedem Block, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen (steht auf `0.19.0`, **nicht** gebumpt) + `npm run build:mcp-binary:all`.
+**Kleinere Paritätsreste** (nicht blockierend): `insert_design_element` bekommt `file` · Backup-Tools für die KI (`history/VER-03` — Auto-Backups sind für sie unlesbar, aber ungeschützt beschreibbar) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI sichtbar · Handbuch als MCP-Resource · `writeFileAtomic` + `awaitWriteFinish` (<4 h zusammen).
+
+**Gate nach jedem Block, der `server.ts` anfasst:** `MCP_SETUP_VERSION` bumpen (steht auf **`0.20.0`**, gebumpt) + `npm run build:mcp-binary:all`. **Neu:** die Skill-Texte stecken jetzt in der Binary (die MCP-Anlagewege deployen sie), also braucht auch eine `skillTemplates.ts`-Änderung einen Rebuild.
 
 ### Was bewusst asymmetrisch bleibt — nicht „fixen"
 
