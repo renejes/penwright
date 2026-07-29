@@ -105,17 +105,24 @@ Zwei Dinge, die das Skript bewusst durchlässt: `documentation/done/**` und die 
 
 ## 3. Nächste Session — der Fahrplan
 
-Blöcke 1 bis 3 sind **abgearbeitet**. Was bleibt:
+**Der MCP-Umbau ist abgeschlossen.** Aus ursprünglich ~20 PT wurden 8,5 gebaut — und die restlichen 7 durch eine Messung für **$1,36** erledigt.
 
-| Block | Inhalt | PT |
-|---|---|---:|
+| Block | Inhalt | |
+|---|---|---|
 | ~~1~~ | ~~Parität~~ | ✅ |
 | ~~2~~ | ~~Phase B + A2 + A3-Rest~~ | ✅ |
 | ~~3~~ | ~~Phase C-Rest~~ | ✅ |
-| **4** | **Eval — jetzt dran.** 10–15 nachprüfbare Autorenaufgaben. `instructions`, die geschärften Beschreibungen, die Annotations und die C-Fixes sind drin; die Namen sind unverändert. Genau der Zustand, in dem sich messen lässt, ob Block 5 überhaupt gebraucht wird — und der einzige Punkt im Fahrplan, an dem eine Messung statt einer Schätzung entscheidet. | 1 |
-| **5** | Phase E + F (Renames, Streichungen, Merges, Skill-Rewrite). **Nur wenn das Eval Fehlgriffe zeigt.** | 7 |
+| ~~4~~ | ~~Eval~~ — 15 Autorenaufgaben | ✅ |
+| ~~5~~ | ~~Phase E + F — Renames, Merges, Skill-Rewrite~~ | **entfällt** |
 
-**Warum Block 5 an einer Messung hängt:** der teuerste Posten ist `skillTemplates.ts` (39 Tool-Namen, Routing-Tabelle, ~25 Call-Beispiele) — inhaltliche Arbeit, ~2 Tage, und sie **darf genau einmal passieren**. Ob die Renames überhaupt nötig sind, ist unbelegt. Wenn `instructions` + geschärfte Beschreibungen die Fehlgriffe beseitigen, ist die Frage erledigt. Nach Block 2 halte ich das für noch wahrscheinlicher als vorher — aber das ist eine Vermutung, und Block 4 ist da, um sie zu ersetzen.
+**Das Eval hat Block 5 erledigt, ohne dass er gebaut wurde.** 13 Treffer, **0 Fehlgriffe**, 2 Blindstellen, 0 Schaden. Sechs der fünfzehn Aufgaben waren gezielt auf die verwechselbaren Paare gebaut — `merge`/`split` (eines liest, eines schreibt), `export_pdf`/`export_print`, `create_project`/`create_from_preset`, `update_style`/`update_settings`. **Kein einziger Fehlgriff.** Die These, auf der sieben Personentage standen, ist damit nicht bestätigt; [mcp-tool-consolidation.md](mcp-tool-consolidation.md) ist geprüft und verworfen. Auch die Sicherheitsverdrahtung hielt: Dry-Run vor dem Projekt-Replace, Rückfrage statt `confirm: true`, und der Export auf `main.typ` wurde abgelehnt, ohne den Guard über ein natives Tool zu umgehen.
+
+Zwei Dinge, die man beim Lesen wissen muss — beide ausführlich in [mcp-eval-results.md](mcp-eval-results.md):
+
+1. **Eine Aufgabe wurde nach dem ersten Lauf korrigiert, und das war entscheidungsrelevant.** B3 verlangte, „Fazit" zu ersetzen — im englischen Sample gibt es das Wort nicht. Das Modell merkte es und fragte zurück; der Scorer buchte das als Blindstelle. Korrigiert und der **ganze** Satz neu gelaufen: aus 3 Blindstellen (auf der Schwelle → bauen) wurden 2 (darunter → streichen).
+2. **Es gibt kein Vorher/Nachher.** Die Baseline vor Phase B wurde nie eingefroren. Ob `instructions` + Annotations die Fehlgriffe beseitigt haben oder ob es nie welche gab, bleibt offen — für die Block-5-Entscheidung egal, als Beleg für den Nutzen von Phase B aber untauglich.
+
+**Reichweite:** ein Modell (`sonnet`, bewusst das schwächere — ein sauberes Ergebnis dort ist das stärkere Argument), ein Host (Claude Code). Die zwei Blindstellen — `read_file` sieben Mal statt `merge_document`, natives `write_file` statt `insert_reference` — sind **Auffindbarkeit, nicht Verwechslung**; ein Rename hätte bei keiner geholfen, und die zweite fällt in Claude Desktop (keine nativen Datei-Tools) ohnehin weg. Beide Ergebnisse waren inhaltlich trotzdem richtig.
 
 **Kleinere offene Paritätspunkte** (nicht blockierend, aus [app-mcp-parity.md](app-mcp-parity.md) Klasse 1/2): `insert_design_element` bekommt `file` (2 h) · Backup-Tools für die KI (VER-03) · Design-Elemente für den Menschen · Magazin-Makros ins Skill · User-Presets für die KI sichtbar · Handbuch als MCP-Resource.
 

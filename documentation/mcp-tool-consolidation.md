@@ -1,5 +1,14 @@
 # MCP-Tools reduzieren? — Handlungsoptionen und Empfehlung
 
+> ## ⛔ Geprüft und verworfen (2026-07-29)
+>
+> Dieses Dokument schlug vor, die Tool-Zahl durch Renames, Streichungen und Merges zu senken. **Die zugrunde liegende These wurde gemessen und hat sich nicht bestätigt.**
+>
+> Ein Eval über 15 Autorenaufgaben — sechs davon gezielt auf die verwechselbaren Paare gebaut (`merge`/`split`, `export_pdf`/`export_print`, `create_project`/`create_from_preset`, `update_style`/`update_settings`) — ergab **null Fehlgriffe**. Volles Ergebnis, inklusive der zwei verbliebenen Blindstellen und einer offengelegten Testkorrektur: [mcp-eval-results.md](mcp-eval-results.md).
+>
+> **Nichts hieraus wird umgesetzt.** Das Dokument bleibt als Protokoll der Untersuchung stehen — auch, damit die Frage nicht in einem Jahr erneut ohne Messung gestellt wird.
+
+
 > Stand: 2026-07-28 · Bestandsaufnahme: [mcp-tool-audit.md](mcp-tool-audit.md)
 > Status: **Analyse, kein Code.** Entscheidung offen.
 

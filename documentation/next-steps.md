@@ -44,10 +44,12 @@
 | ~~1~~ | ~~Parität~~ | ✅ |
 | ~~2~~ | ~~Phase B + A2 + A3-Rest~~ | ✅ |
 | ~~3~~ | ~~Phase C-Rest~~ | ✅ |
-| **4** | **Eval — jetzt dran, und es ist der Punkt, an dem etwas entschieden wird.** 10–15 nachprüfbare Autorenaufgaben. `instructions`, geschärfte Beschreibungen, Annotations und die C-Fixes sind drin; die Namen sind unverändert. **Genau der Zustand, in dem sich messen lässt, ob Block 5 überhaupt gebraucht wird.** | 1 |
-| 5 | Phase E + F (Renames, Merges, Skill-Rewrite) — **nur wenn das Eval Fehlgriffe zeigt** | 7 |
+| ~~4~~ | ~~Eval~~ — gelaufen, **13 Treffer / 0 Fehlgriffe / 2 Blindstellen / 0 Schaden** für $1,36 | ✅ |
+| ~~5~~ | ~~Phase E + F (Renames, Merges, Skill-Rewrite)~~ — **entfällt.** Das Eval zeigte **null** Fehlgriffe, auch nicht bei den Paaren, die dafür gebaut waren. [mcp-tool-consolidation.md](mcp-tool-consolidation.md) ist geprüft und verworfen. | ~~7~~ |
 
-**Rest des harten Kerns: ~1 PT — das Eval.** Block 5 hängt bewusst an der Messung in Block 4: der Skill-Rewrite (~2 Tage) darf genau einmal passieren, und ob die Renames überhaupt nötig sind, ist unbelegt.
+**Der MCP-Umbau ist abgeschlossen.** Aus ursprünglich ~20 PT wurden 8,5 gebaut und 7 durch eine Messung für $1,36 erledigt. Volles Ergebnis inkl. der zwei Blindstellen und der offengelegten Testkorrektur: [mcp-eval-results.md](mcp-eval-results.md).
+
+**Was aus dem Eval noch offen ist (klein, optional, kein Block 5):** zwei Blindstellen — das Modell nahm `read_file` sieben Mal statt `merge_document`, und Claude Codes eigenes `write_file` statt `insert_reference`. Beide Ergebnisse waren trotzdem richtig; beides ist **Auffindbarkeit, nicht Verwechslung**, und in Claude Desktop (keine nativen Datei-Tools) fällt die zweite ohnehin weg. Ein Satz in `SERVER_INSTRUCTIONS` würde reichen — aber das wäre Nachschärfen auf den eigenen Benchmark und darf nicht als Messergebnis verbucht werden.
 
 ### Erledigt (Block 2, Phase B + A2 + A3-Rest)
 

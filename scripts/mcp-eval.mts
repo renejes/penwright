@@ -146,7 +146,12 @@ const TASKS: Task[] = [
   },
   {
     id: 'B3', group: 'Fähigkeiten finden',
-    prompt: 'Ersetz in Kapitel 6 das Wort "Fazit" durch "Schluss" — und mach es danach wieder rückgängig.',
+    // The first version asked to replace "Fazit" — a word that does not occur
+    // in this English sample. The model correctly said so and asked back,
+    // which the scorer recorded as a blind spot. That was the task's fault,
+    // not the server's: a test the model can only pass by hallucinating is
+    // measuring the wrong thing.
+    prompt: 'Ersetz in Kapitel 6 die Überschrift "Conclusion" durch "Closing" — und mach die Änderung danach wieder rückgängig.',
     expect: [pw('undo_last_edit'), pw('list_edits')],
     misfire: [pw('restore_version')],
     note: 'The per-file undo net, not the git-level hammer.',
@@ -365,6 +370,20 @@ for (const task of selected) {
 
   results.push({ task, verdict, detail, calls: names.map(short), costUsd: cost });
   console.log(`${verdict}${detail ? ` — ${detail}` : ''}  ($${cost.toFixed(3)})`);
+
+  // The transcript for anything that did not simply pass. A counter that says
+  // "blind spot" without showing what the model actually did is a number to
+  // argue about, not evidence — and two of the first run's three turned out to
+  // be the harness's fault, not the server's.
+  if (verdict !== 'hit') {
+    const dump = path.join(REPO, 'documentation', 'eval-transcripts', `${task.id}.md`);
+    fs.mkdirSync(path.dirname(dump), { recursive: true });
+    fs.writeFileSync(dump,
+      `# ${task.id} — ${verdict}\n\n**Prompt:** ${task.prompt}\n\n` +
+      `**Expected:** ${task.expect.map(short).join(' | ')}\n\n` +
+      `**Calls:**\n${calls.map(c => `- \`${short(c.name)}\` ${JSON.stringify(c.input).slice(0, 300)}`).join('\n') || '- (none)'}\n\n` +
+      `**Answer:**\n\n${text.slice(0, 3000)}\n`);
+  }
 
   // Answer text matters for C2 (did it come back and ask?) and C3 (did it explain?).
   if (task.group === 'Sicherheitsverhalten') {
