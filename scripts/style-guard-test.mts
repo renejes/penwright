@@ -35,6 +35,7 @@ import {
 } from '../src/shared/styleWrite.ts';
 import { STYLE_TYPST_MARKER, generateStyleTypst } from '../src/shared/styleParser.ts';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../src/shared/styleTypes.ts';
+import { ensureStyleFiles } from '../src/shared/projectScaffold.ts';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MCP_ENTRY = path.join(REPO, 'dist', 'mcp', 'server.mjs');
@@ -285,15 +286,41 @@ console.log('\nGuard cannot be disarmed by project infrastructure');
   [hand, gen, fresh, adopted].forEach(d => fs.rmSync(d, { recursive: true, force: true }));
 }
 {
-  const src = fs.readFileSync(path.join(REPO, 'src', 'main', 'projectManager.ts'), 'utf-8');
-  const fn = src.slice(src.indexOf('export function ensureStyleFile'));
-  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  // Behavioural, not a source-text match: `ensureStyleFiles` is electron-free
+  // and can simply be run. It moved from main/projectManager into
+  // shared/projectScaffold when the MCP creation paths started using it, and a
+  // regex over the old file would have gone green-by-absence.
+  const hand2 = makeProject('handwritten');
+  const authored = fs.readFileSync(path.join(hand2, 'style.typ'), 'utf-8');
+
+  ensureStyleFiles({
+    dir: hand2,
+    wireRoot: true,
+    defaultStyleJson: '{"colors":{}}',
+    renderStyleTyp: () => '// GENERATED — would destroy the author\'s macros\n',
+  });
+
   check(
-    'ensureStyleFile asks isDesignAdopted before writing anything',
-    /if\s*\(!isDesignAdopted\(dir\)\)\s*return;/.test(body) &&
-      body.indexOf('isDesignAdopted') < body.indexOf('writeFileSync'),
-    'the early return must come before the first write',
+    'ensureStyleFiles writes NOTHING into a hand-designed project',
+    fs.readFileSync(path.join(hand2, 'style.typ'), 'utf-8') === authored &&
+      !fs.existsSync(path.join(hand2, '.penwright', 'style.json')),
+    'the adoption check must come before the first write',
   );
+
+  // …and does its job on a project Penwright owns.
+  const gen2 = makeProject('fresh');
+  ensureStyleFiles({
+    dir: gen2,
+    wireRoot: true,
+    defaultStyleJson: '{"colors":{}}',
+    renderStyleTyp: () => '// Penwright style — generated\n',
+  });
+  check(
+    'but does write for a project it owns',
+    fs.existsSync(path.join(gen2, 'style.typ')) && fs.existsSync(path.join(gen2, '.penwright', 'style.json')),
+  );
+
+  [hand2, gen2].forEach(d => fs.rmSync(d, { recursive: true, force: true }));
 }
 
 // ─── 7. Image paths resolve from the file that contains the call ────

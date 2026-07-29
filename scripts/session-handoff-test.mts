@@ -95,7 +95,7 @@ if (!fs.existsSync(MCP)) {
 console.log('\nSession record');
 {
   const dir = makeProject();
-  writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '01.typ'), isDirty: true });
+  writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '01.typ'), isDirty: true, lastCompileOk: true });
   const s = readSession(dir);
   check('round-trips', s?.currentFile === path.join(dir, 'chapters', '01.typ') && s?.isDirty === true);
 
@@ -121,7 +121,7 @@ console.log('\nThe agent picks up what the user has open');
   const dir = makeProject();
   const chapter = path.join(dir, 'chapters', '02.typ');
   writeActiveProject(dir);
-  writeSession({ projectDir: dir, currentFile: chapter, isDirty: false });
+  writeSession({ projectDir: dir, currentFile: chapter, isDirty: false, lastCompileOk: true });
 
   // Spawned somewhere else entirely — exactly how Claude Desktop does it.
   const out = await callMcp(os.tmpdir(), [call(2, 'penwright_get_document')]);
@@ -134,7 +134,7 @@ console.log('\nThe agent picks up what the user has open');
 {
   const dir = makeProject();
   writeActiveProject(dir);
-  writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '01.typ'), isDirty: true });
+  writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '01.typ'), isDirty: true, lastCompileOk: true });
   const out = await callMcp(os.tmpdir(), [call(2, 'penwright_get_document')]);
   check('warns when the buffer has unsaved edits', /unsaved changes/i.test(out), out.slice(-300));
   writeActiveProject(null);
@@ -154,7 +154,7 @@ console.log('\nThe agent keeps following the user, not a boot snapshot');
 {
   const dir = makeProject();
   writeActiveProject(dir);
-  writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '01.typ'), isDirty: false });
+  writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '01.typ'), isDirty: false, lastCompileOk: true });
 
   // Two reads in ONE server process, with the user switching files in between.
   // parseArgs used to run once at startup, so the second read still returned
@@ -163,7 +163,7 @@ console.log('\nThe agent keeps following the user, not a boot snapshot');
     call(2, 'penwright_get_document'),
     call(3, 'penwright_get_document'),
   ], {}, () => {
-    writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '02.typ'), isDirty: false });
+    writeSession({ projectDir: dir, currentFile: path.join(dir, 'chapters', '02.typ'), isDirty: false, lastCompileOk: true });
   });
   check('the second read follows the switch', out.includes('Second chapter'), out.slice(-400));
 
