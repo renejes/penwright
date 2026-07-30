@@ -41,13 +41,13 @@ Total Typst packages: **24**. Total bundled font families: **7**.
 
 | Family | Category | License | Files | Source |
 |---|---|---|---|---|
-| Crimson Pro | serif | OFL-1.1 | 4 | [link](https://github.com/google/fonts/tree/main/ofl/crimsonpro) |
-| IBM Plex Mono | mono | OFL-1.1 | 4 | [link](https://github.com/google/fonts/tree/main/ofl/ibmplexmono) |
-| IBM Plex Sans | sans | OFL-1.1 | 4 | [link](https://github.com/google/fonts/tree/main/ofl/ibmplexsans) |
-| IBM Plex Serif | serif | OFL-1.1 | 4 | [link](https://github.com/google/fonts/tree/main/ofl/ibmplexserif) |
-| Inter | sans | OFL-1.1 | 4 | [link](https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip) |
-| JetBrains Mono | mono | OFL-1.1 | 4 | [link](https://github.com/google/fonts/tree/main/ofl/jetbrainsmono) |
-| Spectral | serif | OFL-1.1 | 4 | [link](https://github.com/google/fonts/tree/main/ofl/spectral) |
+| Crimson Pro | serif | OFL-1.1 | 2 | [link](https://raw.githubusercontent.com/google/fonts/main/ofl/crimsonpro) |
+| IBM Plex Mono | mono | OFL-1.1 | 2 | [link](https://raw.githubusercontent.com/IBM/plex/master/packages/plex-mono-variable/fonts/complete/ttf) |
+| IBM Plex Sans | sans | OFL-1.1 | 2 | [link](https://raw.githubusercontent.com/IBM/plex/master/packages/plex-sans-variable/fonts/complete/ttf) |
+| IBM Plex Serif | serif | OFL-1.1 | 2 | [link](https://raw.githubusercontent.com/IBM/plex/master/packages/plex-serif-variable/fonts/complete/ttf) |
+| Inter | sans | OFL-1.1 | 2 | [link](https://raw.githubusercontent.com/google/fonts/main/ofl/inter) |
+| JetBrains Mono | mono | OFL-1.1 | 2 | [link](https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono) |
+| Spectral | serif | OFL-1.1 | 8 | [link](https://raw.githubusercontent.com/google/fonts/main/ofl/spectral) |
 
 ## Per-Package License Texts
 

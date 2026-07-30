@@ -1,83 +1,77 @@
 {
-  "generatedAt": "2026-07-13T22:19:28.621Z",
+  "generatedAt": "2026-07-30T13:11:45.691Z",
   "fonts": [
     {
       "family": "Inter",
       "category": "sans",
       "description": "Variable sans-serif by Rasmus Andersson. Modern, readable, screen-friendly.",
       "files": [
-        "Inter-Regular.ttf",
-        "Inter-Italic.ttf",
-        "Inter-Bold.ttf",
-        "Inter-BoldItalic.ttf"
+        "Inter[opsz,wght].ttf",
+        "Inter-Italic[opsz,wght].ttf"
       ],
+      "axes": "wght 100-900, opsz 14-32",
       "license": "OFL-1.1",
-      "source": "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip"
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/inter"
     },
     {
       "family": "IBM Plex Sans",
       "category": "sans",
       "description": "IBM's corporate humanist sans. Balanced, neutral, broadly compatible.",
       "files": [
-        "IBMPlexSans-Regular.ttf",
-        "IBMPlexSans-Italic.ttf",
-        "IBMPlexSans-Bold.ttf",
-        "IBMPlexSans-BoldItalic.ttf"
+        "IBM Plex Sans Var-Roman.ttf",
+        "IBM Plex Sans Var-Italic.ttf"
       ],
+      "axes": "wght 100-700, wdth 85-100",
       "license": "OFL-1.1",
-      "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexsans"
+      "source": "https://raw.githubusercontent.com/IBM/plex/master/packages/plex-sans-variable/fonts/complete/ttf"
     },
     {
       "family": "IBM Plex Serif",
       "category": "serif",
       "description": "Slab serif counterpart to IBM Plex Sans. Workhorse for body copy.",
       "files": [
-        "IBMPlexSerif-Regular.ttf",
-        "IBMPlexSerif-Italic.ttf",
-        "IBMPlexSerif-Bold.ttf",
-        "IBMPlexSerif-BoldItalic.ttf"
+        "IBM Plex Serif Var-Roman.ttf",
+        "IBM Plex Serif Var-Italic.ttf"
       ],
+      "axes": "wght 100-700",
       "license": "OFL-1.1",
-      "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexserif"
+      "source": "https://raw.githubusercontent.com/IBM/plex/master/packages/plex-serif-variable/fonts/complete/ttf"
     },
     {
       "family": "IBM Plex Mono",
       "category": "mono",
       "description": "Monospace member of the IBM Plex family. Distinctive, clean code rendering.",
       "files": [
-        "IBMPlexMono-Regular.ttf",
-        "IBMPlexMono-Italic.ttf",
-        "IBMPlexMono-Bold.ttf",
-        "IBMPlexMono-BoldItalic.ttf"
+        "IBM Plex Mono Var-Roman.ttf",
+        "IBM Plex Mono Var-Italic.ttf"
       ],
+      "axes": "wght 100-700",
       "license": "OFL-1.1",
-      "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono"
+      "source": "https://raw.githubusercontent.com/IBM/plex/master/packages/plex-mono-variable/fonts/complete/ttf"
     },
     {
       "family": "JetBrains Mono",
       "category": "mono",
       "description": "Monospace by JetBrains. Designed for source code with strong ligatures.",
       "files": [
-        "JetBrainsMono-Regular.ttf",
-        "JetBrainsMono-Italic.ttf",
-        "JetBrainsMono-Bold.ttf",
-        "JetBrainsMono-BoldItalic.ttf"
+        "JetBrainsMono[wght].ttf",
+        "JetBrainsMono-Italic[wght].ttf"
       ],
+      "axes": "wght 100-800",
       "license": "OFL-1.1",
-      "source": "https://github.com/google/fonts/tree/main/ofl/jetbrainsmono"
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono"
     },
     {
       "family": "Crimson Pro",
       "category": "serif",
       "description": "Old-style serif. Elegant for long-form reading.",
       "files": [
-        "CrimsonPro-Regular.ttf",
-        "CrimsonPro-Italic.ttf",
-        "CrimsonPro-Bold.ttf",
-        "CrimsonPro-BoldItalic.ttf"
+        "CrimsonPro[wght].ttf",
+        "CrimsonPro-Italic[wght].ttf"
       ],
+      "axes": "wght 200-900",
       "license": "OFL-1.1",
-      "source": "https://github.com/google/fonts/tree/main/ofl/crimsonpro"
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/crimsonpro"
     },
     {
       "family": "Spectral",
@@ -86,11 +80,16 @@
       "files": [
         "Spectral-Regular.ttf",
         "Spectral-Italic.ttf",
+        "Spectral-Medium.ttf",
+        "Spectral-MediumItalic.ttf",
+        "Spectral-SemiBold.ttf",
+        "Spectral-SemiBoldItalic.ttf",
         "Spectral-Bold.ttf",
         "Spectral-BoldItalic.ttf"
       ],
+      "axes": "static: 400 / 500 / 600 / 700 + italics",
       "license": "OFL-1.1",
-      "source": "https://github.com/google/fonts/tree/main/ofl/spectral"
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/spectral"
     }
   ]
 }

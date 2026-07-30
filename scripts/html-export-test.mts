@@ -868,5 +868,35 @@ console.log('\n── Test 19: section-overlay CSS + per-article frontmatter ─
   for (const d of [root, out]) fs.rmSync(d, { recursive: true, force: true });
 }
 
+// ─── Variable fonts: one file, the whole weight range ───────────────────────
+//
+// The bundle went variable once Typst 0.15 learned to instance them (0.14.2
+// warned instead, which is the only reason it was static-only). A variable file
+// looks like a single face by its NAME, and this module used to deprioritise
+// exactly such files — "variable-font umbrella TTFs whose full axis we can't
+// address" — so a published page would carry ONE weight where the PDF has nine.
+// The axis is now read from the font's `fvar` table and stated as a CSS range.
+{
+  const bundled = fileURLToPath(new URL('../resources/fonts', import.meta.url));
+
+  const a = buildFontAssets({ families: ['Crimson Pro', 'IBM Plex Sans'], fontDirs: [bundled] });
+  check('variable family → a weight RANGE, not one weight', /font-weight:\s*\d+\s+\d+/.test(a.css), a.css.slice(0, 160));
+  check('Crimson Pro range read from fvar (200 900)', a.css.includes('font-weight: 200 900'), a.css.slice(0, 300));
+  check('IBM Plex Sans range read from fvar (100 700)', a.css.includes('font-weight: 100 700'), a.css.slice(0, 300));
+  check('one file per style, not four', a.files.length === 4, a.files.map((f) => f.name));
+  check('roman AND italic both present', a.files.filter((f) => f.italic).length === 2, a.files.map((f) => `${f.name}${f.italic ? ' (i)' : ''}`));
+  // Upstream names carry brackets and spaces (`Inter[opsz,wght].ttf`,
+  // `IBM Plex Sans Var-Roman.ttf`); the bundle path has to stay URL-safe.
+  check('asset names are URL-safe', a.files.every((f) => /^[A-Za-z0-9._-]+$/.test(f.name)), a.files.map((f) => f.name));
+  check('…with no dangling separator before the extension', a.files.every((f) => !/-\.[A-Za-z]+$/.test(f.name)), a.files.map((f) => f.name));
+
+  // Spectral has no upstream variable build, so it stays static — and must still
+  // yield the weights the presets ask for. 500 and 600 were missing entirely.
+  const sp = buildFontAssets({ families: ['Spectral'], fontDirs: [bundled], maxPerFamily: 12 });
+  for (const w of [400, 500, 600, 700]) {
+    check(`Spectral (static) still offers weight ${w}`, sp.files.some((f) => f.weight === w && !f.italic), sp.files.map((f) => f.weight));
+  }
+}
+
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);
 process.exit(fail > 0 ? 1 : 0);

@@ -74,6 +74,52 @@ function variantWeight(variant: string): number {
   return 400;
 }
 
+/**
+ * The font's `wght` axis range when it is a VARIABLE font, else null — read from
+ * the file's `fvar` table, not guessed from its name.
+ *
+ * This matters because the bundle is now variable: one `Inter[opsz,wght].ttf`
+ * covers 100–900. Named by filename it looks like a single face, and the old code
+ * deliberately DEPRIORITISED such files ("variable-font umbrella TTFs whose full
+ * axis we can't address") — which would have published web pages with one weight
+ * where the PDF has nine. CSS can express the range (`font-weight: 100 900`), so
+ * a variable file should win over statics rather than lose to them.
+ *
+ * Only the sfnt container is parsed (.ttf/.otf); a .woff/.woff2 is compressed and
+ * returns null, falling back to the filename path.
+ */
+function variableWeightRange(file: string): { min: number; max: number } | null {
+  const ext = path.extname(file).toLowerCase();
+  if (ext !== '.ttf' && ext !== '.otf') return null;
+  let b: Buffer;
+  try { b = fs.readFileSync(file); } catch { return null; }
+  if (b.length < 12) return null;
+
+  const numTables = b.readUInt16BE(4);
+  let fvar = -1;
+  for (let i = 0; i < numTables; i++) {
+    const rec = 12 + i * 16;
+    if (rec + 16 > b.length) return null;
+    if (b.toString('ascii', rec, rec + 4) === 'fvar') { fvar = b.readUInt32BE(rec + 8); break; }
+  }
+  if (fvar < 0 || fvar + 16 > b.length) return null;
+
+  const axesOffset = fvar + b.readUInt16BE(fvar + 4);
+  const axisCount = b.readUInt16BE(fvar + 8);
+  const axisSize = b.readUInt16BE(fvar + 10);
+  for (let i = 0; i < axisCount; i++) {
+    const a = axesOffset + i * axisSize;
+    if (a + 12 > b.length) return null;
+    if (b.toString('ascii', a, a + 4) !== 'wght') continue;
+    // min / default / max are Fixed 16.16.
+    const min = Math.round(b.readInt32BE(a + 4) / 65536);
+    const max = Math.round(b.readInt32BE(a + 12) / 65536);
+    if (min > 0 && max > min) return { min, max };
+    return null;
+  }
+  return null;
+}
+
 /** Recursively lists font files under a directory (bounded depth). */
 function listFontFiles(dir: string, depth = 0): string[] {
   if (depth > 3) return [];
@@ -97,8 +143,8 @@ function safeFamily(name: string): string {
  * Finds font files for the given families across the source directories and
  * builds their @font-face CSS. Project directories take priority over the
  * bundled families (the PDF was set in the project's own files); within a
- * family, explicitly-named variants (…-SemiBold) beat variant-less files
- * (variable-font umbrella TTFs whose full axis we can't address).
+ * family a VARIABLE file wins — it spans every weight, which CSS states as a
+ * range — then explicitly-named statics (…-SemiBold), then variant-less files.
  */
 export function buildFontAssets(opts: {
   families: string[];
@@ -121,28 +167,49 @@ export function buildFontAssets(opts: {
     if (dir) candidates.push(...listFontFiles(dir));
   }
 
-  // norm(family) → key "weight/italic" → file (first hit wins; candidates are
-  // pre-sorted so named variants come before variant-less umbrella files).
-  const picked = new Map<string, Map<string, string>>();
-  const sorted = [...candidates].sort((a, b) => {
-    const va = parseFileName(path.basename(a, path.extname(a))).variant ? 0 : 1;
-    const vb = parseFileName(path.basename(b, path.extname(b))).variant ? 0 : 1;
-    return va - vb;
-  });
-  for (const file of sorted) {
+  // norm(family) → key → { file, weight css }. A VARIABLE file is keyed per
+  // STYLE (`var/n`, `var/i`) because it covers every weight of that style, and it
+  // is taken first so the statics of the same style are then redundant.
+  interface Pick { file: string; weight: string; italic: boolean; }
+  const picked = new Map<string, Map<string, Pick>>();
+
+  const described = candidates.map((file) => {
     const base = path.basename(file, path.extname(file));
     const { fam, variant } = parseFileName(base);
+    return { file, fam, variant, range: variableWeightRange(file) };
+  });
+  // Variable first, then explicitly-named statics, then variant-less files.
+  described.sort((a, b) => {
+    const rank = (x: typeof a) => (x.range ? 0 : x.variant ? 1 : 2);
+    return rank(a) - rank(b);
+  });
+
+  const hasVariable = new Set<string>(); // `${famKey}/${'n'|'i'}`
+  for (const { file, fam, variant, range } of described) {
     // Match on the filename's family part, or on the parent directory name
     // (bundled layout: resources/fonts/CrimsonPro/CrimsonPro-Bold.ttf).
     const famKeys = [norm(fam), norm(path.basename(path.dirname(file)))];
     const hit = famKeys.find((k) => wanted.has(k));
     if (!hit) continue;
-    const weight = variantWeight(variant);
-    const italic = /italic|oblique/i.test(variant);
-    const key = `${weight}/${italic ? 'i' : 'n'}`;
+    // "Var-Italic" / "-Italic" / "Italic[wght]" all mark the italic cut.
+    const italic = /italic|oblique/i.test(variant) || /italic|oblique/i.test(fam);
+    const style = italic ? 'i' : 'n';
     let fam2 = picked.get(hit);
     if (!fam2) { fam2 = new Map(); picked.set(hit, fam2); }
-    if (!fam2.has(key)) fam2.set(key, file);
+
+    if (range) {
+      const key = `var/${style}`;
+      if (!fam2.has(key)) {
+        fam2.set(key, { file, weight: `${range.min} ${range.max}`, italic });
+        hasVariable.add(`${hit}/${style}`);
+      }
+      continue;
+    }
+    // A static face is skipped when a variable file already covers this style —
+    // it would only re-declare one weight the range already spans.
+    if (hasVariable.has(`${hit}/${style}`)) continue;
+    const key = `${variantWeight(variant)}/${style}`;
+    if (!fam2.has(key)) fam2.set(key, { file, weight: String(variantWeight(variant)), italic });
   }
 
   const css: string[] = [];
@@ -153,28 +220,32 @@ export function buildFontAssets(opts: {
   for (const [famKey, variants] of picked) {
     const family = wanted.get(famKey)!;
     let n = 0;
-    for (const [key, file] of variants) {
+    for (const { file, weight, italic } of variants.values()) {
       if (n >= maxPer) break;
       n++;
-      const [w, i] = key.split('/');
       const ext = path.extname(file).toLowerCase();
       let url: string;
-      let name = path.basename(file);
+      // Brackets and spaces are legal on disk but not in a URL, and
+      // `Inter[opsz,wght].ttf` / `IBM Plex Sans Var-Roman.ttf` are the upstream
+      // names, kept as-is in the bundle so provenance stays obvious.
+      // `ext` is lower-cased for the format lookup; strip with the real one.
+      const rawExt = path.extname(file);
+      let name = path.basename(file, rawExt).replace(/[[\]\s,]+/g, '-').replace(/-+$/, '') + rawExt;
       if (opts.inline) {
         url = `data:${FONT_MIME[ext] ?? 'font/ttf'};base64,${fs.readFileSync(file).toString('base64')}`;
       } else {
         if (usedNames.has(name)) {
-          const stem = path.basename(file, ext);
+          const stem = name.slice(0, -ext.length);
           let k = 1;
           while (usedNames.has(`${stem}-${k}${ext}`)) k++;
           name = `${stem}-${k}${ext}`;
         }
         usedNames.add(name);
-        files.push({ src: file, name, family, weight: parseInt(w), italic: i === 'i' });
+        files.push({ src: file, name, family, weight: parseInt(weight), italic });
         url = `assets/fonts/${name}`;
       }
       css.push(
-        `@font-face {\n  font-family: "${safeFamily(family)}";\n  src: url("${url}") format("${FONT_EXT[ext] ?? 'truetype'}");\n  font-weight: ${w};\n  font-style: ${i === 'i' ? 'italic' : 'normal'};\n  font-display: swap;\n}`,
+        `@font-face {\n  font-family: "${safeFamily(family)}";\n  src: url("${url}") format("${FONT_EXT[ext] ?? 'truetype'}");\n  font-weight: ${weight};\n  font-style: ${italic ? 'italic' : 'normal'};\n  font-display: swap;\n}`,
       );
     }
   }
