@@ -29,9 +29,11 @@ Die Zahl allein führt aber in die Irre. Sie zerfällt in **vier Eimer mit völl
 | **1. Infrastruktur** | ~60 % der undurchsichtigen Masse | `#let` (443/84), `#import` (92/50), `#set`, Kommentare (358/104) | **Nichts.** Das ist `style.typ` / `macros.typ`. Ein Nicht-Typst-Nutzer soll das *nicht* von Hand bearbeiten — dafür gibt es den Design-Tab. Undurchsichtig ist hier die richtige Antwort. |
 | **2. Trivial** | `#v` (67/47), `#pagebreak` (43/12) | Abstände, Umbrüche | Billige Nodes, falls überhaupt gewollt. Ein Abstandshalter als Code-Block ist Lärm, kein Verlust. |
 | **3. Erkannt, aber aufgegeben** | `#table` (16), `#figure` (16), `#align` (13), `#text` (18) | Konstrukte, für die ein Parser existiert, der aussteigt | **Begrenzte Arbeit, kein CST.** Siehe §2 — hier liegt der größte Gewinn pro Aufwand. |
-| **4. Nutzer-/KI-Makros** | `#note` (18), `#insight` (16), `#modul` (12), `#herohead` (8), `#callout` (7), `#band` (6), `#box-choice` (6), `#sumrow` (5), `#grid` (18/13), `#block` (10) | Handgeschriebene und KI-erfundene Bausteine | **Hier und nur hier** stellt sich die `typst-syntax`-Frage. §3. |
+| **4. Nutzer-/KI-Makros** | `#note` (18), `#insight` (16), `#modul` (12), `#herohead` (8), `#callout` (7), `#band` (6), `#box-choice` (6), `#sumrow` (5), `#grid` (18/13), `#block` (10) | Von Hand oder **von der KI erfundene Bausteine** | **Der eigentliche Fall.** §3 — und es ist überwiegend *kein* Parser-Problem. |
 
 Gemessen über 153 ausgelieferte und 55 echte Dateien: `deserializeTypst` über den Korpus laufen lassen und die Top-Level-Knotentypen zählen. Leicht zu wiederholen, wenn sich etwas ändert.
+
+> **Zum Verhältnis der Eimer:** Eimer 3 (Tabellen, §2) ist der schnellste sichtbare Gewinn und blockiert nichts. Eimer 4 ist das eigentliche Ziel dieser Aufgabenstellung. Eimer 1 und 2 sind bewusst *nicht* zu bearbeiten.
 
 ---
 
@@ -60,51 +62,70 @@ Abgeschwächt gilt dasselbe für `#figure`, `#align` und `#text` — alle drei h
 
 ---
 
-## 3. Die `typst-syntax`-Frage — beantwortet, aber neu zu stellen
+## 3. Die Architektur: projekt-eigene Bausteine
 
-Die technische Bewertung ist gemacht (Session 46, mit echter WASM-Probe); die Zahlen stehen in §9.
+**Die Anforderung, gesetzt:** Die KI entwirft ein Design frei — mit Bausteinen, die wir nicht vorhersehen, und kombiniert sie kreativer, als wir es antizipieren können. Der Nutzer muss diese Bausteine per Knopf/Rechtsklick **einfügen** und danach **bearbeiten** können, ohne Typst zu tippen. Flexibilität ist damit keine offene Frage mehr, sondern Randbedingung.
 
-Die **damalige** Frage war: *„verhindert es unsere Round-Trip-Fehler?"* Antwort: ein Drittel, und die restlichen zwei Drittel lagen auf der Ausgabeseite. Deshalb: nicht bauen.
+### Die Form in einem Satz
 
-Die **neue** Frage ist eine andere — *„brauchen wir es, damit Nutzer und KI im Design arbeiten können?"* — und da ist die Antwort offen. Was sich sagen lässt:
+> **Der Katalog der einfügbaren Bausteine wird aus den `#let`-Definitionen des Projekts selbst abgeleitet — keine Registry-Datei, kein Marker. Eingefügte Bausteine bleiben `typstRawBlock`; Bearbeiten ist ein Formular im vorhandenen Node-View, das Byte-Bereiche im Aufruf ersetzt (splict), statt den Aufruf neu zu erzeugen.**
 
-- Für Eimer 1–3 (§1): **nein.** Das geht mit dem, was da ist.
-- Für Eimer 4: **kommt darauf an, welchen Weg wir gehen.**
+Das ist Weg A und Weg B aus der letzten Fassung zusammengefallen, und zwar nicht als Kompromiss: **die `#let`-Signatur *ist* die Deklaration** (A, ohne Deklarationspflicht), und **Splicen ist der Teil von B, der tatsächlich trägt** — ohne CST, ohne Rust.
 
-### Weg A — die KI deklariert, was sie gebaut hat
+### Drei Entscheidungen, die anders ausfielen als gedacht — jeweils mit Begründung
 
-Beim Schreiben eines eigenen Bausteins schreibt die KI sein Interface mit:
+**Kein Marker.** `classifyRawBlock` stuft einen Block, dessen erste Zeile mit `//` beginnt, als `comment` ein — ein marker-geführter, inhaltstragender Block landet damit einen Schritt vom Export-Skip entfernt. Und der Marker ist überflüssig: `parseMagazineMacro` dispatcht ohnehin über den **Makronamen**. Wiedererkennung = erstes Token des Raw-Blocks ist `#<name>`, und `<name>` steht im Katalog.
 
-```typst
-// penwright:block name="Zitatkasten" fields=(accent: color, kicker: text)
-#block(fill: accent.lighten(85%), inset: 1em, radius: 4pt)[…]
+**Keine Deklarationspflicht für die KI.** Sonst ist der Katalog auf jedem bestehenden Projekt leer. `#modul` und `#box-choice` existieren heute schon, undeklariert, in `FMM - Angebot/style.typ`. Ein vorangestellter `//`-Kommentar wird zum Label, wenn vorhanden — mehr nicht.
+
+**Der Katalog gilt PRO DATEI, nicht pro Projekt.** Mit dem gebündelten Compiler nachgewiesen: ein `#import "macros.typ": *` **in der Wurzel erreicht ein `#include`tes Kapitel nicht** (`error: unknown variable`). In LANGSAM importiert `chapters/00-cover.typ` nur `../style.typ` — ein projektweiter Katalog böte dort alle `macros.typ`-Makros an, und **keines davon würde kompilieren**. Also: `visibleIn(defs, targetFile)` — sichtbar ist, was in dieser Datei definiert oder von ihr importiert wird.
+
+### Die vier Berührungspunkte
+
+| | Wie | Datei |
+|---|---|---|
+| **KI schreibt** | Nichts Neues. `#let` wie bisher; ein `//`-Kommentar darüber wird zum Label. | — |
+| **MCP liest** | `listProjectMacros(projectDir?, targetFile?)` — exakt das Muster von `listProjectLabels` (`src/main/projectLabels.ts`), gleicher Walk, gleiche Skip-Liste. Der MCP-Server importiert bereits direkt aus `src/main/` — der etablierte Paritätsweg. | `src/main/projectMacros.ts` (neu) |
+| **UI bietet an** | Sektion „Aus diesem Projekt (N)" über den 24 Built-ins; `getCommands()` bekommt einen Parameter und speist Slash-Menü **und** ＋-Dropdown weiter aus der einen Quelle. | `DesignElementPicker.svelte`, `slashCommands.ts` |
+| **Instanz editieren** | Formular im **bestehenden** `typstRawBlock`-Node-View. Feldänderung → `spliceArg(content, [start,end), wert)` → `updateAttributes({content})` — derselbe Pfad, den die Textarea heute nutzt. | `src/shared/macroCall.ts` (neu), `typstRawBlock.ts` |
+
+**Warum kein neuer Node-Typ — gemessen, nicht vermutet.** Ein eigener `projectElement`-Node ohne Mapping in allen fünf Serializern verliert Inhalt: `htmlSerializer` gibt für unbekannte Knoten einen HTML-Kommentar zurück, `docxSerializer` emittiert im `default:`-Zweig nur, wenn `node.content` existiert — ein Baustein ohne Body verschwände ganz. Als Raw-Block greifen dagegen die vorhandenen Unknown-Macro-Rettungen (`renderUnknownCallArgs` u. a.), die genau dafür geschrieben wurden. **Der Raw-Block ist die richtige Antwort, nicht die faule** — und die Round-Trip-Regel ist per Konstruktion erfüllt, weil `serializer.ts` `attrs.content` wörtlich zurückgibt.
+
+### Wo die Parser-Frage danach noch steht
+
+Deutlich enger als vorher. Für die häufige Form `#name(a: 1, b: "x")[body]` reichen die vorhandenen Scanner. Offen bleibt genau eines:
+
+**Verschachtelung in einem Container, den wir nicht kennen.** Der Deserializer parst Top-Level-Blöcke plus die Rümpfe der Container, die er kennt (`#columns`, `#notiz`, `#bildtafel` via `parseBlocks`). Steckt ein Baustein in einem **KI-erfundenen** Container, findet ihn niemand. Das ist der Fall, den René mit „kreativer kombiniert" meint, und **dort und nur dort** ist der CST nicht mehr optional.
+
+**Bauprinzip daraus:** Das Auffinden einer Instanz muss **eine einzige, austauschbare Funktion** sein — heute ein Scanner über Top-Level plus bekannte Container, morgen eine CST-Abfrage. Registry, Karte, Formular, MCP-Tools bleiben beim Tausch unverändert. Wird das Auffinden dagegen über die Codebasis verstreut (wie heute die sieben Klammer-Scanner), ist der Umstieg eine Neuschreibung statt einer Ersetzung.
+
+---
+
+## 3a. STUFE 0 — der Blocker, der vor allem anderen kommt
+
+**Der Block-Splitter zerstört Überschriften, sobald jemand Prosa in einen Makro-Rumpf tippt.** Selbst nachgemessen:
+
+| Eingabe | Ergebnis |
+|---|---|
+| `#m(title: "Preis (netto")[…]` | ok — Strings werden übersprungen |
+| `#m[Preis [netto]` | **Überschrift danach verloren** |
+| `#m[Preis \[netto]` | **verloren — Escapen hilft nicht** |
+| `#m(title: "x")[ Ein ( Text. ]` | **verloren** |
+| `#notiz(title: "T")[ Kosten (ca. 30% mehr. ]` | **verloren** |
+
+Die Ursache steht in einer Zeile in `scanLine` (`deserializer.ts`):
+
+```ts
+let code = braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
 ```
 
-Penwright zeigt eine Karte mit genau diesen Feldern. **Kein Parser.** Der Marker-Mechanismus existiert bereits (`// penwright:node=…`, in `parseMagazineMacro`).
+`bracketDepth > 0` heißt *wir stehen in einem `[…]`-Body*, also in **Markup** — die Zeile geht trotzdem in den Code-Modus, und eine einzelne `(` in der Prosa des Nutzers wird als Klammer gezählt. Es ist dieselbe Fehlerklasse wie `c3ba300` und `e23168f`, nur eine Ebene tiefer: dort für Prosa auf oberster Ebene behoben, hier für Prosa **im Rumpf eines Makros**.
 
-*Stärken:* billig, vollständig in unserer Hand, macht die KI zur Teilnehmerin am Design-System statt zum Code-Generator. Und der Marker trägt den **Namen** — „Zitatkasten", nicht „block".
+**Warum es heute niemandem auffällt:** der Korpus ist sauber — die KI schreibt balancierten Code, und **noch nie hat jemand in diese Blöcke getippt**. Der Fehler ist latent. **Genau das Feature aus §3 aktiviert ihn**: editierbare Rümpfe heißen, dass Nutzer dort Text mit Klammern schreiben.
 
-*Schwächen:* gilt nur für Code, der mit Marker entsteht. Renés vier Marketing-Projekte und LANGSAMs `macros.typ` bleiben undurchsichtig. Vergisst die KI den Marker, entsteht stillschweigend ein Raw-Block. Und Wiedererkennung per Marker ist fragil, sobald jemand den Block verschiebt oder verschachtelt.
+**Der Fix:** ein Modus-Stack statt eines `code`-Booleans. Ein `[` öffnet Markup (dort zählen nur `[`/`]`), ein `(`/`{` öffnet Code (dort zählen alle drei), ein `#` innerhalb von Markup öffnet wieder Code. Zusätzlich muss `escaped` auch im Delimiter-Zweig geehrt werden — heute wird es dort nie gelesen, weshalb `\[` nicht hilft.
 
-### Weg B — der CST liest, was da ist
-
-Generischer Eigenschaften-Editor über die benannten Argumente **jedes** Aufrufs, ohne Deklaration. Deckt auch rückwirkend alles ab.
-
-*Die ehrliche Grenze:* Der CST liefert bei `#block(fill: …, inset: 1em)` zwei editierbare Argumente, aber **keinen Namen**. Die Karte hieße „block". Dass es ein Zitatkasten ist, weiß nur, wer ihn geschrieben hat.
-
-*Die unterschätzte Stärke:* nicht das Lesen, sondern das **Splicen**. Jeder Knoten hat einen Byte-Bereich; man ersetzt `[a,b)` und lässt alles andere unangetastet — das Dokument wird **nie neu erzeugt**. Von unseren 30 Round-Trip-Fehlern lagen 17 auf der Ausgabeseite; chirurgisches Editieren macht diese Klasse gegenstandslos.
-
-### Die Kombination ist kein Kompromiss, sondern der Zielzustand
-
-A liefert **Bedeutung und Benennung**, B liefert **Abdeckung und robuste Wiedererkennung**. Die Reihenfolge ist die eigentliche Entscheidung.
-
-**Empfehlung: A zuerst — weil A die Spezifikation für B erzeugt.** Nach ein paar Wochen echter Magazin-Arbeit weiß man, welche Felder die KI tatsächlich anbietet und welche der Nutzer tatsächlich anfasst. Das ist der Katalog, den ein generischer Editor abdecken muss und den man sonst raten würde.
-
-### Was vorher zu entscheiden ist
-
-1. **Darf die KI beliebige Feldtypen deklarieren** (Farbe, Länge, Text, Auswahl, Bild), oder halten wir sie auf eine kleine feste Menge fest? Das bestimmt, ob die Karte ein generisches Formular ist oder eine Handvoll bekannter Widgets — und damit den Großteil des Aufwands.
-2. **Adressieren oder editieren?** René hat entschieden: **beides.** Byte-Bereiche allein genügen also nicht, es braucht eine UI.
-3. **Was passiert, wenn der Nutzer im Block von Hand editiert?** Verpflichtend zu beantworten, sonst baut man die Fehlerklasse dieser Woche neu: beim Öffnen den Baustein aus den Parametern **neu rendern und mit der Platte vergleichen**. Gleich → Karte. Abweichend → Raw-Block plus sichtbarer Hinweis „von Hand angepasst". Nie raten. Dieselbe Philosophie wie `safeApply`.
+**Das ist Stufe 0 der Umsetzung, nicht ein Nebenpunkt.** Ein Formular, das in einen Rumpf schreiben lässt, dessen Splitter dabei Überschriften frisst, ist schlimmer als kein Formular. Das Pixel-Gate über 39 Projekte ist der Beweis, dass der Fix nichts anderes umwirft.
 
 ---
 
@@ -114,9 +135,23 @@ Vieles ist da und wird heute nur in eine Richtung benutzt:
 
 - **Die 24 Design-Elemente deklarieren bereits ihre Parameter** (`DesignElementParam`: `name`, `description`, `required`, `defaultValue` in `designElements.ts`). Das *ist* ein Formularschema — es erzeugt heute Typst und liest nie zurück.
 - **Es gibt repoweit keine Funktion, die ein eingesetztes Element wieder aus dem Dokument liest.** `DesignElementPicker` füllt die Parameter einmal beim Einfügen und rendert; danach ist es roher Typst. **Auch unsere eigenen 24 Elemente sind nach dem Einfügen nicht mehr editierbar.** Editierbar sind heute nur die *globalen* Element-Stile (Blockquote/Code/Figure/Table) und die Style-Tokens.
-- **Der Marker-Mechanismus existiert** (`// penwright:node=…`).
 - **Der Präzedenzfall für „Parameter + editierbarer Inhalt" existiert**: die 9 Magazin-Knoten (`typstMagazine.ts`) sind teils `atom: false` mit `content`-Ausdruck — Rumpf inline editierbar, Attribute als Felder. Genau die Form, die eine Baustein-Karte braucht.
+- **`styleInference.ts` (379 Zeilen) liest bereits ein handgeschriebenes `style.typ` in Design-Tokens ein** — Farben, Fonts, Leading, Heading-Größen. Aufgerufen wird es nur von `webExport.ts`. Der Design-Tab sperrt sich bei handgeschriebenem `style.typ` aus (`isHandwrittenStyle`, aus gutem Grund: sonst überschreibt er die Makros). Die Maschine zum *Lesen* eines fremden Designs existiert also und ist nicht angeschlossen — eine begrenzte Aufgabe, kein Parser-Projekt.
 - **Das Pixel-Gate ist das Sicherheitsnetz.** `npm run test:compile:corpus` sagt in ~10 s, ob 265 Seiten über 39 Projekte noch identisch rendern. Ohne das wäre ein Umbau der Parse-Schicht fahrlässig; damit ist er messbar. **Das ist der Grund, warum diese Aufgabe jetzt angehbar ist und vor einer Woche nicht.**
+
+---
+
+## 4a. Umsetzungsreihenfolge
+
+| Stufe | Was | Warum in dieser Reihenfolge |
+|---|---|---|
+| **0** | Modus-Stack im Block-Splitter (§3a) | Blocker. Ohne ihn frisst das Feature Überschriften. |
+| **1** | `listProjectMacros` + `visibleIn` + Picker-Sektion „Aus diesem Projekt" | Erste sichtbare Fähigkeit: ein KI-erfundener Baustein ist überhaupt einfügbar. Heute gar nicht. |
+| **2** | `macroCall.ts` (parsen + splicen) + Formular im `typstRawBlock`-Node-View | Bearbeiten. Deckt gleichzeitig die **eigenen 24** Elemente ab, die heute nach dem Einfügen eingefroren sind. |
+| **3** | Tabellen (§2) | Unabhängig, jederzeit, größter Einzelgewinn für Nicht-Programmierer. |
+| **später** | CST, falls Verschachtelung in unbekannten Containern real wird | Bauprinzip aus §3 beachten: das Auffinden bleibt EINE austauschbare Funktion. |
+
+Stufe 1 und 2 sind der Kern; 0 geht voraus, 3 läuft nebenher.
 
 ---
 
