@@ -635,9 +635,28 @@ function stripKnownInlines(text: string): string {
 function isRawBlock(block: string): boolean {
   const lines = block.split('\n');
 
-  // A comment line anywhere marks the block as raw (config / comment).
+  // A COMMENT anywhere marks the block as raw (config / comment).
+  //
+  // Not just at the start of a line, and not just `//`. The scanner in
+  // splitIntoBlocks understands comments; this classifier did not, and the gap
+  // was destructive both ways:
+  //
+  //   /* eine Notiz */   the block fell through to prose, `escapeTypstText`
+  //                      escaped the `*`, and the saved document STOPPED
+  //                      COMPILING — "unclosed delimiter".
+  //   Text // Kommentar  the `/` was escaped to `\/`, so the comment came back
+  //                      as VISIBLE TEXT in the PDF. Its natural host is a
+  //                      style.typ, which the editor happily opens.
+  //
+  // Kept verbatim instead, the same call every construct we cannot model gets.
+  // The URL exemption matters: `https://x.dev` is not a comment, and demoting
+  // every paragraph containing a link to a code block would be its own bug.
+  // `(?<!\\)` matters as much as the URL exemption: `\//` is an ESCAPED slash
+  // followed by a slash — what the serializer writes for a `//` the user typed
+  // as literal text — and it is not a comment. Without that guard such a
+  // paragraph came back as a raw block with no text at all.
   for (const line of lines) {
-    if (line.trim().startsWith('//')) return true;
+    if (/(?<!\\)(?<!\bhttps?:)\/\//.test(line) || /(?<!\\)\/\*/.test(line)) return true;
   }
 
   // Strip known inline constructs across the WHOLE block before checking what

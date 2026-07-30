@@ -449,6 +449,47 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   }
 }
 
+// ─── Comments: the scanner knew them, the classifier did not ────────────────
+//
+// `splitIntoBlocks` tracks line and block comments; `isRawBlock` only ever
+// tested `line.trim().startsWith('//')`. The gap destroyed documents both ways:
+//
+//   /* eine Notiz */    fell through to prose, the escape pass escaped the `*`,
+//                       and the SAVED DOCUMENT NO LONGER COMPILED — Typst says
+//                       "unclosed delimiter". Original compiles, round trip
+//                       does not; verified against the bundled binary.
+//   Text // Kommentar   the `/` was escaped to `\/`, so the comment came back as
+//                       VISIBLE TEXT in the PDF. Its natural host is a
+//                       style.typ — which fileManager opens like any .typ.
+//
+// A comment now keeps its block verbatim. Measured cost on real documents: zero
+// — the paragraph and raw-block counts over the 153 shipped files and 45 client
+// files are byte-identical before and after.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
+
+  for (const [name, src] of [
+    ['block comment in prose', '/* eine Notiz */\n\nEin Absatz.'],
+    ['nested block comment', '/* a /* b */ c */\n\nEin Absatz.'],
+    ['mid-line // comment', 'Text // ein Kommentar'],
+  ] as [string, string][]) {
+    check(`comment survives verbatim: ${name}`, ser(src) === src.trim(), { got: ser(src) });
+    check(`…and is kept as a raw block: ${name}`, types(src)[0] === 'typstRawBlock', types(src));
+  }
+
+  // The exemption that keeps this from being its own bug: a URL contains `//`
+  // and is NOT a comment. Demoting every paragraph with a link to a code block
+  // would trade one defect for a worse one.
+  for (const [name, src] of [
+    ['prose with a URL', 'Siehe https://x.dev/a für Details.'],
+    ['list item with a URL', '- Quelle — https://blog.example.com/x/'],
+  ] as [string, string][]) {
+    check(`URL is not mistaken for a comment: ${name}`, types(src)[0] !== 'typstRawBlock', types(src));
+    check(`…and round-trips: ${name}`, ser(src) === src.trim(), { got: ser(src) });
+  }
+}
+
 // ─── Constructs found only by running over real client documents ────────────
 //
 // The three below were invisible to 100-odd hand-written round-trips and to the
@@ -482,9 +523,22 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
     check(`bare URL survives unescaped: ${src.slice(0, 34)}…`, ser(src) === src, { got: ser(src) });
   }
 
-  // …and the escape must still fire where `//` really is a comment, or the rest
-  // of the line vanishes from the PDF.
-  check('a non-URL // is still escaped', ser('Entweder und/oder // beides.') === 'Entweder und/oder \\// beides.', { got: ser('Entweder und/oder // beides.') });
+  // …and the escape must still fire for a `//` the USER TYPED, or it becomes a
+  // comment and the rest of the line vanishes from the PDF.
+  //
+  // Direction matters, and an earlier version of this check had it backwards: it
+  // fed `Entweder und/oder // beides.` through the DESERIALIZER, where that `//`
+  // is a comment in the source and escaping it makes it visible — enshrining the
+  // very bug the comment handling above fixes. The escape belongs to the
+  // TipTap→Typst direction, so build the node and serialize it.
+  const typed = serializeTypst({
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Entweder und/oder // beides.' }] }],
+  } as any).trim();
+  check('a // typed by the user is escaped', typed === 'Entweder und/oder \\// beides.', { got: typed });
+  check('…and comes back as the same literal text', ((deserializeTypst(typed) as any).content?.[0]?.content ?? []).map((n: any) => n.text).join('') === 'Entweder und/oder // beides.', {
+    got: ((deserializeTypst(typed) as any).content?.[0]?.content ?? []).map((n: any) => n.text).join(''),
+  });
 
   // 3. A `#text(…)` styling call followed directly by a list. The block splitter
   //    refused to split after any line starting with `#`, so the two merged and
