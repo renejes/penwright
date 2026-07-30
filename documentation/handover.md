@@ -1,6 +1,6 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-30, Ende Session 45 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.25.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **65 Tools**
+> **Stand:** 2026-07-30, Ende Session 46 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.26.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **65 Tools**
 >
 > **Lies zuerst diese Datei, dann `CLAUDE.md` → „Commands" (Testabschnitt) und „App ↔ MCP parity".** Was passiert ist, steht im Git-Log; dieses Dokument beschreibt **den Ist-Zustand und was als Nächstes zu tun ist**.
 
@@ -12,18 +12,23 @@ Der Round-Trip war das offene Kernproblem und ist es nicht mehr: Baseline **22 �
 
 ---
 
-## 1. Was jetzt dran ist — 36 von 37 Presets sehen beim Kunden anders aus
+## 1. Was jetzt dran ist — der manuelle Durchgang durch die App
 
-**Der Befund.** Unsere Presets fordern `weight: "semibold"` (173×) und `weight: "medium"` (40×). Gebündelt ist pro Familie nur **Regular (400) und Bold (700)**. Auf einem sauberen Kundenrechner kollabiert die vierstufige Gewichtsrampe damit auf zwei: **`medium` rendert als Regular, `semibold` als Bold.** Auf Renés Rechner sieht ein Teil davon richtig aus, weil in `~/Library/Fonts` Variable Fonts liegen — der Kunde hat die nicht. Betroffen sind 36 von 37 Projekten, inklusive Sample-Projekt.
+Nach sechs Sessions ohne einen einzigen App-Start ist das die größte offene Unsicherheit im Projekt. Alles unten in §2 gilt unverändert und ist jetzt der **erste** Punkt, nicht der zweite.
 
-**Warum es jetzt lösbar ist.** `scripts/fetch-typst-fonts.mjs` sagt im eigenen Docstring, warum static-only gebündelt wurde: *„Typst 0.14.2 warns ('variable fonts are not currently supported and may render incorrectly') … We bundle the static weights to keep the compiler logs clean."* Das war ein Workaround **für genau die Version, die wir gerade ersetzt haben**. Verifiziert: 0.14.2 warnt, **0.15.1 nicht** — und rendert aus *einer* Variable-Datei vier klar unterschiedene Schnitte.
+Die Schriften-Sache aus dem letzten Handover ist erledigt (siehe §1b), die `typst-syntax`-Frage ist bewertet (§4).
 
-**Zu tun:**
-1. `fetch-typst-fonts.mjs` auf die Variable-Varianten der sieben Familien umstellen (Inter, Spectral, Crimson Pro, IBM Plex Sans/Serif/Mono, JetBrains Mono). Das **verkleinert** das Bundle: eine Datei statt vier pro Familie, Gewichte 200–900.
-2. Den Docstring-Grund dort korrigieren, sonst baut ihn jemand wieder zurück.
-3. `npm run test:compile:corpus` — es wird **rot**, und zwar richtig: die Presets rendern dann erstmals wie entworfen. Die Renderings vor/nach vergleichen (`--keep`), bestätigen, dass es besser aussieht, dann weiter.
-4. Prüfen, ob `webFonts.ts` (das @font-face-Embedding im Web-Export) Variable-Dateien korrekt auf Gewichte abbildet — es matcht heute Dateinamen auf Familien/Gewichte.
-5. `MCP_SETUP_VERSION` bumpen (Fonts stecken nicht in der Binary, aber `--font-path` zeigt in die App-Resources).
+---
+
+## 1b. Erledigt: Variable Fonts
+
+6 von 7 Familien liegen jetzt als Variable Font vor (Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro), eine Datei pro Schnitt über den ganzen `wght`-Bereich. **Spectral ist die Ausnahme** — es gibt upstream keine variable Version — und hat dafür die fehlenden statischen Schnitte bekommen (Medium, SemiBold + Kursive).
+
+Damit rendert `semibold` endlich als Semibold statt als Bold, und `medium` als Medium statt als Regular. Betraf die Default-Überschriften *jedes* neuen Projekts (h2–h4 sind `semibold`) und 213 Stellen in den Presets. Bundle: 6,6 → 7,0 MB — es **wächst** leicht, entgegen der Behauptung im letzten Handover.
+
+`webFonts.ts` liest jetzt die `fvar`-Tabelle und schreibt `font-weight: <min> <max>` ins CSS; eine Web-Seite trägt dadurch 6 statt 12 Font-Dateien.
+
+**Nicht lösbar durch Bündeln:** `paper-preprint` und `thesis-classic` fordern *New Computer Modern* in Semibold. Das ist Typsts **eingebaute** Schrift und hat nur 400/700 — die sechs Stellen rendern bold. Die Quelle auf `bold` zu ändern wäre eine Design-Änderung an ausgelieferten Presets ohne sichtbare Wirkung; bewusst offen gelassen.
 
 ---
 
@@ -74,7 +79,49 @@ Beide sind behoben, beide sind als Regel in CLAUDE.md — hier, weil sie sich be
 
 ---
 
-## 4. Der handgeschriebene Parser und `typst-syntax` — bewerten, nicht bauen
+## 4. `typst-syntax` — bewertet. Empfehlung: **nicht bauen**, aber aus einem anderen Grund als bisher
+
+Die Bewertung ist gemacht (Session 46), mit einer echten WASM-Probe statt Vermutungen. **Die Machbarkeit ist deutlich besser als angenommen, der Nutzen deutlich kleiner.**
+
+**Was sich als falsch herausgestellt hat (alte Annahmen im Handover):**
+- „Realistisch einige Tage, ~1–3 MB WASM." → typst-syntax 0.15.1 nach `wasm32` gebaut: **214 KB** (opt-level=z), 89 KB gzip. `wasm-bindgen`/`wasm-pack` sind **nicht** nötig — ein rohes `extern "C"`-ABI genügt, also nur `rustup target add wasm32-unknown-unknown` + ein `cargo build`.
+- „Die Versionen passen nicht zusammen." → Crate 0.15.1 = gebündelter Compiler 0.15.1. **Erledigt.**
+- „In beide Prozesse bündeln." → Es sind **fünf** Bundling-Pfade, nicht zwei. Aber: Bun `--compile` bettet die `.wasm` nachweislich ein (auch beim Windows-Cross-Compile), synchrone Init in 2,29 ms, also **kein async-Refactor** der Aufrufer nötig.
+- Gemessen an Renés echtem Korpus: 64 Dateien, verlustfrei geparst, kompletter WASM↔JS-Round-Trip für 66.902 Knoten in **55 ms**.
+
+**Der einzige echte Blocker, und er ist ein Token:** WebAssembly ist im Renderer heute durch die eigene CSP komplett gesperrt (`script-src 'self'` in `index.html:6`) — alle vier Ladewege scheitern. `'wasm-unsafe-eval'` ergänzen behebt es, verifiziert in einer echten Electron-Instanz.
+
+**Warum trotzdem nicht:** die Fehlerhistorie trägt es nicht. Über die letzten Sessions: **40 Defekte, davon 30 Round-Trip. Davon nur 10 lexikalisch** — die ein echter Parser verhindert. 3 hybrid, **17 reine Interpretations- oder Emissionsfehler**. Die teuersten Familien waren *keine* Parse-Fehler: die Titelseiten erkannte der alte Code korrekt und warf die Information dann absichtlich weg; das eingefrorene Datum wurde per Regex erkannt und dann durch einen `new Date()`-Aufruf ersetzt; die 11 Escaping-Fehler liegen auf dem TipTap→Typst-Pfad, wo gar kein Typst-Parser beteiligt ist. **Ein Drittel, bestenfalls.**
+
+Dazu: die verbleibenden lexikalischen Lücken sind seit der Bewertung **fast alle geschlossen** (siehe unten). Was bleibt, ist ein einziger Fall.
+
+**Der Auslöser, der die Antwort ändern würde:** wenn wir anfangen, Typst-Konstrukte zu *verstehen* statt zu erkennen — echte Term-Listen-Nodes, echte Magazin-Makro-Argumente, ein Design-Panel, das beliebiges Typst introspiziert. Dann ist der CST die richtige Grundlage. Solange wir Blöcke klassifizieren und den Rest verbatim durchreichen, ist er Versicherung gegen eine Fehlerklasse, die gerade leer ist.
+
+**Was die Bewertung nebenbei fand und was davon behoben ist:**
+- ✅ Unbalancierte Klammer **nach** einem Inline-Makro — breiter als notiert (`(`, `[`, `{`, nach jedem Makro, idempotent zerstörend). Behoben in `e23168f`.
+- ✅ Block-Kommentar `/* */` in Prosa → **Dokument kompilierte nach dem Speichern nicht mehr**. Behoben in `da31d87`.
+- ✅ Mid-line `//`-Kommentar → wurde sichtbarer Text. Behoben in `da31d87`.
+- ❌ **Kein Defekt:** ein Label auf einem Prosa-Absatz. Typst kann das ohnehin nicht referenzieren — das Original kompiliert genauso wenig.
+- ⏳ **Offen, der letzte bekannte Parser-Fall:** verschachtelte Block-Kommentare. `/* a /* b */ c */` ist legales Typst; unser Scanner schließt beim ersten `*/`. Heute unschädlich, weil der ganze Block ohnehin verbatim bleibt — relevant erst, wenn jemand die Tiefenzähler wieder darauf verlässt.
+
+---
+
+## 4a. Schriften — Roster ist ausreichend, eine Lücke
+
+Nach dem Umstieg auf Variable Fonts: **7 Familien, alle OFL-1.1**, 7,0 MB. Rollen: Body-Serif ×3, Body-Sans ×2, Mono ×2 (plus Typsts DejaVu), **Mathe ist durch Typsts eingebaute New Computer Modern Math abgedeckt** — da muss nichts gebündelt werden.
+
+**Kein Preset nennt eine Familie, die wir nicht bündeln** (geprüft über alle 33). Null Drift.
+
+**Sprachabdeckung ist vollständig** für europäische Sprachen — direkt aus den `cmap`-Tabellen gelesen, nicht aus einem Compile geschlossen (Typst fällt still zurück und warnt nicht): Deutsch, Polnisch, Tschechisch, Ungarisch, Türkisch, Rumänisch, Kroatisch, Baltisch, dazu deutsche Anführungszeichen und Guillemets. Griechisch/Kyrillisch sind lückenhaft, für dieses Produkt aber egal.
+
+**Die eine echte Lücke: eine Display-/Headline-Schrift.** Jedes Preset setzt seine Schlagzeile in einer hochskalierten Body-Schrift — auch die Magazin-Cover bei 46 pt und `doc-poster` bei 46 pt.
+- **Empfehlung, falls überhaupt: Fraunces** (OFL-1.1, variabel `wght 100–900` + `opsz 9–144pt` + SOFT/WONK-Achsen, 352 KB aufrecht / 758 KB mit Kursiv). Die `opsz`-Achse deckt genau die 46–54-pt-Größen ab.
+- **Bedingung:** nur zusammen mit mindestens einem Theme/Preset, das sie tatsächlich verwendet. Größe ist nicht die Beschränkung (+758 KB sind <1 % der App) — eine Roster-Zeile, die niemand auswählt, ist schlimmer als keine.
+- **Condensed NICHT hinzufügen**, obwohl die Rolle unbesetzt ist: `ProjectStyle.fonts` hat nur `body`/`heading`/`code` und **kein** Breiten-Feld, kein Preset nutzt `stretch:`. Eine schmale Schrift wäre aus dem Design-Panel gar nicht wählbar.
+
+---
+
+## 4b. Der handgeschriebene Parser — Ausgangslage (historisch)
 
 **Die billige Hälfte ist erledigt** (`c3ba300`): `splitIntoBlocks` kennt jetzt Strings, Kommentare, Escapes und den Unterschied zwischen Code- und Markup-Modus. Das war die Empfehlung der letzten Session und sie hat die Fehlerklasse erledigt, die dahinterstand.
 
