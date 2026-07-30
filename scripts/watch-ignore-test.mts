@@ -81,8 +81,26 @@ console.log('\nAgainst the installed chokidar');
   await new Promise<void>(r => watcher.on('ready', () => r()));
   watcher.on('all', (_e, p) => { seen.push(path.relative(root, p).split(path.sep).join('/')); });
 
-  [...MUST_IGNORE, ...MUST_FIRE].forEach(r => w(r, 'changed'));
-  await new Promise(r => setTimeout(r, 1200));
+  // Touch every path, then wait for the events we EXPECT rather than for a
+  // fixed number of milliseconds — and re-touch whatever has not arrived.
+  //
+  // The flat `setTimeout(1200)` this replaces made the gate flaky: under load
+  // macOS coalesces or drops the notification for the deepest path
+  // (chapters/deep/nested/assets/fig.png) and `npm test` went red for no
+  // reason. A build gate that fails at random gets re-run until it is green,
+  // which is the same thing as switching it off.
+  //
+  // Re-touching does not weaken the claim. What is under test is whether our
+  // predicate FILTERS a path; one lost FSEvent is no evidence of filtering, and
+  // seeing the event on a later write proves the path is watched just as well.
+  // The ignored paths are re-touched too, so they get more chances to leak, not
+  // fewer.
+  for (let round = 0; round < 12 && MUST_FIRE.some(rel => !seen.includes(rel)); round++) {
+    [...MUST_IGNORE, ...MUST_FIRE].forEach(r => w(r, `changed-${round}`));
+    await new Promise(r => setTimeout(r, 400));
+  }
+  // …then settle, so a path that must stay SILENT has had its chance to speak.
+  await new Promise(r => setTimeout(r, 800));
   await watcher.close();
 
   for (const rel of MUST_IGNORE) {

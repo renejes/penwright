@@ -582,9 +582,11 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
   // pages, silently, on the first save.
   const alignSpec = spec === alignment ? undefined : spec;
 
-  // Special-case: a single image inside the align block.
+  // Special-case: a single image inside the align block. The image node has an
+  // `align` attr but no `alignSpec`, so a vertical component would be dropped.
   const innerImageAttrs = parseImageCall(inner);
   if (innerImageAttrs) {
+    if (alignSpec) return null;
     return {
       type: 'image',
       attrs: { ...innerImageAttrs, align: alignment },
@@ -606,7 +608,7 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
   }
 
   // General case: split into chunks separated by `#v(…)` or blank lines,
-  // then convert each chunk into a paragraph (or heading for big bold text).
+  // then convert each chunk into a paragraph.
   const chunks = splitAlignedChunks(inner);
   // Bail on chunks we can't faithfully represent (a centered #figure /
   // #table / arbitrary macro, or a heading mixed into a multi-chunk block) —
@@ -616,26 +618,66 @@ function parseAlignedBlock(block: string): TipTapNode | TipTapNode[] | null {
   for (const chunk of chunks) {
     if (isUnhandledAlignedChunk(chunk)) return null;
   }
+
+  // `#v(…)` is what splitAlignedChunks CONSUMED to find those boundaries, and
+  // nothing re-emits it — so a title page came back without its vertical
+  // rhythm. Three shipped `book-*` title pages and the sample project.
+  if (/#v\s*\(/.test(inner)) return null;
+
+  // A spec that says more than the horizontal alignment (`center + horizon`
+  // also centres VERTICALLY) survives on a single node only — split into two,
+  // each half would be centred in the page on its own.
+  if (alignSpec && chunks.length > 1) return null;
+
   const nodes: TipTapNode[] = [];
   for (const chunk of chunks) {
-    const node = chunkToAlignedNode(chunk, alignment);
+    const node = chunkToAlignedNode(chunk, alignment, alignSpec);
     if (node) nodes.push(node);
   }
   if (nodes.length === 0) {
-    nodes.push({ type: 'paragraph', attrs: { textAlign: alignment } });
+    nodes.push({ type: 'paragraph', attrs: { textAlign: alignment, ...(alignSpec ? { alignSpec } : {}) } });
   }
   return nodes;
 }
 
 /** True when a chunk inside #align[...] has no faithful WYSIWYG mapping. */
 function isUnhandledAlignedChunk(chunk: string): boolean {
-  // The two shapes chunkToAlignedNode handles explicitly.
-  if (/^#text\(/.test(chunk) || /^#datetime\.today\(\)\.display\(/.test(chunk)) return false;
+  // A LIVE value must never be rendered into a literal. `#datetime.today()`
+  // used to come back as "7/30/2026" — the date of whichever day the user first
+  // pressed save, in that machine's locale format, replacing the document's own
+  // `display("[month repr:long] [day], [year]")`. Non-deterministic and wrong.
+  if (/^#datetime\b/.test(chunk)) return true;
+
+  // A whole-chunk `#text(args)[body]` styling call: representable only when the
+  // args reduce to a bold mark. `size` / `fill` / `font` have no home on a
+  // paragraph, so keeping the chunk silently drops them — that is how
+  // `#text(size: 54pt, fill: …, font: …)[The Big Adventure]` became a plain
+  // `= The Big Adventure`. Same test as isWholeBlockStyledText, one rule.
+  if (/^#text\s*\(/.test(chunk)) {
+    const args = matchTypstParens(chunk, chunk.indexOf('('));
+    if (!args) return true;
+    let k = args.end;
+    while (/\s/.test(chunk[k] ?? '')) k++;
+    const body = chunk[k] === '[' ? extractBracketContent(chunk, k) : null;
+    if (!body || chunk.slice(body.end).trim() !== '') return true;
+    return !isBoldOnlyTextArgs(args.inner);
+  }
+
   // After stripping the known inline constructs, any leftover #macro( call
   // (e.g. #figure(, #table(, #image() or a heading marker means the chunk
   // would degrade to literal text.
   const stripped = stripKnownInlines(chunk);
   return /#[a-zA-Z][\w.-]*\(/.test(stripped) || /^=/.test(stripped.trim());
+}
+
+/**
+ * True when a `#text(…)` argument list carries nothing but `weight: "bold"` —
+ * the one property chunkToAlignedNode can give back, as a bold mark that
+ * compiles identically. Everything else must keep the block verbatim.
+ */
+function isBoldOnlyTextArgs(args: string): boolean {
+  const parts = splitTopLevelArgs(args).map(a => a.trim()).filter(Boolean);
+  return parts.length > 0 && parts.every(a => /^weight:\s*"bold"$/.test(a));
 }
 
 /** Splits the inside of an aligned block into logical chunks. */
@@ -649,57 +691,37 @@ function splitAlignedChunks(inner: string): string[] {
   return chunks;
 }
 
-/** Converts one chunk inside an aligned block into a TipTap node. */
-function chunkToAlignedNode(chunk: string, alignment: 'center' | 'right' | 'left'): TipTapNode | null {
-  // #text(size: 22pt, weight: "bold")[Title] → centered Heading 1
-  // #text(size: 14pt)[Subtitle]              → centered paragraph (kept bold if weight present)
+/**
+ * Converts one chunk inside an aligned block into a TipTap node.
+ *
+ * Only the shapes isUnhandledAlignedChunk lets through arrive here: prose, and
+ * a `#text(weight: "bold")[…]` span. The size-based promotion to Heading 1 that
+ * used to live here is gone — it read `size: 22pt` to decide, then emitted a
+ * bare `= Title`, throwing the size away along with any `fill` and `font`. A
+ * styled chunk now keeps its whole block verbatim instead.
+ */
+function chunkToAlignedNode(
+  chunk: string,
+  alignment: 'center' | 'right' | 'left',
+  alignSpec?: string,
+): TipTapNode | null {
+  const attrs = { textAlign: alignment, ...(alignSpec ? { alignSpec } : {}) };
+
+  // #text(weight: "bold")[Fett] → paragraph carrying a bold mark. Compiles
+  // identically; the round trip normalises it to `*Fett*`.
   const textMatch = chunk.match(/^#text\((.*?)\)\[([\s\S]+)\]$/);
   if (textMatch) {
-    const args = textMatch[1];
-    const innerText = textMatch[2].trim();
-    const sizeMatch = args.match(/size:\s*(\d+(?:\.\d+)?)\s*pt/);
-    const isBold = /weight:\s*"bold"/.test(args);
-    const size = sizeMatch ? parseFloat(sizeMatch[1]) : 11;
-
-    // Heading-sized bold text → emit as Heading 1 so DOCX picks up Title style.
-    if (isBold && size >= 18) {
-      return {
-        type: 'heading',
-        attrs: { level: 1, textAlign: alignment },
-        content: parseInline(innerText),
-      };
-    }
-
-    // Otherwise: paragraph. Apply bold mark inline if `weight: "bold"`.
-    const inline = parseInline(innerText);
-    const marked = isBold
-      ? inline.map(n => n.type === 'text' ? { ...n, marks: [...(n.marks || []), { type: 'bold' }] } : n)
-      : inline;
-    return {
-      type: 'paragraph',
-      attrs: { textAlign: alignment },
-      content: marked.length > 0 ? marked : undefined,
-    };
-  }
-
-  // #datetime.today().display("…") → today's date as plain text.
-  if (/^#datetime\.today\(\)\.display\(/.test(chunk)) {
-    const today = new Date().toLocaleDateString();
-    return {
-      type: 'paragraph',
-      attrs: { textAlign: alignment },
-      content: [{ type: 'text', text: today }],
-    };
+    const inline = parseInline(textMatch[2].trim());
+    const marked = inline.map(n =>
+      n.type === 'text' ? { ...n, marks: [...(n.marks || []), { type: 'bold' }] } : n,
+    );
+    return { type: 'paragraph', attrs, content: marked.length > 0 ? marked : undefined };
   }
 
   // Plain text or other inline-formatted line.
   const inline = parseInline(chunk);
   if (inline.length === 0) return null;
-  return {
-    type: 'paragraph',
-    attrs: { textAlign: alignment },
-    content: inline,
-  };
+  return { type: 'paragraph', attrs, content: inline };
 }
 
 /**

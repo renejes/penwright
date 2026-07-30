@@ -383,7 +383,15 @@ function serializeInline(nodes: TipTapNode[]): string {
               text = `_${text}_`;
               break;
             case 'code':
-              text = `\`${text}\``;
+              // A Typst raw span is delimited by single backticks and has no
+              // escape mechanism, so content containing a backtick cannot be
+              // written that way — `` `\`code\`` `` reads back as an EMPTY raw
+              // span, plain text, and a second empty one: monospace and
+              // backticks both gone. `#raw("…")` is the string form and takes
+              // anything (the deserializer already parses it back to a code
+              // mark). An empty span needs it too: `` `` `` is not a raw span
+              // at all, just two literal backticks.
+              text = text === '' || text.includes('`') ? `#raw(${typstStr(text)})` : `\`${text}\``;
               break;
             case 'strike':
               // Typst has no `~…~` strikethrough — `~` is the non-breaking

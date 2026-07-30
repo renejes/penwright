@@ -375,5 +375,126 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   );
 }
 
+// ─── A raw span whose content contains a backtick ───────────────────────────
+//
+// A Typst raw span is delimited by single backticks and has NO escape
+// mechanism, so text containing a backtick cannot be written that way. The
+// serializer wrote it anyway: the sample project's `#raw("\`code\`")` came back
+// as ``code``, which Typst reads as an empty raw span + plain text + another
+// empty one — the monospace and the backticks both gone from the page.
+//
+// It was also the corpus's only NON-IDEMPOTENT file: the second save escaped
+// the wreckage and dragged the NEXT code span on the line into it
+// (`elements.codeBlock` → `elements.codeBlock\`). A document that keeps
+// drifting is the one that gets eaten over a week of editing.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const idem = (src: string) => ser(ser(src)) === ser(src);
+
+  const withTicks = '#raw("`code`")';
+  check('backticked raw span survives', ser(withTicks) === withTicks, { got: ser(withTicks) });
+  check('backticked raw span is idempotent', idem(withTicks), { once: ser(withTicks), twice: ser(ser(withTicks)) });
+
+  // The real line from resources/sample-project/chapters/07-design-showcase.typ:
+  // the neighbouring plain raw span must come out untouched.
+  const line = 'Inline #raw("`code`") looks like this: `let x = 42`.';
+  check('neighbouring raw span not dragged in', ser(line) === line, { got: ser(line) });
+  check('…and that line is idempotent', idem(line), { once: ser(line), twice: ser(ser(line)) });
+
+  // The backtick-free form must NOT grow a #raw(…) wrapper — that would churn
+  // every code span in every document.
+  check('plain raw span keeps the short form', ser('a `b` c') === 'a `b` c', { got: ser('a `b` c') });
+}
+
+// ─── #align[…] bodies: what the WYSIWYG unwrap is allowed to claim ──────────
+//
+// `parseAlignedBlock` turns a title page into headings and paragraphs so the
+// text is editable and reaches DOCX. That is right for the shapes it can
+// re-emit — and destructive for everything else, because the discarded
+// arguments never come back. Found on the shipped `book-*` title pages and the
+// sample project:
+//
+//   #text(size: 54pt, fill: …, font: …)  →  `= Title`     size, colour, font gone
+//   #v(0.5em)                            →  (nothing)     the spacer gone
+//   center + horizon                     →  center        vertical centring gone
+//   #datetime.today().display(…)         →  "7/30/2026"   a LIVE date frozen into
+//                                                         a literal, in the wrong
+//                                                         format, on first save
+//
+// The rule: a body the node graph cannot re-emit keeps the whole block
+// verbatim (the `typstGrid` / `typstHero` pattern). Verbatim still exports —
+// the DOCX and HTML serializers read design text out of raw blocks.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const verbatim = (name: string, src: string) =>
+    check(`align body kept verbatim: ${name}`, ser(src) === src.trim(), { got: ser(src) });
+
+  verbatim('styled title page (book-novel)', [
+    '#align(center + horizon)[',
+    '  #text(size: 28pt, weight: "bold")[Book Title]',
+    '  #v(1em)',
+    '  #text(size: 14pt)[Author Name]',
+    ']',
+  ].join('\n'));
+
+  verbatim('themed title page (book-kids)', [
+    '#align(center + horizon)[',
+    '  #text(size: 54pt, weight: "bold", fill: style-colors.accent, font: style-fonts.heading)[The Big Adventure]',
+    '  #v(0.5em)',
+    '  #text(size: 1.5em, weight: "bold", fill: style-colors.primary)[A picture book · by You]',
+    ']',
+  ].join('\n'));
+
+  verbatim('live date (sample project)', [
+    '#align(center)[',
+    '  vswrite Sample Project',
+    '',
+    '  #v(0.3em)',
+    '',
+    '  #datetime.today().display("[month repr:long] [day], [year]")',
+    ']',
+  ].join('\n'));
+
+  verbatim('a bare #v spacer between two prose chunks', [
+    '#align(center)[',
+    '  Erste Zeile',
+    '  #v(0.3em)',
+    '  Zweite Zeile',
+    ']',
+  ].join('\n'));
+
+  // A frozen date is the one loss that is not even deterministic — it depends
+  // on the day the user pressed save. Assert the absence directly, so a future
+  // "helpful" re-render of the date cannot pass by round-tripping.
+  check(
+    'live date is never rendered into the document',
+    !/\d{1,4}[/.]\d{1,2}[/.]\d{1,4}/.test(ser('#align(center)[#datetime.today().display("[year]")]')),
+    { got: ser('#align(center)[#datetime.today().display("[year]")]') },
+  );
+
+  // …and the shapes the unwrap DOES represent must keep working, or this fix
+  // has just turned every centred line in the corpus into a code block.
+  const wysiwyg = (name: string, src: string, wantType: string) => {
+    const doc = deserializeTypst(src) as any;
+    const type = doc.content?.[0]?.type;
+    check(`align body stays WYSIWYG (${name}): ${wantType}`, type === wantType, { got: type });
+    check(`align body round-trips (${name})`, ser(src) === src.trim(), { got: ser(src) });
+  };
+  wysiwyg('heading', '#align(center)[= Titel]', 'heading');
+  wysiwyg('heading + vertical spec', '#align(center + horizon)[= Titel]', 'heading');
+  wysiwyg('prose', '#align(center)[Ein zentrierter Satz.]', 'paragraph');
+  wysiwyg('prose + vertical spec', '#align(center + horizon)[Ein Satz.]', 'paragraph');
+  wysiwyg('image', '#align(center)[#image("a.png", width: 50%)]', 'image');
+
+  // `weight: "bold"` is the ONE style arg a paragraph can give back, and it
+  // comes back as `*…*`. Not byte-identical, but the same bytes out of Typst —
+  // the documented compile-stable normalisation (plan §6.2).
+  check(
+    'bold-only span normalises to *…* and nothing else',
+    ser('#align(center)[#text(weight: "bold")[Fett]]') === '#align(center)[*Fett*]',
+    { got: ser('#align(center)[#text(weight: "bold")[Fett]]') },
+  );
+}
+
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);
 process.exit(fail > 0 ? 1 : 0);
