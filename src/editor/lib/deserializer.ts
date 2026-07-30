@@ -101,6 +101,7 @@ function splitIntoBlocks(text: string): SourceBlock[] {
   let current: string[] = [];
   let currentAttached = false;
   let inCodeBlock = false;
+  let inBlockComment = false;
   let braceDepth = 0;
   let bracketDepth = 0;
   let parenDepth = 0;
@@ -112,9 +113,65 @@ function splitIntoBlocks(text: string): SourceBlock[] {
     currentAttached = false;
   };
 
+  /**
+   * Updates the nesting state from one line.
+   *
+   * The rule that matters: `{}` `[]` `()` group in Typst's CODE mode, which `#`
+   * opens — in markup a paren is just a paren. Counting them everywhere meant
+   * ONE unclosed `(` in prose left the depth at 1 for the rest of the file,
+   * nothing split again, and every following block merged into one paragraph.
+   * A heading caught in that merge is destroyed outright: mid-paragraph `=` is
+   * literal text to Typst. A smiley was enough to do it.
+   *
+   * So delimiters are counted only from the first unescaped `#` on the line, and
+   * from column 0 once a construct is already open — which is what keeps a
+   * multi-line `#figure(…)` or `#footnote[…]` together across a blank line, the
+   * reason the counting exists at all.
+   *
+   * `$` is tracked over the whole line regardless: display math is markup and
+   * opens without a `#`.
+   *
+   * Strings and comments are skipped, so `#let s = "ein $ Zeichen"` no longer
+   * turns the remainder of the document into one uneditable math block, and
+   * `// TODO: die ( hier` no longer swallows it.
+   */
+  const scanLine = (line: string): void => {
+    let code = braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+    let inStr = false;
+
+    for (let ci = 0; ci < line.length; ci++) {
+      const c = line[ci];
+      const escaped = ci > 0 && line[ci - 1] === '\\';
+
+      if (inBlockComment) {
+        if (c === '*' && line[ci + 1] === '/') { inBlockComment = false; ci++; }
+        continue;
+      }
+      if (inStr) {
+        if (c === '\\') ci++;
+        else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '/' && line[ci + 1] === '/') return;   // line comment: nothing after it counts
+      if (c === '/' && line[ci + 1] === '*') { inBlockComment = true; ci++; continue; }
+      // A `"` only opens a string in code mode; in prose it is a quotation mark.
+      if (c === '"' && code) { inStr = true; continue; }
+      if (c === '#' && !escaped) { code = true; continue; }
+      if (c === '$' && !escaped) { inMath = !inMath; continue; }
+      if (!code) continue;
+
+      if (c === '{') braceDepth++;
+      else if (c === '}') braceDepth = Math.max(0, braceDepth - 1);
+      else if (c === '[') bracketDepth++;
+      else if (c === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+      else if (c === '(') parenDepth++;
+      else if (c === ')') parenDepth = Math.max(0, parenDepth - 1);
+    }
+  };
+
   for (const line of lines) {
     const wasNested =
-      inCodeBlock || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+      inCodeBlock || inBlockComment || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
     const wasInMath = inMath;
 
     // Track code block fences
@@ -122,22 +179,10 @@ function splitIntoBlocks(text: string): SourceBlock[] {
       inCodeBlock = !inCodeBlock;
     }
 
-    // Track nesting depth (only outside code blocks)
-    if (!inCodeBlock) {
-      for (let ci = 0; ci < line.length; ci++) {
-        const char = line[ci];
-        if (char === '{') braceDepth++;
-        if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
-        if (char === '[') bracketDepth++;
-        if (char === ']') bracketDepth = Math.max(0, bracketDepth - 1);
-        if (char === '(') parenDepth++;
-        if (char === ')') parenDepth = Math.max(0, parenDepth - 1);
-        if (char === '$' && line[ci - 1] !== '\\') inMath = !inMath;
-      }
-    }
+    if (!inCodeBlock) scanLine(line);
 
     const isNested =
-      inCodeBlock || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+      inCodeBlock || inBlockComment || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
 
     // A heading line is its own block in Typst — no blank line required.
     // Without this, consecutive `=== a` / `==== b` lines (or a heading

@@ -375,6 +375,61 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   );
 }
 
+// ─── One stray delimiter must not swallow the rest of the file ──────────────
+//
+// The block splitter finds block boundaries by counting `{}` `[]` `()` and
+// toggling on `$`, over every character of every line. It knew nothing about
+// strings, comments, or which MODE it was in — and in Typst those delimiters
+// only group in CODE mode, which `#` opens. In markup a paren is a paren.
+//
+// So one unclosed `(` in prose — a smiley — left the counter at depth 1 for the
+// rest of the file, no blank line split anything again, and everything after it
+// merged into a single paragraph:
+//
+//   Ein Smiley :-( im Text.        →  Ein Smiley :-( im Text. = Überschrift
+//                                     Zweiter Absatz.
+//   = Überschrift
+//
+//   Zweiter Absatz.
+//
+// The heading is not just moved, it is DESTROYED: mid-paragraph `=` is literal
+// text to Typst, so it renders as an "=" in the body and never comes back. A `$`
+// in a string did the same thing more quietly — the whole document became one
+// uneditable raw block.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
+  const TAIL = '\n\n= Überschrift\n\nZweiter Absatz.';
+
+  for (const [name, head, expect] of [
+    ['unclosed ( in prose (a smiley)', 'Ein Smiley :-( im Text.', undefined],
+    ['unclosed ( in prose (a typo)', 'Der Wert (siehe unten', undefined],
+    // A literal `[` in prose is escaped to `\[`, which Typst renders as `[` —
+    // pre-existing, correct, and checked against the compiler. What matters here
+    // is that the heading after it survives.
+    ['unclosed [ in prose', 'Die Quelle [4 sagt etwas.', 'Die Quelle \\[4 sagt etwas.'],
+    ['unclosed ( in a line comment', '// TODO: die ( hier noch aufräumen', undefined],
+    ['unclosed [ in a string binding', '#let opener = "Kapitel ["', undefined],
+    ['a $ inside a string', '#let s = "ein $ Zeichen"', undefined],
+    ['a { in a line comment', '// vgl. { offen', undefined],
+  ] as [string, string, string | undefined][]) {
+    const src = head + TAIL;
+    const want = (expect ?? head) + TAIL;
+    check(`${name}: the following heading survives`, types(src).includes('heading'), types(src));
+    check(`${name}: round-trips`, ser(src) === want, { got: ser(src) });
+  }
+
+  // …while the reason the counting exists must keep working: a blank line inside
+  // a multi-line construct is not a block boundary.
+  for (const [name, src] of [
+    ['multi-line #footnote with a blank line', 'Text mit #footnote[\n\n  mehrzeilig\n] und weiter.\n\nZweiter Absatz.'],
+    ['multi-line #figure with a blank line', '#figure(\n  rect(),\n\n  caption: [Eine Abbildung],\n)\n\nZweiter Absatz.'],
+    ['display math with a blank line', '$ x = y\n\n  + z $\n\nZweiter Absatz.'],
+  ] as [string, string][]) {
+    check(`${name} stays one block`, types(src).length === 2, types(src));
+  }
+}
+
 // ─── Constructs found only by running over real client documents ────────────
 //
 // The three below were invisible to 100-odd hand-written round-trips and to the
