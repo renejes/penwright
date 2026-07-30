@@ -2,162 +2,180 @@
 
 > **Stand:** 2026-07-30, Ende Session 46 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.26.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **65 Tools**
 >
-> **Lies zuerst diese Datei, dann `CLAUDE.md` → „Commands" (Testabschnitt) und „App ↔ MCP parity".** Was passiert ist, steht im Git-Log; dieses Dokument beschreibt **den Ist-Zustand und was als Nächstes zu tun ist**.
+> **Lies zuerst diese Datei, dann `CLAUDE.md`.** Das Fundament ist gebaut; ab hier geht es um eine Produktfrage, nicht mehr um Reparatur.
 
 ---
 
-## 0. Wo wir stehen — in einem Absatz
+## 0. Die Aufgabe
 
-Der Round-Trip war das offene Kernproblem und ist es nicht mehr: Baseline **22 → 0**, und es gibt ein **Pixel-Gate** (`compile-corpus-test`), das jedes Korpus-**Projekt** vor und nach dem Round-Trip kompiliert und die Seiten vergleicht — inklusive Renés vier Kundendokumente, die dabei alle als korrumpiert auffielen und jetzt pixelgleich sind. Danach ist **Typst auf 0.15.1** gezogen: kein einziger Compile-Fehler über 39 Projekte, keine neue Warnung, keine geänderte Seitenzahl, alle Gates grün. Was dabei nebenbei herauskam, war wichtiger als das Update selbst — 36 von 37 Presets forderten Schriftschnitte, die wir nicht bündelten; das ist mit dem Umstieg auf **Variable Fonts** erledigt (§1b). Ebenso beantwortet: **`typst-syntax` bauen wir nicht** (§4), und die Bewertung hat dabei drei weitere aktive Round-Trip-Fehler ans Licht gebracht, die jetzt behoben sind. Offen bleibt **der manuelle Durchgang durch die App** (§1/§2) — nach sechs Sessions die größte Unsicherheit im Projekt.
+**Penwright soll von jemandem benutzbar sein, der kein Typst schreiben kann.**
 
----
+Das gilt für alles drei — Text, Struktur, Design — und ausdrücklich auch für das, was die **KI erzeugt**: Wenn Claude für ein Magazin einen eigenen Design-Baustein baut, darf das Ergebnis für den Nutzer kein Code-Block sein, den er nur anschauen kann.
 
-## 1. Was jetzt dran ist — der manuelle Durchgang durch die App
+Zu klären ist, **wie das mit dem bestehenden Code am besten geht** — unter dem Paritätsprinzip, und mit einer belastbaren Antwort darauf, **ob und in welchem Umfang wir `typst-syntax` dafür brauchen**.
 
-Nach sechs Sessions ohne einen einzigen App-Start ist das die größte offene Unsicherheit im Projekt. Alles unten in §2 gilt unverändert und ist jetzt der **erste** Punkt, nicht der zweite.
-
-Die Schriften-Sache aus dem letzten Handover ist erledigt (siehe §1b), die `typst-syntax`-Frage ist bewertet (§4).
+Das Fundament dafür steht: der Round-Trip ist vertrauenswürdig (Baseline 0, Pixel-Gate über 39 Projekte inkl. der echten Kundendokumente), das Paritätsprinzip ist auf allen vier Achsen eingelöst, Typst ist auf 0.15.1. Das ist erledigt und taucht ab hier nur noch als Betriebswissen auf (§6–§8).
 
 ---
 
-## 1b. Erledigt: Variable Fonts
+## 1. Das Problem, gemessen
 
-6 von 7 Familien liegen jetzt als Variable Font vor (Inter, IBM Plex Sans/Serif/Mono, JetBrains Mono, Crimson Pro), eine Datei pro Schnitt über den ganzen `wght`-Bereich. **Spectral ist die Ausnahme** — es gibt upstream keine variable Version — und hat dafür die fehlenden statischen Schnitte bekommen (Medium, SemiBold + Kursive).
+**62,5 %** aller Blöcke in den ausgelieferten Presets und **42,4 %** in Renés echten Dokumenten sind `typstRawBlock` — für den Editor undurchsichtig, nur als Code anzuschauen.
 
-Damit rendert `semibold` endlich als Semibold statt als Bold, und `medium` als Medium statt als Regular. Betraf die Default-Überschriften *jedes* neuen Projekts (h2–h4 sind `semibold`) und 213 Stellen in den Presets. Bundle: 6,6 → 7,0 MB — es **wächst** leicht, entgegen der Behauptung im letzten Handover.
+Die Zahl allein führt aber in die Irre. Sie zerfällt in **vier Eimer mit völlig verschiedenen Kosten**, und nur der letzte braucht überhaupt einen Parser:
 
-`webFonts.ts` liest jetzt die `fvar`-Tabelle und schreibt `font-weight: <min> <max>` ins CSS; eine Web-Seite trägt dadurch 6 statt 12 Font-Dateien.
+| Eimer | Menge (Presets / echt) | Was drin ist | Was zu tun ist |
+|---|---|---|---|
+| **1. Infrastruktur** | ~60 % der undurchsichtigen Masse | `#let` (443/84), `#import` (92/50), `#set`, Kommentare (358/104) | **Nichts.** Das ist `style.typ` / `macros.typ`. Ein Nicht-Typst-Nutzer soll das *nicht* von Hand bearbeiten — dafür gibt es den Design-Tab. Undurchsichtig ist hier die richtige Antwort. |
+| **2. Trivial** | `#v` (67/47), `#pagebreak` (43/12) | Abstände, Umbrüche | Billige Nodes, falls überhaupt gewollt. Ein Abstandshalter als Code-Block ist Lärm, kein Verlust. |
+| **3. Erkannt, aber aufgegeben** | `#table` (16), `#figure` (16), `#align` (13), `#text` (18) | Konstrukte, für die ein Parser existiert, der aussteigt | **Begrenzte Arbeit, kein CST.** Siehe §2 — hier liegt der größte Gewinn pro Aufwand. |
+| **4. Nutzer-/KI-Makros** | `#note` (18), `#insight` (16), `#modul` (12), `#herohead` (8), `#callout` (7), `#band` (6), `#box-choice` (6), `#sumrow` (5), `#grid` (18/13), `#block` (10) | Handgeschriebene und KI-erfundene Bausteine | **Hier und nur hier** stellt sich die `typst-syntax`-Frage. §3. |
 
-**Nicht lösbar durch Bündeln:** `paper-preprint` und `thesis-classic` fordern *New Computer Modern* in Semibold. Das ist Typsts **eingebaute** Schrift und hat nur 400/700 — die sechs Stellen rendern bold. Die Quelle auf `bold` zu ändern wäre eine Design-Änderung an ausgelieferten Presets ohne sichtbare Wirkung; bewusst offen gelassen.
-
----
-
-## 1a. Was das Typst-Update ergab — als Referenz, nicht als offene Aufgabe
-
-Gebündelt ist jetzt **0.15.1**, geholt und gepinnt von `npm run fetch:typst`.
-
-**Messung (39 Projekte, 265 Seiten, isoliert von System-Fonts):** 217 Seiten identisch, 9 nur Antialiasing, **39 kleine lokale Shifts, 0 Reflow, 0 geänderte Seitenzahl, 0 Compile-Fehler, 0 neue Warnungen.** Die Shifts sind die dokumentierte Baseline-Korrektur in Boxen mit Inset — René's „inbound boxes" ist real und arbeitet schon in unseren eigenen Presets (`newsletter-*` p1 ist das klarste Beispiel: Box gleich, Text darin 3 px korrekt nachjustiert).
-
-**Behoben, weil 0.15 es zum Hard Error macht:** ein Backslash in einem Pfad. `markdownImporter` und 9 Design-Elemente interpolierten einen berechneten Pfad ungeprüft in `#image("…")` — auf Windows also Backslashes, und 0.15 bricht dann mit `path must not contain a backslash` beim Parsen ab, nicht nur beim Bild. Normalisiert; Tests verifiziert rot ohne den Fix.
-
-**Bekannt und bewusst offen:** gebündeltes **codly 1.3.0** referenziert an drei Stellen den entfernten `pattern`-Typ, und 1.3.0 ist die neueste Veröffentlichung. Nichts, was wir ausliefern, erreicht diese Zweige; ein Nutzer, der codly ein `lang-fill: gradient` oder einen Zeilen-Highlight mit Tiling gibt, bekommt `unknown variable: pattern`. **Auf codly 1.4 warten**, dann `fetch:typst-packages` nachziehen.
-
-**Nicht gebrochen, obwohl es so aussah:** die umbenannten Zitierstile. `vancouver` & Co. kompilieren weiter mit Deprecation-Warnung, kein gespeichertes Dokument bricht. `NUMERIC_BIB_STYLES` kennt jetzt beide Schreibweisen.
+Gemessen über 153 ausgelieferte und 55 echte Dateien: `deserializeTypst` über den Korpus laufen lassen und die Top-Level-Knotentypen zählen. Leicht zu wiederholen, wenn sich etwas ändert.
 
 ---
 
-## 2. Der manuelle Durchgang durch die App — steht weiterhin aus
+## 2. Der größte Gewinn pro Aufwand: **Tabellen**
 
-Der Assistent hat sie in vier Sessions nie gestartet; alles ist durch Tests und Quelltext belegt. Das ist die größte verbleibende Unsicherheit im Projekt.
+**Null von sechzehn Tabellen im gesamten Korpus sind editierbar.** Auch nicht die Preistabellen in Renés Kundenangeboten. Jede einzelne ist ein Code-Block.
 
-Besonders zu prüfen, weil sie **in andere Dateien schreiben als früher**: Document-Settings-Dialog (schreibt jetzt die Wurzel), „Kapitel hinzufügen" (`#include` in die Wurzel), Bild-Drag-and-Drop (Ablage + eingefügter Pfad geändert). Dazu: Design-Panel → „Bausteine", Verlaufs-Hub (projektweit), KI-Anzeige in der Statusleiste.
+Der Grund steht in `parseTable` (`deserializer.ts`): es erwartet `#table(columns: N, [cell], …)` mit einer **ganzzahligen** Spaltenzahl. Echte Tabellen schreiben:
 
-**Neu dazugekommen und ungeprüft im laufenden Editor:**
-- **Attached Lists.** Eine Liste direkt unter ihrer Einleitungszeile trägt jetzt ein `attached`-Attribut (`typstListAttach.ts`). Im Editor ist das unsichtbar — aber wenn der Nutzer eine Liste *neu* anlegt oder eine bestehende teilt, entscheidet ProseMirror über den Default (`false`). Zu prüfen: Enter/Backspace an der Grenze Absatz↔Liste, und ob `serializeTypstCached` (der Editor-Pfad, nicht der Test-Pfad) dieselben Bytes schreibt wie `serializeTypst`.
-- **Termlisten und Titelseiten sind jetzt Raw-Blocks.** Das ist die richtige Entscheidung (siehe CLAUDE.md „The round-trip rule"), aber es heißt: eine Titelseite, die vorher als editierbare Überschrift erschien, ist heute ein Typst-Code-Block. Anschauen und entscheiden, ob das UX-seitig genügt oder ob echte Nodes gebaut werden sollen (§4).
+```typst
+#table(
+  columns: (auto, 1fr, auto),
+  align: (left + top, left + top, right + top),
+  table.header[Phase][Was darin steckt][Preis netto],
+  [*Phase 1* \ #text(…)], …
+)
+```
 
----
+Ein Tupel statt einer Zahl, ein `align:`-Tupel, `table.header[…][…]` in Klammerform. Der Parser steigt in der ersten Zeile aus.
 
-## 3. Was am Testaufbau noch fehlt
+**Für die Aufgabenstellung ist das der wichtigste einzelne Befund:** Tabellen sind im Geschäftsdokument das häufigste strukturierte Element und komplett unzugänglich. Das zu beheben ist begrenzte Arbeit an einem vorhandenen Parser — **kein CST, kein Rust**. Wer hier anfängt, macht die App für den Zielnutzer spürbar zugänglicher, bevor irgendeine Architekturentscheidung fällt.
 
-1. **`scripts/run-all.mts` — eine Bilanz statt zwölf.** Zwölf Skripte, jedes mit eigenem `check()`, eigener Zählung, eigenem Exit-Code. Das ist bewusst so gewachsen und funktioniert — **kein Framework einführen.** Was fehlt, ist Zusammenfassung: ein Skript, das die Suiten startet, Ergebnisse einsammelt und **eine** Bilanz druckt, damit ein Fehlschlag in der Mitte nicht in 600 Zeilen Ausgabe untergeht. ~2 h.
+Abgeschwächt gilt dasselbe für `#figure`, `#align` und `#text` — alle drei haben Parser, die bei realen Argumenten aussteigen.
 
-2. **Das Korpus hat keinen Zeugen für „attached list".** Genau null der 208 Dateien enthält eine Liste direkt unter ihrem Einleitungssatz — der einzige Fall (`+ creditLabel` im Sample-Projekt) war ein Tippfehler und ist behoben. Der Unit-Test deckt es ab (verifiziert rot ohne den Fix), aber das Pixel-Gate kann es nicht sehen. Überlegen, ob das Sample-Projekt einen zeigen *soll* — es ist die Vitrine, und die idiomatische Typst-Form fehlt darin.
-
-3. **Round-Trip-Verluste: keiner mehr offen.** Beide Einträge, die hier standen, sind in Session 46 behoben — die unbalancierte Klammer nach einem Inline-Makro (`e23168f`) und die numerierten Enums (`1. / 2. / 3.` wurden zu einer Fließzeile mit escapten Markern; **gemessener Rendering-Verlust**, nicht nur Quelltext). Die Enum-Behauptung im letzten Handover — „beide Richtungen verlieren die Nummerierung, keine ist klar besser" — war falsch: `1. 2. 3.` rendert **pixelidentisch** zu `+ + +`, also trägt der Round-Trip die Liste jetzt als `orderedList` und schreibt `+`. Nur eine Nummerierung, die *nicht* bei 1 beginnt oder springt, bleibt verbatim, weil `+` sie umnummerieren würde.
-
-4. **Bekannt, nicht behoben, kein Rendering-Verlust:** verschachtelte Block-Kommentare. `/*\n /* innen */\n\n text\n*/` wird in drei Blöcke zerlegt, und auskommentierter Text erscheint im Editor als **bearbeitbarer Inhalt**. Das gerenderte PDF ist vorher wie nachher identisch (gemessen), es ist also eine Editor-Integritätsfrage, kein Datenverlust — und der letzte bekannte Parser-Fall.
-
----
-
-## 3a. Zwei Messfallen im Pixel-Gate, die beide falschen Alarm produziert haben
-
-Beide sind behoben, beide sind als Regel in CLAUDE.md — hier, weil sie sich beim nächsten Compiler-Wechsel sofort wieder stellen:
-
-- **Pixel hashen, nicht die Datei.** 0.15 liefert „space-optimized output by default": dieselbe Seite von 397 KB auf 181 KB neu kodiert, **byte-identische Pixel**. Ein Datei-Hash meldete daraufhin alle 39 Projekte auf jeder Seite als geändert — 100 % Fehlalarm, und genau die Sorte, die den nächsten echten Befund abwinken lässt. `typstRender.pngPixelHash` inflatet das IDAT und macht die PNG-Zeilenfilter rückgängig (nur Node-`zlib`), gegen `sips` gegengeprüft.
-- **System-Fonts ignorieren, sonst misst man den eigenen Font-Ordner.** Derselbe Vergleich meldete sechs Seiten „Reflow", die vollständig lokal waren: in `~/Library/Fonts` liegt eine Crimson-Pro-**Variable**-Font, 0.15 instanziiert sie bei `weight: "medium"`, 0.14.2 konnte das nicht. Isoliert sind die Seiten zwischen beiden Compilern identisch. Die App ignoriert System-Fonts bewusst *nicht* — ein Test muss.
+> **Achtung, die Regel gilt weiter:** ein Parser darf nur beanspruchen, was der Knotengraph **zurückgeben** kann (CLAUDE.md, „The round-trip rule"). Wenn `parseTable` `align:` liest, muss der Serializer es wieder schreiben — sonst tauscht man Unzugänglichkeit gegen stillen Verlust. Das Pixel-Gate ist der Beweis, nicht die Meinung.
 
 ---
 
-## 4. `typst-syntax` — bewertet. Empfehlung: **nicht bauen**, aber aus einem anderen Grund als bisher
+## 3. Die `typst-syntax`-Frage — beantwortet, aber neu zu stellen
 
-Die Bewertung ist gemacht (Session 46), mit einer echten WASM-Probe statt Vermutungen. **Die Machbarkeit ist deutlich besser als angenommen, der Nutzen deutlich kleiner.**
+Die technische Bewertung ist gemacht (Session 46, mit echter WASM-Probe); die Zahlen stehen in §9.
 
-**Was sich als falsch herausgestellt hat (alte Annahmen im Handover):**
-- „Realistisch einige Tage, ~1–3 MB WASM." → typst-syntax 0.15.1 nach `wasm32` gebaut: **214 KB** (opt-level=z), 89 KB gzip. `wasm-bindgen`/`wasm-pack` sind **nicht** nötig — ein rohes `extern "C"`-ABI genügt, also nur `rustup target add wasm32-unknown-unknown` + ein `cargo build`.
-- „Die Versionen passen nicht zusammen." → Crate 0.15.1 = gebündelter Compiler 0.15.1. **Erledigt.**
-- „In beide Prozesse bündeln." → Es sind **fünf** Bundling-Pfade, nicht zwei. Aber: Bun `--compile` bettet die `.wasm` nachweislich ein (auch beim Windows-Cross-Compile), synchrone Init in 2,29 ms, also **kein async-Refactor** der Aufrufer nötig.
-- Gemessen an Renés echtem Korpus: 64 Dateien, verlustfrei geparst, kompletter WASM↔JS-Round-Trip für 66.902 Knoten in **55 ms**.
+Die **damalige** Frage war: *„verhindert es unsere Round-Trip-Fehler?"* Antwort: ein Drittel, und die restlichen zwei Drittel lagen auf der Ausgabeseite. Deshalb: nicht bauen.
 
-**Der einzige echte Blocker, und er ist ein Token:** WebAssembly ist im Renderer heute durch die eigene CSP komplett gesperrt (`script-src 'self'` in `index.html:6`) — alle vier Ladewege scheitern. `'wasm-unsafe-eval'` ergänzen behebt es, verifiziert in einer echten Electron-Instanz.
+Die **neue** Frage ist eine andere — *„brauchen wir es, damit Nutzer und KI im Design arbeiten können?"* — und da ist die Antwort offen. Was sich sagen lässt:
 
-**Warum trotzdem nicht:** die Fehlerhistorie trägt es nicht. Über die letzten Sessions: **40 Defekte, davon 30 Round-Trip. Davon nur 10 lexikalisch** — die ein echter Parser verhindert. 3 hybrid, **17 reine Interpretations- oder Emissionsfehler**. Die teuersten Familien waren *keine* Parse-Fehler: die Titelseiten erkannte der alte Code korrekt und warf die Information dann absichtlich weg; das eingefrorene Datum wurde per Regex erkannt und dann durch einen `new Date()`-Aufruf ersetzt; die 11 Escaping-Fehler liegen auf dem TipTap→Typst-Pfad, wo gar kein Typst-Parser beteiligt ist. **Ein Drittel, bestenfalls.**
+- Für Eimer 1–3 (§1): **nein.** Das geht mit dem, was da ist.
+- Für Eimer 4: **kommt darauf an, welchen Weg wir gehen.**
 
-Dazu: die verbleibenden lexikalischen Lücken sind seit der Bewertung **fast alle geschlossen** (siehe unten). Was bleibt, ist ein einziger Fall.
+### Weg A — die KI deklariert, was sie gebaut hat
 
-**Der Auslöser, der die Antwort ändern würde:** wenn wir anfangen, Typst-Konstrukte zu *verstehen* statt zu erkennen — echte Term-Listen-Nodes, echte Magazin-Makro-Argumente, ein Design-Panel, das beliebiges Typst introspiziert. Dann ist der CST die richtige Grundlage. Solange wir Blöcke klassifizieren und den Rest verbatim durchreichen, ist er Versicherung gegen eine Fehlerklasse, die gerade leer ist.
+Beim Schreiben eines eigenen Bausteins schreibt die KI sein Interface mit:
 
-**Was die Bewertung nebenbei fand und was davon behoben ist:**
-- ✅ Unbalancierte Klammer **nach** einem Inline-Makro — breiter als notiert (`(`, `[`, `{`, nach jedem Makro, idempotent zerstörend). Behoben in `e23168f`.
-- ✅ Block-Kommentar `/* */` in Prosa → **Dokument kompilierte nach dem Speichern nicht mehr**. Behoben in `da31d87`.
-- ✅ Mid-line `//`-Kommentar → wurde sichtbarer Text. Behoben in `da31d87`.
-- ❌ **Kein Defekt:** ein Label auf einem Prosa-Absatz. Typst kann das ohnehin nicht referenzieren — das Original kompiliert genauso wenig.
-- ⏳ **Offen, der letzte bekannte Parser-Fall:** verschachtelte Block-Kommentare. `/* a /* b */ c */` ist legales Typst; unser Scanner schließt beim ersten `*/`. Heute unschädlich, weil der ganze Block ohnehin verbatim bleibt — relevant erst, wenn jemand die Tiefenzähler wieder darauf verlässt.
+```typst
+// penwright:block name="Zitatkasten" fields=(accent: color, kicker: text)
+#block(fill: accent.lighten(85%), inset: 1em, radius: 4pt)[…]
+```
 
----
+Penwright zeigt eine Karte mit genau diesen Feldern. **Kein Parser.** Der Marker-Mechanismus existiert bereits (`// penwright:node=…`, in `parseMagazineMacro`).
 
-## 4a. Schriften — Roster ist ausreichend, eine Lücke
+*Stärken:* billig, vollständig in unserer Hand, macht die KI zur Teilnehmerin am Design-System statt zum Code-Generator. Und der Marker trägt den **Namen** — „Zitatkasten", nicht „block".
 
-Nach dem Umstieg auf Variable Fonts: **7 Familien, alle OFL-1.1**, 7,0 MB. Rollen: Body-Serif ×3, Body-Sans ×2, Mono ×2 (plus Typsts DejaVu), **Mathe ist durch Typsts eingebaute New Computer Modern Math abgedeckt** — da muss nichts gebündelt werden.
+*Schwächen:* gilt nur für Code, der mit Marker entsteht. Renés vier Marketing-Projekte und LANGSAMs `macros.typ` bleiben undurchsichtig. Vergisst die KI den Marker, entsteht stillschweigend ein Raw-Block. Und Wiedererkennung per Marker ist fragil, sobald jemand den Block verschiebt oder verschachtelt.
 
-**Kein Preset nennt eine Familie, die wir nicht bündeln** (geprüft über alle 33). Null Drift.
+### Weg B — der CST liest, was da ist
 
-**Sprachabdeckung ist vollständig** für europäische Sprachen — direkt aus den `cmap`-Tabellen gelesen, nicht aus einem Compile geschlossen (Typst fällt still zurück und warnt nicht): Deutsch, Polnisch, Tschechisch, Ungarisch, Türkisch, Rumänisch, Kroatisch, Baltisch, dazu deutsche Anführungszeichen und Guillemets. Griechisch/Kyrillisch sind lückenhaft, für dieses Produkt aber egal.
+Generischer Eigenschaften-Editor über die benannten Argumente **jedes** Aufrufs, ohne Deklaration. Deckt auch rückwirkend alles ab.
 
-**Die eine echte Lücke: eine Display-/Headline-Schrift.** Jedes Preset setzt seine Schlagzeile in einer hochskalierten Body-Schrift — auch die Magazin-Cover bei 46 pt und `doc-poster` bei 46 pt.
-- **Empfehlung, falls überhaupt: Fraunces** (OFL-1.1, variabel `wght 100–900` + `opsz 9–144pt` + SOFT/WONK-Achsen, 352 KB aufrecht / 758 KB mit Kursiv). Die `opsz`-Achse deckt genau die 46–54-pt-Größen ab.
-- **Bedingung:** nur zusammen mit mindestens einem Theme/Preset, das sie tatsächlich verwendet. Größe ist nicht die Beschränkung (+758 KB sind <1 % der App) — eine Roster-Zeile, die niemand auswählt, ist schlimmer als keine.
-- **Condensed NICHT hinzufügen**, obwohl die Rolle unbesetzt ist: `ProjectStyle.fonts` hat nur `body`/`heading`/`code` und **kein** Breiten-Feld, kein Preset nutzt `stretch:`. Eine schmale Schrift wäre aus dem Design-Panel gar nicht wählbar.
+*Die ehrliche Grenze:* Der CST liefert bei `#block(fill: …, inset: 1em)` zwei editierbare Argumente, aber **keinen Namen**. Die Karte hieße „block". Dass es ein Zitatkasten ist, weiß nur, wer ihn geschrieben hat.
 
----
+*Die unterschätzte Stärke:* nicht das Lesen, sondern das **Splicen**. Jeder Knoten hat einen Byte-Bereich; man ersetzt `[a,b)` und lässt alles andere unangetastet — das Dokument wird **nie neu erzeugt**. Von unseren 30 Round-Trip-Fehlern lagen 17 auf der Ausgabeseite; chirurgisches Editieren macht diese Klasse gegenstandslos.
 
-## 4b. Der handgeschriebene Parser — Ausgangslage (historisch)
+### Die Kombination ist kein Kompromiss, sondern der Zielzustand
 
-**Die billige Hälfte ist erledigt** (`c3ba300`): `splitIntoBlocks` kennt jetzt Strings, Kommentare, Escapes und den Unterschied zwischen Code- und Markup-Modus. Das war die Empfehlung der letzten Session und sie hat die Fehlerklasse erledigt, die dahinterstand.
+A liefert **Bedeutung und Benennung**, B liefert **Abdeckung und robuste Wiedererkennung**. Die Reihenfolge ist die eigentliche Entscheidung.
 
-**Was übrig bleibt, ist kleiner geworden** — siehe §3 Punkt 3. Dazu die sieben unabhängigen Klammer-Scanner (`matchBracket`, `matchParen`, `matchParenArgs`, `extractBracketContent`, `extractInlineBrackets`, `findClosingDelim`, `matchTypstParens`) und die Tiefenzähler-Schleifen in derselben Datei: die sind jetzt nicht mehr die Hauptfehlerquelle, aber immer noch sieben Kopien derselben Idee.
+**Empfehlung: A zuerst — weil A die Spezifikation für B erzeugt.** Nach ein paar Wochen echter Magazin-Arbeit weiß man, welche Felder die KI tatsächlich anbietet und welche der Nutzer tatsächlich anfasst. Das ist der Katalog, den ein generischer Editor abdecken muss und den man sonst raten würde.
 
-**Der Befund zu `typst-syntax` (Renés Recherche, Stand 2026-07, zu verifizieren):** Parser-Modul des Typst-Compilers selbst, eigenständige Rust-Crate, Version **0.15.1**, **Apache-2.0**, ~309k Downloads/Monat, ohne den vollen Compiler nutzbar. **Die Versionsfrage ist damit erledigt: gebündelt ist jetzt ebenfalls 0.15.1**, Crate und Compiler passen zusammen. Der CST ist **verlustfrei** („an in-order tree traversal will recreate the text of the source file exactly") und reparst inkrementell (`Source::edit`).
+### Was vorher zu entscheiden ist
 
-**Der ehrliche Preis:** kein fertiges npm-/WASM-Paket. Wir müssten selbst eine `wasm-bindgen`-Crate bauen, zu WASM kompilieren und **in beide Prozesse bündeln** (der Deserializer läuft in App *und* MCP-Binary). Realistisch einige Tage. Die Versionskopplung, die das früher an das Typst-Update hängte, ist aufgelöst (beide 0.15.1).
-
-**Empfehlung: weiterhin nicht bauen.** Der Nutzen ist seit `c3ba300` deutlich kleiner und das Pixel-Gate fängt die Klasse jetzt ab. `typst-syntax` ist der saubere **Endzustand**, nicht der nächste Schritt.
+1. **Darf die KI beliebige Feldtypen deklarieren** (Farbe, Länge, Text, Auswahl, Bild), oder halten wir sie auf eine kleine feste Menge fest? Das bestimmt, ob die Karte ein generisches Formular ist oder eine Handvoll bekannter Widgets — und damit den Großteil des Aufwands.
+2. **Adressieren oder editieren?** René hat entschieden: **beides.** Byte-Bereiche allein genügen also nicht, es braucht eine UI.
+3. **Was passiert, wenn der Nutzer im Block von Hand editiert?** Verpflichtend zu beantworten, sonst baut man die Fehlerklasse dieser Woche neu: beim Öffnen den Baustein aus den Parametern **neu rendern und mit der Platte vergleichen**. Gleich → Karte. Abweichend → Raw-Block plus sichtbarer Hinweis „von Hand angepasst". Nie raten. Dieselbe Philosophie wie `safeApply`.
 
 ---
 
-## 5. Was sonst noch offen ist
+## 4. Worauf sich das stützen kann
 
-- **Renés echte Projekte sind jetzt im Korpus** — `penwright.corpus.json` (git-ignoriert) zeigt auf `~/Desktop/LANGSAM`, `~/Desktop/Marketing/FMM`, `~/Desktop/Marketing/Ludwig Maier Mastering`. **Konsequenz, die man wissen muss:** wenn René diese Dokumente bearbeitet, kann `npm test` in *diesem* Repo rot werden. Das ist das Gate, das arbeitet, kein Fehler. Auf einem frischen Klon fehlt die Datei und nur `resources/` wird geprüft.
-- **Nur die Host-Binary ist committet** (`typst-arm64-darwin`, ~45 MB). `package:{mac,win,linux}` holen die Zielplattform über `fetch:typst`. Zwei Dinge sind dabei ungelöst und für den Windows-Launch relevant: (a) `extraResources` filtert auf `typst-*`, kopiert also **jede** vorhandene Binary in **jeden** Build — wer für Windows packt, während die Darwin-Binary daliegt, verschenkt 45 MB im Installer; (b) `package:win` / `package:linux` sind ohnehin noch nie auf einem echten Gerät verifiziert worden. Beides zusammen anfassen, nicht einzeln.
-- **Der Web-Export-Branch `feat/web-export`** ist unverändert und **nicht** nach `main` gemergt.
-- **Launch-Blocker:** `penwright.online` registrieren · QA auf realer 100-Seiten-Thesis + Design-Use-Cases · Windows als Fast-Follow.
-- **Ungetrackt, nicht anfassen:** `resources/*/manifest.json`-Timestamps (Renés eigene Arbeit).
+Vieles ist da und wird heute nur in eine Richtung benutzt:
 
----
-
-## 6. Was man vor dem ersten Commit wissen muss
-
-- **`npm test` vor jedem Commit.** Es enthält jetzt `test:compile:corpus` (~10 s) und läuft auf Renés Maschine über die Kundendokumente.
-- **`MCP_SETUP_VERSION` = 0.24.0.** `ensureInstalledBinary` kopiert bei **jedem App-Start bedingungslos** aus `dist/mcp/bin/` — die installierte Binary trackt den letzten *Build*, nicht den Quellstand. Nach jeder `server.ts`-Änderung: bumpen **und** `npm run build:mcp-binary:all`.
-- **Serializer/Deserializer stecken in der MCP-Binary** (über `shared/`-Exporte und die Export-Pfade). Diese Session hat beide geändert, ohne `MCP_SETUP_VERSION` zu bumpen, weil kein MCP-*Tool* betroffen ist — aber wer die Binary neu baut, transportiert die Fixes mit. **Vor dem nächsten Release: `npm run build:mcp-binary:all`**, damit die Round-Trip-Fixes auch im MCP-Pfad landen.
-- **`tsconfig` hat `paths`.** Die alte Regel „in `.ts`-Dateien nur relative Imports, nie `@shared`" ist nicht mehr tragend. In `.svelte`-Dateien gilt weiterhin: relative Imports für geteilten Code, `@shared/i18n/store.svelte` nur für den i18n-Store.
+- **Die 24 Design-Elemente deklarieren bereits ihre Parameter** (`DesignElementParam`: `name`, `description`, `required`, `defaultValue` in `designElements.ts`). Das *ist* ein Formularschema — es erzeugt heute Typst und liest nie zurück.
+- **Es gibt repoweit keine Funktion, die ein eingesetztes Element wieder aus dem Dokument liest.** `DesignElementPicker` füllt die Parameter einmal beim Einfügen und rendert; danach ist es roher Typst. **Auch unsere eigenen 24 Elemente sind nach dem Einfügen nicht mehr editierbar.** Editierbar sind heute nur die *globalen* Element-Stile (Blockquote/Code/Figure/Table) und die Style-Tokens.
+- **Der Marker-Mechanismus existiert** (`// penwright:node=…`).
+- **Der Präzedenzfall für „Parameter + editierbarer Inhalt" existiert**: die 9 Magazin-Knoten (`typstMagazine.ts`) sind teils `atom: false` mit `content`-Ausdruck — Rumpf inline editierbar, Attribute als Felder. Genau die Form, die eine Baustein-Karte braucht.
+- **Das Pixel-Gate ist das Sicherheitsnetz.** `npm run test:compile:corpus` sagt in ~10 s, ob 265 Seiten über 39 Projekte noch identisch rendern. Ohne das wäre ein Umbau der Parse-Schicht fahrlässig; damit ist er messbar. **Das ist der Grund, warum diese Aufgabe jetzt angehbar ist und vor einer Woche nicht.**
 
 ---
 
-## 7. Arbeitsweise, die sich bewährt hat
+## 5. Was dabei nicht kaputtgehen darf
 
-- **Echte Dokumente schlagen ausgedachte Snippets, und ein Rendering schlägt einen Textvergleich.** 145 Unit-Round-Trips fanden keinen der Verluste in Renés Kundendokumenten. Der Textvergleich über 208 echte Dateien fand einige. Das Pixel-Gate fand die, die der Textvergleich *strukturell nicht sehen konnte* — und war beim ersten Lauf sofort rot.
-- **Jeder Fix bekommt einen Test, der ihn ohne den Fix rot sieht — und das wird ausprobiert.** Zweimal in dieser Session war ein Test grün gegen den zurückgepatchten Code; beide Male prüfte er etwas anderes als gedacht.
-- **Erst beweisen, dann normalisieren.** Zwölf Baseline-Einträge sahen nach harmloser Formatierung aus. Sie waren es — aber `#align(center + horizon)` sah genauso harmlos aus und war es nicht. Erst als das Pixel-Gate identische Seiten zeigte, durfte `relaxForm` sie schlucken.
-- **Ein Gate, das zufällig rot wird, ist ausgeschaltet.** Auf die Ereignisse warten, die man erwartet, nicht auf eine Millisekundenzahl.
-- **Gemeinsamer Planer statt synchron gehaltener Kopien.** Reines Planen (`plan*` gibt Writes zurück), der Aufrufer wendet an. Dreizehn solche Module in `src/shared/`; dazu jetzt `scripts/typstRender.mts` für die eine Typst-Auflösungsregel und `scripts/corpusConfig.mts` für die eine Korpus-Definition.
+- **Das Paritätsprinzip** (CLAUDE.md „App ↔ MCP parity"). Was der Mensch sieht, sieht die KI — und umgekehrt. Eine Baustein-Karte, die nur die GUI kennt, verletzt P2/P3. Der Marker gehört ins Dokument, nicht nach `.penwright/`.
+- **Die Round-Trip-Regel**: eine Unwrap darf nur beanspruchen, was der Knotengraph zurückgeben kann. Diese Regel ist mit zehn Fehlern in echten Dokumenten bezahlt.
+- **Safe-Apply.** Jede Design-Mutation läuft über `safeApply` (staging → verify → commit/rollback), auf **beiden** Seiten. Eine Karte, die direkt schreibt, ist ein Regress.
+- **`npm test` vor jedem Commit** — enthält das Pixel-Gate und läuft auf Renés Maschine über die Kundendokumente.
+
+---
+
+## 6. Was sonst noch offen ist
+
+- **Der manuelle Durchgang durch die App steht weiterhin aus.** Nach sechs Sessions ohne einen einzigen App-Start die größte Unsicherheit im Projekt — und für diese Aufgabenstellung besonders relevant, weil „zugänglich" sich nur am laufenden Programm beurteilen lässt. Besonders: Document-Settings (schreibt jetzt die Wurzel), „Kapitel hinzufügen", Bild-Drag-and-Drop, Design-Panel → „Bausteine", Verlaufs-Hub, KI-Anzeige in der Statusleiste. Neu und ungeprüft: **Attached Lists** (`typstListAttach.ts` — was macht ProseMirror beim Neuanlegen/Teilen einer Liste?) und dass **Termlisten und Titelseiten jetzt Raw-Blocks sind** (richtig entschieden, UX-seitig anzuschauen).
+- **Windows/Linux-Packaging.** `fetch:typst` holt die Binaries, aber `extraResources` filtert auf `typst-*` und kopiert **jede** vorhandene Binary in **jeden** Build. Zusammen mit der ohnehin ausstehenden Verifikation auf echtem Gerät anfassen.
+- **codly 1.3.0** referenziert den in 0.15 entfernten `pattern`-Typ; 1.3.0 ist die neueste Version. Nichts, was wir ausliefern, erreicht diese Zweige. Auf codly 1.4 warten.
+- **`paper-preprint` / `thesis-classic`** fordern *New Computer Modern* in Semibold — Typsts eingebaute Schrift hat nur 400/700. Sechs Stellen rendern bold; durch Bündeln nicht lösbar.
+- **Verschachtelte Block-Kommentare** — auskommentierter Text erscheint im Editor als bearbeitbarer Inhalt. PDF vorher wie nachher identisch (gemessen), also Editor-Integrität, kein Datenverlust. Letzter bekannter Parser-Fall.
+- **Web-Export-Branch `feat/web-export`** unverändert, nicht nach `main` gemergt.
+- **Launch-Blocker:** `penwright.online` registrieren · QA auf realer 100-Seiten-Thesis · Windows als Fast-Follow.
+- **Ungetrackt, nicht anfassen:** `resources/*/manifest.json`-Timestamps.
+
+---
+
+## 7. Betriebswissen vor dem ersten Commit
+
+- **`npm test`** = `check:mcp` → `typecheck` → `test:unit` → `test:corpus` → `test:compile:corpus` → `test:mcp`. Läuft in `package:*`.
+- **`penwright.corpus.json`** (git-ignoriert) zeigt auf `~/Desktop/LANGSAM` und die beiden Marketing-Ordner. **Wenn René diese Dokumente bearbeitet, kann `npm test` hier rot werden** — das ist das Gate, kein Fehler.
+- **`MCP_SETUP_VERSION` = 0.26.0.** `ensureInstalledBinary` kopiert bei jedem App-Start bedingungslos aus `dist/mcp/bin/`. Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary landet** (Deserializer, `designElements`, `skillTemplates`): bumpen **und** `npm run build:mcp-binary:all`.
+- **`npm run fetch:typst`** ist die einzige Wahrheit für die Typst-Version (`TYPST_VERSION` im Skript). `--check` verifiziert ohne Download.
+
+---
+
+## 8. Arbeitsweise, die sich bewährt hat
+
+- **Messen schlägt schätzen, und ein Rendering schlägt einen Textvergleich.** Die „62 % undurchsichtig" wurden erst nützlich, als sie in vier Eimer zerfielen. Die „null von sechzehn Tabellen" ist die konkreteste Aufgabe dieses Handovers und stand in keinem Plan.
+- **Jeder Fix bekommt einen Test, der ihn ohne den Fix rot sieht — und das wird ausprobiert.** Mehrfach war ein Test grün gegen den zurückgepatchten Code.
+- **Erst beweisen, dann normalisieren.** Zwölf Baseline-Einträge sahen nach harmloser Formatierung aus. Sie waren es — aber `#align(center + horizon)` sah genauso aus und war es nicht.
+- **Zwei Messfallen, die falschen Alarm produziert haben** (behoben, als Regel in CLAUDE.md): Pixel hashen statt der PNG-Datei (0.15 komprimiert anders → 39/39 Projekte falsch rot), und System-Fonts ignorieren (sonst misst man den eigenen Font-Ordner).
+- **Ein Gate, das zufällig rot wird, ist ausgeschaltet.**
+
+---
+
+## 9. Anhang: die `typst-syntax`-Bewertung im Detail
+
+Falls die Entscheidung in §3 Richtung B geht — hier die belegten Zahlen, damit sie nicht neu erhoben werden müssen.
+
+**Was es ist:** das Parser-Modul des Typst-Compilers als eigenständige Crate. **Apache-2.0**, Version **0.15.1** — exakt unsere Compiler-Version. Standalone bestätigt (49 Crates gesamt, davon nur `typst-timing` und `typst-utils` aus der Typst-Familie), **null I/O**. `parse()` scheitert nie; Fehler sind Knoten *im* Baum.
+
+**Verlustfreier CST:** „an in-order tree traversal will recreate the text of the source file exactly." Über 1.975 `.typ`-Dateien des Repos (17 MB) verifiziert: **1.975/1.975 byte-genau rekonstruiert, 0 Parse-Fehler, 236 ms.** 137 `SyntaxKind`-Varianten mit dedizierten Knoten für `TermItem`, `Shorthand` (das `~`), `Escape`, `LineComment`, `BlockComment` (nativ verschachtelnd), `EnumItem` samt Nummer.
+
+**Machbarkeit — gemessen, nicht geschätzt:**
+- Nach `wasm32` gebaut: **214 KB** (opt-level=z), 89 KB gzip. **Kein `wasm-bindgen`, kein `wasm-pack`** — ein rohes `extern "C"`-ABI genügt. Build-Kette: `rustup target add wasm32-unknown-unknown` + ein `cargo build`.
+- **Bun `--compile` bettet die `.wasm` ein**, auch beim Windows-Cross-Compile. Synchrone Init in **2,29 ms** → kein async-Refactor der Aufrufer.
+- Renderer: Compile+Instantiate in **0,3–0,4 ms**, funktioniert aus `app.asar`.
+- Über Renés echten Korpus: 64 Dateien, verlustfrei, kompletter WASM↔JS-Round-Trip für 66.902 Knoten in **55 ms**.
+- **Der einzige Blocker:** WebAssembly ist im Renderer durch die eigene CSP gesperrt (`script-src 'self'`, `index.html:6`). `'wasm-unsafe-eval'` ergänzen behebt es — in einer echten Electron-Instanz verifiziert.
+
+**Was es NICHT tut:** keine Semantik. `#opener(title: "x")` und `#figure(…)` ergeben **identisch geformte Bäume**. Kein Import-Auflösen, keine Auswertung, **kein Emitter** — das Zurückschreiben bleibt vollständig unsere Sache.
+
+**Was es ersetzen würde:** ~508 von 1.256 Code-Zeilen des Deserializers (**~40 %**) sind Klammer-, Modus- und Escape-Scannen — darunter **sieben** separate Klammer-Matcher in dieser einen Datei. Was bleibt: `parseMagazineMacro`, `isRawBlock`/`classifyRawBlock`, alle TipTap-Zuordnungen und der komplette Serializer (der **nicht** in der MCP-Binary steckt — dort wird nur deserialisiert).
