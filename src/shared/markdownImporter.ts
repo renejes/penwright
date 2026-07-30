@@ -100,7 +100,7 @@ export function markdownToTypst(md: string): string {
     const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/);
     if (imgMatch) {
       const alt = imgMatch[1];
-      const src = imgMatch[2];
+      const src = typstPath(imgMatch[2]);
       if (alt) {
         output.push(`#image("${src}", alt: "${alt}")`);
       } else {
@@ -123,11 +123,28 @@ export function markdownToTypst(md: string): string {
 }
 
 /**
+ * A file path as Typst will accept it: forward slashes only.
+ *
+ * Typst 0.15 made this a HARD ERROR — "path must not contain a backslash", at
+ * parse time, whether or not the file exists. A Markdown file written on Windows
+ * says `![Chart](images\chart.png)`, and we interpolated `src` verbatim, so the
+ * import produced a document that would not compile at all. On 0.14.2 the same
+ * path worked on Windows, so this is new breakage, not a latent bug.
+ *
+ * Only for paths. A `#link("…")` URL keeps its backslashes: it is not a path,
+ * and Typst does not object.
+ */
+export function typstPath(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
+/**
  * Converts inline Markdown formatting to Typst equivalents.
  */
 function convertInline(text: string): string {
   // Images inline: ![alt](src)
-  text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => {
+  text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, rawSrc) => {
+    const src = typstPath(rawSrc);
     return alt ? `#image("${src}", alt: "${alt}")` : `#image("${src}")`;
   });
 

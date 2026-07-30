@@ -101,11 +101,23 @@ export function bibLabel(lang: string): string {
 
 // ─── Citation style ──────────────────────────────────────────
 
-/** Known numeric (citation-number) bibliography styles. Everything else → author-year. */
+/**
+ * Known numeric (citation-number) bibliography styles. Everything else → author-year.
+ *
+ * Both the old and the new names, because Typst 0.15 renamed several styles and
+ * kept the old ones working with a deprecation warning. So a project's
+ * `style.json` can legitimately hold either spelling — an existing document that
+ * says `vancouver` and a new one that says `nlm-citation-sequence` are the same
+ * style, and both must classify as numeric or the HTML/DOCX export silently
+ * switches that document to author-year citations.
+ */
 export const NUMERIC_BIB_STYLES = new Set([
   'ieee', 'vancouver', 'numeric', 'american-physics-society', 'nature',
   'american-medical-association', 'american-chemical-society', 'institute-of-physics-numeric',
   'springer-basic', 'elsevier-vancouver', 'iso-690-numeric',
+  // Typst 0.15 names for the above (old spellings kept, they still compile).
+  'nlm-citation-sequence', 'nlm-citation-sequence-superscript',
+  'cse-citation-sequence-brackets-8th-edition',
 ]);
 
 /**

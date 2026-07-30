@@ -599,6 +599,16 @@ export function getDesignElement(id: string): DesignElement | null {
  * are ignored. Special `{<name>-block}` placeholders render optional
  * sub-blocks conditionally — empty value = empty replacement.
  */
+/**
+ * True for a param whose value is a FILE PATH and therefore ends up inside
+ * `#image("…")`. Matched by name (`image`, `image1`, `imageMain`, …) rather than
+ * declared on the param, so a new image param is covered the day it is added
+ * instead of the day someone remembers this function exists.
+ */
+function isPathParam(name: string): boolean {
+  return /^image([A-Z0-9].*)?$/.test(name);
+}
+
 export function renderDesignElement(
   element: DesignElement,
   params: Record<string, string>,
@@ -606,9 +616,18 @@ export function renderDesignElement(
   const values: Record<string, string> = {};
   for (const p of element.params) {
     const supplied = params[p.name];
-    values[p.name] = (supplied !== undefined && supplied !== '')
+    const raw = (supplied !== undefined && supplied !== '')
       ? supplied
       : (p.defaultValue ?? '');
+    // A path param goes into `#image("…")`, and Typst 0.15 rejects a backslash
+    // there outright ("path must not contain a backslash") — at parse time, so
+    // the whole document stops compiling, not just the image. On Windows a
+    // relative asset path arrives with backslashes.
+    //
+    // Normalised HERE, before `conditionals` below is built, and not in the
+    // placeholder loop at the end: `image-bg` pre-renders `values.image` into a
+    // finished string, so a fix applied only to the loop would miss it.
+    values[p.name] = isPathParam(p.name) ? raw.replace(/\\/g, '/') : raw;
   }
 
   let out = element.template;

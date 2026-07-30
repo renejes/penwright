@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { serializeTypst } from '../src/editor/lib/serializer.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
+import { markdownToTypst } from '../src/shared/markdownImporter.ts';
+import { DESIGN_ELEMENTS, renderDesignElement } from '../src/shared/designElements.ts';
 
 let pass = 0;
 let fail = 0;
@@ -675,6 +677,38 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
     ser('#align(center)[#text(weight: "bold")[Fett]]') === '#align(center)[*Fett*]',
     { got: ser('#align(center)[#text(weight: "bold")[Fett]]') },
   );
+}
+
+
+// ─── Typst 0.15: a backslash in a path is a HARD ERROR ──────────────────────
+//
+// "File paths (e.g. in imports or image function calls) may not contain
+// backslashes anymore" — at PARSE time, whether or not the file exists, so the
+// whole document stops compiling. Verified against both bundled binaries: 0.14.2
+// resolves `images\chart.png` fine, 0.15.1 says "path must not contain a
+// backslash". On Windows that path is what a Markdown file and a dropped asset
+// actually look like, so this is new breakage rather than a latent bug.
+{
+  const md = markdownToTypst('![Chart](images\\chart.png)\n\nSee ![x](assets\\a.png) inline.');
+  check('markdown import: block image path uses forward slashes', !/#image\("[^"]*\\\\/.test(md) && md.includes('#image("images/chart.png"'), { got: md.split('\n')[0] });
+  check('markdown import: inline image path too', md.includes('#image("assets/a.png"'), { got: md });
+
+  // A #link URL is NOT a path — Typst does not object, and rewriting it would
+  // corrupt the target.
+  const link = markdownToTypst('See [docs](https://x.dev/a\\b) here.');
+  check('markdown import: a link URL keeps its backslash', link.includes('a\\b'), { got: link });
+
+  // Every image param of every design element, including the ones a conditional
+  // block pre-renders before the placeholder loop runs.
+  let offenders: string[] = [];
+  for (const el of DESIGN_ELEMENTS) {
+    const params: Record<string, string> = {};
+    for (const p of el.params) if (/^image([A-Z0-9].*)?$/.test(p.name)) params[p.name] = 'assets\\hero.jpg';
+    if (Object.keys(params).length === 0) continue;
+    const out = renderDesignElement(el, params);
+    if (out.includes('assets\\hero.jpg')) offenders.push(el.id);
+  }
+  check('design elements: no image param emits a backslash path', offenders.length === 0, offenders);
 }
 
 console.log(`\n──────────\n${pass} passed, ${fail} failed\n`);
