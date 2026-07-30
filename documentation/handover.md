@@ -8,7 +8,7 @@
 
 ## 0. Wo wir stehen — in einem Absatz
 
-Der Round-Trip war das offene Kernproblem und ist es nicht mehr: Baseline **22 → 0**, und es gibt ein **Pixel-Gate** (`compile-corpus-test`), das jedes Korpus-**Projekt** vor und nach dem Round-Trip kompiliert und die Seiten vergleicht — inklusive Renés vier Kundendokumente, die dabei alle als korrumpiert auffielen und jetzt pixelgleich sind. Danach ist **Typst auf 0.15.1** gezogen: kein einziger Compile-Fehler über 39 Projekte, keine neue Warnung, keine geänderte Seitenzahl, alle Gates grün. Was dabei nebenbei herauskam, ist wichtiger als das Update selbst: **36 von 37 Presets fordern Schriftschnitte, die wir nicht bündeln** (§1). Danach steht weiterhin **der manuelle Durchgang durch die App** (§2) — nach fünf Sessions die größte offene Unsicherheit.
+Der Round-Trip war das offene Kernproblem und ist es nicht mehr: Baseline **22 → 0**, und es gibt ein **Pixel-Gate** (`compile-corpus-test`), das jedes Korpus-**Projekt** vor und nach dem Round-Trip kompiliert und die Seiten vergleicht — inklusive Renés vier Kundendokumente, die dabei alle als korrumpiert auffielen und jetzt pixelgleich sind. Danach ist **Typst auf 0.15.1** gezogen: kein einziger Compile-Fehler über 39 Projekte, keine neue Warnung, keine geänderte Seitenzahl, alle Gates grün. Was dabei nebenbei herauskam, war wichtiger als das Update selbst — 36 von 37 Presets forderten Schriftschnitte, die wir nicht bündelten; das ist mit dem Umstieg auf **Variable Fonts** erledigt (§1b). Ebenso beantwortet: **`typst-syntax` bauen wir nicht** (§4), und die Bewertung hat dabei drei weitere aktive Round-Trip-Fehler ans Licht gebracht, die jetzt behoben sind. Offen bleibt **der manuelle Durchgang durch die App** (§1/§2) — nach sechs Sessions die größte Unsicherheit im Projekt.
 
 ---
 
@@ -64,9 +64,7 @@ Besonders zu prüfen, weil sie **in andere Dateien schreiben als früher**: Docu
 
 2. **Das Korpus hat keinen Zeugen für „attached list".** Genau null der 208 Dateien enthält eine Liste direkt unter ihrem Einleitungssatz — der einzige Fall (`+ creditLabel` im Sample-Projekt) war ein Tippfehler und ist behoben. Der Unit-Test deckt es ab (verifiziert rot ohne den Fix), aber das Pixel-Gate kann es nicht sehen. Überlegen, ob das Sample-Projekt einen zeigen *soll* — es ist die Vitrine, und die idiomatische Typst-Form fehlt darin.
 
-3. **Offen gelassene Round-Trip-Verluste** (kein Korpus-Zeuge, deshalb nicht gefixt — jeweils ein Unit-Test wäre der erste Schritt):
-   - **`1. ` Enums und `/ ` als eigener Absatz.** Ein `1. ` mitten im Block wird weder als Enum erkannt noch faithful escaped. Beide Richtungen verlieren die Nummerierung; keine ist klar besser, deshalb unverändert gelassen.
-   - **Unbalancierte Klammer NACH einem Inline-Makro auf derselben Zeile.** `Text #emph[x] und (unschön` zählt die Klammer weiterhin, weil ab dem `#` Code-Modus angenommen wird. Ohne Grammatik echt ambig — das ist der Rest, den §4 lösen würde.
+3. **Der eine offen gelassene Round-Trip-Verlust** (kein Korpus-Zeuge, deshalb nicht gefixt — ein Unit-Test wäre der erste Schritt): **`1. ` Enums mitten im Block.** Wird weder als Enum erkannt noch faithful escaped; beide Richtungen verlieren die Nummerierung, keine ist klar besser. (Die unbalancierte Klammer nach einem Inline-Makro stand hier bis Session 46 und ist behoben — `e23168f`.)
 
 ---
 
