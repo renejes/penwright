@@ -306,8 +306,8 @@ skips the heading wrap so it doesn't compete with this chapter's own H1.
 === Photographer-credit on a figure
 
 The new `figure-caption-credit(caption, credit)` helper concatenates a
-caption with a styled credit using `style.elements.figure.creditSeparator`
-+ `creditLabel`. Defaults to `" — "` + `"Photo: "`.
+caption with a styled credit using `style.elements.figure.creditSeparator` +
+`creditLabel`. Defaults to `" — "` + `"Photo: "`.
 
 #figure(
   rect(width: 70%, height: 2.5cm, fill: style-colors.muted.lighten(70%), stroke: 0.5pt + style-colors.muted),

@@ -14,6 +14,7 @@ import { CitationSuggestion } from './citationSuggestion';
 import { TextColor, Highlight, Underline, Superscript, Subscript, Smallcaps } from './typstMarks';
 import { TextAlign } from './typstTextAlign';
 import { HeadingLabel } from './typstHeadingLabel';
+import { ListAttachment } from './typstListAttach';
 import { MAGAZINE_NODES } from './typstMagazine';
 import { SlashCommands } from './slashCommands';
 import { CommentDecorations } from './commentDecorations';
@@ -207,6 +208,7 @@ export function createEditor(
       Smallcaps,
       TextAlign,
       HeadingLabel,
+      ListAttachment,
       ...MAGAZINE_NODES,
       ImageDropHandler,
       CommentDecorations,

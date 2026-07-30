@@ -8,6 +8,10 @@ release/
 .vite/
 *.lock
 
+# Local corpus roots for the round-trip / compile-stability suites — points at
+# real work outside the repo (see penwright.corpus.example.json).
+penwright.corpus.json
+
 # Secrets / local env — NEVER commit (Apple app-specific password etc.)
 .env
 .env.*

@@ -1,14 +1,1 @@
-[
-  "resources/presets/magazine-bold/chapters/02-feature.typ: content survives",
-  "resources/presets/magazine-bold/chapters/03-interview.typ: content survives",
-  "resources/presets/magazine-dark/chapters/02-feature.typ: content survives",
-  "resources/presets/magazine-dark/chapters/03-interview.typ: content survives",
-  "resources/presets/magazine-mono/chapters/02-feature.typ: content survives",
-  "resources/presets/magazine-mono/chapters/03-interview.typ: content survives",
-  "resources/presets/magazine-pop/chapters/02-feature.typ: content survives",
-  "resources/presets/magazine-pop/chapters/03-interview.typ: content survives",
-  "resources/presets/magazine-slow/chapters/02-feature.typ: content survives",
-  "resources/presets/magazine-slow/chapters/03-interview.typ: content survives",
-  "resources/sample-project/chapters/04-ai-risks.typ: content survives",
-  "resources/sample-project/chapters/05-ai-with-vswrite.typ: content survives"
-]
+[]

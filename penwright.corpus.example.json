@@ -1,0 +1,13 @@
+{
+  "_comment": [
+    "Copy to penwright.corpus.json (git-ignored) and point it at your real work.",
+    "Both roundtrip-corpus-test and compile-corpus-test pick these up, so `npm test`",
+    "checks the documents that actually matter — which is where every round-trip bug",
+    "that reached a rendered PDF was found. A path that does not exist is reported,",
+    "not skipped silently."
+  ],
+  "roots": [
+    "~/Desktop/LANGSAM",
+    "~/Desktop/Marketing/FMM"
+  ]
+}

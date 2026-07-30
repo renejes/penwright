@@ -10,16 +10,16 @@
  *
  * Run: npx tsx scripts/compile-stability-test.mts
  * The LANGSAM artifact lives outside the repo; set LANGSAM_DIR or rely on the
- * default (~/Desktop/LANGSAM). Skips cleanly (exit 0) if absent.
+ * default (~/Desktop/LANGSAM). FAILS if absent — pass --allow-skip to accept
+ * that nothing was verified. `compile-corpus-test` is the variant that needs
+ * nothing outside the repo and therefore runs everywhere.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { serializeTypst } from '../src/editor/lib/serializer.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
+import { renderPages, resolveTypst } from './typstRender.mts';
 
 let pass = 0;
 let fail = 0;
@@ -28,7 +28,6 @@ function check(name: string, cond: boolean, extra?: unknown) {
   else { fail++; console.log('  ✗', name, extra !== undefined ? JSON.stringify(extra) : ''); }
 }
 
-const repo = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LANGSAM = process.env.LANGSAM_DIR || path.join(os.homedir(), 'Desktop', 'LANGSAM');
 
 if (!fs.existsSync(path.join(LANGSAM, 'macros.typ'))) {
@@ -46,48 +45,27 @@ if (!fs.existsSync(path.join(LANGSAM, 'macros.typ'))) {
   console.log(
     `\n${allowSkip ? '⚠' : '✗'} compile-stability needs a real magazine project and found none at ${LANGSAM}.\n` +
     `  Set LANGSAM_DIR=/path/to/project, or pass --allow-skip to accept that nothing was verified.\n` +
-    `  The corpus round-trip (npm run test:roundtrip) covers the bundled projects and always runs.\n`,
+    `  npm run test:compile:corpus does the same over the SHIPPED projects and always runs.\n`,
   );
   process.exit(allowSkip ? 0 : 1);
 }
 
-// Resolve the typst binary: bundled (preferred — the version we ship) else PATH.
-const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-const bundled = path.join(repo, 'resources', 'bin', `typst-${arch}-darwin`);
-const TYPST = fs.existsSync(bundled) ? bundled : 'typst';
-const PKG = path.join(repo, 'resources', 'typst-packages');
-const FONT = path.join(repo, 'resources', 'fonts');
-const baseArgs = [
-  ...(fs.existsSync(PKG) ? ['--package-path', PKG] : []),
-  ...(fs.existsSync(FONT) ? ['--font-path', FONT] : []),
-  '--root', LANGSAM,
-];
+// Binary + bundled package/font paths come from the shared helper, so this and
+// `compile-corpus-test` cannot end up measuring two different compilers.
+const typst = resolveTypst();
 
-/** Compile `srcFile` to per-page PNGs in a fresh temp dir; return {pages, stderr}.
- *  pages = sorted list of page PNG buffers; throws on compile failure. */
+/** Compile `srcFile` to per-page PNGs; one hash per page. Throws on failure. */
 function compileToPngs(srcFile: string, tag: string): { hashes: string[]; stderr: string } {
-  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), `pw-cs-${tag}-`));
-  const pattern = path.join(outDir, 'p-{p}.png');
-  let stderr = '';
-  try {
-    execFileSync(TYPST, ['compile', ...baseArgs, '--format', 'png', '--ppi', '120', srcFile, pattern],
-      { stdio: ['ignore', 'ignore', 'pipe'] });
-  } catch (e: any) {
-    stderr = (e.stderr?.toString?.() ?? '') + (e.message ?? '');
-    fs.rmSync(outDir, { recursive: true, force: true });
-    throw new Error(`compile failed: ${stderr}`);
-  }
-  const pages = fs.readdirSync(outDir).filter((f) => f.endsWith('.png')).sort();
-  const hashes = pages.map((p) => crypto.createHash('sha256').update(fs.readFileSync(path.join(outDir, p))).digest('hex'));
-  fs.rmSync(outDir, { recursive: true, force: true });
-  return { hashes, stderr };
+  const r = renderPages(typst.bin, srcFile, { root: LANGSAM, ppi: 120, tag });
+  if (!r.ok) throw new Error(`compile failed: ${r.stderr}`);
+  return { hashes: r.hashes, stderr: r.stderr };
 }
 
 // Chapters that exercise the magazine macros (skip 00-cover: pure raw page layout).
 const CHAPTERS = ['01-editorial', '02-feature', '03-interview', '04-architektur', '05-essay', '06-kolophon'];
 
 console.log('\n── Compile-stability: original vs. round-tripped LANGSAM chapters ──');
-console.log(`   typst: ${TYPST === bundled ? 'bundled ' + path.basename(bundled) : 'system PATH'}`);
+console.log(`   typst: ${typst.label}`);
 
 for (const name of CHAPTERS) {
   const orig = path.join(LANGSAM, 'chapters', `${name}.typ`);

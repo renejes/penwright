@@ -375,6 +375,132 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   );
 }
 
+// ─── Constructs found only by running over real client documents ────────────
+//
+// The three below were invisible to 100-odd hand-written round-trips and to the
+// shipped presets. They turned up the moment the corpus was pointed at
+// ~/Desktop/Marketing — four live client documents, and the pixel gate put
+// numbers on it: 19 of 47 pages of one Sichtbarkeitskonzept rendered
+// differently after a single open-and-save.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
+
+  // 1. TERM LISTS. `/ term: definition` sets the term in bold beside its
+  //    definition. There is no term node in the schema, so the block fell
+  //    through to the paragraph path and the serializer escaped the marker to
+  //    `\/ ` — a literal slash, and the term formatting gone. Kept verbatim now.
+  const terms = '/ Gutes Bildmaterial.: Der wichtigste Rohstoff.\n/ Zweiter Begriff: Und dessen Erklärung.';
+  check('term list survives', ser(terms) === terms, { got: ser(terms) });
+  check('term list is not claimed as prose', JSON.stringify(types(terms)) === JSON.stringify(['typstRawBlock']), types(terms));
+
+  // 2. A BARE URL IS A LINK. Typst auto-detects `http(s)://…` in markup and
+  //    renders it clickable — and styled, if the project has a `show link:`
+  //    rule, which these documents do. Escaping the `//` (needed elsewhere,
+  //    because `//` really does start a comment) broke the detection, so every
+  //    URL in a research appendix lost its colour, its underline AND its link
+  //    annotation. Verified against the bundled compiler, both ways.
+  for (const src of [
+    'See https://buffer.com/resources/instagram-algorithms/ for details.',
+    '- Later - rank signals - https://later.com/blog/how-instagram-algorithm-works/',
+    'Ohne Slash: https://www.socialinsider.io/social-media-benchmarks/instagram',
+  ]) {
+    check(`bare URL survives unescaped: ${src.slice(0, 34)}…`, ser(src) === src, { got: ser(src) });
+  }
+
+  // …and the escape must still fire where `//` really is a comment, or the rest
+  // of the line vanishes from the PDF.
+  check('a non-URL // is still escaped', ser('Entweder und/oder // beides.') === 'Entweder und/oder \\// beides.', { got: ser('Entweder und/oder // beides.') });
+
+  // 3. A `#text(…)` styling call followed directly by a list. The block splitter
+  //    refused to split after any line starting with `#`, so the two merged and
+  //    the call's font, size and weight were dropped on the way through.
+  const labelled = '#text(font: body-font, size: 8.5pt, weight: 600, fill: olive)[ZENTRALE QUELLEN]\n- Mallorca Magazin\n- Zweite Quelle';
+  check('#text label + attached list keeps all its args', ser(labelled) === labelled, { got: ser(labelled) });
+
+  // The binding case the `#` guard was there for in the first place must still
+  // hold: a leading `+` continuing an expression is the addition operator.
+  const binding = '#let total = base\n  + extra\n#total';
+  check('a #let continuation is still not a list', ser(binding) === binding, { got: ser(binding) });
+
+  // Dropping the blanket run-final-slash escape means the BETWEEN-runs hazard is
+  // now decided where the neighbour is visible. Both directions matter: `and/`
+  // beside bold `or` really does fuse into `/*` and eat the rest of the
+  // document, and `a/` beside plain `b` really does not need escaping.
+  const runs = (content: any[]) => serializeTypst({ type: 'doc', content: [{ type: 'paragraph', content }] } as any).trim();
+  const T = (text: string, mark?: string) => mark ? { type: 'text', text, marks: [{ type: mark }] } : { type: 'text', text };
+  for (const [name, content, want] of [
+    ['/ before bold fuses → escaped', [T('and/'), T('or', 'bold'), T(' rest')], 'and\\/*or* rest'],
+    ['/ before another / → escaped', [T('a/'), T('/b')], 'a\\//b'],
+    ['/ before italic cannot fuse → left alone', [T('and/'), T('or', 'italic')], 'and/_or_'],
+    ['/ before a plain word → left alone', [T('a/'), T('b')], 'a/b'],
+    ['/ at the very end → left alone', [T('see https://x.dev/y/')], 'see https://x.dev/y/'],
+  ] as [string, any[], string][]) {
+    check(name, runs(content) === want, { got: runs(content), want });
+  }
+}
+
+// ─── A list that hugs the paragraph above it ────────────────────────────────
+//
+// In Typst a line beginning `- ` or `+ ` STARTS A LIST. It ends the paragraph
+// above it whether or not a blank line separates them. The block splitter only
+// split on blank lines, so the list lines were appended to the running
+// paragraph and the whole thing came back as one run-on line:
+//
+//   There are three groups:        →  There are three groups: - Researchers
+//   - Researchers                     - Authors - Anyone curious
+//   - Authors
+//   - Anyone curious
+//
+// An entire bullet list, gone, from source any user would call ordinary. Found
+// by compiling the sample project rather than by reading its source: the text
+// comparison called that file clean.
+//
+// The blank line is NOT decoration either — Typst renders an attached list
+// tighter than a separated one (verified against the bundled compiler), so the
+// list node carries whether it hugged, and the serializer re-emits that.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
+
+  const attached = 'There are three groups:\n- Researchers\n- Authors\n- Anyone curious';
+  check('attached bullet list stays a list', JSON.stringify(types(attached)) === JSON.stringify(['paragraph', 'bulletList']), types(attached));
+  check('attached bullet list round-trips byte-identically', ser(attached) === attached, { got: ser(attached) });
+
+  const attachedEnum = 'The steps are:\n+ First\n+ Second';
+  check('attached ordered list stays a list', JSON.stringify(types(attachedEnum)) === JSON.stringify(['paragraph', 'orderedList']), types(attachedEnum));
+  check('attached ordered list round-trips byte-identically', ser(attachedEnum) === attachedEnum, { got: ser(attachedEnum) });
+
+  // The separated form must keep its blank line — the two are different pages.
+  const separated = 'There are three groups:\n\n- Researchers\n- Authors';
+  check('separated list keeps its blank line', ser(separated) === separated, { got: ser(separated) });
+
+  // The real line from the sample project: a `+` the author meant as "plus",
+  // which Typst reads as an enum marker because it begins a line.
+  const credit = 'A helper concatenates a caption using `sep`\n+ `label`. Defaults to `" — "`.';
+  check('line-initial + is preserved as the enum Typst reads', ser(credit) === credit, { got: ser(credit) });
+
+  // A `+` continuing a code expression is an OPERATOR, not a list marker. The
+  // block is code and must stay verbatim.
+  const codeCont = '#let total = base\n  + extra\n#total';
+  check('a + continuing a #let expression is untouched', ser(codeCont) === codeCont, { got: ser(codeCont) });
+
+  // Multi-line items and nesting must survive the new split. A wrapped item is
+  // re-emitted on one line — a soft line break inside an item is a space to
+  // Typst, so it renders identically (checked against the bundled compiler, not
+  // assumed). The NESTING and the item count are what must not move.
+  const nested = 'Intro:\n- first item\n  continued on the next line\n- second\n  - nested\n- third';
+  check(
+    'attached list with continuation + nesting round-trips',
+    ser(nested) === 'Intro:\n- first item continued on the next line\n- second\n  - nested\n- third',
+    { got: ser(nested) },
+  );
+
+  // Two lists in a row, only the first attached.
+  const mixed = 'Alpha:\n- a\n\nBeta:\n- b';
+  check('two attached lists in one document', ser(mixed) === mixed, { got: ser(mixed) });
+}
+
 // ─── A raw span whose content contains a backtick ───────────────────────────
 //
 // A Typst raw span is delimited by single backticks and has NO escape

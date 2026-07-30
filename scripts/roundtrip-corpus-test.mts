@@ -1,10 +1,12 @@
 /**
- * Round-trip every real .typ file we ship, and fail on anything lossy.
+ * Round-trip every real .typ file we can reach, and fail on anything lossy.
  *
  * `roundtrip-test.mts` checks hand-written snippets — constructs somebody
- * thought to test. This checks REAL DOCUMENTS: 150-odd files across 35 shipped
- * presets and the sample project. That difference is not academic. Four
- * content-destroying bugs lived in those exact files:
+ * thought to test. This checks REAL DOCUMENTS: the 153 files across the shipped
+ * presets and the sample project, plus whatever `penwright.corpus.json` points
+ * at. That difference is not academic. Every content-destroying bug we know
+ * about lived in those files and was found here, not by reasoning about the
+ * parser:
  *
  *   ~            Typst's non-breaking space, escaped to a visible `\~` —
  *                "Zahlbar bis 24.~August" in a client's payment terms.
@@ -15,25 +17,35 @@
  *   `  == Foo`   an indented heading inside `#columns[…]` merged with the
  *                paragraph under it, so Typst rendered the WHOLE paragraph as
  *                the heading.
+ *   #datetime    a LIVE date rendered into a literal, dated whenever the user
+ *                first pressed save.
+ *   / term:      a term list escaped to `\/ term:` — bold term gone, stray
+ *                slash in its place. Every term list in four client documents.
+ *   https://     the `//` escaped, which breaks Typst's auto-link detection, so
+ *                every URL in a research appendix lost its colour and its
+ *                clickability.
  *
- * Every one was found by running this over the corpus, not by reasoning about
- * the parser. None was caught by 85 unit round-trips.
+ * None of them was caught by 100-odd unit round-trips.
  *
- * The bar is deliberately not byte-identity: the round trip is compile-stable
- * by design (plan §6.2) and normalises whitespace, indentation and block
- * spacing. So a difference has to be classified, and only SEMANTIC differences
- * fail. The allowlist below is the whole judgement — keep it small, and never
- * widen it to make a red test go green without understanding the diff.
+ * The bar is deliberately not byte-identity: the round trip is compile-stable by
+ * design (plan §6.2) and normalises whitespace, indentation and block spacing.
+ * So a difference has to be classified, and only SEMANTIC differences fail.
+ * `relaxForm` below is the whole judgement — and it is not a matter of opinion
+ * any more: `compile-corpus-test.mts` compiles every corpus PROJECT before and
+ * after and compares rendered pixels, so each line of it can be checked rather
+ * than argued. Never widen it to turn a red run green without that proof; two of
+ * the bugs above looked exactly as harmless as the entries that are legitimate.
  *
  * Run:  npx tsx scripts/roundtrip-corpus-test.mts
  *       npx tsx scripts/roundtrip-corpus-test.mts ~/Desktop/Marketing/FMM
- *       (extra paths are added to the corpus — point it at your real work)
+ *       (extra paths are added to the corpus for this run; put the ones you
+ *        always want in penwright.corpus.json — see corpusConfig.mts)
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
+import { extraCorpusRoots, reportExtraRoots } from './corpusConfig.mts';
 import { serializeTypst } from '../src/editor/lib/serializer.ts';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -51,10 +63,11 @@ let known = 0;
 
 // ─── The corpus ─────────────────────────────────────────────────────
 
+const extra = extraCorpusRoots();
 const roots = [
   path.join(REPO, 'resources', 'presets'),
   path.join(REPO, 'resources', 'sample-project'),
-  ...process.argv.slice(2).filter(a => !a.startsWith('--')).map(a => a.replace(/^~/, os.homedir())),
+  ...extra.roots,
 ];
 
 function collect(dir: string, out: string[] = []): string[] {
@@ -74,6 +87,36 @@ const files = roots.flatMap(r => collect(r));
 // ─── What counts as "the same document" ─────────────────────────────
 
 /**
+ * Rewrites the FORM of a construct without touching its content, for the three
+ * normalisations the round trip makes that `compile-corpus-test` has proven
+ * invisible — by compiling all 34 shipped projects before and after and getting
+ * identical pixels. That proof is what licenses each line here; none of them is
+ * a guess, and none may be added without one.
+ *
+ * They cannot hide a loss: every argument name, every value and every character
+ * of content still has to match afterwards. What is removed is whitespace at an
+ * argument-list edge, a trailing comma, and the choice between a longhand macro
+ * and its exact shorthand.
+ */
+function relaxForm(unit: string): string {
+  return unit
+    // `#opener( a: 1, b: 2, )` ≡ `#opener(a: 1, b: 2)` — the source spreads a
+    // long call over lines with a trailing comma, the serializer writes one line.
+    .replace(/\(\s+/g, '(')
+    .replace(/,\s*\)/g, ')')
+    // `[ body ]` ≡ `[body]` — leading/trailing space in a content block is
+    // trimmed by layout.
+    .replace(/\[\s+/g, '[')
+    .replace(/\s+\]/g, ']')
+    // The longhand inline constructs and their shorthands are the same element.
+    // `#raw` only when its content has no backtick or backslash: with a backtick
+    // the shorthand does NOT exist and the serializer must keep `#raw(…)`.
+    .replace(/#emph\[([^[\]]*)\]/g, '_$1_')
+    .replace(/#strong\[([^[\]]*)\]/g, '*$1*')
+    .replace(/#raw\("([^"`\\]*)"\)/g, '`$1`');
+}
+
+/**
  * Normalisations the round trip is ALLOWED to make, because Typst renders the
  * result identically:
  *
@@ -81,6 +124,7 @@ const files = roots.flatMap(r => collect(r));
  *   - indentation inside a re-parsed container body
  *   - the number of blank lines between blocks
  *   - a heading becoming its own block
+ *   - the three form changes in `relaxForm` above
  *
  * Everything else — a changed character, a dropped argument, a marker that
  * moved — is a real difference and fails.
@@ -88,10 +132,12 @@ const files = roots.flatMap(r => collect(r));
 function normalise(src: string): string {
   const units: string[] = [];
   let buf: string[] = [];
+  let prefix = '';
   const flush = () => {
-    const t = buf.join(' ').replace(/\s+/g, ' ').trim();
-    if (t) units.push(t);
+    const t = relaxForm(buf.join(' ').replace(/\s+/g, ' ').trim());
+    if (t) units.push(prefix + t);
     buf = [];
+    prefix = '';
   };
 
   for (const raw of src.split('\n')) {
@@ -99,7 +145,28 @@ function normalise(src: string): string {
     if (!line) { flush(); continue; }
     // A heading is its own unit whether or not a blank line precedes it —
     // Typst reads it that way, and the round trip normalises to that form.
-    if (/^={1,6}\s+\S/.test(line)) { flush(); units.push(line.replace(/\s+/g, ' ')); continue; }
+    if (/^={1,6}\s+\S/.test(line)) { flush(); units.push(relaxForm(line.replace(/\s+/g, ' '))); continue; }
+
+    // A list marker at the start of a line starts its own item in Typst, for
+    // the same reason a heading does — and its INDENT is the nesting level, so
+    // both are kept.
+    //
+    // Joining lines and collapsing whitespace made this test structurally
+    // blind: `Intro:\n- a\n- b` and `Intro: - a - b` normalised to the SAME
+    // string, so a round trip that flattened an entire bullet list into one
+    // run-on line was indistinguishable from a correct one. Reverting the fix
+    // for that bug left this suite green over all 153 files; the pixel gate
+    // caught it. A comparison that cannot fail is not a comparison.
+    //
+    // Depth, not raw spaces: the source indents nested items however the author
+    // typed them, the serializer always writes two spaces per level.
+    const item = raw.match(/^(\s*)([-+])\s+(\S.*)$/);
+    if (item) {
+      flush();
+      prefix = `${'  '.repeat(Math.floor(item[1].length / 2))}${item[2]} `;
+      buf.push(item[3]);
+      continue;
+    }
     buf.push(line);
   }
   flush();
@@ -123,6 +190,7 @@ function significantTokens(src: string): string[] {
 }
 
 console.log(`\n── Round-trip corpus: ${files.length} real .typ files ──`);
+reportExtraRoots(extra);
 if (files.length === 0) {
   console.log('\n✗ No files found. The bundled presets should always be there.\n');
   process.exit(1);
@@ -131,14 +199,20 @@ if (files.length === 0) {
 /**
  * Files that ALREADY lose something today, with the check that fails.
  *
- * Not an excuse list — a ratchet. Anything not in here fails the build, so a
- * new regression cannot slip in; and an entry that starts PASSING also fails,
- * so the list can only ever shrink. It exists because four fixes in one
- * afternoon does not make seventeen files correct, and shipping a permanently
- * red test would just teach everyone to ignore it.
+ * **It is currently EMPTY, and that is the point.** It held 22 entries across 17
+ * shipped files; they are fixed or proven invisible, so every corpus file now
+ * passes outright and any failure at all is news.
  *
- * Every line here is a real defect a user could see. Regenerate with
- * `--write-baseline` after fixing one.
+ * Not an excuse list — a ratchet. Anything not in here fails the build, so a new
+ * regression cannot slip in; and an entry that starts PASSING also fails, so the
+ * list can only ever shrink. It existed because four fixes in one afternoon did
+ * not make seventeen files correct, and shipping a permanently red test would
+ * just teach everyone to ignore it.
+ *
+ * Adding an entry back is allowed — for a real pre-existing defect you are not
+ * fixing in that commit — but it is a debt, not a decision. Never add one to
+ * silence a failure you have not diagnosed. Regenerate with `--write-baseline`
+ * after fixing one.
  */
 const BASELINE_FILE = path.join(REPO, 'scripts', 'roundtrip-corpus-baseline.json');
 const writeBaseline = process.argv.includes('--write-baseline');

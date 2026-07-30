@@ -13,11 +13,31 @@ interface TipTapNode {
 export function serializeTypst(doc: TipTapNode): string {
   if (!doc.content) return '';
   try {
-    return doc.content.map((node) => serializeNode(node)).join('\n\n');
+    return joinBlocks(doc.content.map((node) => serializeNode(node)), doc.content);
   } catch (err) {
     console.error('[penwright] Serializer error:', err);
     return '';
   }
+}
+
+/**
+ * Joins top-level blocks with a blank line — except a list that HUGS the
+ * paragraph above it, which takes a single newline.
+ *
+ * That is not cosmetic. In Typst a list directly under its intro line renders
+ * TIGHTER than one separated by a blank line, so emitting `\n\n` everywhere
+ * would move every attached list on the page. The flag rides on the list node
+ * (`attached`), set by the deserializer's block splitter and declared in the
+ * schema by `ListAttachment` — without that declaration ProseMirror drops it
+ * and the next save flattens the distinction.
+ */
+function joinBlocks(parts: string[], nodes: readonly TipTapNode[]): string {
+  let out = '';
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0) out += nodes[i]?.attrs?.attached ? '\n' : '\n\n';
+    out += parts[i];
+  }
+  return out;
 }
 
 /**
@@ -41,6 +61,7 @@ const blockCache: WeakMap<PMNode, string> = new WeakMap();
 export function serializeTypstCached(pmDoc: PMNode): string {
   try {
     const parts: string[] = [];
+    const nodes: TipTapNode[] = [];
     pmDoc.forEach((block) => {
       let cached = blockCache.get(block);
       if (cached === undefined) {
@@ -48,8 +69,11 @@ export function serializeTypstCached(pmDoc: PMNode): string {
         blockCache.set(block, cached);
       }
       parts.push(cached);
+      // Only the attrs are needed for the join, so this stays cheap — the
+      // serialized TEXT is still what the cache holds.
+      nodes.push({ type: block.type.name, attrs: block.attrs });
     });
-    return parts.join('\n\n');
+    return joinBlocks(parts, nodes);
   } catch (err) {
     console.error('[penwright] Serializer error:', err);
     return '';
@@ -210,9 +234,11 @@ function typstStr(s: string): string {
 }
 
 /** Serializes a content-node's block children, blank-line separated, so the
- *  deserializer's block splitter recovers them on re-open. */
+ *  deserializer's block splitter recovers them on re-open. Attached lists hug
+ *  the paragraph above them here too — the splitter re-parses these bodies with
+ *  the same rules. */
 function serializeBlockBody(nodes: TipTapNode[]): string {
-  return nodes.map((n) => serializeNode(n)).join('\n\n');
+  return joinBlocks(nodes.map((n) => serializeNode(n)), nodes);
 }
 
 /**
@@ -280,15 +306,17 @@ function escapeTypstText(text: string): string {
     text
       .replace(/[\\`*_#@$<>~[\]]/g, (ch) => '\\' + ch)
       // `//` starts a Typst line comment even mid-sentence — everything after
-      // it on the line would silently vanish from the PDF (URLs pasted as
-      // plain text, "a//b", …). Escape the first slash of every pair.
+      // it on the line would silently vanish from the PDF ("a//b", …). Escape
+      // the first slash of every pair.
       // (`/*` INSIDE one run needs no handling: the `*` is escaped above,
       // which already breaks the comment token.)
-      .replace(/\/(?=\/)/g, '\\/')
-      // A run-FINAL slash can still fuse with the next run's mark delimiter
-      // into `/*` (text "and/" + bold "or" → `and/*or*` = unterminated block
-      // comment, silently eating the rest of the document). Escape it.
-      .replace(/\/$/, '\\/')
+      //
+      // EXCEPT after `http:` / `https:`. Typst auto-detects a bare URL in markup
+      // and renders it as a real link — clickable, and coloured/underlined by the
+      // project's `show link:` rule. Escaping that `//` broke the detection, so
+      // every URL in a research appendix came back as plain black text with a
+      // dead annotation. Two client documents were full of them.
+      .replace(/(?<!\bhttps?:)\/(?=\/)/g, '\\/')
       // A real non-breaking space becomes Typst's `~` shorthand. LAST, so the
       // escape pass above cannot turn it into `\~` — which is a visible tilde
       // and was exactly the corruption this pairs with: the deserializer now
@@ -363,94 +391,113 @@ function serializeCellContent(cell: TipTapNode): string {
     .join(' ');
 }
 
+/**
+ * Serializes inline nodes, then repairs the one hazard that only exists BETWEEN
+ * two of them: a run ending in `/` next to a run opening with `*` or `/` fuses
+ * into `/*` or `//` — an unterminated block comment that eats the rest of the
+ * document, or a line comment that eats the rest of the line. (Text "and/" plus
+ * bold "or" → `and/*or*`.)
+ *
+ * `escapeTypstText` used to escape EVERY run-final slash for this, which cannot
+ * see whether a neighbour exists — so it also escaped the trailing slash of a
+ * URL at the end of a sentence, and that `\/` truncated the auto-detected link.
+ * Deciding it here, where the neighbour is known, escapes only what can fuse.
+ */
 function serializeInline(nodes: TipTapNode[]): string {
-  return nodes
-    .map((node) => {
-      if (node.type === 'text') {
-        const marks = node.marks ?? [];
-        // Code marks become Typst raw spans (`…`), which are literal and do NOT
-        // process backslash escapes — so leave their text un-escaped.
-        const isCode = marks.some((m) => m.type === 'code');
-        let text = isCode ? (node.text ?? '') : escapeTypstText(node.text ?? '');
+  const parts = nodes.map((node) => serializeInlineNode(node));
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (parts[i].endsWith('/') && /^[*/]/.test(parts[i + 1])) {
+      parts[i] = `${parts[i].slice(0, -1)}\\/`;
+    }
+  }
+  return parts.join('');
+}
 
-        // Apply marks inside-out
-        for (const mark of marks) {
-          switch (mark.type) {
-            case 'bold':
-              text = `*${text}*`;
-              break;
-            case 'italic':
-              text = `_${text}_`;
-              break;
-            case 'code':
-              // A Typst raw span is delimited by single backticks and has no
-              // escape mechanism, so content containing a backtick cannot be
-              // written that way — `` `\`code\`` `` reads back as an EMPTY raw
-              // span, plain text, and a second empty one: monospace and
-              // backticks both gone. `#raw("…")` is the string form and takes
-              // anything (the deserializer already parses it back to a code
-              // mark). An empty span needs it too: `` `` `` is not a raw span
-              // at all, just two literal backticks.
-              text = text === '' || text.includes('`') ? `#raw(${typstStr(text)})` : `\`${text}\``;
-              break;
-            case 'strike':
-              // Typst has no `~…~` strikethrough — `~` is the non-breaking
-              // space shorthand. #strike[…] is the real thing (and what the
-              // Markdown importer already emits).
-              text = `#strike[${text}]`;
-              break;
-            case 'link':
-              // Quote+escape the href so a `"` or `\` in the URL can't break the
-              // string (matches the deserializer, which reads a quoted string).
-              text = `#link(${typstStr(String(mark.attrs?.href ?? ''))})[${text}]`;
-              break;
-            case 'textColor':
-              text = `#text(fill: ${mark.attrs?.color ?? 'black'})[${text}]`;
-              break;
-            case 'highlight':
-              text = `#highlight(fill: ${mark.attrs?.color ?? 'yellow'})[${text}]`;
-              break;
-            case 'underline':
-              text = `#underline[${text}]`;
-              break;
-            case 'superscript':
-              text = `#super[${text}]`;
-              break;
-            case 'subscript':
-              text = `#sub[${text}]`;
-              break;
-            case 'smallcaps':
-              text = `#smallcaps[${text}]`;
-              break;
-          }
-        }
+/** One inline node → its Typst text. Cross-node repair happens in the caller. */
+function serializeInlineNode(node: TipTapNode): string {
+  if (node.type === 'text') {
+    const marks = node.marks ?? [];
+    // Code marks become Typst raw spans (`…`), which are literal and do NOT
+    // process backslash escapes — so leave their text un-escaped.
+    const isCode = marks.some((m) => m.type === 'code');
+    let text = isCode ? (node.text ?? '') : escapeTypstText(node.text ?? '');
 
-        return text;
+    // Apply marks inside-out
+    for (const mark of marks) {
+      switch (mark.type) {
+        case 'bold':
+          text = `*${text}*`;
+          break;
+        case 'italic':
+          text = `_${text}_`;
+          break;
+        case 'code':
+          // A Typst raw span is delimited by single backticks and has no
+          // escape mechanism, so content containing a backtick cannot be
+          // written that way — `` `\`code\`` `` reads back as an EMPTY raw
+          // span, plain text, and a second empty one: monospace and
+          // backticks both gone. `#raw("…")` is the string form and takes
+          // anything (the deserializer already parses it back to a code
+          // mark). An empty span needs it too: `` `` `` is not a raw span
+          // at all, just two literal backticks.
+          text = text === '' || text.includes('`') ? `#raw(${typstStr(text)})` : `\`${text}\``;
+          break;
+        case 'strike':
+          // Typst has no `~…~` strikethrough — `~` is the non-breaking
+          // space shorthand. #strike[…] is the real thing (and what the
+          // Markdown importer already emits).
+          text = `#strike[${text}]`;
+          break;
+        case 'link':
+          // Quote+escape the href so a `"` or `\` in the URL can't break the
+          // string (matches the deserializer, which reads a quoted string).
+          text = `#link(${typstStr(String(mark.attrs?.href ?? ''))})[${text}]`;
+          break;
+        case 'textColor':
+          text = `#text(fill: ${mark.attrs?.color ?? 'black'})[${text}]`;
+          break;
+        case 'highlight':
+          text = `#highlight(fill: ${mark.attrs?.color ?? 'yellow'})[${text}]`;
+          break;
+        case 'underline':
+          text = `#underline[${text}]`;
+          break;
+        case 'superscript':
+          text = `#super[${text}]`;
+          break;
+        case 'subscript':
+          text = `#sub[${text}]`;
+          break;
+        case 'smallcaps':
+          text = `#smallcaps[${text}]`;
+          break;
       }
+    }
 
-      if (node.type === 'footnote') {
-        return `#footnote[${node.attrs?.content ?? ''}]`;
-      }
+    return text;
+  }
 
-      if (node.type === 'marginNote') {
-        return `#randnotiz[${node.attrs?.body ?? ''}]`;
-      }
+  if (node.type === 'footnote') {
+    return `#footnote[${node.attrs?.content ?? ''}]`;
+  }
 
-      if (node.type === 'citation') {
-        return `@${node.attrs?.citekey ?? ''}`;
-      }
+  if (node.type === 'marginNote') {
+    return `#randnotiz[${node.attrs?.body ?? ''}]`;
+  }
 
-      if (node.type === 'reference') {
-        return `@${node.attrs?.label ?? ''}`;
-      }
+  if (node.type === 'citation') {
+    return `@${node.attrs?.citekey ?? ''}`;
+  }
 
-      if (node.type === 'hardBreak') {
-        // A Typst forced line break is a trailing `\`, NOT a bare newline (which
-        // is only a soft break = space). Emitting `\n` lost the break on compile.
-        return ' \\\n';
-      }
+  if (node.type === 'reference') {
+    return `@${node.attrs?.label ?? ''}`;
+  }
 
-      return '';
-    })
-    .join('');
+  if (node.type === 'hardBreak') {
+    // A Typst forced line break is a trailing `\`, NOT a bare newline (which
+    // is only a soft break = space). Emitting `\n` lost the break on compile.
+    return ' \\\n';
+  }
+
+  return '';
 }

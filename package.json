@@ -27,9 +27,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && svelte-check --threshold error",
     "test:unit": "tsx scripts/roundtrip-test.mts && tsx scripts/html-export-test.mts && tsx scripts/docx-magazine-test.mts && tsx scripts/watch-ignore-test.mts && tsx scripts/write-provenance-test.mts",
     "test:corpus": "tsx scripts/roundtrip-corpus-test.mts",
+    "test:compile:corpus": "tsx scripts/compile-corpus-test.mts",
     "test:mcp": "npm run build:mcp && tsx scripts/mcp-manifest-test.mts && tsx scripts/parity-guards-test.mts && tsx scripts/session-handoff-test.mts && tsx scripts/style-guard-test.mts && tsx scripts/bibliography-test.mts && tsx scripts/print-export-test.mts",
     "test:compile": "tsx scripts/compile-stability-test.mts",
-    "test": "npm run check:mcp && npm run typecheck && npm run test:unit && npm run test:corpus && npm run test:mcp"
+    "test": "npm run check:mcp && npm run typecheck && npm run test:unit && npm run test:corpus && npm run test:compile:corpus && npm run test:mcp"
   },
   "bin": {
     "penwright-mcp": "./dist/mcp/server.mjs"

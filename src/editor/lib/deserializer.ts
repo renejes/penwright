@@ -39,11 +39,11 @@ export function deserializeTypst(typst: string): TipTapDoc {
   const content: TipTapNode[] = [];
 
   for (const block of blocks) {
-    const trimmed = block.trim();
+    const trimmed = block.text.trim();
     if (!trimmed) continue;
 
     try {
-      const nodes = parseBlock(trimmed);
+      const nodes = markAttached(parseBlock(trimmed), block.attached);
       if (Array.isArray(nodes)) {
         content.push(...nodes);
       } else if (nodes) {
@@ -68,20 +68,49 @@ export function deserializeTypst(typst: string): TipTapDoc {
 
 // ─── Block Splitter ──────────────────────────────────────────
 
+interface SourceBlock {
+  text: string;
+  /**
+   * The block is a list that HUGS the paragraph above it — no blank line
+   * between the two in the source. Typst renders that tighter than a list
+   * separated by a blank line (verified against the bundled compiler), so it is
+   * a real difference and has to be carried on the node, not normalised away.
+   */
+  attached: boolean;
+}
+
+/**
+ * A line that opens a Typst list item — `- item`, `+ item`, or a TERM list's
+ * `/ term: definition` — at any indent.
+ *
+ * The whitespace after the marker is what keeps `//` (line comment) and `/*`
+ * (block comment) out: neither has a space in that position.
+ */
+function isListItemLine(line: string): boolean {
+  return /^\s*[-+/]\s+\S/.test(line);
+}
+
 /**
  * Splits Typst text into blocks at blank lines.
  * Respects code blocks (```) and nested braces/brackets/parens
  * so that blank lines inside these constructs don't create splits.
  */
-function splitIntoBlocks(text: string): string[] {
+function splitIntoBlocks(text: string): SourceBlock[] {
   const lines = text.split('\n');
-  const blocks: string[] = [];
+  const blocks: SourceBlock[] = [];
   let current: string[] = [];
+  let currentAttached = false;
   let inCodeBlock = false;
   let braceDepth = 0;
   let bracketDepth = 0;
   let parenDepth = 0;
   let inMath = false;
+
+  const flush = (): void => {
+    if (current.length > 0) blocks.push({ text: current.join('\n'), attached: currentAttached });
+    current = [];
+    currentAttached = false;
+  };
 
   for (const line of lines) {
     const wasNested =
@@ -123,11 +152,46 @@ function splitIntoBlocks(text: string): string[] {
     // line, and Typst then rendered the ENTIRE paragraph as the heading — in
     // a shipped preset.
     if (/^\s*={1,6}\s+\S/.test(line) && !wasNested && !isNested && !wasInMath) {
-      if (current.length > 0) {
-        blocks.push(current.join('\n'));
-        current = [];
-      }
-      blocks.push(line);
+      flush();
+      blocks.push({ text: line, attached: false });
+      continue;
+    }
+
+    // A list marker at the start of a line likewise BEGINS A LIST in Typst, and
+    // so ends the paragraph above it — blank line or not. Splitting only on
+    // blank lines appended the list to the running paragraph, and the whole
+    // thing came back as one run-on line:
+    //
+    //   There are three groups:   →  There are three groups: - Researchers
+    //   - Researchers                - Authors - Anyone curious
+    //   - Authors
+    //   - Anyone curious
+    //
+    // An entire bullet list gone, from source any user would call ordinary.
+    //
+    // Two things must NOT trigger it. A list already under way — its own items
+    // and their indented continuations belong together. And a BINDING still
+    // being written: in
+    //
+    //   #let total = base
+    //     + extra
+    //
+    // the `+` is the addition operator, not a bullet. `!isNested` already proves
+    // brackets and parens are balanced, so a bare binary operator on the next
+    // line is the only way an expression can still be open — which needs `#let`
+    // or `#return`. Testing for a leading `#` instead was too broad: it also
+    // covered `#text(font: …, size: …)[LABEL]` followed by a list, and merging
+    // those two dropped the font and the size from a real client document.
+    if (
+      isListItemLine(line) &&
+      !wasNested && !isNested && !wasInMath &&
+      current.length > 0 &&
+      !isListItemLine(current[0]) &&
+      !/^#(let|return)\b/.test(current[0].trimStart())
+    ) {
+      flush();
+      currentAttached = true;
+      current.push(line);
       continue;
     }
 
@@ -136,20 +200,32 @@ function splitIntoBlocks(text: string): string[] {
     // splitting there left an unbalanced-`$` head and re-parsed the tail as
     // prose (mirrors the wasInMath guard on the heading branch above).
     if (line.trim() === '' && !isNested && !inMath) {
-      if (current.length > 0) {
-        blocks.push(current.join('\n'));
-        current = [];
-      }
+      flush();
     } else {
       current.push(line);
     }
   }
 
-  if (current.length > 0) {
-    blocks.push(current.join('\n'));
-  }
-
+  flush();
   return blocks;
+}
+
+/**
+ * Carries "this list hugged the paragraph above it" from the splitter onto the
+ * parsed node, where the serializer can read it back. Only a list can hug —
+ * every other block type is separated by a blank line either way.
+ *
+ * The attr has to be declared in the schema too (`ListAttachment` in
+ * typstListAttach.ts) or ProseMirror drops it on the way into the editor and
+ * the next save loses the distinction again.
+ */
+function markAttached(
+  nodes: TipTapNode | TipTapNode[] | null,
+  attached: boolean,
+): TipTapNode | TipTapNode[] | null {
+  if (!attached || !nodes || Array.isArray(nodes)) return nodes;
+  if (nodes.type !== 'bulletList' && nodes.type !== 'orderedList') return nodes;
+  return { ...nodes, attrs: { ...nodes.attrs, attached: true } };
 }
 
 // ─── Block Parser ────────────────────────────────────────────
@@ -208,6 +284,19 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
     // marker switch — same as the old allMatchSameMarker guard.
     const parsed = parseNestedList(lines);
     if (parsed) return parsed;
+  }
+
+  // 4.5. Term list: `/ term: definition`. Typst sets the term in BOLD with the
+  //      definition beside it. The editor schema has no term node, so the block
+  //      is kept VERBATIM — the same call `typstGrid` and `typstHero` make for
+  //      constructs we can carry but not model.
+  //
+  //      Before this it fell through to the paragraph path and the serializer
+  //      escaped the marker to `\/ `, which renders a literal slash and loses the
+  //      term formatting entirely. Every term list in four live client documents.
+  if (lines[0] && /^\/\s+\S/.test(lines[0]) &&
+      lines.every((l) => /^\s*\/\s+\S/.test(l) || /^\s/.test(l) || l === '')) {
+    return { type: 'typstRawBlock', attrs: { content: block, blockType: classifyRawBlock(block) } };
   }
 
   // 5. Blockquote: #quote[text]
@@ -1609,10 +1698,10 @@ function stripContentBrackets(s: string): string {
 function parseBlocks(inner: string): TipTapNode[] {
   const out: TipTapNode[] = [];
   for (const block of splitIntoBlocks(inner)) {
-    const trimmed = block.trim();
+    const trimmed = block.text.trim();
     if (!trimmed) continue;
     try {
-      const nodes = parseBlock(trimmed);
+      const nodes = markAttached(parseBlock(trimmed), block.attached);
       if (Array.isArray(nodes)) out.push(...nodes);
       else if (nodes) out.push(nodes);
     } catch {
