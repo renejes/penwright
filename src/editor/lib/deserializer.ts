@@ -137,6 +137,7 @@ function splitIntoBlocks(text: string): SourceBlock[] {
    */
   const scanLine = (line: string): void => {
     let code = braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+    let statement = false;
     let inStr = false;
 
     for (let ci = 0; ci < line.length; ci++) {
@@ -156,7 +157,15 @@ function splitIntoBlocks(text: string): SourceBlock[] {
       if (c === '/' && line[ci + 1] === '*') { inBlockComment = true; ci++; continue; }
       // A `"` only opens a string in code mode; in prose it is a quotation mark.
       if (c === '"' && code) { inStr = true; continue; }
-      if (c === '#' && !escaped) { code = true; continue; }
+      if (c === '#' && !escaped) {
+        code = true;
+        // A STATEMENT (`#let`, `#show`, …) owns the rest of the line; an inline
+        // CALL (`#emph[…]`, `#footnote[…]`) ends when its own delimiters close
+        // and markup resumes after it. Conflating the two is what let one `(`
+        // after `#emph[Wort]` swallow the rest of the file.
+        statement = /^#(let|set|show|import|include|if|else|for|while|return|context)\b/.test(line.slice(ci));
+        continue;
+      }
       if (c === '$' && !escaped) { inMath = !inMath; continue; }
       if (!code) continue;
 
@@ -166,6 +175,20 @@ function splitIntoBlocks(text: string): SourceBlock[] {
       else if (c === ']') bracketDepth = Math.max(0, bracketDepth - 1);
       else if (c === '(') parenDepth++;
       else if (c === ')') parenDepth = Math.max(0, parenDepth - 1);
+      else continue;
+
+      // An inline call that has CLOSED puts us back in markup for the rest of
+      // the line — unless the call chain continues. `#notiz(title: "x")[body]`
+      // and `#datetime.today()` carry on past the `)`, so peek: `[`, `(` and `.`
+      // keep us in code, anything else (a space, prose) does not.
+      //
+      // Without this, `Ein #emph[Wort] und dann (offen` counted that `(` and one
+      // unclosed bracket swallowed every block to the end of the file — taking
+      // any heading in it with it, idempotently, so no later save recovered it.
+      if (!statement && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0) {
+        const next = line[ci + 1];
+        if (next !== '[' && next !== '(' && next !== '.') code = false;
+      }
     }
   };
 

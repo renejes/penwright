@@ -403,6 +403,23 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
   const TAIL = '\n\n= Überschrift\n\nZweiter Absatz.';
 
+  // …and the same must hold AFTER an inline macro on the line. `#` opens code
+  // mode, but the macro's own brackets close again — everything after them is
+  // markup once more. Leaving code mode on for the rest of the line meant
+  // `Ein #emph[Wort] und dann (offen` swallowed the next heading exactly as the
+  // no-macro case did, for `(`, `[` and `{` alike, and idempotently: the damage
+  // survives every later save.
+  for (const [name, head] of [
+    ['( after #emph', 'Ein #emph[Wort] und dann (offen'],
+    ['[ after #emph', 'Ein #emph[Wort] und dann [offen'],
+    ['{ after #emph', 'Ein #emph[Wort] und dann {offen'],
+    ['( after #footnote', 'Text #footnote[note] und (offen'],
+    ['( after #link', 'Siehe #link("https://x.dev")[hier] und (offen'],
+  ] as [string, string][]) {
+    const src = head + TAIL;
+    check(`${name}: the following heading survives`, types(src).includes('heading'), types(src));
+  }
+
   for (const [name, head, expect] of [
     ['unclosed ( in prose (a smiley)', 'Ein Smiley :-( im Text.', undefined],
     ['unclosed ( in prose (a typo)', 'Der Wert (siehe unten', undefined],
