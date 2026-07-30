@@ -12,9 +12,13 @@
 
 Das gilt für alles drei — Text, Struktur, Design — und ausdrücklich auch für das, was die **KI erzeugt**: Wenn Claude für ein Magazin einen eigenen Design-Baustein baut, darf das Ergebnis für den Nutzer kein Code-Block sein, den er nur anschauen kann.
 
-Zu klären ist, **wie das mit dem bestehenden Code am besten geht** — unter dem Paritätsprinzip, und mit einer belastbaren Antwort darauf, **ob und in welchem Umfang wir `typst-syntax` dafür brauchen**.
+Die Architektur dafür ist entschieden (§3), die `typst-syntax`-Frage ist beantwortet und auf einen Fall geschrumpft (§3, Ende). Das Fundament steht: der Round-Trip ist vertrauenswürdig (Baseline 0, Pixel-Gate über 39 Projekte inkl. der echten Kundendokumente), das Paritätsprinzip ist eingelöst, Typst ist auf 0.15.1 — alles ab §6 nur noch Betriebswissen.
 
-Das Fundament dafür steht: der Round-Trip ist vertrauenswürdig (Baseline 0, Pixel-Gate über 39 Projekte inkl. der echten Kundendokumente), das Paritätsprinzip ist auf allen vier Achsen eingelöst, Typst ist auf 0.15.1. Das ist erledigt und taucht ab hier nur noch als Betriebswissen auf (§6–§8).
+> ### ▶ Hier anfangen: **§3a, Stufe 0**
+>
+> Ein latenter Fehler im Block-Splitter zerstört Überschriften, sobald jemand Prosa in einen Makro-Rumpf tippt. Er fällt heute niemandem auf — **und genau das Feature aus §3 aktiviert ihn.** Er ist deshalb die erste Aufgabe, nicht die dringendste.
+>
+> Danach §4a (Umsetzungsreihenfolge). **§2 (Tabellen) ist der größte Einzelgewinn, aber unabhängig** — jederzeit machbar, blockiert nichts und wird von nichts blockiert.
 
 ---
 
@@ -37,7 +41,7 @@ Gemessen über 153 ausgelieferte und 55 echte Dateien: `deserializeTypst` über 
 
 ---
 
-## 2. Der größte Gewinn pro Aufwand: **Tabellen**
+## 2. Der größte Einzelgewinn — **Tabellen** (unabhängig, nicht der Startpunkt)
 
 **Null von sechzehn Tabellen im gesamten Korpus sind editierbar.** Auch nicht die Preistabellen in Renés Kundenangeboten. Jede einzelne ist ein Code-Block.
 
@@ -125,7 +129,25 @@ let code = braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
 
 **Der Fix:** ein Modus-Stack statt eines `code`-Booleans. Ein `[` öffnet Markup (dort zählen nur `[`/`]`), ein `(`/`{` öffnet Code (dort zählen alle drei), ein `#` innerhalb von Markup öffnet wieder Code. Zusätzlich muss `escaped` auch im Delimiter-Zweig geehrt werden — heute wird es dort nie gelesen, weshalb `\[` nicht hilft.
 
-**Das ist Stufe 0 der Umsetzung, nicht ein Nebenpunkt.** Ein Formular, das in einen Rumpf schreiben lässt, dessen Splitter dabei Überschriften frisst, ist schlimmer als kein Formular. Das Pixel-Gate über 39 Projekte ist der Beweis, dass der Fix nichts anderes umwirft.
+**Das Ausmaß, gemessen.** Simuliert wurde genau das, was der Nutzer tun wird: `Kosten (ca. 30% mehr. ` in den **ersten** Makro-Rumpf jeder Datei tippen, dann die Überschriften zählen.
+
+- **Echte Kundendokumente: 29 von 50 Dateien verlieren Überschriften.** `02b-leitnarrativ.typ` 8 → 1, `02-umsetzung.typ` 7 → 1, `05-konditionen.typ` 6 → 1.
+- Ausgelieferte Presets: 15 von 121, darunter zwei `main.typ` mit 5 → **0**.
+
+**Das ist Stufe 0, nicht ein Nebenpunkt.** Ein Formular, das in einen Rumpf schreiben lässt, dessen Splitter dabei Überschriften frisst, ist schlimmer als kein Formular.
+
+### So wird es gemacht
+
+1. **Test zuerst, und rot sehen.** Die Fälle gehören in `scripts/roundtrip-test.mts`, direkt neben die zwei Geschwister-Abschnitte aus `c3ba300` („a paren in prose is a paren") und `e23168f` („a closed inline call ends code mode") — dieselbe Fehlerklasse, dieselbe Stelle. Muster: Testfall + `TAIL = '\n\n= Überschrift\n\nZweiter Absatz.'`, dann prüfen, ob `heading` im Knotentyp-Array steht.
+2. **Fixen** (Modus-Stack, siehe oben).
+3. **Gegen den entfernten Fix laufen lassen.** Wenn der Test dann nicht rot wird, prüft er etwas anderes. Das ist in dieser Codebasis mehrfach passiert.
+4. **`npx tsx scripts/roundtrip-corpus-test.mts`** (208 Dateien) und **`npx tsx scripts/compile-corpus-test.mts`** (39 Projekte, ~10 s, Pixel). Dann `npm test`.
+
+### Die Falle, in die der Fix garantiert läuft
+
+Bei `e23168f` ist genau das passiert und kostet sonst eine halbe Stunde: sobald man den Code-Modus beim Schließen einer Klammer verlässt, **zerfallen die Magazin-Container**. `#notiz(title: "x")[` schließt mit `)` auf Tiefe 0 — verlässt man dort den Code-Modus, wird das direkt folgende `[` nicht mehr gezählt, und der Container-Rumpf zerfällt an seiner eigenen Leerzeile.
+
+Die Lösung dort war ein **Blick nach vorn**: nach dem schließenden `)` prüfen, ob `[`, `(` oder `.` folgt — dann geht die Aufrufkette weiter und der Code-Modus bleibt. Der Modus-Stack muss dieselbe Eigenschaft behalten. Die Tests für `#notiz` / `#columns` / `#bildtafel` in `roundtrip-test.mts` fangen es ab, wenn man es vergisst.
 
 ---
 
