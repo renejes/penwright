@@ -64,7 +64,9 @@ Besonders zu prüfen, weil sie **in andere Dateien schreiben als früher**: Docu
 
 2. **Das Korpus hat keinen Zeugen für „attached list".** Genau null der 208 Dateien enthält eine Liste direkt unter ihrem Einleitungssatz — der einzige Fall (`+ creditLabel` im Sample-Projekt) war ein Tippfehler und ist behoben. Der Unit-Test deckt es ab (verifiziert rot ohne den Fix), aber das Pixel-Gate kann es nicht sehen. Überlegen, ob das Sample-Projekt einen zeigen *soll* — es ist die Vitrine, und die idiomatische Typst-Form fehlt darin.
 
-3. **Der eine offen gelassene Round-Trip-Verlust** (kein Korpus-Zeuge, deshalb nicht gefixt — ein Unit-Test wäre der erste Schritt): **`1. ` Enums mitten im Block.** Wird weder als Enum erkannt noch faithful escaped; beide Richtungen verlieren die Nummerierung, keine ist klar besser. (Die unbalancierte Klammer nach einem Inline-Makro stand hier bis Session 46 und ist behoben — `e23168f`.)
+3. **Round-Trip-Verluste: keiner mehr offen.** Beide Einträge, die hier standen, sind in Session 46 behoben — die unbalancierte Klammer nach einem Inline-Makro (`e23168f`) und die numerierten Enums (`1. / 2. / 3.` wurden zu einer Fließzeile mit escapten Markern; **gemessener Rendering-Verlust**, nicht nur Quelltext). Die Enum-Behauptung im letzten Handover — „beide Richtungen verlieren die Nummerierung, keine ist klar besser" — war falsch: `1. 2. 3.` rendert **pixelidentisch** zu `+ + +`, also trägt der Round-Trip die Liste jetzt als `orderedList` und schreibt `+`. Nur eine Nummerierung, die *nicht* bei 1 beginnt oder springt, bleibt verbatim, weil `+` sie umnummerieren würde.
+
+4. **Bekannt, nicht behoben, kein Rendering-Verlust:** verschachtelte Block-Kommentare. `/*\n /* innen */\n\n text\n*/` wird in drei Blöcke zerlegt, und auskommentierter Text erscheint im Editor als **bearbeitbarer Inhalt**. Das gerenderte PDF ist vorher wie nachher identisch (gemessen), es ist also eine Editor-Integritätsfrage, kein Datenverlust — und der letzte bekannte Parser-Fall.
 
 ---
 

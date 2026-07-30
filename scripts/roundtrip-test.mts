@@ -449,6 +449,46 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   }
 }
 
+// ─── Numbered enum items are a list, not a paragraph ────────────────────────
+//
+// `isListItemLine` matched `-`, `+` and `/` but no digits, so a numbered enum
+// fell through to prose and came back as one run-on line with the markers
+// escaped:
+//
+//   1. Erstens        →   1\. Erstens 2. Zweitens 3. Drittens
+//   2. Zweitens
+//   3. Drittens
+//
+// That is a RENDERING loss, measured: the original and the round trip produce
+// different pixels. `1. / 2. / 3.` and `+ / + / +` render pixel-IDENTICALLY,
+// which is what makes the fix safe — an enum numbered 1..n can be carried as an
+// ordered list and re-emitted as `+` with no visible change.
+//
+// An enum that does NOT start at 1 or skips (`5.` then `9.`) cannot: `+` would
+// renumber it. Those stay verbatim, which preserves the render too.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
+
+  const enum123 = '1. Erstens\n2. Zweitens\n3. Drittens';
+  check('numbered enum → orderedList', types(enum123)[0] === 'orderedList', types(enum123));
+  check('numbered enum re-emits as `+` (renders identically)', ser(enum123) === '+ Erstens\n+ Zweitens\n+ Drittens', { got: ser(enum123) });
+
+  const attached = 'Die Schritte:\n1. Erstens\n2. Zweitens';
+  check('enum attached to its intro line splits', JSON.stringify(types(attached)) === JSON.stringify(['paragraph', 'orderedList']), types(attached));
+
+  // Not renumberable → verbatim, so the numbers on the page do not move.
+  const odd = '5. Fünf\n9. Neun';
+  check('non-sequential enum stays verbatim', ser(odd) === odd, { got: ser(odd) });
+
+  // A paragraph the user typed starting with a number is still escaped, or it
+  // would turn into an enum on the next open.
+  const typed = serializeTypst({
+    type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '1. not an enum' }] }],
+  } as any).trim();
+  check('a typed "1." is still escaped', typed === '1\\. not an enum', { got: typed });
+}
+
 // ─── Comments: the scanner knew them, the classifier did not ────────────────
 //
 // `splitIntoBlocks` tracks line and block comments; `isRawBlock` only ever

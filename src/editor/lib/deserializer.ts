@@ -80,14 +80,41 @@ interface SourceBlock {
 }
 
 /**
- * A line that opens a Typst list item — `- item`, `+ item`, or a TERM list's
- * `/ term: definition` — at any indent.
+ * A line that opens a Typst list item — `- item`, `+ item`, a NUMBERED enum's
+ * `1. item`, or a TERM list's `/ term: definition` — at any indent.
  *
  * The whitespace after the marker is what keeps `//` (line comment) and `/*`
  * (block comment) out: neither has a space in that position.
  */
 function isListItemLine(line: string): boolean {
-  return /^\s*[-+/]\s+\S/.test(line);
+  return /^\s*([-+/]|\d+\.)\s+\S/.test(line);
+}
+
+/**
+ * A block of `1. / 2. / 3.` enum items rewritten to `+` markers, or null when
+ * it is not one.
+ *
+ * `+` auto-numbers from 1 and renders PIXEL-IDENTICALLY to an explicit `1. 2.
+ * 3.` (measured against the bundled compiler), so carrying such an enum as an
+ * ordered list and re-emitting it as `+` changes nothing on the page. Before
+ * this, a numbered enum matched no list rule, fell through to prose, and came
+ * back as one run-on line with the markers escaped — a real rendering loss.
+ *
+ * Returns null when the numbering does NOT run 1..n, because `+` would silently
+ * renumber it; such a block is kept verbatim instead, which also preserves the
+ * page. Nested enums are left to the caller's usual path.
+ */
+function normalizeNumberedEnum(lines: string[]): string[] | null {
+  const out: string[] = [];
+  let expected = 1;
+  for (const line of lines) {
+    if (line.trim() === '' || /^\s/.test(line)) { out.push(line); continue; }
+    const m = line.match(/^(\d+)\.(\s+\S.*)$/);
+    if (!m || Number(m[1]) !== expected) return null;
+    expected++;
+    out.push(`+${m[2]}`);
+  }
+  return expected > 1 ? out : null;
 }
 
 /**
@@ -343,7 +370,17 @@ function parseBlock(block: string): TipTapNode | TipTapNode[] | null {
   //    Continuation lines that are indented (or empty) belong to the
   //    previous item — without this the deserializer rejected real
   //    multi-line list items and dumped them as raw text.
-  const lines = block.split('\n');
+  //    A `1. / 2. / 3.` enum is rewritten to `+` markers first — the two render
+  //    identically, and `+` is what the ordered-list node re-emits.
+  let lines = block.split('\n');
+  if (/^\d+\.\s+\S/.test(lines[0] ?? '')) {
+    const renumbered = normalizeNumberedEnum(lines);
+    // Not 1..n → keep the block verbatim; `+` would move the numbers on the page.
+    if (!renumbered) {
+      return { type: 'typstRawBlock', attrs: { content: block, blockType: classifyRawBlock(block) } };
+    }
+    lines = renumbered;
+  }
   const listMarker = lines[0]?.match(/^([-+]) /)?.[1];
   if (listMarker && lines.every((l) => l.match(/^[-+] /) || /^\s/.test(l) || l === '')) {
     // Indentation-aware parse: indented `- `/`+ ` lines become NESTED lists
