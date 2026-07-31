@@ -258,6 +258,50 @@ function matchDelim(text: string, open: number): number {
 }
 
 /**
+ * Tightens a range so it excludes leading and trailing whitespace AND comments.
+ *
+ * A comment is not part of the value. Leaving it inside the argument's range put
+ * `// Nummer und Titel` in front of `"2.1"` in the form field, and replacing that
+ * field wrote the comment away and produced `error: expected comma`. Keeping it
+ * in the gap BETWEEN arguments means a splice never touches it — which is the
+ * whole promise of editing by range.
+ */
+function tightenRange(text: string, from: number, to: number): { start: number; end: number } {
+  let s = from;
+  let e = to;
+  for (;;) {
+    while (s < e && /\s/.test(text[s])) s++;
+    if (text[s] === '/' && text[s + 1] === '/') {
+      const nl = text.indexOf('\n', s);
+      s = nl === -1 || nl > e ? e : nl;
+      continue;
+    }
+    if (text[s] === '/' && text[s + 1] === '*') {
+      const close = text.indexOf('*/', s + 2);
+      s = close === -1 || close + 2 > e ? e : close + 2;
+      continue;
+    }
+    break;
+  }
+  // Trailing comments, of both kinds — `pfad /* der Pfad */` is as real as
+  // `nr, // die Nummer`, and only trimming the line kind left the block kind
+  // inside the value, where it matched no identifier and cost a parameter.
+  for (;;) {
+    while (e > s && /\s/.test(text[e - 1])) e--;
+    if (e - 2 >= s && text.startsWith('*/', e - 2)) {
+      const open = text.lastIndexOf('/*', e - 2);
+      if (open >= s) { e = open; continue; }
+    }
+    const lastNl = text.lastIndexOf('\n', e);
+    const from = lastNl >= s ? lastNl : s;
+    const slash = text.indexOf('//', from);
+    if (slash !== -1 && slash >= s && slash < e) { e = slash; continue; }
+    break;
+  }
+  return { start: s, end: Math.max(s, e) };
+}
+
+/**
  * Splits an argument list on TOP-LEVEL commas, returning ranges into `text`.
  *
  * Starts in CODE mode — it is called with the inside of a `(…)`. A nested `[…]`
@@ -336,11 +380,11 @@ export function parseMacroCall(content: string): ParsedMacroCall | null {
     argListStart = cursor + 1;
     argListEnd = close;
     for (const part of splitArgs(text, argListStart, argListEnd)) {
-      // Trim the whitespace around the argument but keep the real offsets.
-      let s = part.start;
-      let e = part.end;
-      while (s < e && /\s/.test(text[s])) s++;
-      while (e > s && /\s/.test(text[e - 1])) e--;
+      // Trim whitespace AND comments, keeping the real offsets.
+      const tight = tightenRange(text, part.start, part.end);
+      const s = tight.start;
+      const e = tight.end;
+      if (s >= e) continue;                  // the part held nothing but a comment
 
       let argName: string | null = null;
       let valueStart = s;
@@ -403,6 +447,14 @@ export function spliceRange(content: string, start: number, end: number, value: 
 }
 
 /**
+ * The index of the delimiter matching the one at `open`, or -1 when it never
+ * closes. Mode-aware and comment-aware, exported so nobody writes a fourth one.
+ */
+export function matchTypstDelim(text: string, open: number): number {
+  return matchDelim(text, open);
+}
+
+/**
  * Splits a parenthesised Typst list literal — `(auto, 1fr, auto)` — into its
  * top-level elements, or null when `raw` is not one.
  *
@@ -417,7 +469,15 @@ export function splitTypstList(raw: string): { start: number; end: number }[] | 
   if (!t.startsWith('(') || !t.endsWith(')')) return null;
   if (matchDelim(t, 0) !== t.length - 1) return null;      // `(a)(b)` is not one list
   const offset = raw.indexOf('(');
-  return splitArgs(t, 1, t.length - 1).map(p => ({ start: p.start + offset, end: p.end + offset }));
+  // Tightened, because every caller wants the VALUE, not the gap around it: a
+  // `#let modul(nr, // die laufende Nummer\n titel, …)` otherwise handed back
+  // `// die laufende Nummer\n  titel`, which matched no identifier and silently
+  // dropped the parameter — and with it an argument from every call the
+  // catalogue offered.
+  return splitArgs(t, 1, t.length - 1)
+    .map(p => tightenRange(t, p.start, p.end))
+    .filter(p => p.end > p.start)
+    .map(p => ({ start: p.start + offset, end: p.end + offset }));
 }
 
 /**
@@ -665,7 +725,7 @@ export function macroFormFields(macro: ProjectMacro, content: string): MacroForm
     out.push({
       key: `pos:${i}`,
       paramName: declared?.name ?? String(i + 1),
-      kind: arg.kind,
+      kind: declared?.isPath ? 'string' : arg.kind,
       isPath: declared?.isPath ?? false,
       present: true,
       isBody: false,
@@ -679,7 +739,12 @@ export function macroFormFields(macro: ProjectMacro, content: string): MacroForm
     out.push({
       key: `named:${p.name}`,
       paramName: p.name,
-      kind: present ? present.kind : kindOfDefault(p.defaultValue),
+      // A path is ALWAYS a Typst string, whatever the default looks like. A
+      // `bild: none` default made this an `expr` field, so the file picker wrote
+      // `bild: assets/feature.png` unquoted and the whole document failed with
+      // `unknown variable: assets` — with nothing on screen saying the button
+      // had caused it.
+      kind: p.isPath ? 'string' : (present ? present.kind : kindOfDefault(p.defaultValue)),
       isPath: p.isPath,
       present: Boolean(present),
       isBody: false,

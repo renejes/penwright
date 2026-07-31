@@ -98,7 +98,10 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.35.0: three regressions the mode stack introduced — a line comment leaking
 // code mode into the next line, `\\[` misread as an escaped bracket, and an
 // ASCII-only identifier test that escaped a non-ASCII macro call into text.
-export const MCP_SETUP_VERSION = '0.35.0';
+// 0.36.0: comments are no longer read as arguments or parameters, a path field
+// is always quoted, the macro walk is bounded by isPathWithin, and the MCP tool
+// distinguishes "none exist" from "none visible here".
+export const MCP_SETUP_VERSION = '0.36.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

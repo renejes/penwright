@@ -32,6 +32,8 @@ import * as path from 'path';
 import { appState } from './appState';
 import { isPathWithin } from './pathSecurity';
 import {
+  matchTypstDelim,
+  splitTypstList,
   BODY_PARAM,
   PATH_PARAM,
   type MacroParam,
@@ -57,7 +59,7 @@ const MAX_IMPORT_DEPTH = 6;
  */
 const NOT_INSERTABLE = /^(apply-style|.*-style)$/;
 
-function walkTypFiles(root: string, depth = 0): string[] {
+function walkTypFiles(root: string, projectRoot: string, depth = 0): string[] {
   if (depth > 6) return [];
   const out: string[] = [];
   let entries: fs.Dirent[];
@@ -70,7 +72,13 @@ function walkTypFiles(root: string, depth = 0): string[] {
     if (IGNORED_DIRS.has(entry.name)) continue;
     if (entry.name.startsWith('.')) continue;
     const full = path.join(root, entry.name);
-    if (entry.isDirectory()) out.push(...walkTypFiles(full, depth + 1));
+    // A symlink can point anywhere. `isPathWithin` is realpath-based, so it is
+    // the only check that catches one — and without it a `link.typ` pointing
+    // outside the project had its `#let`s listed in the insert menu and returned
+    // by the MCP tool, comment and all. CLAUDE.md requires this of every
+    // file-touching path; the walk is one.
+    if (!isPathWithin(full, projectRoot)) continue;
+    if (entry.isDirectory()) out.push(...walkTypFiles(full, projectRoot, depth + 1));
     else if (entry.name.toLowerCase().endsWith('.typ')) out.push(full);
   }
   return out;
@@ -91,62 +99,23 @@ function readContent(absPath: string): string | null {
 }
 
 /**
- * Reads a balanced `(…)` starting at `open`, skipping strings and comments.
- * Returns the inner text and the index just past the `)`, or null if the list
- * never closes (a definition still being typed).
+ * The parameters of a `#let name(…)` signature.
+ *
+ * Uses the SHARED mode-aware splitter rather than a second hand-written one.
+ * The local `readParenGroup`/`splitTopLevel` pair did not know about comments,
+ * so `#let modul(nr, // die laufende Nummer\n titel, body)` reported the
+ * parameters as `nr, body` — `titel` silently deleted — and every call the
+ * catalogue then offered was missing an argument. Two scanners for one job is
+ * how that happens; `deserializer.ts` grew seven of them before this repo
+ * stopped counting.
  */
-function readParenGroup(text: string, open: number): { inner: string; end: number } | null {
-  let depth = 0;
-  let inStr = false;
-  for (let i = open; i < text.length; i++) {
-    const c = text[i];
-    if (inStr) {
-      if (c === '\\') i++;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') { inStr = true; continue; }
-    if (c === '/' && text[i + 1] === '/') {
-      const nl = text.indexOf('\n', i);
-      if (nl === -1) return null;
-      i = nl;
-      continue;
-    }
-    if (c === '(' || c === '[' || c === '{') depth++;
-    else if (c === ')' || c === ']' || c === '}') {
-      depth--;
-      if (depth === 0) return { inner: text.slice(open + 1, i), end: i + 1 };
-    }
-  }
-  return null;
-}
-
-/** Splits a parameter list on top-level commas only. */
-function splitTopLevel(inner: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let inStr = false;
-  let start = 0;
-  for (let i = 0; i < inner.length; i++) {
-    const c = inner[i];
-    if (inStr) {
-      if (c === '\\') i++;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') { inStr = true; continue; }
-    if (c === '(' || c === '[' || c === '{') depth++;
-    else if (c === ')' || c === ']' || c === '}') depth--;
-    else if (c === ',' && depth === 0) { parts.push(inner.slice(start, i)); start = i + 1; }
-  }
-  parts.push(inner.slice(start));
-  return parts.map(p => p.trim()).filter(Boolean);
-}
-
 function parseParams(inner: string): MacroParam[] {
   const out: MacroParam[] = [];
-  for (const part of splitTopLevel(inner)) {
-    if (part.startsWith('..')) continue;                    // argument sink
+  const parts = splitTypstList(`(${inner})`);
+  if (!parts) return out;
+  for (const range of parts) {
+    const part = `(${inner})`.slice(range.start, range.end).trim();
+    if (!part || part.startsWith('..')) continue;           // argument sink
     const named = part.match(/^([\p{L}_][\p{L}\p{N}_-]*)\s*:\s*([\s\S]+)$/u);
     if (named) {
       out.push({ name: named[1], defaultValue: named[2].trim(), isPath: PATH_PARAM.test(named[1]) });
@@ -224,6 +193,9 @@ function indexFile(filePath: string, root: string, content: string): {
       // Only project-local files; `@preview/…` packages are not ours to offer.
       if (!spec.startsWith('@')) {
         const target = path.resolve(dir, spec);
+        // `#import "../../elsewhere.typ"` resolves fine on disk and would pull a
+        // file from outside the project into the catalogue.
+        if (!isPathWithin(target, root)) continue;
         const namesPart = (imp[2] ?? '').trim();
         if (namesPart === '*') imports.push({ target, names: '*' });
         else if (namesPart) {
@@ -244,10 +216,10 @@ function indexFile(filePath: string, root: string, content: string): {
     if (name.startsWith('_') || NOT_INSERTABLE.test(name)) continue;
 
     const openAt = lineStart[i] + line.indexOf('(', def[0].length - 1);
-    const group = readParenGroup(content, openAt);
-    if (!group) continue;
+    const close = matchTypstDelim(content, openAt);
+    if (close === -1) continue;             // a signature still being typed
 
-    const params = parseParams(group.inner);
+    const params = parseParams(content.slice(openAt + 1, close));
     const body = params.find(p => p.defaultValue === null && BODY_PARAM.test(p.name));
     macros.push({
       name,
@@ -266,7 +238,7 @@ function indexFile(filePath: string, root: string, content: string): {
 function buildIndex(root: string): MacroIndex {
   const defs = new Map<string, ProjectMacro[]>();
   const imports = new Map<string, ImportEdge[]>();
-  for (const filePath of walkTypFiles(root)) {
+  for (const filePath of walkTypFiles(root, root)) {
     const content = readContent(filePath);
     if (!content) continue;
     const r = indexFile(filePath, root, content);
@@ -336,8 +308,11 @@ export function listProjectMacros(
   const index = buildIndex(root);
 
   let macros: ProjectMacro[];
-  if (targetFile && isPathWithin(targetFile, root)) {
-    macros = visibleIn(index, targetFile);
+  if (targetFile) {
+    // A targetFile outside the project used to fall through to the
+    // whole-project branch, which answered a question nobody asked with more
+    // than was requested. Out of bounds is an empty answer, not a wider one.
+    macros = isPathWithin(targetFile, root) ? visibleIn(index, targetFile) : [];
   } else {
     macros = [];
     const seen = new Set<string>();

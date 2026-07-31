@@ -127,6 +127,60 @@ console.log('\n── Catalogue ──');
   check('two plain positionals mean no body', stat.bodyParam === null, stat);
 }
 
+// ─── A comment in a signature is not a parameter ────────────────────────────
+//
+// `projectMacros.ts` used to carry its OWN paren reader and comma splitter,
+// neither of which knew about comments — so a `#let` with a comment between two
+// parameters reported the ones after it as missing, and every call the
+// catalogue offered was short an argument. Both scanners are gone; the shared
+// mode-aware ones do the work.
+console.log('\n── Comments in a #let signature ──');
+{
+  write('commented.typ', `
+#let modulk(
+  nr,          // die laufende Nummer
+  titel,       /* der Titel */
+  body,
+) = block(body)
+
+#let bildk(pfad /* der Pfad */, alt) = image(pfad, alt: alt)
+`);
+  const macros = listProjectMacros(tmp).macros;
+  const modul = macros.find(m => m.name === 'modulk');
+  check('a line comment between parameters loses none of them',
+    modul?.params.map(p => p.name).join(',') === 'nr,titel,body', modul?.params);
+  const bild = macros.find(m => m.name === 'bildk');
+  check('a block comment inside a signature loses none either',
+    bild?.params.map(p => p.name).join(',') === 'pfad,alt', bild?.params);
+  check('…and the generated call carries every argument',
+    buildMacroCall(modul!) === '#modulk("nr", "titel")[\n  Inhalt\n]', buildMacroCall(modul!));
+}
+
+// ─── The walk stays inside the project ──────────────────────────────────────
+//
+// CLAUDE.md requires `isPathWithin` of every file-touching path. Without it a
+// symlinked `.typ` had its `#let`s — and its leading comment, verbatim — listed
+// in the user's insert menu and returned by the MCP tool.
+console.log('\n── The walk stays inside the project ──');
+{
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-outside-'));
+  fs.writeFileSync(path.join(outside, 'secret.typ'), '// KUNDE: Vertraulich\n#let geheim(kunde) = kunde\n');
+  let linked = false;
+  try { fs.symlinkSync(path.join(outside, 'secret.typ'), path.join(tmp, 'link.typ')); linked = true; } catch { /* no symlink support */ }
+  if (linked) {
+    const names = listProjectMacros(tmp).macros.map(m => m.name);
+    check('a symlink pointing outside the project is not read', !names.includes('geheim'), names);
+    fs.rmSync(path.join(tmp, 'link.typ'), { force: true });
+  } else {
+    check('a symlink pointing outside the project is not read', false, 'symlink() failed — cannot verify');
+  }
+  // And a targetFile outside the project answers with nothing, not with everything.
+  check('a targetFile outside the project returns no macros',
+    listProjectMacros(tmp, path.join(outside, 'secret.typ')).macros.length === 0,
+    listProjectMacros(tmp, path.join(outside, 'secret.typ')).macros.length);
+  fs.rmSync(outside, { recursive: true, force: true });
+}
+
 console.log('\n── Visibility is per file ──');
 {
   const index = buildMacroIndex(tmp);
@@ -204,7 +258,15 @@ console.log('\n── Every generated call compiles ──');
       }
     };
 
-    compileIn(tmp, '#import "style.typ": *', listProjectMacros(tmp).macros);
+    // Imports derived from where the macros actually live, like the corpus
+    // branch below — a fixed `#import "style.typ"` silently skipped any fixture
+    // file style.typ does not itself import.
+    const fixtureMacros = listProjectMacros(tmp).macros;
+    compileIn(
+      tmp,
+      [...new Set(fixtureMacros.map(m => m.relPath))].map(r => `#import "${r}": *`).join('\n'),
+      fixtureMacros,
+    );
 
     // …and against the real thing, where the signatures were not written by us.
     // Every project is COPIED to temp first: these are the user's live client

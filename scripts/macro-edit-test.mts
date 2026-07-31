@@ -105,6 +105,41 @@ console.log('\n── Shapes measured over 506 real call sites ──');
   check('a comma inside a string does not split the argument list', ps?.args.length === 2, ps?.args);
   check('…and brackets inside a string are left alone', ps?.args[0]?.raw === '"4:2 (netto)"', ps?.args[0]);
 
+  // ── A COMMENT IS NOT PART OF THE VALUE ─────────────────────────────────
+  // The argument range used to start at the comment, so the form field for `nr`
+  // read `// Nummer und Titel "2.1"` — and replacing it wrote the comment away
+  // and produced `error: expected comma`. The comment belongs in the gap
+  // BETWEEN arguments, where a splice never reaches it.
+  const leadComment = '#modul(\n  // Nummer und Titel\n  "2.1",\n  "Fachartikel",\n)';
+  const plc = parseMacroCall(leadComment)!;
+  check('a leading comment is not part of the argument', plc?.args[0]?.raw === '"2.1"', plc?.args[0]?.raw);
+  check('…and the field shows only the value', readMacroField(leadComment, 'pos:0') === '2.1', readMacroField(leadComment, 'pos:0'));
+  const edited = writeMacroField(leadComment, 'pos:0', 'string', 'Teil A')!;
+  check('…and editing it leaves the comment in place',
+    edited.includes('// Nummer und Titel') && edited.includes('"Teil A"'), edited);
+  check('…and the result still parses', parseMacroCall(edited) !== null, edited);
+
+  const trailComment = '#note(\n  title: "a",  // TODO Untertitel\n)[T]';
+  const ptc = parseMacroCall(trailComment)!;
+  check('a trailing comment is not part of the argument either', ptc?.args[0]?.raw === '"a"', ptc?.args[0]?.raw);
+
+  // A path parameter is ALWAYS a string, whatever its default looks like. A
+  // `bild: none` default made the field an `expr`, so the file picker wrote the
+  // path unquoted and the document died with `unknown variable: assets`.
+  {
+    const macro = {
+      name: 'hero', label: '', filePath: '', relPath: '', line: 1, bodyParam: 'body',
+      params: [
+        { name: 'body', defaultValue: null, isPath: false },
+        { name: 'bild', defaultValue: 'none', isPath: true },
+      ],
+    };
+    const field = macroFormFields(macro as never, '#hero[Ein Absatz.]').find(f => f.paramName === 'bild')!;
+    check('a path parameter is a string field even when its default is `none`', field.kind === 'string', field);
+    const out = writeMacroField('#hero[Ein Absatz.]', field.key, field.kind, 'assets/feature.png');
+    check('…so the picked path is quoted', out === '#hero(bild: "assets/feature.png")[Ein Absatz.]', out);
+  }
+
   // A comment inside the argument list must survive an edit untouched.
   const withComment = '#modul(\n  "2.1",  // die Nummer\n  "Titel",\n)';
   const pcm = parseMacroCall(withComment)!;

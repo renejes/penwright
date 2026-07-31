@@ -3700,6 +3700,20 @@ tool(
   },
 );
 
+/**
+ * Why the list came back empty — "there are none" and "none are visible HERE"
+ * are different answers, and telling the agent the first when the second is true
+ * sends it off to define a macro that already exists two files away.
+ */
+function emptyMacroReason(projectDir: string, targetFile?: string): string {
+  const all = listProjectMacros(projectDir).macros;
+  if (!all.length) {
+    return 'This project defines no building blocks of its own yet. Define one with a `#let name(params) = …` in the project\'s style.typ or macros.typ; a `//` comment directly above it becomes its label in the user\'s insert menu.';
+  }
+  if (!targetFile) return 'No building blocks are visible.';
+  return `This project defines ${all.length} building block(s) (${all.map(m => m.name).join(', ')}), but NONE of them is callable in ${targetFile}: a macro only works in a file that imports it, and Typst does not pass an import from the root down into an #included chapter. Either add an \`#import\` to that file, or call this tool without targetFile to see the whole project.`;
+}
+
 // ─── Tool: penwright_list_project_macros ───────────────
 
 tool(
@@ -3724,7 +3738,7 @@ tool(
           type: 'text' as const,
           text: slim.length
             ? JSON.stringify({ macros: slim, truncated: result.truncated }, null, 2)
-            : 'This project defines no building blocks of its own yet. Define one with a `#let name(params) = …` in the project\'s style.typ or macros.typ; a `//` comment directly above it becomes its label in the user\'s insert menu.',
+            : emptyMacroReason(state.projectDir, targetFile),
         }],
       };
     } catch (err) {
