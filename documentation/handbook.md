@@ -752,7 +752,7 @@ Penwright ships a built-in MCP server (Model Context Protocol) that lets externa
 
 ### What can the MCP server do?
 
-Over MCP (65 tools) the AI can:
+Over MCP (66 tools) the AI can:
 - **Create a whole project from a preset** (`penwright_list_presets` + `penwright_create_from_preset`) — a designed starting point with placeholder content instead of starting from scratch; magazine presets ship a different layout per chapter
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
 - Change document settings (font, size, language, margins, …) and apply style templates
@@ -862,7 +862,7 @@ Claude will call `penwright_set_project` and work with the new project from ther
 
 ### Available tools (59)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 65 tools with one-line descriptions, grouped by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 66 tools with one-line descriptions, grouped by category:
 
 **Project & files (5)**
 
@@ -927,6 +927,7 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 
 **Cross-references & footnotes (3)**
 
+- `penwright_list_project_macros` — Return the building blocks this project defines for itself (its own `#let` macros), with parameters, the comment above each as a label, and where it is defined. Pass `targetFile` for only what is callable there.
 - `penwright_list_labels` — Return all `<label>` definitions in the project with type classification (figure / table / equation / heading / other) and caption preview.
 - `penwright_insert_reference` — Insert a Typst cross-reference (`@label`) at an anchor; validates the label exists and suggests close matches if not.
 - `penwright_add_footnote` — Insert a Typst footnote (`#footnote[…]`) at an anchor; bracket-balance check on the body.

@@ -7,6 +7,7 @@ export const editor: EditorMessages = {
   insertGroupText: 'Text & Struktur',
   insertGroupBlocks: 'Blöcke',
   insertGroupRefs: 'Verweise & Medien',
+  insertGroupProject: 'Aus diesem Projekt',
   toolbarBold: 'Fett (Cmd+B)',
   toolbarBoldAria: 'Fett',
   toolbarItalic: 'Kursiv (Cmd+I)',

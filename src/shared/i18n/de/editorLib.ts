@@ -57,6 +57,7 @@ export const editorLib: EditorLibMessages = {
   slashFigurePanelDesc: 'Foto mit gerahmter Anmerkung',
   slashMarginNoteTitle: 'Randnotiz',
   slashMarginNoteDesc: 'Stille Notiz im Außenrand',
+  macroBodyPlaceholder: 'Inhalt',
   slashInterludeTitle: 'Zwischenstück',
   slashInterludeDesc: 'Stiller zentrierter Trenner',
   slashColumnsTitle: 'Spalten',

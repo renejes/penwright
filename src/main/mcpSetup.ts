@@ -70,7 +70,15 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // closed to its writes, user presets visible, insert_design_element takes a
 // file, the handbook as an MCP resource, and four round-trip corruptions
 // fixed (nbsp `~`, pagebreak args, `center + horizon`, indented headings).
-export const MCP_SETUP_VERSION = '0.27.0';
+// 0.27.0: the block splitter tracks Typst's two modes on a stack, so a paren
+// typed into a MACRO BODY no longer merges the rest of the file into one block
+// (the deserializer ships in this binary).
+// 0.28.0: the project's own building blocks — `listProjectMacros` derives a
+// catalogue from the `#let` definitions visible in a given file, exposed as
+// penwright_list_project_macros and as the "From this project" group in the
+// user's insert menu. `shared/macroCall.ts` is the one call builder both sides
+// use.
+export const MCP_SETUP_VERSION = '0.28.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

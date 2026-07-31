@@ -752,7 +752,7 @@ Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit de
 
 ### Was kann der MCP-Server?
 
-Die KI kann ueber den MCP-Server (65 Tools):
+Die KI kann ueber den MCP-Server (66 Tools):
 - **Ein komplettes Projekt aus einem Preset anlegen** (`penwright_list_presets` + `penwright_create_from_preset`) — designter Startpunkt inkl. Platzhalter-Text, statt bei null anzufangen; Magazin-Presets mit eigenem Layout pro Kapitel
 - Typst-Dokumente oeffnen, lesen, bearbeiten und verifizieren (`compile` ist reiner Verifier; das Schreiben von Artefakten uebernehmen die Export-Tools)
 - Dokument-Einstellungen aendern (Schriftart, Groesse, Sprache, Raender …) und Style-Templates anwenden
@@ -862,7 +862,7 @@ Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neue
 
 ### Verfuegbare Tools (59)
 
-Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 65 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
+Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 66 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
 **Projekt & Dateien (5)**
 
@@ -927,6 +927,7 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 
 **Cross-References & Footnotes (3)**
 
+- `penwright_list_project_macros` — Liefert die Bausteine, die dieses Projekt selbst definiert (seine eigenen `#let`-Makros), mit Parametern, dem Kommentar darueber als Label und dem Fundort. Mit `targetFile` nur das, was dort aufrufbar ist.
 - `penwright_list_labels` — Liefert alle `<label>`-Definitionen im Projekt mit Typ-Klassifikation (figure / table / equation / heading / other) und Caption-Vorschau.
 - `penwright_insert_reference` — Fuegt eine Typst-Cross-Reference (`@label`) an einem Anker ein; validiert dass das Label existiert und schlaegt aehnliche vor.
 - `penwright_add_footnote` — Fuegt eine Typst-Footnote (`#footnote[…]`) an einem Anker ein; mit Klammer-Balance-Check fuer den Body.

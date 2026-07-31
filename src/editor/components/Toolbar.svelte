@@ -17,6 +17,9 @@
       { label: t().editor.insertGroupText, items: cmds.filter((c) => c.group === 'text') },
       { label: t().editor.insertGroupBlocks, items: cmds.filter((c) => c.group === 'blocks') },
       { label: t().editor.insertGroupRefs, items: cmds.filter((c) => c.group === 'refs') },
+      // Empty on a project that defines no macros of its own — the group label
+      // is only rendered when it has items.
+      { label: t().editor.insertGroupProject, items: cmds.filter((c) => c.group === 'project') },
     ];
   });
 

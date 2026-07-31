@@ -7,6 +7,7 @@ export const editor = {
   insertGroupText: 'Text & structure',
   insertGroupBlocks: 'Blocks',
   insertGroupRefs: 'References & media',
+  insertGroupProject: 'From this project',
   toolbarBold: 'Bold (Cmd+B)',
   toolbarBoldAria: 'Bold',
   toolbarItalic: 'Italic (Cmd+I)',

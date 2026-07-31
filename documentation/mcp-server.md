@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **65 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **66 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
 
 ---
 
@@ -170,6 +170,7 @@ Spiegelung der Cross-Reference-Picker- und Footnote-UI aus dem Editor. Anker-bas
 
 | Tool | Beschreibung |
 |------|-------------|
+| `penwright_list_project_macros` | Die Bausteine, die **dieses Projekt selbst** definiert — die `#let`-Makros in seinen eigenen `.typ`-Dateien, mit Parametern, dem `//`-Kommentar darüber als Label und dem Fundort. Das Design-Vokabular des Projekts (`#modul`, `#insight`, `#sumrow`), im Unterschied zu den 24 eingebauten Elementen aus `list_design_elements`. Mit `targetFile` nur das, was **dort** aufrufbar ist — ein `#import` in der Wurzel erreicht ein `#include`tes Kapitel nicht. Der Mensch sieht dieselbe Liste im Einfuegen-Menue unter „Aus diesem Projekt". |
 | `penwright_list_labels` | Alle `<label>`s im Projekt auflisten, optional nach Typ gefiltert (figure / table / equation / heading / other). Liefert `{ label, type, caption, relPath, line }`. **Vor `insert_reference` aufrufen**, sonst raet der Agent nur. |
 | `penwright_insert_reference` | Eine `@`-Referenz an einer Anker-Position einfuegen — **entweder** ein `<label>` (Abbildung / Tabelle / Gleichung / Abschnitt) **oder ein Citekey aus der Bibliographie**. Typst schreibt beides gleich; bis Session 42 nahm das Tool nur Labels, womit die haeufigste Form ueberhaupt, ein `@` zu setzen (eine Quelle mitten im Absatz zitieren), im ganzen Server nicht bedienbar war. Prueft vorab, ob das Ziel existiert (sonst Vorschlaege aus **beiden** Mengen), und setzt ein Leerzeichen davor, wenn Typst es sonst ans vorherige Wort kleben wuerde. |
 | `penwright_add_footnote` | `#footnote[<body>]` an einer Anker-Position einfuegen. Klammer-Balance-Check auf den Body, damit der Typst-Parser nicht bricht. |
@@ -532,7 +533,7 @@ Das gilt fuer **alle In-App-Registrierungswege** (Claude-Desktop-Wizard, Meta-MC
 Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft die (gebuendelte oder System-)`typst`-Binary fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts             <- Alle 65 Tools in einer Datei
+src/mcp/server.ts             <- Alle 66 Tools in einer Datei
 esbuild.mcp.mjs               <- Build (ESM, Node 20) -> dist/mcp/server.mjs (Dev / manueller Node-Pfad)
 scripts/build-mcp-binary.mjs  <- Bun `--compile` -> dist/mcp/bin/penwright-mcp-<triple> (die ausgelieferte Standalone-Binary)
 ```

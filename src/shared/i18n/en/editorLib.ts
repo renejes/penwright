@@ -57,6 +57,8 @@ export const editorLib = {
   slashFigurePanelDesc: 'Photo with a framed side note',
   slashMarginNoteTitle: 'Margin Note',
   slashMarginNoteDesc: 'Quiet note in the margin',
+  /** Placeholder body for a building block this project defines itself. */
+  macroBodyPlaceholder: 'Content',
   slashInterludeTitle: 'Interlude',
   slashInterludeDesc: 'Quiet centered divider',
   slashColumnsTitle: 'Columns',

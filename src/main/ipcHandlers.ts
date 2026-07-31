@@ -114,6 +114,7 @@ import {
   type RendererCrashPayload,
 } from './crashReporter';
 import { listProjectLabels } from './projectLabels';
+import { listProjectMacros } from './projectMacros';
 import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
 
 /** Direct Polar checkout for the Penwright license (one-time, €59). */
@@ -1497,6 +1498,14 @@ export function setupIPC(): void {
 
   ipcMain.handle('project:listLabels', () => {
     return listProjectLabels();
+  });
+
+  // The building blocks THIS project defines. Scoped to the open file by
+  // default, because a macro is only callable where it is imported — offering
+  // the whole project in a chapter offers macros that cannot compile there.
+  ipcMain.handle('project:listMacros', (_event, opts?: { targetFile?: string | null }) => {
+    const target = opts?.targetFile ?? appState.currentFilePath ?? null;
+    return listProjectMacros(appState.projectDir, target);
   });
 
   // ─── Comments / Annotations ─────────────────────

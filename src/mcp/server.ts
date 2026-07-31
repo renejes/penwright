@@ -98,6 +98,8 @@ import { scanPresetsDir, copyPresetFolder } from '../shared/presetLibrary.js';
 import { localize } from '../shared/presetTypes.js';
 import { listComments, createComment, updateComment, deleteComment } from '../main/commentManager.js';
 import { listProjectLabels, type LabelType } from '../main/projectLabels.js';
+import { listProjectMacros } from '../main/projectMacros.js';
+import { buildMacroCall } from '../shared/macroCall.js';
 import { searchProject, replaceInProject } from '../main/projectSearch.js';
 import { findSourceForCitation } from '../main/citationSources.js';
 import { markdownToTypst } from '../shared/markdownImporter.js';
@@ -973,6 +975,7 @@ const TOOL_META: Record<string, ToolMeta> = {
 
   // Cross-refs, footnotes, comments
   penwright_list_labels:      R('List labels'),
+  penwright_list_project_macros: R('List project building blocks'),
   penwright_insert_reference: W('Insert cross-reference'),
   penwright_add_footnote:     W('Add footnote'),
   penwright_list_comments:    R('List comments'),
@@ -3689,6 +3692,39 @@ tool(
         content: [{
           type: 'text' as const,
           text: JSON.stringify({ labels: slim, truncated: result.truncated }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: penwright_list_project_macros ───────────────
+
+tool(
+  'penwright_list_project_macros',
+  'List the building blocks THIS project defines for itself — the `#let` macros in its own .typ files, with their parameters, the comment above each as a label, and where it is defined. These are the project\'s design vocabulary (e.g. #modul, #insight, #sumrow), distinct from the 24 built-in elements of penwright_list_design_elements. Pass targetFile to get only what is callable THERE: a macro is visible only where it is imported, so a root #import does NOT reach an #included chapter. The user sees the same list in the editor\'s insert menu under "From this project".',
+  {
+    targetFile: z.string().optional().describe('Project-relative path (e.g. "chapters/03-preise.typ"). Returns only macros callable in that file. Omit to list every macro in the project.'),
+  },
+  async ({ targetFile }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
+      }
+      const target = targetFile ? resolveInsideProject(targetFile) : null;
+      const result = listProjectMacros(state.projectDir, target);
+      const slim = result.macros.map(({ filePath: _filePath, ...rest }) => ({
+        ...rest,
+        call: buildMacroCall(rest as never),
+      }));
+      return {
+        content: [{
+          type: 'text' as const,
+          text: slim.length
+            ? JSON.stringify({ macros: slim, truncated: result.truncated }, null, 2)
+            : 'This project defines no building blocks of its own yet. Define one with a `#let name(params) = …` in the project\'s style.typ or macros.typ; a `//` comment directly above it becomes its label in the user\'s insert menu.',
         }],
       };
     } catch (err) {

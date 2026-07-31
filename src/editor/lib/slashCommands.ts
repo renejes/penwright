@@ -4,9 +4,11 @@ import { PluginKey } from '@tiptap/pm/state';
 import { insertFootnoteWithEditor } from './typstFootnote';
 import { insertArticleHeaderWithEditor, insertMarginNoteWithEditor } from './typstMagazine';
 import { t } from '../../shared/i18n/store.svelte';
+import { getProjectMacros } from './projectMacroStore';
+import { buildMacroCall, macroSignature } from '../../shared/macroCall';
 
 /** Logical grouping for the toolbar "Insert" dropdown (the slash menu ignores it). */
-export type InsertGroup = 'text' | 'blocks' | 'refs';
+export type InsertGroup = 'text' | 'blocks' | 'refs' | 'project';
 
 export interface SlashItem {
   title: string;
@@ -253,6 +255,26 @@ export function getCommands(): SlashItem[] {
       group: 'refs',
       command: (e) => insertMarginNoteWithEditor(e),
     },
+
+    // ─── This project's own building blocks ───────────────────────────────
+    //
+    // The 24 shipped elements are a list we wrote. These are the ones the
+    // project — or the AI designing it — invented for itself, and until now
+    // they could not be inserted from the UI at all. Derived from the `#let`
+    // definitions actually visible in the open file, so everything offered here
+    // compiles at the cursor.
+    ...getProjectMacros().map((macro): SlashItem => ({
+      title: macro.name,
+      description: macro.label || macroSignature(macro),
+      icon: '❖',
+      group: 'project',
+      command: (e) => {
+        e.chain().focus().insertContent({
+          type: 'typstRawBlock',
+          attrs: { content: buildMacroCall(macro, {}, m.macroBodyPlaceholder) },
+        }).run();
+      },
+    })),
   ];
 }
 

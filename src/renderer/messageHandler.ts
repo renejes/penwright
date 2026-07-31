@@ -9,6 +9,7 @@ import { updateCitationEntries } from '../editor/lib/citationSuggestion';
 import { setDocumentBaseUri } from '../editor/lib/typstImage';
 import { setEditorLanguage } from '../editor/lib/editor';
 import { ipc } from '../editor/lib/ipcAdapter';
+import { setProjectMacros, clearProjectMacros, type ProjectMacroItem } from '../editor/lib/projectMacroStore';
 import type { ExtensionMessage } from '../editor/lib/messages';
 import {
   editorRef,
@@ -29,6 +30,25 @@ import {
   isUpdatingFromExtension,
   openTab,
 } from './appState.svelte';
+
+/**
+ * Loads the building blocks callable in `targetFile` into the store the slash
+ * menu and the ＋ dropdown read from. Best-effort: a project with no macros of
+ * its own simply gets an empty group, which renders as nothing at all.
+ */
+async function refreshProjectMacros(targetFile: string): Promise<void> {
+  try {
+    const api = (window as unknown as {
+      electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    if (!api || !targetFile) { clearProjectMacros(); return; }
+    const res = await api.invoke('project:listMacros', { targetFile }) as
+      { macros?: ProjectMacroItem[] } | undefined;
+    setProjectMacros(res?.macros ?? []);
+  } catch {
+    clearProjectMacros();
+  }
+}
 
 export function handleMessage(message: ExtensionMessage): void {
   const editor = editorRef.current;
@@ -221,6 +241,10 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'currentFile') {
     tabState.currentFile = (msg as unknown as { path: string }).path || '';
     openTab(tabState.currentFile, 'typ');
+    // Refill the project's own building blocks: which macros are callable
+    // depends on THIS file's imports, not on the project (a root `#import`
+    // does not reach an `#include`d chapter — proven against the compiler).
+    void refreshProjectMacros(tabState.currentFile);
   }
 
   // Open text file in built-in viewer
@@ -244,6 +268,7 @@ export function handleMessage(message: ExtensionMessage): void {
     tabState.isSaved = true;
     zoomState.editor = 1.0;
     zoomState.pdf = 1.0;
+    clearProjectMacros();
     if (editorRef.current) {
       try { editorRef.current.commands.setContent(''); } catch {}
     }
