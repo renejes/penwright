@@ -92,7 +92,10 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // count-based reconciliation is the net for changes that bypass the table UI.
 // 0.33.0: the table gear menu inserts a column/row BEFORE as well as after,
 // and a multi-column delete drops every selected column's styling.
-export const MCP_SETUP_VERSION = '0.33.0';
+// 0.34.0: a Typst DICTIONARY (`inset: (x: 8pt, y: 4pt)`) is no longer resized
+// like a per-column array — doing so duplicated a key and Typst refused the
+// whole document.
+export const MCP_SETUP_VERSION = '0.34.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

@@ -11,7 +11,7 @@
  * Pure: no fs, no Electron, no TipTap.
  */
 
-import { parseMacroCall, splitTypstList } from './macroCall';
+import { isTypstDictLiteral, parseMacroCall, splitTypstList } from './macroCall';
 
 /**
  * Typst's per-COLUMN table parameters. Each accepts an array applied column by
@@ -58,12 +58,21 @@ function readParams(params: string): { args: ParamArg[]; declared: number | null
   if (!columns) return null;
   const declared = /^\d+$/.test(columns.raw)
     ? Number(columns.raw)
-    : (splitTypstList(columns.raw)?.length ?? null);
+    : (tupleItems(columns.raw)?.length ?? null);
   return { args, declared };
 }
 
-/** The elements of a literal tuple, or null when it is an expression. */
+/**
+ * The elements of a literal ARRAY, or null when it is an expression or a
+ * DICTIONARY.
+ *
+ * The dictionary case is the one that bites: `inset: (x: 8pt, y: 4pt)` splits
+ * into two entries and looks exactly like a two-column array. Resizing it
+ * duplicates a key, and Typst then refuses the whole document — the user adds a
+ * column through the gear menu and their document stops compiling.
+ */
 function tupleItems(raw: string): string[] | null {
+  if (isTypstDictLiteral(raw)) return null;
   const parts = splitTypstList(raw);
   return parts ? parts.map(p => raw.slice(p.start, p.end).trim()) : null;
 }
@@ -129,7 +138,7 @@ export function shiftTableColumn(
     }
 
     const items = tupleItems(arg.raw);
-    if (!items || items.length !== declared) continue;   // an expression, or the author's own cycling
+    if (!items || items.length !== declared) continue;   // an expression, a dict, or the author's own cycling
 
     const next = [...items];
     if (op === 'insert') {

@@ -421,6 +421,25 @@ export function splitTypstList(raw: string): { start: number; end: number }[] | 
 }
 
 /**
+ * Is this parenthesised literal a DICTIONARY rather than an array?
+ *
+ * `(x: 8pt, y: 4pt)` and `(auto, 1fr)` are both "a paren with commas in it", and
+ * telling them apart matters: a dictionary's entries are NOT positional, so
+ * resizing one the way a per-column array is resized duplicates a key and Typst
+ * refuses the document outright — `error: duplicate key: x`, verified against
+ * 0.15.1. `inset:` and `stroke:` accept both forms, so this is not hypothetical.
+ *
+ * The signal is a bare `ident:` at the start of every top-level entry. A colon
+ * inside a string (`("a:b", "c")`) or inside a nested call does not count,
+ * because the entry does not START with an identifier followed by one.
+ */
+export function isTypstDictLiteral(raw: string): boolean {
+  const parts = splitTypstList(raw);
+  if (!parts || parts.length === 0) return false;
+  return parts.every(p => /^[\p{L}_][\p{L}\p{N}_-]*\s*:/u.test(raw.slice(p.start, p.end).trim()));
+}
+
+/**
  * Reads the run of content blocks that begins at `from`: `[A][B][C]` → three.
  *
  * Adjacency is required, as everywhere else in Typst — `[A] [B]` is one block

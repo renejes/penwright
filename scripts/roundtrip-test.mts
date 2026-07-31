@@ -13,7 +13,7 @@ import { serializeTypst } from '../src/editor/lib/serializer.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
 import { markdownToTypst } from '../src/shared/markdownImporter.ts';
 import { DESIGN_ELEMENTS, renderDesignElement } from '../src/shared/designElements.ts';
-import { shiftTableColumn } from '../src/shared/tableParams.ts';
+import { shiftTableColumn, reconcileTableParams } from '../src/shared/tableParams.ts';
 
 let pass = 0;
 let fail = 0;
@@ -701,6 +701,27 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   const short = shiftTableColumn('columns: (auto, 1fr, auto), align: (left, right)', 'insert', 1);
   check('an array the author left short is untouched here too',
     short.includes('align: (left, right)') && !short.includes('align: (left, right,'), short);
+
+  // ── A DICTIONARY is not a per-column array ──────────────────────────
+  // `inset:` and `stroke:` accept both forms, and `(x: 8pt, y: 4pt)` splits into
+  // two entries that look exactly like a two-column array. Resizing one
+  // duplicates a key and Typst refuses the WHOLE document — `duplicate key: x`,
+  // verified against 0.15.1. The user adds a column through the gear menu and
+  // their document stops compiling.
+  for (const [name, param] of [
+    ['inset', 'inset: (x: 8pt, y: 4pt)'],
+    ['stroke', 'stroke: (top: 1pt, bottom: 2pt)'],
+  ] as [string, string][]) {
+    const withDict = `columns: (auto, 1fr), ${param}`;
+    check(`a ${name} dictionary survives an insert untouched`,
+      shiftTableColumn(withDict, 'insert', 1).includes(param), shiftTableColumn(withDict, 'insert', 1));
+    check(`a ${name} dictionary survives a reconcile untouched`,
+      reconcileTableParams(withDict, 3).includes(param), reconcileTableParams(withDict, 3));
+  }
+  // …while an array whose entries merely CONTAIN an operator is still an array.
+  const plus = shiftTableColumn('columns: (auto, 1fr), align: (left + top, right + top)', 'insert', 1);
+  check('align entries with `+` are still treated as a per-column array',
+    plus.includes('align: (left + top, left + top, right + top)'), plus);
 
   // An expression is not ours to rewrite.
   const expr = 'columns: (1fr,) * 3, align: (left, center, right)';
