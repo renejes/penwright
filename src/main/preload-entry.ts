@@ -85,6 +85,7 @@ const INVOKE_CHANNELS = [
   'project:replaceAll',
   'project:listLabels',
   'project:listMacros',
+  'project:pickAsset',
   'comments:list',
   'comments:create',
   'comments:update',

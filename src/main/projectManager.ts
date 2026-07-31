@@ -530,6 +530,41 @@ function insertImageIntoDocument(srcAbs: string, data?: Buffer): void {
   }
 }
 
+/**
+ * Picks an asset and returns the path to WRITE somewhere, instead of inserting
+ * an image node.
+ *
+ * A building block's `path` parameter needs a value in a form field, and the
+ * existing image path is fire-and-forget: it places the file and tells the
+ * renderer to insert a node. A form field needs the string back, so this is a
+ * request/response — but it routes through the same `placeAssetFromPath`, so a
+ * picked asset lands in exactly the same place with exactly the same dedup and
+ * the same file-relative path as one inserted any other way (P1: one placement
+ * rule, `shared/assetPlacement.ts`).
+ */
+export async function pickAssetPath(targetFile?: string | null): Promise<{ src: string } | null> {
+  const projectDir = assetProjectDir();
+  const forFile = targetFile ?? appState.currentFilePath;
+  if (!projectDir || !forFile) return null;
+  const dict = resolveDict(getLocale()).mainDialogs;
+  const result = await dialog.showOpenDialog({
+    title: dict.addAssetsTitle,
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'pdf'] }],
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  try {
+    const placed = placeAssetFromPath(projectDir, result.filePaths[0]);
+    if (!placed.reused) {
+      appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
+    }
+    return { src: assetPathFrom(forFile, placed.abs) };
+  } catch (err) {
+    console.error('[penwright] Failed to place picked asset:', err);
+    return null;
+  }
+}
+
 export function handleDropImage(name: string, dataBase64: string): void {
   if (!appState.currentFilePath) return;
   // `name` comes from the renderer (a dropped File's name); `placeAsset`

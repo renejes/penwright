@@ -26,7 +26,7 @@
     "mcp": "node dist/mcp/server.mjs",
     "check:mcp": "node scripts/check-mcp-tool-consistency.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && svelte-check --threshold error",
-    "test:unit": "tsx scripts/roundtrip-test.mts && tsx scripts/project-macros-test.mts && tsx scripts/html-export-test.mts && tsx scripts/docx-magazine-test.mts && tsx scripts/watch-ignore-test.mts && tsx scripts/write-provenance-test.mts",
+    "test:unit": "tsx scripts/roundtrip-test.mts && tsx scripts/project-macros-test.mts && tsx scripts/macro-edit-test.mts && tsx scripts/html-export-test.mts && tsx scripts/docx-magazine-test.mts && tsx scripts/watch-ignore-test.mts && tsx scripts/write-provenance-test.mts",
     "test:corpus": "tsx scripts/roundtrip-corpus-test.mts",
     "test:compile:corpus": "tsx scripts/compile-corpus-test.mts",
     "test:mcp": "npm run build:mcp && tsx scripts/mcp-manifest-test.mts && tsx scripts/parity-guards-test.mts && tsx scripts/session-handoff-test.mts && tsx scripts/style-guard-test.mts && tsx scripts/bibliography-test.mts && tsx scripts/print-export-test.mts",

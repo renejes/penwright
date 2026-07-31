@@ -66,6 +66,16 @@ export const editorLib = {
 
   // Magazine node editors (popups)
   macroEditHint: 'Esc or Cmd+Enter to close',
+  macroPickFile: 'Choose file…',
+  macroPathHint: 'A file path, relative to this document',
+  macroDefaultHint: 'Empty = the default from the definition',
+  macroDefaultValue: '(default)',
+  macroLabelBody: 'Content',
+  macroNoFields: 'This building block takes no values.',
+  macroShowCode: '</> Code',
+  macroShowCodeTooltip: 'Edit the Typst source of this building block',
+  macroShowCard: 'Form',
+  macroShowCardTooltip: 'Back to the form',
   macroLabelKicker: 'Kicker',
   macroLabelTitle: 'Title',
   macroLabelStandfirst: 'Standfirst',

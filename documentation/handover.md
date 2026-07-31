@@ -1,6 +1,6 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-31, Ende Session 47 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.28.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **66 Tools**
+> **Stand:** 2026-07-31, Ende Session 47 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.29.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **66 Tools**
 >
 > **Lies zuerst diese Datei, dann `CLAUDE.md`.** Das Fundament ist gebaut; ab hier geht es um eine Produktfrage, nicht mehr um Reparatur.
 
@@ -12,13 +12,13 @@
 
 Das gilt für alles drei — Text, Struktur, Design — und ausdrücklich auch für das, was die **KI erzeugt**: Wenn Claude für ein Magazin einen eigenen Design-Baustein baut, darf das Ergebnis für den Nutzer kein Code-Block sein, den er nur anschauen kann.
 
-Die Architektur dafür ist entschieden (§3). Stufe 0 und Stufe 1 sind **gebaut** (§3a, §4a); der Rest steht unverändert.
+Die Architektur dafür ist entschieden (§3). **Stufe 0, 1 und 2 sind gebaut**; damit ist die Kernaufgabe erledigt: ein KI-erfundener Baustein ist einfügbar UND bearbeitbar, ohne dass jemand Typst tippt.
 
-> ### ▶ Hier anfangen: **§4a, Stufe 2** — das Formular im Node-View
+> ### ▶ Hier anfangen: **§2 — Tabellen**
 >
-> Einfügen geht jetzt. **Bearbeiten** ist der Rest der Aufgabe, und der Punkt, an dem ein KI-erfundener Baustein aufhört, ein Code-Block zum Anschauen zu sein. Alles, was dafür gebraucht wird, liegt bereit: `src/shared/macroCall.ts` (der eine Call-Builder), der Katalog mit Parametern und Fundort, und ein Node-View, der schon heute `attrs.content` schreibt.
+> Der letzte offene Punkt der Umsetzungsreihenfolge und der größte Einzelgewinn für Nicht-Programmierer: **null von sechzehn Tabellen im Korpus sind editierbar**, auch nicht die Preistabellen in Renés Kundenangeboten. Begrenzte Arbeit an einem vorhandenen Parser, blockiert nichts, wird von nichts blockiert.
 >
-> **§2 (Tabellen) ist weiterhin der größte Einzelgewinn und unabhängig** — jederzeit machbar, blockiert nichts und wird von nichts blockiert. Wer wenig Zeit hat, macht das.
+> **Danach ist der manuelle Durchgang durch die App (§6) die größte Unsicherheit im Projekt** — inzwischen sieben Sessions ohne einen App-Start, und Stufe 1+2 sind reine UI-Arbeit, deren Kompilierbarkeit bewiesen ist und deren *Bedienbarkeit* nicht.
 
 ---
 
@@ -45,7 +45,20 @@ Drei Dinge daran waren **nicht** herleitbar und stehen jetzt fest:
 
 `scripts/project-macros-test.mts` kompiliert jeden erzeugten Aufruf gegen alle fünf echten Korpus-Projekte (63 Makros). Die Unit-Assertions tragen, was Kompilieren nicht kann: ein falscher Rumpf-Parameter kompiliert trotzdem, weil ein String gültiger Inhalt ist.
 
-**Was das für Stufe 2 heißt:** `src/shared/macroCall.ts` ist der **eine** Call-Builder (main + renderer + MCP). Stufe 2 gehört in dieselbe Datei — `parseMacroCall()` + `spliceArg()` daneben, damit Bauen und Zerlegen nicht auseinanderlaufen.
+**Stufe 2 — Instanzen bearbeiten** (`shared/macroCall.ts` + `typstRawBlock.ts`). Ein Raw-Block, der *genau ein* Aufruf eines sichtbaren Projekt-Bausteins ist, wird zu einer **Karte** mit Label und Werten; Klick öffnet ein Formular, `</>` führt zurück zum Code. Nichts wird neu erzeugt — eine Feldänderung ersetzt **einen Offset-Bereich**, alles andere überlebt wörtlich.
+
+Drei Typst-Fakten, jeder **am Compiler gemessen** statt hergeleitet, jeder eine Korruption bei falscher Annahme:
+- Ein `[…]`-Rumpf ist **Markup**: `(` `)` `{` `}` sind dort Zeichen, `"` ist ein Anführungszeichen. Ignoriert man das, gilt `#note[Ein Wert (mit Klammer]` als unparsbar und das Formular sperrt sich aus dem Block aus, den es gerade geschrieben hat. **Dritte Instanz derselben Fehlerklasse** in diesem Repo — sie kommt bei jedem neuen Scanner wieder.
+- `//` **ist** ein Kommentar in Markup und frisst das schließende `]`. Aber `http://` und `https://` sind ausgenommen — und **nur** die: `ftp://`, `mailto://` und ein nacktes `://` sind wieder Kommentar. Ein Kundenkapitel ist voller nackter URLs.
+- Ein angehängter `[…]`-Rumpf bindet **nur byte-direkt**. Ein Leerzeichen, ein Umbruch, sogar ein `/* c */` zwischen `)` und `[` ergibt „missing argument". Genau das verhindert, dass im LANGSAM-Interview `#frage[Frage]` die darunter stehende Antwort verschluckt.
+
+**Was der Parser ablehnt, lehnt er absichtlich ab.** Alles, was nicht ein ganzer Aufruf ist, gibt `null` und behält die Textarea. Ein Formular auf einem Block, den der Parser nur halb versteht, spleißt irgendwann in die falsche Stelle — dafür hat diese Codebasis schon zweimal bezahlt.
+
+**Die Erkennung ist EINE Funktion** (`findMacroForBlock`), wie §3 „Bauprinzip" verlangt. Ein CST-Umstieg tauscht sie aus und sonst nichts.
+
+**Bewusste Asymmetrie: kein MCP-Tool zum Bearbeiten.** Das Formular existiert, weil der Mensch kein Typst schreiben kann; die KI schreibt es nativ und ändert die Quelle direkt. `penwright_list_project_macros` gibt ihr denselben Katalog (P2/P3 gelten).
+
+**Womit es geprüft ist:** `scripts/macro-edit-test.mts` (74 Checks). Die tragende Schicht ist nicht die Fixture-Liste, sondern **Identität über den echten Korpus**: jedes Argument jeder echten Instanz mit *seinem eigenen* Wert gespleißt muss byte-identisch zurückkommen (131 Argumente, 83 Rümpfe) — ein Off-by-one, das keine Fixture zeigt, fällt hier sofort auf. Danach: das Formular über alle 232 Korpus-Felder (schreib X, lies X) und ein Compile jedes gespleißten Aufrufs.
 
 ---
 
@@ -69,7 +82,7 @@ Gemessen über 153 ausgelieferte und 55 echte Dateien: `deserializeTypst` über 
 
 ---
 
-## 2. Der größte Einzelgewinn — **Tabellen** (unabhängig, nicht der Startpunkt)
+## 2. Der größte Einzelgewinn — **Tabellen** ◀ DER NÄCHSTE SCHRITT
 
 **Null von sechzehn Tabellen im gesamten Korpus sind editierbar.** Auch nicht die Preistabellen in Renés Kundenangeboten. Jede einzelne ist ein Code-Block.
 
@@ -163,29 +176,19 @@ Vieles ist da und wird heute nur in eine Richtung benutzt:
 |---|---|---|
 | **0** | Modus-Stack im Block-Splitter (§3a) | ✅ Session 47 · `37643de` |
 | **1** | `listProjectMacros` + `visibleIn` + Picker-Sektion „Aus diesem Projekt" | ✅ Session 47 · `1426d06` |
-| **2** | `parseMacroCall` + `spliceArg` + Formular im `typstRawBlock`-Node-View | ⏳ **als nächstes** |
-| **3** | Tabellen (§2) | ⏳ offen, unabhängig, jederzeit |
-| später | CST, falls Verschachtelung in unbekannten Containern real wird | Bauprinzip aus §3 beachten |
+| **2** | `parseMacroCall` + Splice + Formular im `typstRawBlock`-Node-View | ✅ Session 47 |
+| **3** | **Tabellen (§2)** | ⏳ **offen — der nächste Schritt** |
+| später | CST, falls Verschachtelung in unbekannten Containern real wird | Bauprinzip aus §3 beachten: `findMacroForBlock` ist die auszutauschende Stelle |
 
-### Stufe 2 im Detail — was bereitliegt und was fehlt
+### Was Stufe 3 (Tabellen) von Stufe 2 erbt
 
-**Bereit:**
-- `src/shared/macroCall.ts` — `buildMacroCall()`, `macroSignature()`, `BODY_PARAM`, `PATH_PARAM`. Der eine Ort, den main, renderer und MCP teilen. **Dort gehört Stufe 2 hinein**, damit Bauen und Zerlegen nicht auseinanderlaufen.
-- `listProjectMacros(projectDir, targetFile)` liefert Name, Parameter (mit `defaultValue` und `isPath`), `bodyParam`, Label, Fundort.
-- Der `typstRawBlock`-Node-View schreibt heute schon `attrs.content` über `updateAttributes` — derselbe Pfad, den das Formular braucht.
-- `scripts/project-macros-test.mts` kompiliert erzeugte Aufrufe. Ein Splice-Test gehört daneben: **splicen, dann kompilieren.**
+Nicht die Optik, sondern die **Methode** — sie hat in dieser Session dreimal einen Fehler gefunden, den Nachdenken nicht gefunden hätte:
 
-**Was fehlt:**
-1. `parseMacroCall(content)` → `{ name, args: [{ name|null, start, end, raw }], bodyRange }`. Byte-Bereiche, keine Werte — das ist die halbe Miete von §3.
-2. `spliceArg(content, [start,end), wert)` → neuer Content. Nur der eine Bereich wird ersetzt; alles andere bleibt **wörtlich**, inklusive Formatierung und Kommentaren des Autors.
-3. Formular im Node-View: ein Feld pro Parameter, Textfeld für Strings, **Dateiauswahl für `isPath`** (sonst wieder `file not found`), Rumpf inline.
-4. Die Erkennung einer Instanz muss **eine einzige, austauschbare Funktion** bleiben (§3, „Bauprinzip"). Heute ein Scanner über Top-Level plus bekannte Container; morgen eine CST-Abfrage. Nicht über die Codebasis verstreuen.
-
-**Zwei Fallen, die aus Session 47 schon bekannt sind:**
-- Ein Argument darf **nicht** neu erzeugt werden, wenn es unverändert bleibt. `#datetime.today()` in einem Argument, ein handgesetztes `#text(size: 54pt)` — die Round-Trip-Regel gilt hier genauso (CLAUDE.md).
-- Das Formular schreibt in einen Makro-**Rumpf**. Genau dafür war Stufe 0 der Blocker; der Splitter hält das jetzt aus, aber **jeder neue Test dazu gehört einmal gegen den zurückgenommenen Fix laufen gelassen**.
-
----
+1. **Erst den Korpus messen, dann den Parser schreiben.** Die Reihenfolge der Häufigkeiten (170 × `#name[body]` ohne Klammern) hat das Design bestimmt. Für Tabellen heißt das: erst zählen, welche `#table(...)`-Formen real vorkommen — `columns:`-Tupel, `align:`-Tupel, `table.header[..][..]`, `inset:`, Zellen mit `#text(...)`.
+2. **Den Compiler fragen, nicht schließen.** Drei Wegwerf-`.typ` und `resources/bin/typst-*` beantworten in zwanzig Sekunden, was eine Stunde Überlegung falsch beantwortet.
+3. **Identität über den echten Korpus als tragender Test.** Jede Zelle mit ihrem eigenen Wert ersetzt → byte-identisch. Das ist der Test, der Off-by-one-Fehler fängt, die keine Fixture zeigt.
+4. **Die Round-Trip-Regel gilt unverändert** (§2, Ende): liest `parseTable` ein `align:`, muss der Serializer es zurückschreiben. Sonst tauscht man Unzugänglichkeit gegen stillen Verlust.
+5. **Ablehnen ist eine gültige Antwort.** Was der Parser nicht ganz versteht, bleibt Raw-Block. Verbatim exportiert weiterhin.
 
 ## 5. Was dabei nicht kaputtgehen darf
 
@@ -198,7 +201,7 @@ Vieles ist da und wird heute nur in eine Richtung benutzt:
 
 ## 6. Was sonst noch offen ist
 
-- **Der manuelle Durchgang durch die App steht weiterhin aus.** Nach sieben Sessions ohne einen einzigen App-Start die größte Unsicherheit im Projekt — und für diese Aufgabenstellung besonders relevant, weil „zugänglich" sich nur am laufenden Programm beurteilen lässt. Besonders: Document-Settings (schreibt jetzt die Wurzel), „Kapitel hinzufügen", Bild-Drag-and-Drop, Design-Panel → „Bausteine", Verlaufs-Hub, KI-Anzeige in der Statusleiste. Neu und ungeprüft: **Attached Lists** (`typstListAttach.ts` — was macht ProseMirror beim Neuanlegen/Teilen einer Liste?), dass **Termlisten und Titelseiten jetzt Raw-Blocks sind** (richtig entschieden, UX-seitig anzuschauen), und aus Session 47 die **Gruppe „Aus diesem Projekt"** in Slash-Menü und ＋-Dropdown: taucht sie auf, sind die Labels lesbar, und ergibt der eingefügte Aufruf im Editor etwas Sinnvolles? Getestet ist, dass er **kompiliert** — nicht, wie er sich anfühlt.
+- **Der manuelle Durchgang durch die App steht weiterhin aus — und ist nach Stufe 1+2 dringender als vorher.** Beide Stufen sind zum großen Teil UI-Arbeit: dass die erzeugten Aufrufe *kompilieren* und die Spleiße *byte-genau* sind, ist bewiesen; dass die **Baustein-Karte im Editor gut zu bedienen** ist, ist es nicht. Konkret anzuschauen: taucht die Karte statt des Code-Blocks auf, sind die Feld-Labels verständlich, funktioniert `</>` in beide Richtungen, tut der Datei-Picker bei einem `path`-Feld das Richtige, und stört das Popup beim Scrollen (es wird beim Öffnen einmal positioniert und folgt nicht). Nach sieben Sessions ohne einen einzigen App-Start die größte Unsicherheit im Projekt — und für diese Aufgabenstellung besonders relevant, weil „zugänglich" sich nur am laufenden Programm beurteilen lässt. Besonders: Document-Settings (schreibt jetzt die Wurzel), „Kapitel hinzufügen", Bild-Drag-and-Drop, Design-Panel → „Bausteine", Verlaufs-Hub, KI-Anzeige in der Statusleiste. Neu und ungeprüft: **Attached Lists** (`typstListAttach.ts` — was macht ProseMirror beim Neuanlegen/Teilen einer Liste?), dass **Termlisten und Titelseiten jetzt Raw-Blocks sind** (richtig entschieden, UX-seitig anzuschauen), und aus Session 47 die **Gruppe „Aus diesem Projekt"** in Slash-Menü und ＋-Dropdown: taucht sie auf, sind die Labels lesbar, und ergibt der eingefügte Aufruf im Editor etwas Sinnvolles? Getestet ist, dass er **kompiliert** — nicht, wie er sich anfühlt.
 - **Windows/Linux-Packaging.** `fetch:typst` holt die Binaries, aber `extraResources` filtert auf `typst-*` und kopiert **jede** vorhandene Binary in **jeden** Build. Zusammen mit der ohnehin ausstehenden Verifikation auf echtem Gerät anfassen.
 - **codly 1.3.0** referenziert den in 0.15 entfernten `pattern`-Typ; 1.3.0 ist die neueste Version. Nichts, was wir ausliefern, erreicht diese Zweige. Auf codly 1.4 warten.
 - **`paper-preprint` / `thesis-classic`** fordern *New Computer Modern* in Semibold — Typsts eingebaute Schrift hat nur 400/700. Sechs Stellen rendern bold; durch Bündeln nicht lösbar.
@@ -213,7 +216,7 @@ Vieles ist da und wird heute nur in eine Richtung benutzt:
 
 - **`npm test`** = `check:mcp` → `typecheck` → `test:unit` → `test:corpus` → `test:compile:corpus` → `test:mcp`. Läuft in `package:*`.
 - **`penwright.corpus.json`** (git-ignoriert) zeigt auf `~/Desktop/LANGSAM` und die beiden Marketing-Ordner. **Wenn René diese Dokumente bearbeitet, kann `npm test` hier rot werden** — das ist das Gate, kein Fehler.
-- **`MCP_SETUP_VERSION` = 0.28.0.** `ensureInstalledBinary` kopiert bei jedem App-Start bedingungslos aus `dist/mcp/bin/`. Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary landet** (Deserializer, `designElements`, `skillTemplates`): bumpen **und** `npm run build:mcp-binary:all`.
+- **`MCP_SETUP_VERSION` = 0.29.0.** `ensureInstalledBinary` kopiert bei jedem App-Start bedingungslos aus `dist/mcp/bin/`. Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary landet** (Deserializer, `designElements`, `skillTemplates`): bumpen **und** `npm run build:mcp-binary:all`.
 - **`npm run fetch:typst`** ist die einzige Wahrheit für die Typst-Version (`TYPST_VERSION` im Skript). `--check` verifiziert ohne Download.
 
 ---
@@ -225,6 +228,7 @@ Vieles ist da und wird heute nur in eine Richtung benutzt:
 - **Erst beweisen, dann normalisieren.** Zwölf Baseline-Einträge sahen nach harmloser Formatierung aus. Sie waren es — aber `#align(center + horizon)` sah genauso aus und war es nicht.
 - **Zwei Messfallen, die falschen Alarm produziert haben** (behoben, als Regel in CLAUDE.md): Pixel hashen statt der PNG-Datei (0.15 komprimiert anders → 39/39 Projekte falsch rot), und System-Fonts ignorieren (sonst misst man den eigenen Font-Ordner).
 - **Nach einem Parser-Umbau den UNVERÄNDERTEN Korpus gegenprüfen.** Nicht „gehen die neuen Tests durch", sondern: parst irgendeine bestehende Datei jetzt *anders*? Session 47 hat so zwei Regressionen gefunden, die die neuen Tests glatt passiert hatten — eine davon in einem Kundendokument.
+- **Dieselbe Fehlerklasse kommt bei JEDEM neuen Scanner wieder: Delimiter einheitlich zu zählen.** Dreimal bezahlt — Prosa auf oberster Ebene (`c3ba300`), Prosa im Makro-Rumpf (Stufe 0), und der Aufruf-Parser in Stufe 2. Typst hat zwei Modi: in Markup gruppieren nur `[` `]`, in Code alle sechs. Wer einen Scanner schreibt, schreibt den Modus-Stack mit.
 - **Der Compiler beantwortet Syntaxfragen billiger als Nachdenken.** Drei Wegwerf-`.typ` und `resources/bin/typst-*` klären in zwanzig Sekunden, ob `(` in Markup gruppiert. Die Regel, die dieser Session am meisten Zeit gespart hat.
 - **Ein Gate, das zufällig rot wird, ist ausgeschaltet.**
 

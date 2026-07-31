@@ -22,113 +22,12 @@
 
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { t } from '../../shared/i18n/store.svelte';
+import { attachFieldPopup } from './fieldPopup';
 
 /** Shared parse rule: match our neutral wrapper for node `name`. */
 const pwTag = (name: string) => `div[data-pw="${name}"]`;
 
 // ─── Shared field-editor popup (atom nodes: articleHeader, marginNote) ───────
-// A small popup with one labelled <textarea> per editable string field, live-
-// saving into the node's attrs. Mirrors the footnote popup pattern (plain DOM,
-// no Svelte) so atoms whose data lives in attrs are still editable in-editor.
-
-interface PopupField {
-  key: string;
-  label: string;
-  rows?: number;
-}
-
-/** Wires a click-to-edit popup onto an atom node-view's `dom`. Returns nothing;
- *  attaches its own listeners + cleanup hook (call the returned destroy()). */
-function attachFieldPopup(
-  dom: HTMLElement,
-  fields: PopupField[],
-  getNode: () => { attrs: Record<string, unknown> },
-  getPos: () => number | undefined,
-  editor: Editor,
-  titleText: string,
-): () => void {
-  let popup: HTMLDivElement | null = null;
-  let backdrop: HTMLDivElement | null = null;
-
-  const close = () => {
-    popup?.remove();
-    backdrop?.remove();
-    popup = backdrop = null;
-  };
-
-  const save = (key: string, value: string) => {
-    const pos = getPos();
-    if (pos === undefined) return;
-    editor.view.dispatch(
-      editor.view.state.tr.setNodeMarkup(pos, undefined, { ...getNode().attrs, [key]: value }),
-    );
-  };
-
-  const open = () => {
-    if (popup) { close(); return; }
-    const rect = dom.getBoundingClientRect();
-    backdrop = document.createElement('div');
-    backdrop.className = 'footnote-popup-backdrop';
-    backdrop.addEventListener('mousedown', (e) => { e.preventDefault(); close(); });
-    document.body.appendChild(backdrop);
-
-    popup = document.createElement('div');
-    popup.className = 'footnote-popup pw-macro-popup';
-    popup.style.left = `${rect.left}px`;
-    popup.style.top = `${rect.bottom + 4}px`;
-
-    const heading = document.createElement('div');
-    heading.className = 'footnote-popup-label';
-    heading.textContent = titleText;
-    popup.appendChild(heading);
-
-    for (const f of fields) {
-      const label = document.createElement('label');
-      label.className = 'pw-macro-popup-field-label';
-      label.textContent = f.label;
-      popup.appendChild(label);
-
-      const ta = document.createElement('textarea');
-      ta.className = 'footnote-popup-textarea';
-      ta.rows = f.rows ?? 1;
-      ta.value = String(getNode().attrs[f.key] ?? '');
-      ta.addEventListener('input', () => {
-        ta.style.height = 'auto';
-        ta.style.height = ta.scrollHeight + 'px';
-        save(f.key, ta.value);
-      });
-      ta.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
-          e.preventDefault();
-          close();
-          editor.commands.focus();
-        }
-      });
-      popup.appendChild(ta);
-    }
-
-    const hint = document.createElement('div');
-    hint.className = 'footnote-popup-hint';
-    hint.textContent = t().editorLib.macroEditHint;
-    popup.appendChild(hint);
-
-    document.body.appendChild(popup);
-    requestAnimationFrame(() => {
-      const first = popup?.querySelector('textarea');
-      first?.focus();
-      popup?.querySelectorAll('textarea').forEach((el) => {
-        const ta = el as HTMLTextAreaElement;
-        ta.style.height = 'auto';
-        ta.style.height = ta.scrollHeight + 'px';
-      });
-    });
-  };
-
-  const onClick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); open(); };
-  dom.addEventListener('click', onClick);
-  return () => { close(); dom.removeEventListener('click', onClick); };
-}
-
 // ─── articleHeader (← opener) — block atom ──────────────────────────────────
 // kicker / title / standfirst / byline are named string args; the title also
 // becomes the outline-visible H1 (preview-follows-chapter reads `title:`).
@@ -228,12 +127,23 @@ export const ArticleHeader = Node.create({
       render();
 
       const pos = () => { const p = typeof getPos === 'function' ? getPos() : undefined; return typeof p === 'number' ? p : undefined; };
-      const destroy = attachFieldPopup(dom, [
-        { key: 'kicker', label: t().editorLib.macroLabelKicker },
-        { key: 'title', label: t().editorLib.macroLabelTitle },
-        { key: 'standfirst', label: t().editorLib.macroLabelStandfirst, rows: 2 },
-        { key: 'byline', label: t().editorLib.macroLabelByline },
-      ], () => current, pos, editor, t().editorLib.macroOpenerEditTitle);
+      const destroy = attachFieldPopup(dom, () => ({
+        fields: [
+          { key: 'kicker', label: t().editorLib.macroLabelKicker },
+          { key: 'title', label: t().editorLib.macroLabelTitle },
+          { key: 'standfirst', label: t().editorLib.macroLabelStandfirst, rows: 2 },
+          { key: 'byline', label: t().editorLib.macroLabelByline },
+        ],
+        read: (key) => String(current.attrs[key] ?? ''),
+        write: (key, value) => {
+          const at = pos();
+          if (at === undefined) return;
+          editor.view.dispatch(
+            editor.view.state.tr.setNodeMarkup(at, undefined, { ...current.attrs, [key]: value }),
+          );
+        },
+        title: t().editorLib.macroOpenerEditTitle,
+      }));
 
       return {
         dom,
@@ -331,11 +241,18 @@ export const MarginNote = Node.create({
       render();
 
       const pos = () => { const p = typeof getPos === 'function' ? getPos() : undefined; return typeof p === 'number' ? p : undefined; };
-      const destroy = attachFieldPopup(
-        dom,
-        [{ key: 'body', label: t().editorLib.macroLabelNote, rows: 3 }],
-        () => current, pos, editor, t().editorLib.macroMarginNoteEditTitle,
-      );
+      const destroy = attachFieldPopup(dom, () => ({
+        fields: [{ key: 'body', label: t().editorLib.macroLabelNote, rows: 3 }],
+        read: (key) => String(current.attrs[key] ?? ''),
+        write: (key, value) => {
+          const at = pos();
+          if (at === undefined) return;
+          editor.view.dispatch(
+            editor.view.state.tr.setNodeMarkup(at, undefined, { ...current.attrs, [key]: value }),
+          );
+        },
+        title: t().editorLib.macroMarginNoteEditTitle,
+      }));
 
       return {
         dom,

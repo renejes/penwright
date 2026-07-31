@@ -65,6 +65,16 @@ export const editorLib: EditorLibMessages = {
 
   // Magazin-Node-Editoren (Popups)
   macroEditHint: 'Esc oder Cmd+Enter zum Schließen',
+  macroPickFile: 'Datei wählen…',
+  macroPathHint: 'Ein Dateipfad, relativ zu diesem Dokument',
+  macroDefaultHint: 'Leer = der Vorgabewert aus der Definition',
+  macroDefaultValue: '(Vorgabe)',
+  macroLabelBody: 'Inhalt',
+  macroNoFields: 'Dieser Baustein nimmt keine Werte.',
+  macroShowCode: '</> Code',
+  macroShowCodeTooltip: 'Den Typst-Quelltext dieses Bausteins bearbeiten',
+  macroShowCard: 'Formular',
+  macroShowCardTooltip: 'Zurück zum Formular',
   macroLabelKicker: 'Kicker',
   macroLabelTitle: 'Titel',
   macroLabelStandfirst: 'Vorspann',

@@ -2215,3 +2215,84 @@ body {
   margin: 0.5em 0 0.2em;
 }
 .pw-opener-empty { color: var(--pw-mag-muted); font-style: italic; font-weight: 400; }
+
+/* ─── Building-block card (a raw block that is one project-macro call) ──────
+   The point of Stufe 2: a block the project defines itself reads as a labelled
+   card with its values, not as a wall of Typst. `</>` is the escape hatch. */
+.typst-raw-block.pw-has-macro-card { cursor: pointer; }
+.typst-raw-block.pw-has-macro-card .typst-raw-label { display: none; }
+
+.pw-macro-card {
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.28));
+  border-left: 3px solid var(--vscode-textLink-foreground, #4a9eff);
+  border-radius: 4px;
+  padding: 0.55em 0.75em;
+  background: var(--vscode-editor-background, transparent);
+}
+.pw-macro-card:hover { border-color: var(--vscode-textLink-foreground, #4a9eff); }
+
+.pw-macro-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75em;
+  margin-bottom: 0.35em;
+}
+.pw-macro-card-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--vscode-textLink-foreground, #4a9eff);
+}
+.pw-macro-card-toggle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.7rem;
+  opacity: 0.55;
+  color: inherit;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+.pw-macro-card-toggle:hover { opacity: 1; background: rgba(128, 128, 128, 0.15); }
+.pw-macro-back { display: block; margin-top: 0.35em; }
+
+.pw-macro-card-rows { display: grid; grid-template-columns: auto 1fr; gap: 0.15em 0.8em; }
+.pw-macro-card-key {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+.pw-macro-card-value {
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-macro-card-empty { opacity: 0.45; font-style: italic; }
+
+.pw-macro-popup-wide { min-width: 340px; max-width: 460px; }
+.pw-macro-popup-code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.82rem;
+}
+.pw-macro-popup-field-hint {
+  font-size: 0.68rem;
+  opacity: 0.5;
+  margin: 0.15em 0 0.1em;
+}
+.pw-macro-popup-action {
+  display: inline-block;
+  margin: 0.3em 0 0.1em;
+  padding: 0.25em 0.7em;
+  font-size: 0.75rem;
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border-radius: 3px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+.pw-macro-popup-action:hover { background: rgba(128, 128, 128, 0.18); }

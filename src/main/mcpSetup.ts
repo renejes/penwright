@@ -78,7 +78,10 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // penwright_list_project_macros and as the "From this project" group in the
 // user's insert menu. `shared/macroCall.ts` is the one call builder both sides
 // use.
-export const MCP_SETUP_VERSION = '0.28.0';
+// 0.29.0: Stufe 2 — `shared/macroCall.ts` gained the parser and splicer
+// (parseMacroCall / setNamedArg / findMacroForBlock), and it ships in this
+// binary alongside the deserializer.
+export const MCP_SETUP_VERSION = '0.29.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

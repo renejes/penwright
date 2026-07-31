@@ -24,7 +24,7 @@ function isPathWithinProject(filePath: string): boolean {
   return isPathWithin(filePath, projectRoot);
 }
 import { handleRequestCitations, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
-import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets } from './projectManager';
+import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets, pickAssetPath } from './projectManager';
 import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset, listPresetStyles, getPresetStyle, renderPresetPreview } from './presetManager';
 import {
   getPanelState,
@@ -1498,6 +1498,12 @@ export function setupIPC(): void {
 
   ipcMain.handle('project:listLabels', () => {
     return listProjectLabels();
+  });
+
+  // Picks an asset and RETURNS its path, for a building block's `path` field.
+  // Same placement rule as every other image entry point.
+  ipcMain.handle('project:pickAsset', (_event, opts?: { targetFile?: string | null }) => {
+    return pickAssetPath(opts?.targetFile ?? null);
   });
 
   // The building blocks THIS project defines. Scoped to the open file by
