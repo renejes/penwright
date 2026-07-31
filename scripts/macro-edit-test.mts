@@ -140,6 +140,19 @@ console.log('\n── Shapes measured over 506 real call sites ──');
     check('…so the picked path is quoted', out === '#hero(bild: "assets/feature.png")[Ein Absatz.]', out);
   }
 
+  // Clearing a positional CODE field has no meaning — there is no default to
+  // fall back to — and writing it produced `#modul(, "Fachartikel")`, which
+  // Typst refuses (`unexpected comma`, verified). An empty string or content
+  // block is fine: `""` and `[]` are both valid.
+  {
+    const src = '#modul("2.1", "Fachartikel")[\n  Inhalt\n]';
+    check('clearing a positional code field is refused, not written',
+      writeMacroField(src, 'pos:0', 'expr', '') === null, writeMacroField(src, 'pos:0', 'expr', ''));
+    check('…while an empty string is a legitimate value',
+      writeMacroField(src, 'pos:0', 'string', '') === '#modul("", "Fachartikel")[\n  Inhalt\n]',
+      writeMacroField(src, 'pos:0', 'string', ''));
+  }
+
   // A comment inside the argument list must survive an edit untouched.
   const withComment = '#modul(\n  "2.1",  // die Nummer\n  "Titel",\n)';
   const pcm = parseMacroCall(withComment)!;

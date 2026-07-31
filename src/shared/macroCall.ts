@@ -802,6 +802,11 @@ export function writeMacroField(
   if (!parsed) return null;
   if (key === 'body') return setBody(content, parsed, text);
   if (key.startsWith('pos:')) {
+    // A positional has no default to fall back to, so "empty" has no meaning for
+    // an expression: writing it produced `#modul(, "Fachartikel")`, which Typst
+    // refuses outright (`unexpected comma`). A string or a content block CAN be
+    // empty — `""` and `[]` are both valid — so only the code case is refused.
+    if (kind === 'expr' && text.trim() === '') return null;
     return setPositionalArg(content, parsed, Number(key.slice(4)), encodeArgValue(kind, text));
   }
   const name = key.slice(6);
