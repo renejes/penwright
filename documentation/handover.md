@@ -1,8 +1,8 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-31, Ende Session 47 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.30.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **66 Tools**
+> **Stand:** 2026-07-31, Ende Session 47 · Branch `main`, alles committet und gepusht · App **0.12.0** · `MCP_SETUP_VERSION` **0.38.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **66 Tools**
 >
-> **Lies zuerst diese Datei, dann `CLAUDE.md`.** Das Fundament ist gebaut; ab hier geht es um eine Produktfrage, nicht mehr um Reparatur.
+> **Lies zuerst diese Datei, dann `CLAUDE.md`.**
 
 ---
 
@@ -10,58 +10,85 @@
 
 **Penwright soll von jemandem benutzbar sein, der kein Typst schreiben kann.**
 
-Das gilt für alles drei — Text, Struktur, Design — und ausdrücklich auch für das, was die **KI erzeugt**: Wenn Claude für ein Magazin einen eigenen Design-Baustein baut, darf das Ergebnis für den Nutzer kein Code-Block sein, den er nur anschauen kann.
+Das gilt für Text, Struktur und Design — und ausdrücklich für das, was die **KI erzeugt**: Wenn Claude für ein Magazin einen eigenen Design-Baustein baut, darf das Ergebnis für den Nutzer kein Code-Block sein, den er nur anschauen kann.
 
-**Die gesamte Umsetzungsreihenfolge aus §4a ist abgearbeitet** — Stufe 0, 1, 2 und 3. Ein KI-erfundener Baustein ist einfügbar und bearbeitbar, und Tabellen sind es auch, ohne dass jemand Typst tippt.
+**Die Umsetzungsreihenfolge aus §4a ist vollständig abgearbeitet** (Stufen 0–3). Ein KI-erfundener Baustein ist einfügbar *und* bearbeitbar, Tabellen sind es auch, und jeder verbleibende Code-Block sagt wenigstens, was er ist. **René hat das laufende Programm gesehen und die Karten ausdrücklich gut gefunden** — die Arbeit ist damit aus der „ungeprüft"-Phase heraus.
 
-> ### ▶ Hier anfangen: **§6, der manuelle Durchgang durch die App**
+> ### ▶ Hier anfangen: **UI-Polish** (§0c)
 >
-> Das ist jetzt die mit Abstand größte Unsicherheit im Projekt und kein Nebenpunkt mehr. Acht Sessions ohne einen einzigen App-Start, und die letzten drei Stufen sind **zum großen Teil UI-Arbeit**: dass die erzeugten Aufrufe kompilieren, die Spleiße byte-genau sind und 39 Projekte pixelgleich rendern, ist bewiesen. Dass die Baustein-Karte und die Tabellen im Editor **gut zu bedienen** sind, ist es nicht — das lässt sich nur am laufenden Programm beurteilen.
+> Die Substanz steht und ist belegt. Was fehlt, ist der Feinschliff an den Oberflächen, die diese Session gebaut hat — und die Liste dafür kommt aus einem echten Durchgang durch die App, nicht aus Vermutungen. §0c nennt sie.
 >
-> Danach: die offenen Punkte aus §6 (Windows-Packaging, Launch-Blocker) und der CST, falls Verschachtelung in unbekannten Containern real wird (§3, Ende).
+> **Danach optional die Rumpf-Karte** (§0d): eine Karte mit *einem* Feld für Blöcke wie `#text(size: 0.88em)[…]`, deren `[…]` echten Fließtext trägt. Reichweite ~30 Blöcke im Korpus — bewusst klein, das Urteil eines Juroren-Panels steht in §0d.
 
 ---
 
 ## 0a. Was Session 47 gebaut hat
 
-**Stufe 0 — der Modus-Stack im Block-Splitter** (`deserializer.ts`, Commit `37643de`). Erledigt, mit einer Korrektur an der Diagnose des letzten Handovers.
+Eine lange Session. In der Reihenfolge, in der es entstanden ist:
 
-Der Befund stimmte, die **Schwere nicht**: Gemessen über den Korpus kostet ein `(` im Makro-Rumpf **154 von 189 Überschriften in den echten Kundendokumenten (29 von 49 Dateien)** — aber **kein einziges Byte**. Der zusammengeführte Block beginnt mit `#`, wird deshalb als Raw-Block wörtlich behalten und kommt unverändert zurück. Es ist ein **Struktur-Verlust, kein Daten-Verlust**: alles unterhalb des Tippfehlers hört auf, ein Dokument zu sein, und wird ein einziger uneditierbarer Code-Block. Das PDF bleibt identisch.
+### Die vier Stufen (der eigentliche Auftrag)
 
-**Eine echte Zerstörung gab es trotzdem**, nur an anderer Stelle als vermutet: `Ein #emph[Wort]. Und dann (offen` führt zu einem **Paragraph** statt eines Raw-Blocks, und dort wird `= Überschrift` zu wörtlichem Text — genau die Fehlerklasse von `c3ba300`. Ursache war die Peek-Regel, die einen **satzschließenden Punkt** für eine Aufrufkette hielt.
+| Stufe | Was | Commit |
+|---|---|---|
+| **0** | **Modus-Stack im Block-Splitter.** Typst hat zwei Modi; in Markup gruppieren nur `[` `]`. Ein `(` im Makro-Rumpf machte vorher den Rest der Datei zu *einem* Block: 154 von 189 Überschriften in den echten Kundendokumenten. Byte-identisch, aber Struktur weg. | `37643de` |
+| **1** | **Katalog projekt-eigener Bausteine.** Aus den `#let`-Definitionen abgeleitet, keine Registrierung nötig, Sichtbarkeit **pro Datei** (ein Wurzel-`#import` erreicht kein `#include`tes Kapitel — am Compiler bewiesen). Slash-Menü, ＋-Dropdown, MCP-Tool `penwright_list_project_macros`. | `1426d06` |
+| **2** | **Baustein-Karte mit Formular.** Ein Block, der genau ein Aufruf ist, wird eine Karte; eine Feldänderung spleißt **einen Offset-Bereich**, alles andere überlebt wörtlich. `findMacroForBlock` ist die eine austauschbare Erkennungsfunktion. | `9d84e53` |
+| **3** | **Tabellen.** Vorher **0 von 16** editierbar, jetzt 10 von 16. Die Parameterliste (`align`, `fill`, `stroke`) wird wörtlich getragen, die **Zellen** werden editierbar. 6 Ablehnungen sind Absicht. | `aa9b4ac` |
 
-Zwei Fallen, beide erst durch Messen gefunden — die zweite ist die wichtigere Lehre:
-- **Ein Hash-Ausdruck reicht nur so weit wie sein eigener Pfad.** `#sym.dagger` endet beim `r`. Wer für jedes `#` einen Frame öffnet, schließt diesen nie — und er frisst dann das `]`, das die Tabellenzelle beendet, in der er steht. Gefunden, indem der **unveränderte** Korpus nach dem Fix neu geparst wurde und zwei Dateien *weniger* Überschriften hatten als vorher (Sample-Projekt + ein Kundendokument). **Diese Gegenprobe gehört in jeden Parser-Umbau.**
-- Die Regeln von Markup vs. Code sind asymmetrisch und wurden **gegen den gebündelten Compiler geprüft**, nicht hergeleitet: in Markup gruppieren nur `[` `]`, `(` `)` `{` `}` sind Zeichen, `"` ist ein Anführungszeichen, `\[` escaped. In Code gruppieren alle sechs.
+### Was danach kam
 
-Ergebnis: 0 Dateien verlieren noch Überschriften (vorher 29 + 15), kein Byte-Drift dazu (er **sank**: Presets 62→53, echt 23→19), 12 Tests die ohne den Fix rot sind.
-
-**Stufe 1 — der Katalog projekt-eigener Bausteine** (Commit `1426d06`). `#modul`, `#insight`, `#sumrow`, `#box-choice` sind einfügbar, aus Slash-Menü, ＋-Dropdown und MCP.
-
-Drei Dinge daran waren **nicht** herleitbar und stehen jetzt fest:
-- **Der Rumpf geht an den Parameter, der so *heißt*** — nicht an den letzten positionalen. `#note(body, title: "…")` wird als `#note(title: "…")[…]` aufgerufen; der Rumpf ist der **erste** Parameter. Abgelesen an 36 echten Aufrufen, nicht überlegt.
-- **Ein `path`-Parameter benennt eine DATEI.** `#aufmacher(path, …)` reicht sein Argument an `image()` durch — ein Wort-Platzhalter ist kein Platzhalter, sondern `file not found`. Nur aufgefallen, weil der Test jeden erzeugten Aufruf **kompiliert**.
-- **Sichtbarkeit ist pro Datei**, wie das letzte Handover vermutet hat, und es ist gegen den Compiler bewiesen. Neu dazu: Stern-Importe **re-exportieren transitiv**, `visibleIn()` läuft deshalb den Import-Graphen, nicht einen Sprung.
-
-`scripts/project-macros-test.mts` kompiliert jeden erzeugten Aufruf gegen alle fünf echten Korpus-Projekte (63 Makros). Die Unit-Assertions tragen, was Kompilieren nicht kann: ein falscher Rumpf-Parameter kompiliert trotzdem, weil ein String gültiger Inhalt ist.
-
-**Stufe 2 — Instanzen bearbeiten** (`shared/macroCall.ts` + `typstRawBlock.ts`). Ein Raw-Block, der *genau ein* Aufruf eines sichtbaren Projekt-Bausteins ist, wird zu einer **Karte** mit Label und Werten; Klick öffnet ein Formular, `</>` führt zurück zum Code. Nichts wird neu erzeugt — eine Feldänderung ersetzt **einen Offset-Bereich**, alles andere überlebt wörtlich.
-
-Drei Typst-Fakten, jeder **am Compiler gemessen** statt hergeleitet, jeder eine Korruption bei falscher Annahme:
-- Ein `[…]`-Rumpf ist **Markup**: `(` `)` `{` `}` sind dort Zeichen, `"` ist ein Anführungszeichen. Ignoriert man das, gilt `#note[Ein Wert (mit Klammer]` als unparsbar und das Formular sperrt sich aus dem Block aus, den es gerade geschrieben hat. **Dritte Instanz derselben Fehlerklasse** in diesem Repo — sie kommt bei jedem neuen Scanner wieder.
-- `//` **ist** ein Kommentar in Markup und frisst das schließende `]`. Aber `http://` und `https://` sind ausgenommen — und **nur** die: `ftp://`, `mailto://` und ein nacktes `://` sind wieder Kommentar. Ein Kundenkapitel ist voller nackter URLs.
-- Ein angehängter `[…]`-Rumpf bindet **nur byte-direkt**. Ein Leerzeichen, ein Umbruch, sogar ein `/* c */` zwischen `)` und `[` ergibt „missing argument". Genau das verhindert, dass im LANGSAM-Interview `#frage[Frage]` die darunter stehende Antwort verschluckt.
-
-**Was der Parser ablehnt, lehnt er absichtlich ab.** Alles, was nicht ein ganzer Aufruf ist, gibt `null` und behält die Textarea. Ein Formular auf einem Block, den der Parser nur halb versteht, spleißt irgendwann in die falsche Stelle — dafür hat diese Codebasis schon zweimal bezahlt.
-
-**Die Erkennung ist EINE Funktion** (`findMacroForBlock`), wie §3 „Bauprinzip" verlangt. Ein CST-Umstieg tauscht sie aus und sonst nichts.
-
-**Bewusste Asymmetrie: kein MCP-Tool zum Bearbeiten.** Das Formular existiert, weil der Mensch kein Typst schreiben kann; die KI schreibt es nativ und ändert die Quelle direkt. `penwright_list_project_macros` gibt ihr denselben Katalog (P2/P3 gelten).
-
-**Womit es geprüft ist:** `scripts/macro-edit-test.mts` (74 Checks). Die tragende Schicht ist nicht die Fixture-Liste, sondern **Identität über den echten Korpus**: jedes Argument jeder echten Instanz mit *seinem eigenen* Wert gespleißt muss byte-identisch zurückkommen (131 Argumente, 83 Rümpfe) — ein Off-by-one, das keine Fixture zeigt, fällt hier sofort auf. Danach: das Formular über alle 232 Korpus-Felder (schreib X, lies X) und ein Compile jedes gespleißten Aufrufs.
+- **Tabellen-Feinarbeit** (`969ccd3`, `90a11d8`, `6cde411`, `33f68fb`): Spalten-Parameter wachsen mit; sie verschieben sich **positionsgenau** (der Editor weiß, *wo* eingefügt wurde — der Serializer kann das nie); Zahnrad-Menü fügt auf **beiden Seiten** ein; ein **Dictionary** (`inset: (x: 8pt, y: 4pt)`) wird nie wie ein Spalten-Array skaliert.
+- **Die vier ausgelieferten Dokumente überarbeitet** (`f9bd885`): `mcp-server.md` (drei Tools fehlten ganz, „65" statt 66), beide Handbücher (standen auf **0.10.0**, listeten das entfernte Terminal), `project_status.md`. Die Handbücher werden auch als **MCP-Ressource** ausgeliefert — falsche Angaben führen also Mensch *und* KI in die Irre.
+- **LANGSAM als Testprojekt umgebaut** (nicht im Repo): Tabelle im Kolophon (Tupel-`columns`, `align`-Array, **Dictionaries** für `inset`/`stroke`, Klammer-Header) plus drei neue Makros für drei Formularvarianten — `#datenzeile` (zwei Textfelder), `#bildnachweis` (**Dateiauswahl**), `#fussnotiz` (Rumpf + optionale Felder). Acht Karten, eine editierbare Tabelle. Dabei zwei Fehler *im Projekt* gefunden: die Kopfzeilen-Regel in `style.typ` war kaputt (nie aufgefallen, es gab keine Tabelle) und ein verirrtes `test` in `main.typ`.
+- **Namen für alle Blöcke + `#v` als Lücke** (`00cd33d`, auf Renés Vorschlag nach dem App-Durchgang): `shared/rawBlockDescription.ts` gibt jedem Raw-Block einen menschlichen Namen; ein einzelnes `#v(…)` wird eine schmale Lücke statt eines Kastens.
 
 ---
 
+## 0b. Was die Reviews gefunden haben — und was das über die Gates sagt
+
+**Elf echte Defekte, alle aus der Arbeit dieser Session.** Der wichtigste Befund ist nicht einer davon, sondern das Muster:
+
+> **Mehrere dokument-schädigende Fehler waren im Round-Trip byte-identisch.** Der Korpus-Test und das Pixel-Gate waren bei allen grün. Sie zerstören *Struktur* — und genau die vergleicht kein Gate.
+
+Konkret, damit die nächste Session weiß, wo die blinden Flecken sind:
+
+| Gefunden von | Was |
+|---|---|
+| Pixel-Gate | Zellen verloren `\`-Umbruch und `size:` aus `#text(…)` → **eine zusätzliche Seite** im Kundenangebot |
+| Adversarischer Review (30 Agents) | Dictionary-Korruption (`duplicate key`), Escape-Verdopplung bei jedem Öffnen, `//` als Argument gelesen, Kommentar in `#let`-Signatur löschte Parameter, Symlink-Leak aus dem Projekt heraus, Datei-Picker schrieb unquotiert, `npm test` rot ohne Korpus-Datei |
+| Mein eigener Verdacht | Dictionary-Fall, Popup-Leak am Spacer, `stopEvent` |
+| Ein Panel, das über etwas anderes stritt | Leeres Code-Feld an Pflichtposition → `unexpected comma` |
+| **Nichts** | Die **Karte erschien nie** — der Katalog kommt per IPC, die Node-Views waren längst gebaut. Das Feature war in der Praxis unsichtbar, während alle Tests grün waren. |
+
+**Die Lehre, die in `CLAUDE.md` gehört und dort steht:** kein Test erreicht einen ProseMirror-Node-View. Alles, was dort passiert — ob eine Karte erscheint, ob ein Popup aufgeräumt wird, ob ein Klick ankommt — ist unbewiesen. Für die nächste Session heißt das: **UI-Änderungen brauchen einen App-Start, kein grünes `npm test`.**
+
+Und zweimal blieb ein Test von mir **grün gegen den kaputten Code** — die „green by absence"-Falle. Beide Male nur aufgefallen, weil ich jeden Fix einzeln zurückgenommen habe. Das ist keine Formalität.
+
+---
+
+## 0c. ▶ Der nächste Schritt: UI-Polish
+
+Renés Rückmeldung nach dem App-Durchgang war positiv („finde die Karten total sinnvoll und auch schön"). Die offenen Punkte sind Feinschliff, keine Reparatur:
+
+1. **Die Baustein-Karte selbst.** Sie zeigt Label + Werte und öffnet ein Popup. Anzuschauen: Ist das Popup an der richtigen Stelle? Es wird beim Öffnen **einmal positioniert und folgt dem Scrollen nicht** — das ist die bekannteste Schwäche. Reichen die Feldbezeichnungen? Ist „(Vorgabe)" für ein leeres optionales Feld verständlich?
+2. **Der Datei-Picker** bei einem `path`-Feld. **Bekannte Schwäche, ungelöst:** er liefert einen Pfad *relativ zum Kapitel* (`../assets/x.png`), aber `image()` steckt oft in `macros.typ` und löst relativ zur **Projektwurzel** auf. In LANGSAM muss `assets/…` stehen. Wenn der Picker `../assets/…` einsetzt, ist das ein echter Fehler — an `#bildnachweis` im Kolophon direkt testbar.
+3. **Die Tabellen-Oberfläche.** Sechs Einträge im Zahnrad-Menü (Spalte davor/danach, Zeile darüber/darunter, löschen) — fühlt sich das gut an oder braucht es zwei Gruppen? Die Kolophon-Tabelle in LANGSAM ist dafür gebaut.
+4. **Die neuen Namen und die `#v`-Lücke** (`00cd33d`) sind **noch nie im laufenden Programm gesehen worden**. Sieht die gestrichelte Lücke gut aus? Ist sie klickbar, ohne im Weg zu sein? Lassen sich die Namen auf einen Blick unterscheiden?
+5. **Nicht vergessen:** die Karte erscheint nur, wenn der Block *genau ein* Aufruf ist. Aufeinanderfolgende Aufrufe ohne Leerzeile sind **ein** Block und bekommen deshalb keine — das ist korrekt, sieht aber wie ein Fehler aus.
+
+---
+
+## 0d. Optional danach: die Rumpf-Karte
+
+Ein Juroren-Panel (vier unabhängige Perspektiven, darunter eine bewusst gegenläufige) hat die Frage „sollen **alle** Typst-Blöcke Karten werden?" beantwortet: **alle vier sagen nein.**
+
+Die Zahl, die das entscheidet: **86 % der Argumente eines Projekt-Makros sind Fließtext in Anführungszeichen**, den der Autor geschrieben hat — bei eingebauten Typst-Aufrufen sind **79 % der Argumente Code**. Eine Umkehrung um den Faktor zehn, bei genau der Eigenschaft, von der die Karte lebt. Eine Karte über `#text(tracking: 0.2em, dx: 4pt)` ist eine Code-Box mit Zwischenschritt.
+
+**Was bleibt** ist eine Karte mit *einem* Feld — dem Rumpf — für Blöcke, deren `[…]` echten Fließtext trägt. Reichweite laut Panel **~30 Blöcke** (nicht 52; `#block`-Rümpfe fangen fast immer mit einem weiteren Aufruf an). Der Bauplan steht in der Panel-Antwort: `findBodyFormForBlock(content)` neben `findMacroForBlock` in `shared/macroCall.ts`, ein zweiter Zweig in `renderCard`, und ein Prosa-Guard (Rumpf beginnt nicht mit `#`, keine Leerzeile, kein Listen-/Überschriftenmarker) — **den einmal entfernen und rot sehen**, sonst prüft er nichts.
+
+Klein, ehrlich, und ausdrücklich die geringste Reichweite der drei Optionen.
+
+---
 
 ## 1. Das Problem, gemessen
 

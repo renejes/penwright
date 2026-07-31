@@ -803,7 +803,11 @@ body {
   background: none;
   padding: 0;
   margin: 0.25em 0;
-}
+
+/* Belt and braces with the render path: the gap carries its own measurement, so
+   the label chip above it said the same thing twice — measured at 52 px where a
+   spacer should be 23. */
+.typst-raw-block.pw-is-spacer .typst-raw-label { display: none; }
 
 .pw-spacer {
   display: flex;

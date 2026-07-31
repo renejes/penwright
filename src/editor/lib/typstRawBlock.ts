@@ -337,6 +337,13 @@ export const TypstRawBlock = Node.create({
           const v = value.trim();
           // An empty amount is not a spacer; refuse rather than write `#v()`.
           if (!v) return;
+          // The block may no longer BE a spacer. ProseMirror reuses a node view
+          // across `reconcileContent`, so an external or AI edit can replace the
+          // block underneath an OPEN popup — and this write regenerates the call
+          // rather than splicing it. Without the check, the next keystroke in a
+          // stale popup overwrote whatever had arrived (an `#import` in the
+          // reproduction) with `#v(2em)`. The card's write refuses the same way.
+          if (bareSpacer(liveContent()) === null) return;
           writeContent(`#v(${v})`);
         },
       }));
