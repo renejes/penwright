@@ -13,6 +13,7 @@ import { serializeTypst } from '../src/editor/lib/serializer.ts';
 import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
 import { markdownToTypst } from '../src/shared/markdownImporter.ts';
 import { DESIGN_ELEMENTS, renderDesignElement } from '../src/shared/designElements.ts';
+import { shiftTableColumn } from '../src/shared/tableParams.ts';
 
 let pass = 0;
 let fail = 0;
@@ -667,6 +668,52 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
     check('editing only a cell leaves every parameter byte-identical',
       serializeTypst(deserializeTypst(src) as any).trim() === src, { got: serializeTypst(deserializeTypst(src) as any) });
   }
+}
+
+// ─── A column added in the MIDDLE moves the styling with it ────────────────
+//
+// The serializer can reconcile a table's parameters from the COUNT alone, but a
+// count can only say "one more" — never WHERE. Insert a column in the middle and
+// a count-based fix appends at the end, which shifts every entry after the
+// insertion point onto the wrong column. So the editor does it at edit time,
+// where the position is known (`shiftTableColumn`), and the count-based
+// `reconcileTableParams` stays as the net for shape changes that never touch the
+// table UI — an AI edit, a paste, an undo.
+{
+  const P = 'columns: (auto, 1fr, auto), align: (left, center, right), fill: (red, green, blue)';
+
+  const mid = shiftTableColumn(P, 'insert', 1);
+  check('inserting at 1 puts the new width at 1', mid.includes('columns: (auto, auto, 1fr, auto)'), mid);
+  // The new column copies the one it was added BESIDE, and — the part a
+  // count-based fix cannot do — `right`/`blue` stay on the LAST column.
+  check('…and the entries after it keep their own columns',
+    mid.includes('align: (left, left, center, right)') && mid.includes('fill: (red, red, green, blue)'), mid);
+
+  const end = shiftTableColumn(P, 'insert', 3);
+  check('inserting at the end appends', end.includes('align: (left, center, right, right)'), end);
+
+  const gone = shiftTableColumn(P, 'remove', 0);
+  check('removing the first column drops the FIRST entry, not the last',
+    gone.includes('columns: (1fr, auto)') && gone.includes('align: (center, right)') && gone.includes('fill: (green, blue)'), gone);
+
+  // The same guard as everywhere: an array the author left short was their
+  // decision to rely on the cycling.
+  const short = shiftTableColumn('columns: (auto, 1fr, auto), align: (left, right)', 'insert', 1);
+  check('an array the author left short is untouched here too',
+    short.includes('align: (left, right)') && !short.includes('align: (left, right,'), short);
+
+  // An expression is not ours to rewrite.
+  const expr = 'columns: (1fr,) * 3, align: (left, center, right)';
+  check('an expression columns: is left alone entirely', shiftTableColumn(expr, 'insert', 1) === expr, shiftTableColumn(expr, 'insert', 1));
+
+  // Removing the last remaining column would leave an empty tuple.
+  const one = 'columns: (auto,), align: (left,)';
+  check('the last column cannot be removed away', shiftTableColumn(one, 'remove', 0) === one, shiftTableColumn(one, 'remove', 0));
+
+  // An integer columns: counts rather than enumerating.
+  const num = shiftTableColumn('columns: 3, align: (left, center, right)', 'insert', 0);
+  check('an integer columns: is incremented', num.includes('columns: 4'), num);
+  check('…while its per-column array still shifts by position', num.includes('align: (left, left, center, right)'), num);
 }
 
 // ─── Numbered enum items are a list, not a paragraph ────────────────────────

@@ -1,7 +1,7 @@
 // TipTap JSON → Typst Serializer (Phase 2: with typstRawBlock passthrough)
 
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { parseMacroCall, splitTypstList } from '../../shared/macroCall';
+import { reconcileTableParams } from '../../shared/tableParams';
 
 interface TipTapNode {
   type: string;
@@ -428,103 +428,6 @@ function plainCellText(cell: TipTapNode): string {
  * since editing a cell does not change the shape — the text is returned
  * unchanged and the round trip is byte-exact.
  */
-/**
- * Typst's per-COLUMN table parameters. Each accepts an array that is applied
- * column by column and **cycles** when it is shorter than the table — measured,
- * not assumed: `align: (left, right)` on three columns renders identically to
- * `align: (left, right, left)`.
- *
- * That cycling is why they have to be resized with `columns:`. Adding a column
- * and rewriting only the count leaves every one of these one entry short, and
- * the new column silently inherits column 1's styling — no error, no warning,
- * just a plausible-looking wrong table. 17 of the 27 corpus tables carry
- * `align:`, 16 `fill:`, 11 `inset:`, 9 `stroke:`.
- *
- * Gutters are deliberately not here: `column-gutter` is per GAP, not per column,
- * so its correct length is n−1 and resizing it needs a different rule.
- */
-const PER_COLUMN_PARAMS = ['align', 'fill', 'stroke', 'inset'];
-
-/**
- * Returns the parameter text with the column count — and anything sized by it —
- * made to agree with `numCols`, and every other character untouched.
- *
- * When the count already agrees, which is every edit that does not change the
- * table's shape, the text is returned unchanged and the round trip is byte-exact.
- *
- * A per-column array is only resized when its length matches the count the
- * source DECLARED. That is the evidence that the author enumerated every column;
- * an array of another length means they were relying on the cycling, and
- * rewriting it would take a decision they had already made. Growing repeats the
- * last entry, so a new column looks like the one it was added next to, and the
- * existing columns keep their own entries — verified against the compiler:
- * padding an array beyond the column count does not change a single pixel.
- *
- * The honest limit: the serializer sees only the before and after COUNT, never
- * the position. A column added or removed in the MIDDLE shifts the entries after
- * it. Fixing that needs the edit to say where it happened, which is a change to
- * the table UI rather than to this function.
- */
-function reconcileTableParams(params: string, numCols: number): string {
-  const parsed = parseMacroCall(`#t(${params})`);
-  if (!parsed) return params;
-  const OFFSET = 3;                                   // the `#t(` we prefixed
-  const columnsArg = parsed.args.find((a) => a.name === 'columns');
-  if (!columnsArg) return params;
-
-  const columnsRaw = columnsArg.raw.trim();
-  const declared = /^\d+$/.test(columnsRaw)
-    ? Number(columnsRaw)
-    : (splitTypstList(columnsRaw)?.length ?? null);
-  if (declared === null) return params;               // an expression — leave it alone
-  if (declared === numCols) return params;            // the shape did not change
-
-  /** Resizes a literal tuple to `numCols`, or null when it must be left alone. */
-  const resize = (raw: string, grow: string): string | null => {
-    const parts = splitTypstList(raw);
-    if (!parts || parts.length !== declared) return null;
-    const items = parts.map((x) => raw.slice(x.start, x.end).trim());
-    while (items.length < numCols) items.push(items[items.length - 1] ?? grow);
-    items.length = numCols;
-    // Typst needs the trailing comma to tell a one-element tuple from a
-    // parenthesised expression.
-    return numCols === 1 ? `(${items[0]},)` : `(${items.join(', ')})`;
-  };
-
-  const edits: { start: number; end: number; text: string }[] = [];
-
-  if (/^\d+$/.test(columnsRaw)) {
-    edits.push({ start: columnsArg.start, end: columnsArg.end, text: String(numCols) });
-  } else {
-    // `auto` is Typst's own default track size, so a new column with no width
-    // of its own gets the neutral one rather than a copy of its neighbour's.
-    const parts = splitTypstList(columnsRaw);
-    if (!parts) return params;
-    const widths = parts.map((x) => columnsRaw.slice(x.start, x.end).trim());
-    while (widths.length < numCols) widths.push('auto');
-    widths.length = numCols;
-    edits.push({
-      start: columnsArg.start,
-      end: columnsArg.end,
-      text: numCols === 1 ? `(${widths[0]},)` : `(${widths.join(', ')})`,
-    });
-  }
-
-  for (const name of PER_COLUMN_PARAMS) {
-    const arg = parsed.args.find((a) => a.name === name);
-    if (!arg) continue;
-    const next = resize(arg.raw.trim(), 'auto');
-    if (next !== null) edits.push({ start: arg.start, end: arg.end, text: next });
-  }
-
-  // Back to front, so an earlier edit cannot move a later one's offsets.
-  let out = params;
-  for (const e of edits.sort((a, b) => b.start - a.start)) {
-    out = out.slice(0, e.start - OFFSET) + e.text + out.slice(e.end - OFFSET);
-  }
-  return out;
-}
-
 function serializeCellContent(cell: TipTapNode): string {
   // Cell content is block-level (paragraphs), serialize inline content of first paragraph
   const paragraphs = cell.content ?? [];

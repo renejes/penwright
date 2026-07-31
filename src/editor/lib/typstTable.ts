@@ -10,6 +10,8 @@
 import { Extension } from '@tiptap/core';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { selectedRect } from '@tiptap/pm/tables';
+import { shiftTableColumn } from '../../shared/tableParams';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
@@ -20,6 +22,54 @@ const tableControlsKey = new PluginKey('tableControls');
 
 // Track open dropdowns for cleanup
 const openDropdownCleanups = new Set<() => void>();
+
+
+/**
+ * Runs a column command AND moves the table's own parameters with it, in one
+ * transaction.
+ *
+ * The serializer can reconcile `columns:` / `align:` / `fill:` … from the COUNT
+ * alone, but a count can only ever say "one more" — it cannot say WHERE, so a
+ * column inserted in the middle would shift every entry after it onto the wrong
+ * column. Here the position is known, so this is the only place that can get it
+ * right. The serializer's reconciliation stays as the net for shape changes that
+ * do not come through this menu (an AI edit, a paste, an undo).
+ *
+ * One transaction so the document is never briefly inconsistent and a single
+ * undo takes back the whole edit.
+ */
+function columnCommand(editor: Editor, op: 'insert' | 'remove'): void {
+  // The index has to be read BEFORE the structural change: afterwards the map
+  // describes the new shape and `rect.right` has already moved.
+  let index: number | null = null;
+  try {
+    const rect = selectedRect(editor.view.state);
+    index = op === 'insert' ? rect.right : rect.left;
+  } catch {
+    index = null;                       // selection is not in a table
+  }
+
+  const chain = editor.chain().focus();
+  const structural = op === 'insert' ? chain.addColumnAfter() : chain.deleteColumn();
+  structural
+    .command(({ tr, dispatch }) => {
+      // Runs on the SAME transaction, after the structural step — so `tr.doc`
+      // already has the new shape and `index` is the position from before it.
+      if (index === null || !dispatch) return true;
+      const $from = tr.selection.$from;
+      for (let d = $from.depth; d > 0; d--) {
+        const node = $from.node(d);
+        if (node.type.name !== 'table') continue;
+        const params = typeof node.attrs.params === 'string' ? node.attrs.params : '';
+        if (!params) return true;       // no parameters of its own — nothing to move
+        const next = shiftTableColumn(params, op, index);
+        if (next !== params) tr.setNodeMarkup($from.before(d), undefined, { ...node.attrs, params: next });
+        return true;
+      }
+      return true;
+    })
+    .run();
+}
 
 function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet {
   const decorations: Decoration[] = [];
@@ -92,9 +142,9 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             actions.className = 'table-settings-actions';
 
             const btnData = [
-              { label: t().editorLib.tableAddColumn, action: () => tiptapEditor.chain().focus().addColumnAfter().run() },
+              { label: t().editorLib.tableAddColumn, action: () => columnCommand(tiptapEditor, 'insert') },
               { label: t().editorLib.tableAddRow, action: () => tiptapEditor.chain().focus().addRowAfter().run() },
-              { label: t().editorLib.tableRemoveColumn, danger: true, action: () => tiptapEditor.chain().focus().deleteColumn().run() },
+              { label: t().editorLib.tableRemoveColumn, danger: true, action: () => columnCommand(tiptapEditor, 'remove') },
               { label: t().editorLib.tableRemoveRow, danger: true, action: () => tiptapEditor.chain().focus().deleteRow().run() },
             ];
 

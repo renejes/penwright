@@ -87,7 +87,10 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.31.0: a table's per-column parameters (align/fill/stroke/inset) grow with
 // the column count, not just `columns:` — they cycle when short, so a new
 // column silently inherited column 1's styling.
-export const MCP_SETUP_VERSION = '0.31.0';
+// 0.32.0: table parameters moved to `shared/tableParams.ts`; the editor now
+// shifts them BY POSITION when a column is added or removed, and the
+// count-based reconciliation is the net for changes that bypass the table UI.
+export const MCP_SETUP_VERSION = '0.32.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
