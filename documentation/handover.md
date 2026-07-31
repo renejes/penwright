@@ -223,11 +223,13 @@ Sie hat in dieser Session **viermal** einen Fehler gefunden, den Nachdenken nich
 
 ## 6. Was sonst noch offen ist
 
-- **Der manuelle Durchgang durch die App steht weiterhin aus — und ist nach Stufe 1+2 dringender als vorher.** Beide Stufen sind zum großen Teil UI-Arbeit: dass die erzeugten Aufrufe *kompilieren* und die Spleiße *byte-genau* sind, ist bewiesen; dass die **Baustein-Karte im Editor gut zu bedienen** ist, ist es nicht. Konkret anzuschauen: taucht die Karte statt des Code-Blocks auf, sind die Feld-Labels verständlich, funktioniert `</>` in beide Richtungen, tut der Datei-Picker bei einem `path`-Feld das Richtige, und stört das Popup beim Scrollen (es wird beim Öffnen einmal positioniert und folgt nicht). Nach sieben Sessions ohne einen einzigen App-Start die größte Unsicherheit im Projekt — und für diese Aufgabenstellung besonders relevant, weil „zugänglich" sich nur am laufenden Programm beurteilen lässt. Besonders: Document-Settings (schreibt jetzt die Wurzel), „Kapitel hinzufügen", Bild-Drag-and-Drop, Design-Panel → „Bausteine", Verlaufs-Hub, KI-Anzeige in der Statusleiste. Neu und ungeprüft: **Attached Lists** (`typstListAttach.ts` — was macht ProseMirror beim Neuanlegen/Teilen einer Liste?), dass **Termlisten und Titelseiten jetzt Raw-Blocks sind** (richtig entschieden, UX-seitig anzuschauen), und aus Session 47 die **Gruppe „Aus diesem Projekt"** in Slash-Menü und ＋-Dropdown: taucht sie auf, sind die Labels lesbar, und ergibt der eingefügte Aufruf im Editor etwas Sinnvolles? Getestet ist, dass er **kompiliert** — nicht, wie er sich anfühlt.
-- **Windows/Linux-Packaging.** `fetch:typst` holt die Binaries, aber `extraResources` filtert auf `typst-*` und kopiert **jede** vorhandene Binary in **jeden** Build. Zusammen mit der ohnehin ausstehenden Verifikation auf echtem Gerät anfassen.
+- **UI-Polish** — der nächste Schritt, siehe §0c. Der App-Durchgang hat stattgefunden, die Karten sind bestätigt; was fehlt, ist Feinschliff.
+- **Ungeprüft im laufenden Programm:** die **Block-Namen** und die **`#v`-Lücke** aus `00cd33d`, sowie der **Datei-Picker** an einem `path`-Feld (bekannte Schwäche, §0c Punkt 2). Alles andere aus Session 47 hat René gesehen.
+- **Ältere ungeprüfte Ecken:** Document-Settings (schreibt die Wurzel), Kapitel hinzufügen, Bild-Drag-and-Drop, Verlaufs-Hub, **Attached Lists** (`typstListAttach.ts` — was macht ProseMirror beim Teilen einer Liste?), und dass Termlisten und Titelseiten Raw-Blocks sind.
+- **Windows/Linux-Packaging.** `fetch:typst` holt die Binaries, aber `extraResources` filtert auf `typst-*` und kopiert **jede** vorhandene Binary in **jeden** Build. Zusammen mit der Verifikation auf echtem Gerät anfassen.
 - **codly 1.3.0** referenziert den in 0.15 entfernten `pattern`-Typ; 1.3.0 ist die neueste Version. Nichts, was wir ausliefern, erreicht diese Zweige. Auf codly 1.4 warten.
-- **`paper-preprint` / `thesis-classic`** fordern *New Computer Modern* in Semibold — Typsts eingebaute Schrift hat nur 400/700. Sechs Stellen rendern bold; durch Bündeln nicht lösbar.
-- **Verschachtelte Block-Kommentare** — auskommentierter Text erscheint im Editor als bearbeitbarer Inhalt. PDF vorher wie nachher identisch (gemessen), also Editor-Integrität, kein Datenverlust. Letzter bekannter Parser-Fall.
+- **`paper-preprint` / `thesis-classic`** fordern *New Computer Modern* in Semibold — Typsts eingebaute Schrift hat nur 400/700. Durch Bündeln nicht lösbar.
+- **Verschachtelte Block-Kommentare** — auskommentierter Text erscheint im Editor als bearbeitbarer Inhalt. PDF identisch (gemessen), also Editor-Integrität, kein Datenverlust.
 - **Web-Export-Branch `feat/web-export`** unverändert, nicht nach `main` gemergt.
 - **Launch-Blocker:** `penwright.online` registrieren · QA auf realer 100-Seiten-Thesis · Windows als Fast-Follow.
 - **Ungetrackt, nicht anfassen:** `resources/*/manifest.json`-Timestamps.
@@ -237,8 +239,8 @@ Sie hat in dieser Session **viermal** einen Fehler gefunden, den Nachdenken nich
 ## 7. Betriebswissen vor dem ersten Commit
 
 - **`npm test`** = `check:mcp` → `typecheck` → `test:unit` → `test:corpus` → `test:compile:corpus` → `test:mcp`. Läuft in `package:*`.
-- **`penwright.corpus.json`** (git-ignoriert) zeigt auf `~/Desktop/LANGSAM` und die beiden Marketing-Ordner. **Wenn René diese Dokumente bearbeitet, kann `npm test` hier rot werden** — das ist das Gate, kein Fehler.
-- **`MCP_SETUP_VERSION` = 0.30.0.** `ensureInstalledBinary` kopiert bei jedem App-Start bedingungslos aus `dist/mcp/bin/`. Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary landet** (Deserializer, `designElements`, `skillTemplates`): bumpen **und** `npm run build:mcp-binary:all`.
+- **`penwright.corpus.json`** (git-ignoriert) zeigt auf `~/Desktop/LANGSAM` und die beiden Marketing-Ordner. **LANGSAM wurde in Session 47 zum Testprojekt für die neuen Oberflächen umgebaut** (Tabelle + drei Karten-Makros im Kolophon). Es hat bewusst **kein `.git`** und testet damit nebenbei den Pfad, bei dem die erste Version das Repo anlegt. **Wenn René diese Dokumente bearbeitet, kann `npm test` hier rot werden** — das ist das Gate, kein Fehler.
+- **`MCP_SETUP_VERSION` = 0.38.0.** `ensureInstalledBinary` kopiert bei jedem App-Start bedingungslos aus `dist/mcp/bin/`. Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary landet** (Deserializer, `designElements`, `skillTemplates`): bumpen **und** `npm run build:mcp-binary:all`.
 - **`npm run fetch:typst`** ist die einzige Wahrheit für die Typst-Version (`TYPST_VERSION` im Skript). `--check` verifiziert ohne Download.
 
 ---
@@ -252,6 +254,8 @@ Sie hat in dieser Session **viermal** einen Fehler gefunden, den Nachdenken nich
 - **Nach einem Parser-Umbau den UNVERÄNDERTEN Korpus gegenprüfen.** Nicht „gehen die neuen Tests durch", sondern: parst irgendeine bestehende Datei jetzt *anders*? Session 47 hat so zwei Regressionen gefunden, die die neuen Tests glatt passiert hatten — eine davon in einem Kundendokument.
 - **Dieselbe Fehlerklasse kommt bei JEDEM neuen Scanner wieder: Delimiter einheitlich zu zählen.** Dreimal bezahlt — Prosa auf oberster Ebene (`c3ba300`), Prosa im Makro-Rumpf (Stufe 0), und der Aufruf-Parser in Stufe 2. Typst hat zwei Modi: in Markup gruppieren nur `[` `]`, in Code alle sechs. Wer einen Scanner schreibt, schreibt den Modus-Stack mit.
 - **Der Compiler beantwortet Syntaxfragen billiger als Nachdenken.** Drei Wegwerf-`.typ` und `resources/bin/typst-*` klären in zwanzig Sekunden, ob `(` in Markup gruppiert. Die Regel, die dieser Session am meisten Zeit gespart hat.
+- **Kein Test erreicht einen ProseMirror-Node-View.** Ob eine Karte erscheint, ob ein Popup aufgeräumt wird, ob ein Klick ankommt — unbewiesen, egal wie grün `npm test` ist. Session 47 hat so ein Feature ausgeliefert, das in der Praxis **unsichtbar** war (der Katalog kam per IPC, die Views waren längst gebaut), und ein Popup, das den Block überschrieb, unter dem es stand. **UI-Änderungen brauchen einen App-Start.**
+- **Den Review VOR den Commit legen, nicht auf Nachfrage danach.** Als er in Session 47 zum ersten Mal lief, fand er sieben echte Defekte in bereits committetem Code — vier davon dokument-schädigend, alle byte-identisch im Round-Trip und damit für Korpus- und Pixel-Gate unsichtbar. Beim zweiten Mal lief er vor dem Commit und fand einen weiteren.
 - **Ein Gate, das zufällig rot wird, ist ausgeschaltet.**
 
 ---
