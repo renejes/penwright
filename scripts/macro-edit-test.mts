@@ -546,7 +546,12 @@ console.log('\n── The form, over every real instance ──');
   }
 
   console.log(`  · ${fieldsSeen} fields across the corpus · ${edits} edits applied`);
-  check('the corpus actually yielded fields to edit', edits >= 40, edits);
+  // The floor exists to stop this loop passing by finding NOTHING — the
+  // green-by-absence trap CLAUDE.md names. It has to be calibrated against what
+  // the SHIPPED `resources/` alone yields (39 edits, 33 instances), not against
+  // this machine: a gate that goes red on a clean clone just because
+  // `penwright.corpus.json` is absent is a gate that gets ignored.
+  check('the corpus actually yielded fields to edit', edits >= 25, edits);
   check('an edited call still parses — the form never locks itself out', unparseable === 0, problems);
   check('what the form writes is what the form reads back', mismatches === 0, problems);
 }
