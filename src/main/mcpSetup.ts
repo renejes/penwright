@@ -84,7 +84,10 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.30.0: Stufe 3 — tables carry their own `#table(…)` parameters verbatim and
 // become cell-editable; the deserializer and `shared/macroCall.ts` both ship in
 // this binary.
-export const MCP_SETUP_VERSION = '0.30.0';
+// 0.31.0: a table's per-column parameters (align/fill/stroke/inset) grow with
+// the column count, not just `columns:` — they cycle when short, so a new
+// column silently inherited column 1's styling.
+export const MCP_SETUP_VERSION = '0.31.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

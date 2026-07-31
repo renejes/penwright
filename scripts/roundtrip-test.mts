@@ -625,7 +625,47 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
     const out = serializeTypst(doc).replace(/\s+/g, ' ');
     check('a new column widens the columns tuple', out.includes('columns: (auto, 1fr, auto)'), out);
     check('…and keeps the widths the author chose', out.includes('(auto, 1fr,'), out);
-    check('…and leaves align alone', out.includes('align: (left, right)'), out);
+    // `align:` is applied PER COLUMN and CYCLES when it is shorter than the
+    // table (measured: `(left, right)` on three columns renders exactly like
+    // `(left, right, left)`). So rewriting only the count leaves it one entry
+    // short and the new column silently inherits column 1's alignment — no
+    // error, no warning. It has to grow with the table.
+    check('…and grows align with it, repeating the last entry',
+      out.includes('align: (left, right, right)'), out);
+  }
+
+  // The array only grows when the author enumerated every column. A shorter one
+  // means they were relying on the cycling, and rewriting it would overrule a
+  // decision they had already made.
+  {
+    const doc = deserializeTypst('#table(\n  columns: (auto, 1fr, auto),\n  align: (left, right),\n  [a], [b], [c],\n)') as any;
+    const table = doc.content[0];
+    for (const row of table.content) {
+      row.content.push({ type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'd' }] }] });
+    }
+    const out = serializeTypst(doc).replace(/\s+/g, ' ');
+    check('an array the author left short is not rewritten', out.includes('align: (left, right)') && !out.includes('align: (left, right,'), out);
+  }
+
+  // Every per-column parameter, not just align.
+  {
+    const src = '#table(\n  columns: (auto, 1fr),\n  align: (left, right),\n  fill: (red, blue),\n  inset: (4pt, 12pt),\n  stroke: (1pt, 3pt),\n  [a], [b],\n)';
+    const doc = deserializeTypst(src) as any;
+    for (const row of doc.content[0].content) {
+      row.content.push({ type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'c' }] }] });
+    }
+    const out = serializeTypst(doc).replace(/\s+/g, ' ');
+    for (const [name, want] of [
+      ['align', 'align: (left, right, right)'],
+      ['fill', 'fill: (red, blue, blue)'],
+      ['inset', 'inset: (4pt, 12pt, 12pt)'],
+      ['stroke', 'stroke: (1pt, 3pt, 3pt)'],
+    ] as [string, string][]) {
+      check(`${name} grows with the column count`, out.includes(want), out);
+    }
+    // Untouched when the shape does not change — the overwhelmingly common edit.
+    check('editing only a cell leaves every parameter byte-identical',
+      serializeTypst(deserializeTypst(src) as any).trim() === src, { got: serializeTypst(deserializeTypst(src) as any) });
   }
 }
 
