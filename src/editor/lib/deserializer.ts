@@ -199,7 +199,12 @@ function splitIntoBlocks(text: string): SourceBlock[] {
 
     for (let ci = 0; ci < line.length; ci++) {
       const c = line[ci];
-      const escaped = ci > 0 && line[ci - 1] === '\\';
+      // Odd run of backslashes = this character is escaped. Looking back a
+      // single character calls the `[` in `\\[` escaped, when the first
+      // backslash has already consumed the second and the bracket is real.
+      let backslashes = 0;
+      while (ci - 1 - backslashes >= 0 && line[ci - 1 - backslashes] === '\\') backslashes++;
+      const escaped = backslashes % 2 === 1;
 
       if (inBlockComment) {
         if (c === '*' && line[ci + 1] === '/') { inBlockComment = false; ci++; }
@@ -211,7 +216,14 @@ function splitIntoBlocks(text: string): SourceBlock[] {
         continue;
       }
       const code = inCode();
-      if (c === '/' && line[ci + 1] === '/') return;   // line comment: nothing after it counts
+      // A line comment ends the line's CONTENT, but the scan still has to fall
+      // through to the end-of-line pop below. Returning here left the `'!'`
+      // frame of a `#set …  // Kommentar` open into the NEXT line, which was
+      // then read as code — one paren in the prose there collapsed the rest of
+      // the file into a single block. Harmless before the mode stack, because
+      // `statement` was a local that died with the line; a regression the moment
+      // it became persistent state.
+      if (c === '/' && line[ci + 1] === '/') break;
       if (c === '/' && line[ci + 1] === '*') { inBlockComment = true; ci++; continue; }
       // A `"` only opens a string in code mode; in markup it is a quotation mark.
       if (c === '"' && code) { inStr = true; continue; }
@@ -766,7 +778,13 @@ function isRawBlock(block: string): boolean {
   if (stripped.includes('$')) return true;
 
   // Any remaining # expression that we don't parse visually
-  if (/#[a-zA-Z{(]/.test(stripped)) return true;
+  // Typst's own identifier-start rule (a letter or `_`), not just ASCII. The
+  // ASCII-only test claimed `#uebersicht(…)` as code and left `#übersicht(…)`
+  // to be escaped into literal text — the macro call printed as source in the
+  // PDF. Latent until this session's catalogue started DISCOVERING macros with
+  // `\p{L}` and offering them for insertion, which made the two disagree about
+  // the same name.
+  if (/#[\p{L}_{(]/u.test(stripped)) return true;
 
   return false;
 }
@@ -940,7 +958,7 @@ function isUnhandledAlignedChunk(chunk: string): boolean {
   // (e.g. #figure(, #table(, #image() or a heading marker means the chunk
   // would degrade to literal text.
   const stripped = stripKnownInlines(chunk);
-  return /#[a-zA-Z][\w.-]*\(/.test(stripped) || /^=/.test(stripped.trim());
+  return /#[\p{L}_][\w.-]*\(/u.test(stripped) || /^=/.test(stripped.trim());
 }
 
 /**

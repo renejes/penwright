@@ -450,6 +450,65 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   }
 }
 
+// ─── Three regressions the mode stack itself introduced ────────────────────
+//
+// Found by an adversarial review of the session that added the stack, not by
+// this suite — which is the point of running one. All three are byte-clean on a
+// round trip, so no corpus or pixel gate could see them; what they destroy is
+// the STRUCTURE, and in the third case the rendered page.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
+
+  // 1. A line comment ended the SCAN, not just the line, so the `'!'` frame of a
+  //    `#set … // Kommentar` outlived its own line and the next one was read as
+  //    code. One paren in the prose there collapsed the rest of the file into a
+  //    single block. Harmless before the stack — `statement` was a local that
+  //    died with the line.
+  for (const [name, src] of [
+    ['#set', '#set par(justify: true) // Blocksatz\nDer Aufwand liegt bei 30% (netto.\n\n= Kosten\n\nText.'],
+    ['#let', '#let x = 1 // Zahl\nEin Wert (offen hier.\n\n= Kosten\n\nText.'],
+    ['#show', '#show heading: set text(navy) // Farbe\nEin Wert (offen hier.\n\n= Kosten\n\nText.'],
+  ] as [string, string][]) {
+    check(`a trailing comment after ${name} does not leak code mode into the next line`,
+      types(src).includes('heading'), types(src));
+  }
+
+  // 2. `escaped` looked back one character, so the `[` in `\\[` — an escaped
+  //    BACKSLASH followed by a real bracket — was treated as escaped. The body
+  //    closed early and the real `]` came back as `\]`, which does not compile.
+  //    The first version of this test passed against the broken code — the
+  //    green-by-absence trap, caught by reverting the fix and watching nothing
+  //    go red. The case that actually exercises it is an escaped backslash
+  //    IMMEDIATELY before the closing bracket.
+  for (const [name, src] of [
+    ['an escaped backslash before the closing bracket', '#m[Ende \\\\]\n\n= Kosten\n\nText.'],
+    ['an escaped backslash before an opening bracket', '#m[Pfad C:\\\\[1]]\n\n= Kosten\n\nText.'],
+  ] as [string, string][]) {
+    check(`${name}: the following heading survives`, types(src).includes('heading'), types(src));
+    check(`${name}: round-trips`, ser(src) === src.trim(), { got: ser(src) });
+  }
+  // …while a genuinely escaped bracket is still escaped.
+  check('an escaped bracket still escapes',
+    ser('#m[Preis \\[netto]\n\n= Kosten\n\nText.') === '#m[Preis \\[netto]\n\n= Kosten\n\nText.',
+    { got: ser('#m[Preis \\[netto]\n\n= Kosten\n\nText.') });
+
+  // 3. `isRawBlock` tested `#[a-zA-Z]` while the new macro catalogue discovers
+  //    identifiers with `\p{L}` and OFFERS them — so a macro the user was
+  //    invited to insert came back as escaped literal text, printed as source
+  //    in the PDF. Typst's own rule is a letter or `_`.
+  for (const src of [
+    '#übersicht("Titel")[\n  Inhalt\n]',
+    '#Größe("a")[\n  b\n]',
+    '#_intern("a")[\n  b\n]',
+  ]) {
+    check(`a non-ASCII macro name survives: ${src.slice(0, 12)}`, ser(src) === src.trim(), { got: ser(src) });
+  }
+  // …and prose that merely CONTAINS a `#` before a letter is still prose.
+  check('an escaped hash in prose is still prose',
+    types('Ein \\#Übel im Text.')[0] === 'paragraph', types('Ein \\#Übel im Text.'));
+}
+
 // ─── A macro BODY is markup too — a paren typed into it is a paren ──────────
 //
 // The third instalment of the same fault, one level deeper than its two
