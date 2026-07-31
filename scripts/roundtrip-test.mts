@@ -449,6 +449,104 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   }
 }
 
+// ─── A macro BODY is markup too — a paren typed into it is a paren ──────────
+//
+// The third instalment of the same fault, one level deeper than its two
+// siblings above. Those fixed prose at the TOP level; this one fixes prose
+// inside `#macro[…]`, which is where the user is about to be allowed to type.
+//
+// The splitter decided its mode with one boolean, seeded from the depth
+// counters:
+//
+//   let code = braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+//
+// `bracketDepth > 0` means "we are inside a `[…]` body" — that is MARKUP, and
+// the line went into CODE mode anyway. So a single `(` in the user's prose was
+// counted as an opening delimiter, the construct never closed, and every block
+// to the end of the file merged into one.
+//
+// Verified against the bundled compiler 0.15.1, because the rules differ per
+// mode and guessing them is how this bug got written in the first place:
+//
+//   markup:  `[` `]` group · `(` `)` `{` `}` are literal · `"` is a quote mark
+//   code:    all six group · `"` opens a string
+//   `\[` escapes in markup; `#m[Kosten (ca. 30%.]` compiles, `#m[a [b]` does not
+//
+// The damage is NOT byte loss — the merged block starts with `#`, so it is kept
+// verbatim as a raw block and re-emits exactly. It is the STRUCTURE that goes:
+// measured over the corpus, typing `Kosten (ca. 30% mehr. ` into the first
+// macro body of each file costs 154 of 189 headings in the real client
+// documents (29 of 49 files) and 56 of 97 in the shipped presets, with zero
+// files changing a single byte. Everything below the typo stops being a
+// document and becomes one code block.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const types = (src: string) => ((deserializeTypst(src) as any).content ?? []).map((n: any) => n.type);
+  const TAIL = '\n\n= Überschrift\n\nZweiter Absatz.';
+
+  // Every one of these is valid Typst that compiles — checked against 0.15.1.
+  //
+  // An UNKNOWN macro stays a verbatim raw block, so it must come back byte for
+  // byte. A `#notiz` is a magazine node, and those are compile-stable rather
+  // than byte-identical by design (typstMagazine.ts): its body is re-emitted on
+  // its own lines. Verified with the bundled compiler — `[ Kosten … ]` and
+  // `[\nKosten …\n]` render to the same PNG hash — so the assertion for those
+  // is that the prose survives and a second round trip changes nothing more.
+  for (const [name, head, exact] of [
+    ['( in a macro body', '#m(title: "x")[ Ein ( Text. ]', true],
+    ['( in a container body', '#notiz(title: "T")[ Kosten (ca. 30% mehr. ]', false],
+    ['( in a bare macro body', '#m[Kosten (ca. 30%.]', true],
+    ['} in a macro body', '#m[Ein } Zeichen.]', true],
+    ['{ in a macro body', '#m[Ein { Zeichen.]', true],
+    ['escaped [ in a macro body', '#m[Preis \\[netto]', true],
+    ['a quote mark in a macro body', '#m[Er sagte "hallo" und ( dann.]', true],
+    ['nested call then ( in the body', '#m[Ein #emph[Wort] und ( dann.]', true],
+    ['( in a multi-line body', '#notiz(title: "T")[\n  Kosten (ca. 30% mehr.\n]', false],
+    ['( after a closed body on the line', '#m[Preis] und dann (offen', true],
+  ] as [string, string, boolean][]) {
+    const src = head + TAIL;
+    check(`${name}: the following heading survives`, types(src).includes('heading'), types(src));
+    if (exact) {
+      check(`${name}: round-trips`, ser(src) === src.trim(), { got: ser(src) });
+    } else {
+      check(`${name}: the typed prose survives`, ser(src).includes('Kosten (ca. 30% mehr.'), { got: ser(src) });
+      check(`${name}: round-trip is idempotent`, ser(ser(src)) === ser(src), { got: ser(ser(src)) });
+    }
+  }
+
+  // A hash EXPRESSION reaches only as far as its own path. Both of these were
+  // caught by re-parsing the unmodified corpus after the fix and finding two
+  // files with FEWER headings than before — the sample project and a client
+  // document. A mode stack that opens a frame for every `#` never closes the
+  // one `#sym.dagger` opens, and that frame then eats the `]` ending the table
+  // cell it sits in.
+  for (const [name, head] of [
+    ['#sym in a table cell', '#table(columns: 2, [a], [#sym.dagger note], [b], [c])'],
+    ['#sym followed by prose', '#m[#sym.arrow.r Homepage]'],
+    ['bare # expression then (', '#m[#wert und dann (offen]'],
+    ['a hyphenated macro name', '#m[#figure-caption-credit("a", "b") und (offen]'],
+    // `.` continues a chain only before a field name — not at the end of a sentence.
+    ['sentence period after a call', 'Ein #emph[Wort]. Und dann (offen'],
+    ['field access still chains', 'Am #datetime.today().display() und (offen'],
+  ] as [string, string][]) {
+    const src = head + TAIL;
+    check(`${name}: the following heading survives`, types(src).includes('heading'), types(src));
+  }
+
+  // The trap this fix walks into if the mode is popped too eagerly: the magazine
+  // containers close their ARGUMENT list with `)` and open their body with `[`
+  // on the same line. Leave code mode at that `)` and the `[` is never counted,
+  // so the body falls apart at its own blank line. `e23168f` paid for this once.
+  for (const [name, src] of [
+    ['#notiz with a blank line in its body', '#notiz(title: "T")[\n  Erster Absatz.\n\n  Zweiter Absatz.\n]\n\nDanach.'],
+    ['#columns with a blank line in its body', '#columns(2)[\n  Erster Absatz.\n\n  Zweiter Absatz.\n]\n\nDanach.'],
+    ['#bildtafel with a blank line in its body', '#bildtafel("a.png", title: "T")[\n  Erster Absatz.\n\n  Zweiter Absatz.\n]\n\nDanach.'],
+    ['a call chain across a blank line', '#figure(\n  image("a.png"),\n\n  caption: [Ein (Bild],\n)\n\nDanach.'],
+  ] as [string, string][]) {
+    check(`${name} stays one block`, types(src).length === 2, types(src));
+  }
+}
+
 // ─── Numbered enum items are a list, not a paragraph ────────────────────────
 //
 // `isListItemLine` matched `-`, `+` and `/` but no digits, so a numbered enum

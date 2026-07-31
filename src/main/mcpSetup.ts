@@ -70,7 +70,7 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // closed to its writes, user presets visible, insert_design_element takes a
 // file, the handbook as an MCP resource, and four round-trip corruptions
 // fixed (nbsp `~`, pagebreak args, `center + horizon`, indented headings).
-export const MCP_SETUP_VERSION = '0.26.0';
+export const MCP_SETUP_VERSION = '0.27.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

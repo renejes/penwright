@@ -119,8 +119,8 @@ function normalizeNumberedEnum(lines: string[]): string[] | null {
 
 /**
  * Splits Typst text into blocks at blank lines.
- * Respects code blocks (```) and nested braces/brackets/parens
- * so that blank lines inside these constructs don't create splits.
+ * Respects code blocks (```) and open Typst constructs — tracked per MODE, see
+ * `stack` below — so that blank lines inside these don't create splits.
  */
 function splitIntoBlocks(text: string): SourceBlock[] {
   const lines = text.split('\n');
@@ -129,10 +129,40 @@ function splitIntoBlocks(text: string): SourceBlock[] {
   let currentAttached = false;
   let inCodeBlock = false;
   let inBlockComment = false;
-  let braceDepth = 0;
-  let bracketDepth = 0;
-  let parenDepth = 0;
   let inMath = false;
+
+  /**
+   * What is open, innermost last — and with it, which MODE we are in. Typst has
+   * two, and they count delimiters differently:
+   *
+   *   markup   `[` `]` group · `(` `)` `{` `}` are literal · `"` is a quote mark
+   *   code     all six group · `"` opens a string
+   *
+   * Verified against the bundled compiler, because the asymmetry is the whole
+   * point and guessing it is what produced the bug this replaces:
+   * `#m[Kosten (ca. 30%.]` compiles, `#m[Preis [netto]` is an unclosed
+   * delimiter, and `\[` escapes in markup.
+   *
+   * Frames:
+   *   '['       a content block — its body is MARKUP
+   *   '(' '{'   an argument list / code block — its body is CODE
+   *   '#'       a hash EXPRESSION; ends when its call chain does (see the peek
+   *             below) or at end of line
+   *   '!'       a hash STATEMENT (`#let`, `#show`, …); owns the rest of the line
+   *
+   * This replaced a single boolean seeded from the depth counters:
+   *
+   *   let code = braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+   *
+   * `bracketDepth > 0` means we are inside a `[…]` body — markup — and the line
+   * went into code mode anyway, so one `(` in the user's prose was counted as an
+   * opening delimiter and every block to the end of the file merged into one.
+   * Same fault as the two fixes above, one level deeper: those covered prose at
+   * the top level, this covers prose inside a macro body.
+   */
+  const stack: string[] = [];
+  /** Innermost frame's mode. Top-level markup (empty stack) is not code. */
+  const inCode = (): boolean => stack.length > 0 && stack[stack.length - 1] !== '[';
 
   const flush = (): void => {
     if (current.length > 0) blocks.push({ text: current.join('\n'), attached: currentAttached });
@@ -163,8 +193,6 @@ function splitIntoBlocks(text: string): SourceBlock[] {
    * `// TODO: die ( hier` no longer swallows it.
    */
   const scanLine = (line: string): void => {
-    let code = braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
-    let statement = false;
     let inStr = false;
 
     for (let ci = 0; ci < line.length; ci++) {
@@ -180,48 +208,79 @@ function splitIntoBlocks(text: string): SourceBlock[] {
         else if (c === '"') inStr = false;
         continue;
       }
+      const code = inCode();
       if (c === '/' && line[ci + 1] === '/') return;   // line comment: nothing after it counts
       if (c === '/' && line[ci + 1] === '*') { inBlockComment = true; ci++; continue; }
-      // A `"` only opens a string in code mode; in prose it is a quotation mark.
+      // A `"` only opens a string in code mode; in markup it is a quotation mark.
       if (c === '"' && code) { inStr = true; continue; }
-      if (c === '#' && !escaped) {
-        code = true;
-        // A STATEMENT (`#let`, `#show`, …) owns the rest of the line; an inline
-        // CALL (`#emph[…]`, `#footnote[…]`) ends when its own delimiters close
-        // and markup resumes after it. Conflating the two is what let one `(`
-        // after `#emph[Wort]` swallow the rest of the file.
-        statement = /^#(let|set|show|import|include|if|else|for|while|return|context)\b/.test(line.slice(ci));
+      // `#` opens code — but only FROM markup. In code it is not a mode switch.
+      if (c === '#' && !escaped && !code) {
+        const rest = line.slice(ci);
+        // A STATEMENT (`#let`, `#show`, …) owns the rest of the line.
+        if (/^#(let|set|show|import|include|if|else|for|while|return|context)\b/.test(rest)) {
+          stack.push('!');
+          continue;
+        }
+        // An EXPRESSION reaches exactly as far as its own path: `#sym.dagger`
+        // ends at the `r`, and ` note` after it is markup again. Only a call
+        // continues it, so a frame is opened ONLY when one follows.
+        //
+        // Opening a frame for every `#` instead is what broke `[#sym.dagger
+        // note]` — the frame never closed (nothing to close it), so it then
+        // swallowed the `]` that ended the cell, and the heading below the
+        // table stopped being a heading. In the sample project and in a client
+        // document both.
+        const path = rest.match(/^#[\p{L}_][\p{L}\p{N}_-]*(?:\.[\p{L}_][\p{L}\p{N}_-]*)*/u);
+        const after = path ? rest[path[0].length] : rest[1];
+        if (after === '(' || after === '[' || after === '{') stack.push('#');
+        // Skip the path itself: it holds no delimiters, and its `-` and `.`
+        // must not be read as anything else.
+        if (path) ci += path[0].length - 1;
         continue;
       }
+      // Display math is markup and opens without a `#`, so `$` is tracked in
+      // both modes — just not inside strings or comments.
       if (c === '$' && !escaped) { inMath = !inMath; continue; }
-      if (!code) continue;
+      if (escaped) continue;          // `\[` in markup is a literal bracket
+      // Nothing groups in the document's own top-level markup: the file body is
+      // not a bracket-delimited content block, and Typst accepts a lone `[` there.
+      if (stack.length === 0) continue;
 
-      if (c === '{') braceDepth++;
-      else if (c === '}') braceDepth = Math.max(0, braceDepth - 1);
-      else if (c === '[') bracketDepth++;
-      else if (c === ']') bracketDepth = Math.max(0, bracketDepth - 1);
-      else if (c === '(') parenDepth++;
-      else if (c === ')') parenDepth = Math.max(0, parenDepth - 1);
+      if (c === '[') stack.push('[');
+      else if (c === ']') { if (stack[stack.length - 1] === '[') stack.pop(); else continue; }
+      else if (code && (c === '(' || c === '{')) stack.push(c);
+      else if (code && c === ')') { if (stack[stack.length - 1] === '(') stack.pop(); else continue; }
+      else if (code && c === '}') { if (stack[stack.length - 1] === '{') stack.pop(); else continue; }
       else continue;
 
-      // An inline call that has CLOSED puts us back in markup for the rest of
-      // the line — unless the call chain continues. `#notiz(title: "x")[body]`
-      // and `#datetime.today()` carry on past the `)`, so peek: `[`, `(` and `.`
-      // keep us in code, anything else (a space, prose) does not.
+      // A hash EXPRESSION whose delimiters just closed puts us back in markup —
+      // unless the call chain continues. `#notiz(title: "x")[body]` and
+      // `#datetime.today()` carry on past the `)`, so peek: `[`, `(` and `.`
+      // keep it open, anything else (a space, prose) closes it.
       //
-      // Without this, `Ein #emph[Wort] und dann (offen` counted that `(` and one
-      // unclosed bracket swallowed every block to the end of the file — taking
-      // any heading in it with it, idempotently, so no later save recovered it.
-      if (!statement && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0) {
+      // Popping the frame at the `)` instead is the trap `e23168f` paid for:
+      // the magazine containers close their argument list and open their body on
+      // the same line, and an uncounted `[` makes the body fall apart at its own
+      // blank line.
+      if (stack[stack.length - 1] === '#') {
         const next = line[ci + 1];
-        if (next !== '[' && next !== '(' && next !== '.') code = false;
+        // `.` continues the chain only when a FIELD follows it. A sentence-ending
+        // period does not: `Ein #emph[Wort]. Und dann (offen` kept code mode on
+        // the strength of that `.` alone, and the `(` swallowed the rest.
+        const chain = next === '[' || next === '(' || (next === '.' && /[\p{L}_]/u.test(line[ci + 2] ?? ''));
+        if (!chain) stack.pop();
       }
+    }
+
+    // A hash expression or statement that is still innermost at end of line has
+    // no delimiters left to close it — `#foo` and `#let x = 5` both end here.
+    while (stack.length > 0 && (stack[stack.length - 1] === '#' || stack[stack.length - 1] === '!')) {
+      stack.pop();
     }
   };
 
   for (const line of lines) {
-    const wasNested =
-      inCodeBlock || inBlockComment || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+    const wasNested = inCodeBlock || inBlockComment || stack.length > 0;
     const wasInMath = inMath;
 
     // Track code block fences
@@ -231,8 +290,7 @@ function splitIntoBlocks(text: string): SourceBlock[] {
 
     if (!inCodeBlock) scanLine(line);
 
-    const isNested =
-      inCodeBlock || inBlockComment || braceDepth > 0 || bracketDepth > 0 || parenDepth > 0;
+    const isNested = inCodeBlock || inBlockComment || stack.length > 0;
 
     // A heading line is its own block in Typst — no blank line required.
     // Without this, consecutive `=== a` / `==== b` lines (or a heading
