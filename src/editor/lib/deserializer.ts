@@ -801,7 +801,42 @@ function classifyRawBlock(block: string): string {
   if (/^#(set|show|page|import|include)\b/.test(firstLine)) return 'config';
   if (/^#(let|for|if|while|return)\b/.test(firstLine)) return 'code';
 
+  // Does this block carry PROSE the reader will see, or is it only plumbing?
+  // `#v(1.8em)`, `#line(length: 1.1cm)` and `#pagebreak()` say nothing; a
+  // `#text(size: 0.88em, fill: …)[Gesetzt in Spectral …]` carries a paragraph.
+  // Worth telling apart because the two want opposite things from the reader:
+  // one is to be read and edited, the other to be left alone.
+  if (blockCarriesProse(block)) return 'text';
+
   return 'unknown';
+}
+
+/**
+ * True when a `[…]` in the block holds real words rather than only nested calls.
+ *
+ * Deliberately blunt: strings and call heads are removed, and what is left
+ * inside the brackets has to contain a run of letters. A block of pure layout
+ * has no content block at all, or one holding nothing but another call.
+ */
+function blockCarriesProse(block: string): boolean {
+  let depth = 0;
+  let inside = '';
+  let inStr = false;
+  for (let i = 0; i < block.length; i++) {
+    const c = block[i];
+    if (inStr) { if (c === '\\') i++; else if (c === '"') inStr = false; continue; }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '[') { depth++; continue; }
+    if (c === ']') { depth = Math.max(0, depth - 1); continue; }
+    if (depth > 0) inside += c;
+  }
+  // Drop call heads (`#text(`, `#emph`, `#sym.arrow.r`) and Typst punctuation,
+  // then ask whether any word survived.
+  const words = inside
+    .replace(/#[\p{L}_][\p{L}\p{N}_.-]*(\([^)]*\))?/gu, ' ')
+    .replace(/[^\p{L}]+/gu, ' ')
+    .trim();
+  return words.length >= 8;
 }
 
 // ─── Table Parser ───────────────────────────────────────────

@@ -2,7 +2,7 @@ import { Node } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { t } from '../../shared/i18n/store.svelte';
 import { attachFieldPopup, type PopupField } from './fieldPopup';
-import { getProjectMacros } from './projectMacroStore';
+import { getProjectMacros, PROJECT_MACROS_EVENT } from './projectMacroStore';
 import {
   findMacroForBlock,
   macroFormFields,
@@ -244,11 +244,28 @@ export const TypstRawBlock = Node.create({
       textarea.classList.add('typst-raw-textarea');
       textarea.value = node.attrs.content;
       textarea.spellcheck = false;
-      textarea.rows = Math.max(1, node.attrs.content.split('\n').length);
+      textarea.rows = 1;
+
+      /**
+       * Grows the textarea to its content's REAL height.
+       *
+       * `rows` counts newlines, so a single long line that WRAPS still asked for
+       * one row — and with `overflow: hidden` the rest was simply cut off. A
+       * one-line `#bildnachweis("assets/feature.png", "Die Stunde am Fenster —
+       * Platzhalter")` showed its first half and hid the rest, with nothing to
+       * scroll and no hint that anything was missing.
+       *
+       * Measured from `scrollHeight`, which is the only thing that knows how the
+       * text actually wrapped at this width.
+       */
+      const autosize = (): void => {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${textarea.scrollHeight}px`;
+      };
 
       textarea.addEventListener('input', () => {
         writeContent(textarea.value);
-        textarea.rows = Math.max(1, textarea.value.split('\n').length);
+        autosize();
       });
 
       // Leave the block: insert a paragraph right after it and move the cursor
@@ -321,14 +338,23 @@ export const TypstRawBlock = Node.create({
           dom.classList.remove('pw-has-macro-card');
           if (textarea.value !== String(current.attrs.content ?? '')) {
             textarea.value = String(current.attrs.content ?? '');
-            textarea.rows = Math.max(1, textarea.value.split('\n').length);
           }
+          // Always, not only on a value change: the block may have been hidden
+          // when it was last measured, and a hidden element has no scrollHeight.
+          autosize();
         }
       };
 
       dom.appendChild(textarea);
       dom.appendChild(doneBtn);
       render();
+      // `scrollHeight` is 0 until the element is laid out.
+      requestAnimationFrame(autosize);
+
+      // The catalogue arrives over IPC, after this view already asked for it and
+      // got nothing. Re-render when it lands, or the card never appears.
+      const onMacros = (): void => render();
+      window.addEventListener(PROJECT_MACROS_EVENT, onMacros);
 
       return {
         dom,
@@ -351,6 +377,7 @@ export const TypstRawBlock = Node.create({
           return true;
         },
         destroy() {
+          window.removeEventListener(PROJECT_MACROS_EVENT, onMacros);
           destroyPopup();
         },
       };
@@ -369,6 +396,8 @@ function getBlockLabel(blockType: string): string {
       return m.rawBlockCode;
     case 'comment':
       return m.rawBlockComment;
+    case 'text':
+      return m.rawBlockText;
     default:
       return m.rawBlockDefault;
   }

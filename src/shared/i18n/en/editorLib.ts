@@ -127,6 +127,7 @@ export const editorLib = {
   rawBlockConfig: 'typst · configuration',
   rawBlockCode: 'typst · code',
   rawBlockComment: 'typst · comment',
+  rawBlockText: 'typst · text',
   rawBlockDefault: 'typst',
 
   // Page break

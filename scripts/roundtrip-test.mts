@@ -450,6 +450,40 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   }
 }
 
+// ─── A block that carries prose says so ────────────────────────────────────
+//
+// `#v(1.8em)` and `#text(size: 0.88em)[Gesetzt in Spectral …]` were both
+// labelled just "typst", so the block worth reading looked exactly like the
+// plumbing. The classification is a LABEL only — `blockType` is a hint the
+// exports may read, never a decision, and `isConfigBlock` still matches only
+// `config`.
+{
+  const blockTypeOf = (src: string) => {
+    const n = ((deserializeTypst(src) as any).content ?? [])[0];
+    return n?.type === 'typstRawBlock' ? n.attrs.blockType : n?.type;
+  };
+  for (const [want, src] of [
+    ['text', '#text(size: 0.88em, fill: gray)[\n  Gesetzt in Spectral und Crimson Pro, beide OFL.\n]'],
+    ['text', '#fussnotiz(titel: "In eigener Sache")[\n  Alle Fotografien dieser Ausgabe sind Platzhalter.\n]'],
+    ['unknown', '#v(1.8em)'],
+    ['unknown', '#line(length: 1.1cm, stroke: 0.6pt + gray)'],
+    // A content block holding nothing but another call is not prose.
+    ['unknown', '#box(clip: true)[#image("a.png", width: 2cm)]'],
+    // The established types keep winning, in their established order.
+    ['config', '#set par(justify: false, first-line-indent: 0pt)'],
+    ['config', '#import "../style.typ": *'],
+    ['comment', '// Aufmacher-Doppelseite: das breite Bild laeuft ueber die Doppelseite.'],
+    ['code', '#let x = 1'],
+  ] as [string, string][]) {
+    check(`classified ${want}: ${src.slice(0, 34).replace(/\n/g, ' ')}`, blockTypeOf(src) === want, blockTypeOf(src));
+  }
+  // A string is not prose — a font name and a caption look the same in one, and
+  // guessing wrong would label every `#set text(font: "…")` as something to read.
+  check('text inside a STRING does not make a block prose',
+    blockTypeOf('#datenzeile("Herausgeber", "Redaktion LANGSAM, Hamburg")') === 'unknown',
+    blockTypeOf('#datenzeile("Herausgeber", "Redaktion LANGSAM, Hamburg")'));
+}
+
 // ─── Three regressions the mode stack itself introduced ────────────────────
 //
 // Found by an adversarial review of the session that added the stack, not by

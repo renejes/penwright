@@ -780,6 +780,19 @@ body {
   color: rgba(100, 160, 80, 0.8);
 }
 
+/* A block that carries PROSE the reader will see, as opposed to spacing, rules
+   and page setup. The two want opposite things: one is to be read and edited,
+   the other to be left alone — so the one worth reading says so. */
+.typst-raw-text .typst-raw-label {
+  color: rgba(190, 90, 60, 0.85);
+}
+.typst-raw-text {
+  border-left: 2px solid rgba(190, 90, 60, 0.35);
+}
+.typst-raw-text .typst-raw-textarea {
+  color: var(--text-color);
+}
+
 /* ─── Citations ────────────────────────────── */
 .typst-citation {
   display: inline-flex;

@@ -19,8 +19,29 @@ export type ProjectMacroItem = ProjectMacro;
 
 let macros: ProjectMacroItem[] = [];
 
+/**
+ * Fired whenever the catalogue changes, because the node views are built BEFORE
+ * it arrives.
+ *
+ * `project:listMacros` walks the whole project over IPC, so it resolves well
+ * after the document has been set and every `typstRawBlock` node view has
+ * already asked `getProjectMacros()` and been told "nothing". Without a signal
+ * they stayed as code blocks for the rest of the session — the card simply never
+ * appeared, which is exactly what it looked like in practice.
+ */
+export const PROJECT_MACROS_EVENT = 'penwright:project-macros-changed';
+
+function announce(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(PROJECT_MACROS_EVENT));
+}
+
 export function setProjectMacros(next: ProjectMacroItem[]): void {
+  const before = macros;
   macros = Array.isArray(next) ? next : [];
+  // Cheap identity check — the names are what a node view matches on.
+  const same = before.length === macros.length
+    && before.every((m, i) => m.name === macros[i].name && m.relPath === macros[i].relPath);
+  if (!same) announce();
 }
 
 export function getProjectMacros(): ProjectMacroItem[] {
@@ -28,7 +49,9 @@ export function getProjectMacros(): ProjectMacroItem[] {
 }
 
 export function clearProjectMacros(): void {
+  if (!macros.length) return;
   macros = [];
+  announce();
 }
 
 // The call itself comes from the shared module, so the menu inserts exactly what

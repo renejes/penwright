@@ -126,6 +126,7 @@ export const editorLib: EditorLibMessages = {
   rawBlockConfig: 'typst · Konfiguration',
   rawBlockCode: 'typst · Code',
   rawBlockComment: 'typst · Kommentar',
+  rawBlockText: 'typst · Text',
   rawBlockDefault: 'typst',
 
   // Page break

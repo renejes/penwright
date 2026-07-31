@@ -101,7 +101,9 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.36.0: comments are no longer read as arguments or parameters, a path field
 // is always quoted, the macro walk is bounded by isPathWithin, and the MCP tool
 // distinguishes "none exist" from "none visible here".
-export const MCP_SETUP_VERSION = '0.36.0';
+// 0.37.0: raw blocks that carry prose are classified `text` (label only — the
+// exports still branch on `config` alone).
+export const MCP_SETUP_VERSION = '0.37.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
