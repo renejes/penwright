@@ -1,7 +1,7 @@
 # Penwright Desktop — Handbuch
 
-> **Version:** 0.10.0 (Pre-Release)
-> **Letzte Aktualisierung:** 2026-06-30
+> **Version:** 0.12.0 (Pre-Release)
+> **Letzte Aktualisierung:** 2026-07-31
 > **English version:** [handbook.md](handbook.md)
 
 ---
@@ -60,7 +60,7 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 ```
 Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitzen in der Top-Bar; Klick zeigt das Panel, Klick auf den aktiven Tab klappt die Seitenleiste ein. Der **＋-Button** links in der Toolbar öffnet das Einfügen-Menü (siehe [Inhalte einfügen](#inhalte-einfügen--button--und-)). Die **Mitte der Statusleiste** ist die kontextuelle **Look**-Steuerung (Kapitel-Look / Global-Look / Look — siehe [das Look-Modell](#design--das-look-modell)). Es gibt keinen separaten „Design"-Tab — Gestalten lebt in `style.typ` und der Statusleiste.
 
-**Oberflächensprache (Englisch / Deutsch):** Penwright übernimmt beim ersten Start die OS-Sprache. Wechseln kannst du jederzeit über den kleinen **DE/EN-Schalter** rechts in der Statusleiste oder unter **Document → Document Settings → Oberfläche**. (Das ist die *App*-Sprache — getrennt von der Textsprache eines Dokuments, die `#set text(lang: …)` setzt.)
+**Oberflächensprache (Englisch / Deutsch):** Penwright übernimmt beim ersten Start die OS-Sprache. Wechseln kannst du jederzeit über den kleinen **DE/EN-Schalter** rechts in der Statusleiste oder unter **Dokument → Dokument-Einstellungen… → Oberfläche**. (Das ist die *App*-Sprache — getrennt von der Textsprache eines Dokuments, die `#set text(lang: …)` setzt.)
 
 ### Panels ein-/ausblenden
 
@@ -96,11 +96,11 @@ Alle Panels sind per Drag resizeable.
 
 Alle projekt- und dokument-bezogenen Aktionen liegen in der **nativen Menueleiste** (oben am Bildschirm auf macOS, oben am Fenster auf Windows / Linux). Fuenf Top-Level-Menues:
 
-- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
+- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), **Save Project as Preset…**, Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+Alt+B`), Toggle Preview (`Cmd+Shift+P`), plus Standard-Window-/Zoom-Rollen
 - **Document** — Document Settings (**Oberflächensprache** + Dokumentsprache + Zitierstil; der Look des Dokuments lebt in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
-- **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (oeffnet `<userData>/crash-reports/` im Finder); About auf Windows / Linux
+- **Help** — Show Introduction, User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **MCP Connection…**, **Connect to Claude Desktop…**, **Open Crash Reports** (oeffnet `<userData>/crash-reports/` im Finder); About auf Windows / Linux
 
 In-Text-Inserts (Bild, Tabelle, Mathe, Zitat, Trenner, Seitenumbruch etc.) gehen drei Wege: der **＋ Einfügen**-Button links in der Toolbar, **Slash-Commands** (tippe `/` im Editor — siehe unten) oder `@` für Zitate & Verweise.
 
@@ -110,21 +110,61 @@ Der Toolbar-**＋**-Button und das Slash-Menü speisen sich aus **derselben List
 
 | Befehl | Beschreibung |
 |--------|--------------|
-| `/Heading 1-3` | Ueberschriften |
-| `/Bullet List` | Aufzaehlung |
-| `/Numbered List` | Nummerierte Liste |
-| `/Quote` | Blockquote |
-| `/Code Block` | Generischer Code-Block (für Code-Beispiele im Text) |
-| `/Divider` | Trennlinie |
-| `/Page Break` | Neue Seite beginnen |
-| `/Table of Contents` | Fügt `#outline()` ein |
-| `/Math` | Typst Mathe-Block |
-| `/Typst Code` | Roher Typst-Block — für `#set` / `#show` / Farben etc. Verlassen mit **✓ Fertig**, `Esc` oder `Cmd+Enter` |
-| `/Image` | Bild einfuegen |
-| `/Footnote` | Fussnote — Popup oeffnet sich automatisch zur Eingabe |
-| `/Citation` | `@` als Trigger fuer den Citation-Picker |
-| `/Reference` | Cross-Reference-Picker — waehle ein `<label>` zum Einfuegen als `@label` |
-| `/Table` | Tabelle einfuegen (mit Header) |
+| `/Überschrift 1-3` | Ueberschriften |
+| `/Aufzählung` | Ungeordnete Liste |
+| `/Nummerierte Liste` | Geordnete Liste |
+| `/Zitat` | Blockzitat |
+| `/Codeblock` | Generischer Code-Block (für Code-Beispiele im Text) |
+| `/Trennlinie` | Horizontale Linie |
+| `/Seitenumbruch` | Neue Seite beginnen |
+| `/Inhaltsverzeichnis` | Fügt `#outline()` ein |
+| `/Formel` | Typst-Formelblock |
+| `/Typst-Code` | Roher Typst-Block — für `#set` / `#show` / Farben etc. Verlassen mit **✓ Fertig**, `Esc` oder `Cmd+Enter` |
+| `/Bild` | Bild einfuegen |
+| `/Fußnote` | Fussnote — Popup oeffnet sich automatisch zur Eingabe |
+| `/Zitation` | `@` als Trigger fuer den Citation-Picker |
+| `/Querverweis` | Cross-Reference-Picker — waehle ein `<label>` zum Einfuegen als `@label` |
+| `/Tabelle` | Tabelle einfuegen (mit Header) |
+| `/Artikel-Auftakt` | Kicker, Titel, Vorspann & Byline |
+| `/Initial` | Erster Absatz mit Initialbuchstaben |
+| `/Pull-Quote` | Großes zentriertes Zitat mit Quelle |
+| `/Interview-Frage` | Fette Frage für ein Interview |
+| `/Notizkasten` | Gerahmte Notiz mit Titel |
+| `/Bildtafel` | Foto mit gerahmter Anmerkung |
+| `/Spalten` | Mehrspaltiger Abschnitt |
+| `/Zwischenstück` | Stiller zentrierter Trenner |
+| `/Randnotiz` | Stille Notiz im Außenrand |
+
+### „Aus diesem Projekt" — die eigenen Bausteine deines Projekts
+
+Unter den Standard-Einträgen hat das ＋-Menü einen Abschnitt **Aus diesem Projekt**. Er listet die Bausteine, die *dieses* Projekt für sich selbst definiert: eine Bildtafel, ein Pull-Quote, ein Infokasten, eine Preiszeile — was auch immer in den projekteigenen Dateien (`style.typ`, `macros.typ`, …) steht, von dir geschrieben oder von der KI, die das Design gebaut hat. Ein Klick fügt den fertigen Aufruf mit Platzhalterwerten ein, die du überschreibst — ein Textfeld trägt den Namen des Parameters, ein Bildfeld `assets/bild.jpg`, der Rumpf das Wort `Inhalt`. Optionale Werte bleiben ganz weg und behalten so die Vorgabe, die der Baustein selbst definiert. Das `/`-Menü bietet dieselben Bausteine an; es ist eine flache Liste, tippe also den Namen des Bausteins.
+
+Dafür muss nichts registriert werden. Penwright liest die Definitionen des Projekts und bietet sie an, wie sie sind. Im Menü steht immer der Name des Bausteins; eine Kommentarzeile direkt über der Definition wird zur Beschreibung darunter, sonst siehst du die Signatur. (Auf der Karte weiter unten ist der Kommentar dann die Überschrift.)
+
+**Warum ein Baustein in manchen Dateien auftaucht und in anderen nicht:** Ein Baustein funktioniert nur in einer Datei, die ihn importiert hat. Typst reicht einen Import aus dem Hauptdokument *nicht* an ein Kapitel weiter — ein Kapitel, das die Datei mit der Definition nicht selbst importiert, kann den Baustein nicht benutzen, und das Dokument würde nicht mehr kompilieren. Deshalb wird die Liste pro Datei gebaut: Sie zeigt genau das, was an deiner Cursorposition benutzbar ist, und ändert sich beim Dateiwechsel. Fehlt ein Baustein, den du erwartest, importiert die Datei ihn nicht (das Hauptdokument tut es meist).
+
+Definiert ein Projekt nichts Eigenes, fehlt der Abschnitt einfach.
+
+### Die Baustein-Karte
+
+Ein Baustein in deinem Text — selbst eingefügt oder von der KI ins Dokument geschrieben — ist keine Code-Wand, die du nur anschauen kannst. Ist ein Block genau ein Aufruf eines Bausteins, den diese Datei sieht, zeigt Penwright ihn als **Karte**: oben der Name des Bausteins, darunter eine Zeile pro Wert, links die Bezeichnung, rechts der aktuelle Wert. Ein weggelassener Wert steht als *(Vorgabe)* da. Ein Baustein ohne Werte sagt das ausdrücklich.
+
+- **Klick auf die Karte** öffnet ein kleines Formular mit einem Feld pro Wert. Was du tippst, geht direkt ins Dokument.
+- **Ein Feld, das eine Datei will, bekommt einen „Datei wählen…"-Knopf**, statt dich einen Pfad tippen zu lassen — du wählst das Bild, Penwright kopiert es nach `assets/` und schreibt den richtigen relativen Pfad.
+- **Ein Feld leer lassen** heißt „nimm den Vorgabewert aus der Definition": der Wert wird aus dem Aufruf entfernt und nicht als leerer Text geschrieben.
+- **`</> Code`** oben rechts auf der Karte zeigt den rohen Typst-Quelltext genau dieses Blocks, **Formular** führt zurück. In beide Richtungen geht nichts verloren.
+
+Eine Änderung ersetzt genau den einen Wert, den du geändert hast. Alles andere im Block bleibt unangetastet — deine Zeilenumbrüche, deine Kommentare und jeder Wert, den du nicht angefasst hast.
+
+**Manche Blöcke bleiben absichtlich Code.** Ist ein Block nicht ein ganzer Aufruf, den Penwright sicher lesen kann — zwei Aufrufe in einem Block, eine offene Klammer, etwas, das sich nicht unverändert zurückschreiben lässt — behält er das schlichte Textfeld. Das ist Absicht: Ein Formular über einem Block, den der Editor nur halb versteht, würde irgendwann an der falschen Stelle hineinschreiben.
+
+### Tabellen
+
+Eine `#table(...)` im Dokument öffnet sich als **echte Tabelle, in die du tippen kannst**. Klick in eine Zelle und bearbeite sie wie jeden anderen Text. Die kleine Leiste unter der Tabelle hat ein Zahnrad zum Hinzufügen und Entfernen von Zeilen und Spalten (und zum Löschen der Tabelle) sowie einen **✓ Fertig**-Knopf, der den Cursor zurück in den Text darunter setzt.
+
+Die Gestaltung der Tabelle selbst — Spaltenbreiten, Ausrichtung, Hintergrundfarben, Linien, Innenabstände — bleibt **genau so, wie sie geschrieben wurde**, und wird nie neu erzeugt. Penwright macht den *Inhalt* bearbeitbar und lässt das Design in Ruhe. Genau darum geht es: In einer Preistabelle willst du den Preis ändern.
+
+**Manche Tabellen bleiben absichtlich ein Code-Block.** Macht eine Tabelle etwas, das Penwright nicht unverändert zurückgeben kann — per Ausdruck berechnete Spaltenbreiten, eine Zelle über mehrere Spalten, eine Zelle, deren Inhalt sich nicht exakt reproduzieren ließ —, bleibt die ganze Tabelle Typst-Quelltext. Sie als bearbeitbare Tabelle zu zeigen, hieße zu riskieren, beim nächsten Speichern still einen Teil davon zu verlieren.
 
 ### Multi-Tab Editor
 
@@ -140,7 +180,7 @@ Der Toolbar-**＋**-Button und das Slash-Menü speisen sich aus **derselben List
 ### Bilder
 
 **Einfuegen:**
-- **Slash Command:** `/Image` -> Datei-Auswahl
+- **Slash-Command:** `/Bild` -> Datei-Auswahl
 - **Drag & Drop:** Bild vom Finder oder aus der Sidebar (assets/) in den Editor ziehen
 
 **Bild-Dialog (Klick aufs Bild):**
@@ -194,7 +234,7 @@ Projekttypen: Dokument · Abschlussarbeit · Paper · Brief · Buch · **Magazin
 
 ### Design aus einem Preset importieren
 
-Im **Design-Panel** (Sidebar) -> Abschnitt **„Aus Preset importieren"**: uebernimm aus einem beliebigen Preset das **ganze Design**, nur die **Farben**, nur die **Schriften**, nur das **Layout** oder die **Kapitel-Rubriken** — direkt in dein offenes Projekt. Laeuft ueber die safe-apply-Engine (kompiliert-oder-Rollback, rueckgaengig-machbar).
+Im **Look-Designer** (Doppelklick auf `style.typ`) -> Abschnitt **„Aus Preset importieren"**: uebernimm aus einem beliebigen Preset das **ganze Design**, nur die **Farben**, nur die **Schriften**, nur das **Layout** oder die **Kapitel-Rubriken** — direkt in dein offenes Projekt. Laeuft ueber die safe-apply-Engine (kompiliert-oder-Rollback, rueckgaengig-machbar).
 
 ### Was jedes neue Projekt automatisch bekommt
 
@@ -211,7 +251,7 @@ Im **Design-Panel** (Sidebar) -> Abschnitt **„Aus Preset importieren"**: ueber
 
 ## Sidebar
 
-Die Sidebar hat sechs Tabs:
+Die Sidebar hat fuenf Tabs:
 
 ### Files
 - Rekursiver Dateibaum, Back-Button, **Neuer Ordner** (Inline-Eingabefeld — Enter speichert, Esc bricht ab), **Asset hinzufuegen** (Datei-Auswahl, kopiert nach `assets/`)
@@ -276,7 +316,7 @@ Typst rendert Fussnoten nativ — gross-Buchstabe als hochgestellte Zahl im Flie
 
 **Einfuegen:**
 - **Toolbar:** Klick auf **Fn** in der Editor-Toolbar
-- **Slash-Command:** `/Footnote`
+- **Slash-Command:** `/Fußnote`
 
 In beiden Faellen wird eine leere Fussnote an der Cursor-Position eingefuegt und der **Inline-Popup-Editor oeffnet sich automatisch** zum Eingeben.
 
@@ -317,7 +357,7 @@ Konventionell bekommen Labels ein Praefix nach Art des Verweises — `fig:`, `tb
 
 Drei Wege, den Picker zu oeffnen:
 
-- **Slash-Command:** `/Reference`
+- **Slash-Command:** `/Querverweis`
 - **Menue:** `Edit -> Insert Reference…`
 - **Shortcut:** `Cmd+Alt+L`
 
@@ -404,7 +444,7 @@ In beiden Faellen ist die Suche eine ganz normale [Find-in-Project](#suche-im-pr
 - **PDF-Rendering** ueber pdf.js — viewport-virtualisiert, also bleibt die Vorschau auch bei 100+ Seiten fluessig
 - **Text markieren & kopieren** in der Vorschau dank pdf.js' TextLayer
 - **Fehleranzeige:** Typst-Fehler werden im Preview Panel ausgegeben
-- **Aktualisierungs-Modus (auto / manuell):** standardmäßig aktualisiert sich die Vorschau live beim Tippen (400 ms Debounce). Für lange Dokumente kannst du unter **Document → Document Settings → Vorschau** auf **manuell** umstellen — dann wird weiterhin automatisch gespeichert, die Vorschau kompiliert aber nur, wenn du den **↻ Aktualisieren**-Button in der Vorschau-Leiste klickst. Ein „Veraltet"-Hinweis + ein hervorgehobenes ↻ zeigen, wenn die Vorschau hinterherhinkt.
+- **Aktualisierungs-Modus (auto / manuell):** standardmäßig aktualisiert sich die Vorschau live beim Tippen (400 ms Debounce). Für lange Dokumente kannst du unter **Dokument → Dokument-Einstellungen… → Vorschau** auf **manuell** umstellen — dann wird weiterhin automatisch gespeichert, die Vorschau kompiliert aber nur, wenn du den **↻ Aktualisieren**-Button in der Vorschau-Leiste klickst. Ein „Veraltet"-Hinweis + ein hervorgehobenes ↻ zeigen, wenn die Vorschau hinterherhinkt.
 - **Folgt dem aktiven Kapitel:** wechselst du zu einer Kapiteldatei, scrollt die Vorschau zur ersten Seite dieses Kapitels (über die PDF-Lesezeichen gematcht). Der Sprung passiert nur beim *Wechsel*, nie beim Tippen.
 - **Einzelseite oder Doppelseite:** ein kleiner `▭▭`-Schalter in der Vorschau-Leiste wechselt zwischen Einzelseiten-Scrollen und einer **2-up-Doppelseiten-Ansicht** — Seite 1 allein, dann 2–3, 4–5 … nebeneinander, so wie ein Magazin aufgeschlagen wird. Praktisch für Doppelseiten und Full-Bleed-Layouts. Pro Projekt gespeichert (zusammen mit den Zoom-Stufen).
 
@@ -440,12 +480,12 @@ Editor- und PDF-Vorschau lassen sich unabhaengig voneinander zoomen, 50 % bis 20
 ### Export-Dialog
 
 Bei Multi-Chapter-Projekten oeffnen **File -> Export PDF** oder **Export DOCX** einen Dialog, in dem du:
-- Mit einem Klick zwischen **PDF** und **DOCX** wechseln kannst
+- Mit einem Klick zwischen **PDF**, **DOCX** und **Web (HTML)** wechseln kannst. Bei Web kommen zwei weitere Optionen dazu: ob das Heft eine lange Seite wird oder eine Seite pro Kapitel, und ob Bilder ins HTML eingebettet oder danebengelegt werden
 - **Die zu exportierenden Kapitel** per Checkbox auswaehlst — jedes Kapitel zeigt seine erste H1 als Titel
 - Das **Literaturverzeichnis** ein-/ausschalten kannst
 - Per **alle / keine**-Shortcuts schnell die Auswahl steuern kannst
 
-Titelseite, Abstract und alles ausserhalb von `#include` werden immer mit-exportiert. Single-File-Projekte ohne `#include` umgehen den Dialog und gehen direkt zum Save-Dialog.
+Titelseite, Abstract und alles ausserhalb von `#include` werden immer mit-exportiert. **PDF oeffnet diesen Dialog immer**, auch bei einem Ein-Datei-Dokument, weil die Druckoptionen hier liegen. Nur ein DOCX-Export aus einer einzelnen Datei geht direkt zum Save-Dialog.
 
 ### PDF Export
 
@@ -461,7 +501,7 @@ Beim PDF-Export zeigt der Dialog jetzt eine Option **„Für den Druck"**, die a
 - **dpi-Preflight:** ein nicht-blockierender Hinweis listet Bilder, die wahrscheinlich zu niedrig aufgelöst für den Druck sind (unter ~1500 px an der kurzen Kante).
 - **„Als Standard merken":** speichert die Druckeinstellungen im Projekt-Design, sodass der Dialog beim nächsten Mal vorbelegt ist.
 
-Schnellster Weg: **File → Export PDF → „Für den Druck" anhaken**. Um ein Projekt einmalig als Druckprojekt einzurichten, im Design-Tab das Layout-Preset **„Magazin (Druck) · A4 + 5 mm Beschnitt"** anwenden — dann ist der Dialog vorbelegt und Doppelseiten erscheinen schon beim Schreiben.
+Schnellster Weg: **Datei → Als PDF exportieren… → „Für den Druck" anhaken**. Um ein Projekt einmalig als Druckprojekt einzurichten, im Look-Designer das Layout-Preset **„Magazin (Druck) · A4 + 5 mm Beschnitt"** anwenden — dann ist der Dialog vorbelegt und Doppelseiten erscheinen schon beim Schreiben.
 
 Ein **Doppelseiten-Bild** („Double-Truck" — ein Foto über zwei gegenüberliegende Seiten und über den Bund) gibt es als Design-Element; im Druck-Export blutet es automatisch an die physischen Ränder. Zum Beurteilen die **Doppelseiten-Vorschau** nutzen (siehe Live-Preview).
 
@@ -484,9 +524,9 @@ Das DOCX wird mit echten Word-Styles erzeugt und deckt jetzt die reichen akademi
 
 ### Web-Export (HTML) — das Editorial Web Pack
 
-Neu in 0.10.0: **Print *und* Web aus einer Quelle.** Exportiere dein Dokument — oder ein ganzes Magazin — als self-contained, responsives HTML fürs Web. Dasselbe Manuskript, aus dem dein Druck-PDF wird, wird eine echte Webseite, ohne zweites Editieren.
+**Print *und* Web aus einer Quelle.** Exportiere dein Dokument — oder ein ganzes Magazin — als self-contained, responsives HTML fürs Web. Dasselbe Manuskript, aus dem dein Druck-PDF wird, wird eine echte Webseite, ohne zweites Editieren.
 
-**So geht's:** **File → Export to Web (HTML)…**, dann einen Ordner wählen — Penwright schreibt ein kleines Bundle dorthin.
+**So geht's:** **Datei → Ins Web exportieren (HTML)… (HTML)…**, dann einen Ordner wählen — Penwright schreibt ein kleines Bundle dorthin.
 
 **Zwei Formen, automatisch aus dem Dokument erkannt:**
 - Ein **normales Dokument** (Thesis, Bericht, Paper) → **eine self-contained Seite** (`index.html`), plus `fragment.html` (nur der Artikel, zum Einbetten), eine neutrale `meta.json` und ein `assets/`-Ordner für Bilder.
@@ -521,7 +561,7 @@ Penwright entkoppelt Schreiben und Gestalten. Du gestaltest **dort, wo es wirkt*
 - **Ein Kapitel → die Statusleiste.** Während du ein Kapitel bearbeitest, zeigt die Statusleiste in der Mitte **Kapitel-Look ▾** — wähle eine Magazin-Rubrik (Feature / Interview / Essay / …). Das **✎** öffnet einen vollen Editor für diesen Look (Akzent- + Primärfarbe, Body/Heading-Font, Basisgröße, Zeilenabstand, Spalten, H1–H3) mit **„Für alle mit diesem Look"** vs. **„Nur dieses Kapitel"** (forkt eine kapitel-eigene Variante). Seitenformat, Ränder und Kopfzeilen bleiben immer dokumentweit.
 - **Eine Stelle → Design with AI.** Text markieren, Rechtsklick **✨ Design with AI** — ein kleines Popover erscheint an der Auswahl (Prompt kopieren / Claude öffnen). Claude liest sie via `penwright_get_selection` und gestaltet genau diese Stelle.
 
-**Sicher per Design:** Jede In-App-Design-Änderung wird *vor* dem Übernehmen kompiliert. Würde sie nicht kompilieren, wird sie zurückgerollt und dein letzter funktionierender Look bleibt — das Dokument bleibt nie kaputt. Der Look-Designer hat ein **↩ Rückgängig**.
+**Sicher per Design:** Jede Design-Änderung — deine in der App und die der KI über MCP — wird *vor* dem Übernehmen kompiliert. Würde sie nicht kompilieren, wird sie zurückgerollt und dein letzter funktionierender Look bleibt; das Dokument bleibt nie kaputt. Der Look-Designer hat ein **↩ Rückgängig**.
 
 Jede Änderung schreibt nach `<project>/.penwright/style.json` und regeneriert `<project>/style.typ` — die Root-Datei zieht die Regeln per `#import "style.typ": *` plus `#show: apply-style` rein.
 
@@ -532,11 +572,12 @@ Jede Änderung schreibt nach `<project>/.penwright/style.json` und regeneriert `
 | **Farbpalette** | Fuenf semantische Slots (primary / accent / text / background / muted) — jeder mit Coloris-Picker plus Hex-Textfeld |
 | **Paletten-Presets** | Acht kuratierte 5-Farben-Paletten (Modern Tech, Editorial, Earth Tones, High Contrast, Minimal Mono, Forest Deep, Sunset Warm, Ocean Classic). Apply tauscht nur Farben |
 | **Themes** | Sechs vollstaendige ProjectStyle-Snapshots (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis). Apply ueberschreibt alles ausser dem Custom-Code-Block |
-| **Layout-Presets** | Sieben Geometrie-Wechsel (A4 Portrait, A4 Landscape, Magazine 2-Spalten, Newsletter 3-Spalten, A5 Booklet, A2 Poster, Magazine Editorial mit Header-Strip) — Paper, Orientation, Margin, Columns, optional Base-Size |
+| **Layout-Presets** | Acht Geometrie-Wechsel (A4 Portrait, A4 Landscape, Magazine 2-Spalten, Newsletter 3-Spalten, A5 Booklet, Magazine Editorial mit Header-Strip, A2 Poster, Magazin (Druck) · A4 + 5 mm Beschnitt) — Paper, Orientation, Margin, Columns, optional Base-Size |
 | **Fonts** | Drei Font-Slots (body / heading / code) plus Font-Browser. Jede Karte rendert die Familie + Beispielsatz live in den sieben gebuendelten OFL-Fonts |
 | **Scale** | Base-Size, Leading, Paragraph-Spacing, First-Line-Indent |
 | **Layout** | Paper, Orientation, Margin, Columns, Page-Numbering, Header-Markup, Footer-Markup, Page-Fill (Background-Color-Expression). Header/Footer akzeptieren die Platzhalter `{chapter}` (aktueller H1-Titel) und `{section}` (aktueller H2-Titel) — z.B. `{chapter} · ISSUE 1` ergibt eine pro-Kapitel mitwandernde Running-Head. |
 | **Headings** | H1–H6 als collapsible Cards — Size, Weight, Color-Slot, Top-Margin pro Level; plus ein einziges Numbering-Pattern |
+| **Bausteine** | Die 24 fertigen Layout-Bausteine (siehe unten) — Liste filtern, Felder ausfuellen, **An Cursorposition einfuegen**. Warnt, wenn die offene Datei `style.typ` nicht importiert, weil ein Baustein dort die Projektfarben nicht faende |
 | **Elements** | Blockquote, Code-Block, Figure (inkl. Photographer-Credit-Separator + Label fuer `figure-caption-credit(caption, credit)` Helper), Table — jede als collapsible Card mit strukturierten Feldern (Border-Slot / Padding / Italic-Toggle / Caption-Position / Zebra-Rows / etc.) |
 | **Section Styles** | Per-Chapter "Rubriken" fuer Magazin-Layouts — benannte Overlays (Accent / Fonts / Spalten / Heading-Treatment), die du im **Chapters**-Tab einem einzelnen Kapitel zuweist. Fuenf Built-in-Presets (Feature / Interview / Essay / Photo-Essay / Department); collapsible Liste mit Accent-Swatch, Spaltenzahl und Loeschen. Page-Geometrie + Running-Heads bleiben dokument-level |
 | **Custom Typst-Code** | Escape-Hatch: freier Typst-Code im CodeMirror-Editor. Wird ans Ende von `style.typ` in einen fenced Block angehaengt, der jede Regeneration ueberlebt |
@@ -553,7 +594,9 @@ Die Custom-Typst-Code-Section unten im Design-Panel akzeptiert beliebigen Typst 
 
 ### Design-Elemente (Library)
 
-Eine **22 Elemente** umfassende Library parametrischer Snippets — Banner, Sidebar, Pull-Quote (drei Varianten: regular / Display / Block), Callout, Hero, Section-Divider (drei Varianten: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image-Gallery 2-up / 3-up / asymmetric (1 gross + 2 klein), Image-Overlay (Foto mit Gradient + Headline drueber), Stats-Box ("By the numbers"-Sidebar), Photo-Caption-Wrap (kleines Foto mit Caption drumherum via wrap-it), Magazine-Cover, Full-Bleed-Image (randlose Ganzseite), Spread-Opener (full-bleed Opener mit Headline ueber Gradient), Margin-Note (Marginalia im Aussenrand via drafting). Sie werden ueber die MCP-Tools `penwright_list_design_elements` / `penwright_insert_design_element` von Claude Desktop aus eingefuegt; jede Referenz auf `style-colors.*` / `style-fonts.*` bedeutet das Element re-themed sich automatisch wenn du Palette oder Fonts wechselst. Der `magazine-cover` setzt `#page(margin: 0pt)` fuer die Coverseite — der Rest des Dokuments behaelt seine konfigurierten Raender. `style.typ` exportiert dafuer drei Modul-level Werte: `style-colors`, `style-fonts` und `figure-caption-credit(caption, credit)` (fuer Foto-Quellen-Captions).
+Eine **24 Elemente** umfassende Library parametrischer Snippets — Banner, Sidebar, Pull-Quote (drei Varianten: regular / Display / Block), Callout, Hero, Section-Divider (drei Varianten: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image-Gallery 2-up / 3-up / asymmetric (1 gross + 2 klein), Image-Overlay (Foto mit Gradient + Headline drueber), Stats-Box ("By the numbers"-Sidebar), Photo-Caption-Wrap (kleines Foto mit Caption drumherum via wrap-it), Magazine-Cover, Full-Bleed-Image (randlose Ganzseite), Spread-Opener (full-bleed Opener mit Headline ueber Gradient), Margin-Note (Marginalia im Aussenrand via drafting), Spread-Image (ein Foto ueber zwei gegenueberliegende Seiten, im Druck-Export bis an die physischen Raender).
+
+Du erreichst sie **auf zwei Wegen**: ueber den Abschnitt **Bausteine** im Look-Designer (`style.typ` oeffnen) — filtern, Felder ausfuellen, „An Cursorposition einfuegen" — oder aus Claude Desktop ueber die MCP-Tools `penwright_list_design_elements` / `penwright_insert_design_element`. Jede Referenz auf `style-colors.*` / `style-fonts.*` bedeutet, dass sich das Element automatisch re-themed, wenn du Palette oder Fonts wechselst. Der `magazine-cover` setzt `#page(margin: 0pt)` fuer die Coverseite — der Rest des Dokuments behaelt seine konfigurierten Raender. `style.typ` exportiert dafuer sechs Modul-level Werte: `style-colors`, `style-fonts`, `style-bleed` (0 mm am Bildschirm, im Druckexport der Beschnitt — das Element „Doppelseiten-Bild" braucht es, ein handgeschriebenes `style.typ` ohne diesen Wert kann es also nicht tragen), `figure-caption-credit(caption, credit)` fuer Foto-Quellen-Captions sowie `chapter-name()` / `section-name()` fuer Kolumnentitel.
 
 ### Gebuendelte OFL-Fonts (offline-tauglich)
 
@@ -571,7 +614,7 @@ Sieben Font-Familien sind mit Penwright ausgeliefert — keine System-Installati
 
 ### Style-Templates-Menue (Legacy)
 
-Das alte **Document → Style Templates** Submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) wurde in Session 22 ersetzt durch die Themes-Section im Look-Designer (öffne `style.typ`). Die MCP-Tools `penwright_list_styles` und `penwright_apply_style` funktionieren weiterhin — sie zeigen jetzt auf die neuen Theme-Presets.
+Das alte **Dokument → Stil-Vorlagen** Submenu (Classic / Modern / Minimal / Vibrant / Elegant / Professional / Artsy) wurde in Session 22 ersetzt durch die Themes-Section im Look-Designer (öffne `style.typ`). Die MCP-Tools `penwright_list_styles` und `penwright_apply_style` funktionieren weiterhin — sie zeigen jetzt auf die neuen Theme-Presets.
 
 ---
 
@@ -614,7 +657,7 @@ Der Abschnitt **Auto-Backups** in **Verlauf & Wiederherstellen** listet jeden au
 
 ### AI-Edit-Undo
 
-Wenn ein externes Tool (ein KI-Agent, der MCP-Server, …) eine offene Datei aendert, sichert Penwright den vorherigen Inhalt **vor** der Aenderung in den AI-Snapshot-Ringpuffer. Geh sie einzeln im Abschnitt **KI-Aenderungen** von **Verlauf & Wiederherstellen** zurueck (oder ueber den Menue-Eintrag **Undo AI Edit**). Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`).
+Wenn ein externes Tool (ein KI-Agent, der MCP-Server, …) eine Datei im Projekt aendert, wird der vorherige Inhalt **vor** der Aenderung gesichert — fuer jede Datei, nicht nur fuer die gerade geoeffnete. Geh sie einzeln im Abschnitt **KI-Aenderungen** von **Verlauf & Wiederherstellen** zurueck (oder ueber den Menue-Eintrag **Undo AI Edit**). Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`), und die KI sieht genau dieselbe Liste: sie kann sie lesen und ihre eigene letzte Aenderung zuruecknehmen.
 
 ### Cloud-Backup (optional)
 
@@ -668,7 +711,7 @@ Zum Rueckgaengig-Machen von AI-Edits siehe Abschnitt [Versionen & Auto-Backup](#
   - **Wortzahl + Lesezeit** des aktiven Dokuments (z. B. *1.247 Wörter · 5 Min Lesezeit*) — live waehrend du tippst, mit 200 Woertern pro Minute. Code-Bloecke und rohe Typst-Bloecke werden nicht mitgezaehlt, damit der Wert sinnvoll bleibt.
   - **Save-Status:** "Unsaved" (orange) oder "Saved 14:35"
   - **Dateiname** des aktiven Tabs
-  - **Lizenz-Tier**-Badge (Unlicensed / Licensed / Pro)
+  - **Lizenz-Status**-Badge (Testphase: N Tage / Lizenziert / Gesperrt) — Klick oeffnet den Lizenz-Dialog
 - Warnung beim Schliessen bei ungespeicherten AEnderungen
 - **Crash Recovery:** Auto-Backups werden nach `<projekt>/.penwright/backups/<timestamp>/` geschrieben (Intervall konfigurierbar, Default 30 s). Wenn die App abstuerzt und das juengste Backup neuer ist als die zuletzt gespeicherte Datei auf der Platte, bietet Penwright beim Wiederoeffnen des Projekts an, den Backup-Stand zurueckzuholen. Details siehe [Versionen & Auto-Backup](#versionen--auto-backup).
 
@@ -680,7 +723,7 @@ Penwright trennt zwei Arten von Zustand: **App-Einstellungen**, die global zur I
 
 **Global** (im OS-User-Data-Ordner):
 - Fenster-Position & -Groesse
-- Panel-Zustaende (Sidebar/Preview/Terminal offen/zu, Groessen, aktiver Tab)
+- Panel-Zustaende (Sidebar/Preview offen/zu, Groessen, aktiver Tab)
 - Recent Projects (die letzten 10 Projektordner — tote Eintraege werden automatisch gefiltert)
 - Onboarding-Flag (Welcome-Screen "Don't show again")
 - Zotero `.bib`-Pfad
@@ -703,20 +746,20 @@ Penwright ist ein **Einmalkauf — 59 €**. Eine Lizenz, kein Abo, keine Stufen
 
 ### Kostenlose Testphase
 
-Beim ersten Start bekommst du eine **14-taegige lokale Testphase** mit vollem Funktionsumfang — ohne Key, ohne Account. Die Status Bar zeigt die verbleibenden Tage, ein schlanker Banner bietet **"Buy now – €59"**. Laeuft die Testphase ab, wird Penwright hinter einem Kauf-Screen gesperrt, bis du einen Key eingibst. (Die Lizenz-Oberflaeche ist auf Englisch, wie der Rest der App.)
+Beim ersten Start bekommst du eine **14-taegige lokale Testphase** mit vollem Funktionsumfang — ohne Key, ohne Account. Die Status Bar zeigt die verbleibenden Tage, ein schlanker Banner bietet **„Jetzt kaufen – 59 €"**. Laeuft die Testphase ab, wird Penwright hinter einem Kauf-Screen gesperrt, bis du einen Key eingibst.
 
 ### Lizenzstatus in der Status Bar
 
 In der Status Bar (unten rechts) wird dein aktueller Status angezeigt:
-- **Trial: N days** — Testphase aktiv, N Tage verbleibend
-- **Licensed** — ein gueltiger Key ist aktiv
-- **Locked** — Testphase abgelaufen, noch kein Key; die App ist gesperrt, bis du aktivierst
+- **Testphase: N Tage** — Testphase aktiv, N Tage verbleibend
+- **Lizenziert** — ein gueltiger Key ist aktiv
+- **Gesperrt** — Testphase abgelaufen, noch kein Key; die App ist gesperrt, bis du aktivierst
 
 **Klick auf den Lizenzstatus** oeffnet den Lizenz-Dialog.
 
 ### Kaufen & aktivieren
 
-1. **Kaufen** — der Kauf-Button (**"Buy now – €59"** im Banner, **"Buy license – €59"** auf dem Sperr-Screen) oeffnet direkt den **Polar-Checkout**. Nach der Zahlung bekommst du deinen `pw_LIC…`-Key per E-Mail.
+1. **Kaufen** — der Kauf-Button (**„Jetzt kaufen – 59 €"** im Banner, **„Lizenz kaufen – 59 €"** auf dem Sperr-Screen) oeffnet direkt den **Polar-Checkout**. Nach der Zahlung bekommst du deinen `pw_LIC…`-Key per E-Mail.
 2. **Aktivieren** — Lizenz-Dialog oeffnen (Klick auf den Lizenzstatus), Key einfuegen, bestaetigen. Er wird gegen **Polar** validiert und lokal gespeichert (verschluesselt im System-Keychain). Die Lizenz ist sofort aktiv und ein eventueller Sperr-Screen verschwindet.
 
 ### Offline-Nutzung
@@ -748,29 +791,36 @@ Der Dialog zeigt:
 
 Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten koennen — ohne das Terminal zu benutzen.
 
-> **Hinweis:** Der MCP Server erfordert eine **gueltige Lizenz** — denselben `pw_LIC…`-Key wie die App (keine Stufen). Siehe [Lizenz-Management](#lizenz-management).
+> **Hinweis:** Der MCP-Server laeuft mit einer **gueltigen Lizenz** — demselben `pw_LIC…`-Key wie die App (keine Stufen) — **oder waehrend der kostenlosen 14-taegigen Testphase**, dann in vollem Umfang. Er verweigert erst, wenn die Testphase abgelaufen ist und kein Key aktiv ist. Siehe [Lizenz-Management](#lizenz-management).
 
 ### Was kann der MCP-Server?
 
 Die KI kann ueber den MCP-Server (66 Tools):
 - **Ein komplettes Projekt aus einem Preset anlegen** (`penwright_list_presets` + `penwright_create_from_preset`) — designter Startpunkt inkl. Platzhalter-Text, statt bei null anzufangen; Magazin-Presets mit eigenem Layout pro Kapitel
 - Typst-Dokumente oeffnen, lesen, bearbeiten und verifizieren (`compile` ist reiner Verifier; das Schreiben von Artefakten uebernehmen die Export-Tools)
+- **Die Seite sehen.** `penwright_render_page` rendert eine Seite des kompilierten PDFs als Bild und gibt sie zurueck — die KI kann Abstaende, Ueberlaeufe, Farben und die Position einer Ueberschrift beurteilen, statt sie aus dem Quelltext zu erraten
+- **Die Bausteine nachschlagen, die dein Projekt selbst definiert** (`penwright_list_project_macros`) — derselbe Katalog, den dir das ＋-Menue zeigt, begrenzt auf die Datei, in der gearbeitet wird
 - Dokument-Einstellungen aendern (Schriftart, Groesse, Sprache, Raender …) und Style-Templates anwenden
 - Kapitel und Bibliographie End-to-End verwalten (inkl. anker-basierter Inserts fuer Comments, Footnotes, Cross-References)
 - Projektweite Suche und Bulk-Replace mit Versions-Sicherheitsnetz (Whole-Word funktioniert dank Lookarounds auch bei `@citekey`-Backlinks)
 - Quell-PDFs in `sources/` per Citekey nachschlagen
 - Versionen speichern / auflisten / anzeigen / wiederherstellen — im selben Vokabular wie das Project-Panel
-- PDF und DOCX exportieren (DOCX mit echten Word-Styles + Live-Multilevel-Numbering, rendert Abbildungen, Display-Math, Tabellen, Cross-References, Fussnoten und Callouts; reiner Design-Code wird uebersprungen)
+- **Dasselbe Sicherheitsnetz lesen, das du siehst** — die automatischen Backups auflisten und lesen, die rueckgaengig machbaren Aenderungen auflisten und die letzte zuruecknehmen (`penwright_list_backups` / `read_backup` / `list_edits` / `undo_last_edit`). Ein Backup wiederherzustellen bleibt deine Entscheidung: die KI verweist dich auf „Verlauf & Wiederherstellen", statt alte Inhalte selbst zurueckzuschreiben
+- PDF, druckfertiges PDF (Beschnitt + Schnittmarken) und DOCX exportieren (DOCX mit echten Word-Styles + Live-Multilevel-Numbering, rendert Abbildungen, Display-Math, Tabellen, Cross-References, Fussnoten und Callouts; reiner Design-Code wird uebersprungen)
 - Markdown importieren und Bilder einfuegen (Content-Hash-Dedup + Figure-Builder)
-- Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (19 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries inkl. asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover) anker-basiert einfuegen, per-Chapter Section Styles (Magazin-Rubriken: feature / interview / essay / …) zuweisen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
+- Die gesamte Design-Surface fernsteuern — Themes / Palettes / Layouts / Fonts wechseln, Design-Elemente (24 Stueck inkl. Drop-Cap, Pull-Quote-Varianten, Article-Opener, Section-Opener, Image-Galleries inkl. asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note, Spread-Image) anker-basiert einfuegen, per-Chapter Section Styles (Magazin-Rubriken: feature / interview / essay / …) zuweisen, NL-Intents (`brochure` / `magazine` / `thesis` / …) auf passende Theme+Layout-Kombis mappen
 - Zwischen Projekten wechseln, Git-Operationen ausfuehren, Skill-Prompts abfragen (typst-reference / penwright-conventions / research-workflow / writing-style / design-conventions)
 
-### Einrichtung: Auto-Setup-Wizard (macOS)
+**Dieselben Zusagen wie in der App.** Jede Design-Aenderung der KI wird zuerst in eine Zwischenkopie geschrieben, probeweise kompiliert und nur behalten, wenn das Dokument weiterhin kompiliert — sonst steht das Projekt exakt so da wie vorher, und du erfaehrst warum. Von jeder Datei, die die KI ueberschreibt, wird vorher der bisherige Inhalt gesichert, in dieselbe Liste **KI-Aenderungen**, die du in „Verlauf & Wiederherstellen" durchgehen kannst.
 
-Beim ersten Start auf macOS bietet Penwright automatisch an, Claude Desktop zu verbinden — du musst keine JSON-Datei selbst editieren. Voraussetzungen:
+**Zwei Dinge haben bewusst kein Tool, statt still zu scheitern:** eine bestehende Baustein-Instanz zu bearbeiten (die Karte mit ihrem Formular gibt es, weil *du* kein Typst schreiben kannst — die KI schreibt es direkt), und den Web-Export (der liegt unter **Datei → Ins Web exportieren (HTML)… (HTML)…**, und die Export-Tools sagen das, damit die KI dich aufs Menue verweist).
 
-- **Gueltige Lizenz aktiviert** (siehe [Lizenz-Management](#lizenz-management)) — der MCP-Server lehnt sonst beim Start ab
-- **Claude Desktop installiert** unter `/Applications/Claude.app` oder `~/Applications/Claude.app`
+### Einrichtung: Auto-Setup-Wizard (macOS & Windows)
+
+Penwright bietet automatisch an, Claude Desktop zu verbinden — du musst keine JSON-Datei selbst editieren. Voraussetzungen:
+
+- **Aktive Lizenz oder laufende Testphase** (siehe [Lizenz-Management](#lizenz-management)) — der MCP-Server lehnt erst ab, wenn die Testphase ohne Key abgelaufen ist
+- **Claude Desktop installiert** unter `/Applications/Claude.app` bzw. `~/Applications/Claude.app` (macOS) oder am ueblichen `%LOCALAPPDATA%`-Ort (Windows)
 
 **Ablauf:**
 
@@ -786,9 +836,9 @@ Beim ersten Start auf macOS bietet Penwright automatisch an, Claude Desktop zu v
 
 **Idempotenz:** wiederholtes Ausfuehren ist sicher — kein Duplikat-Eintrag. Falls du spaeter eine neue Lizenz aktivierst, fuehre den Wizard ueber das Hilfe-Menue nochmal aus, damit der neue Key in die Config geschrieben wird.
 
-### Einrichtung: Manuell (Windows, Linux, oder Power-User)
+### Einrichtung: Manuell (Linux, oder Power-User)
 
-Auf Windows / Linux ist der Wizard derzeit nicht verfuegbar. Auch auf macOS kannst du manuell konfigurieren wenn du moechtest:
+Auf Linux gibt es kein Claude Desktop, deshalb laeuft der Wizard dort nicht. Auf macOS / Windows kannst du auch manuell konfigurieren, wenn du moechtest:
 
 **Schritt 1:** Im Penwright-Repo das Server-Binary bauen (einmalig):
 
@@ -860,7 +910,7 @@ Du musst die Config **nicht** jedes Mal aendern, wenn du das Projekt wechselst. 
 
 Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
-### Verfuegbare Tools (59)
+### Verfuegbare Tools (66)
 
 Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 66 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
@@ -877,12 +927,13 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 - `penwright_list_presets` — Listet alle Built-in-Presets (fertige, designte Projekte mit Platzhalter-Text) auf — `id` / `type` / `label` / `tagline`, optional nach `type` gefiltert (magazine, report, cookbook, portfolio, thesis …).
 - `penwright_create_from_preset` — Legt ein neues Projekt aus einem Preset an: kopiert den kompletten Ordner (Design + Makros + Assets + Lorem), `git init`, wechselt auf die Startdatei. Bevorzugt gegenueber `create_project`, wenn ein designter Startpunkt gewuenscht ist — Magazin-Presets bringen pro Kapitel ein eigenes Layout mit.
 
-**Dokument-Operationen (4)**
+**Dokument-Operationen (5)**
 
 - `penwright_get_document` — Liefert das aktuelle Dokument (Inhalt, Pfad, Projekt-Verzeichnis, Word-Count).
 - `penwright_open_file` — OEffnet eine `.typ`-Datei als aktuelles Dokument; Pfad absolut oder projekt-relativ.
 - `penwright_update_document` — Ersetzt den Inhalt des aktuellen Dokuments und speichert auf Disk.
 - `penwright_compile` — Verifiziert dass das Dokument fehlerfrei kompiliert; nur PDF, Artefakt wird wieder geloescht — fuer Real-Output `export_pdf` / `export_docx` benutzen.
+- `penwright_render_page` — Rendert eine Seite des kompilierten PDFs als Bild und gibt sie zurueck, damit die KI das Layout *sieht* statt es aus dem Quelltext zu erschliessen. Max. 2 Seiten pro Aufruf.
 
 **Settings (2)**
 
@@ -897,11 +948,11 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 - `penwright_update_style` — Partial-Patch mit Deep-Merge und Per-Leaf-Sanitizer; ungueltige Werte fallen auf den alten zurueck.
 - `penwright_list_styles` — Listet die sechs Built-in-Themes (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis).
 - `penwright_apply_style` — Wendet ein Theme an; ersetzt colors/fonts/scale/layout/headings/elements, behaelt `custom.preamble`.
-- `penwright_list_layouts` — Liefert die sieben Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial).
+- `penwright_list_layouts` — Liefert die acht Layout-Presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, Magazine Editorial, A2 Poster, Magazin (Druck) · A4 + 5 mm Beschnitt).
 - `penwright_apply_layout` — Tauscht nur `layout.*` (+ optional `scale.base`) — Theme, Farben, Fonts bleiben.
 - `penwright_list_fonts` — Liefert die sieben gebuendelten OFL-Fonts mit family / category / description.
 - `penwright_apply_palette` — Setzt die 5-Farb-Palette via `presetId` oder per-Slot-Hex-Overrides (kombinierbar).
-- `penwright_list_design_elements` — Library der **22** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note.
+- `penwright_list_design_elements` — Library der **24** parametrischen Snippets inkl. Param-Beschreibung — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note, Spread-Image.
 - `penwright_insert_design_element` — Fuegt ein Element an einem Anker ein; Snippets referenzieren `style-colors.*` / `style-fonts.*` und re-themen automatisch.
 - `penwright_generate_layout` — Hoch-Level-NL-Komposit: `intent: "magazine"` waehlt z.B. Editorial-Theme + Magazine-Editorial-Layout + optionalen Hero.
 - `penwright_list_section_styles` — Per-Chapter-"Rubriken": die fuenf Presets (feature / interview / essay / photo-essay / department), die definierten Varianten + welche Kapitel welche nutzen.
@@ -925,7 +976,7 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 - `penwright_add_citation` — Fuegt einen BibTeX-Eintrag zu `references.bib` hinzu; legt Datei und `#bibliography`-Statement bei Bedarf an.
 - `penwright_ensure_bibliography` — Stellt sicher dass das Projekt eine `references.bib` und einen `#bibliography`-Eintrag hat.
 
-**Cross-References & Footnotes (3)**
+**Cross-References, Footnotes & Bausteine (4)**
 
 - `penwright_list_project_macros` — Liefert die Bausteine, die dieses Projekt selbst definiert (seine eigenen `#let`-Makros), mit Parametern, dem Kommentar darueber als Label und dem Fundort. Mit `targetFile` nur das, was dort aufrufbar ist.
 - `penwright_list_labels` — Liefert alle `<label>`-Definitionen im Projekt mit Typ-Klassifikation (figure / table / equation / heading / other) und Caption-Vorschau.
@@ -939,12 +990,16 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 - `penwright_resolve_comment` — Markiert einen Comment als „erledigt" (oder hebt das wieder auf); Eintrag bleibt im Projekt erhalten.
 - `penwright_delete_comment` — Loescht einen Comment endgueltig (entfernt die `.md`-Datei).
 
-**Versionen (4) — entspricht dem Project-Panel-Vokabular**
+**Versionen, Backups & Rueckgaengig (8) — entspricht „Verlauf & Wiederherstellen"**
 
 - `penwright_save_version` — Speichert eine benannte Version (Git-Commit); initialisiert das Repo falls noch keins da ist; lokal-only, kein Push.
 - `penwright_list_versions` — Liefert die Versions-Historie (max. 200, neueste zuerst) inkl. `isAuto`-Flag fuer Penwright-interne Auto-Versionen.
 - `penwright_show_version` — Zeigt den Per-File-Diff einer Version (added/modified/deleted/renamed + Unified-Diff-Hunks).
 - `penwright_restore_version` — Stellt Dateien aus einer historischen Version wieder her; vorher selbst eine Version speichern!
+- `penwright_list_backups` — Listet die automatischen Backups des Projekts (zeitgesteuerte Snapshots aller Textdateien, neueste zuerst) — das Absturz-Netz, verschieden von Versionen und von Edit-Snapshots.
+- `penwright_read_backup` — Liest, was in einem Backup steckt: die Dateiliste oder den Inhalt einer Datei. Nur lesend — das Wiederherstellen bleibt deine Entscheidung in „Verlauf & Wiederherstellen".
+- `penwright_list_edits` — Listet die rueckgaengig machbaren Edit-Snapshots: den vorherigen Stand jeder Datei, die Penwright oder der Server ueberschrieben hat, neueste zuerst. Dieselbe Liste wie der Abschnitt **KI-Aenderungen**.
+- `penwright_undo_last_edit` — Stellt den neuesten Edit-Snapshot wieder her, fuer eine Datei oder fuer das zuletzt Geschriebene. Mehrfach aufrufen, um weiter zurueckzugehen.
 
 **Discovery — Suche & Quellen (3)**
 
@@ -952,9 +1007,10 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 - `penwright_replace_in_project` — Ersetzt alle Vorkommen einer Suche projektweit; **destruktiv** — vorher `save_version` aufrufen.
 - `penwright_find_source_for_citation` — Sucht ein PDF in `sources/` das zum Citekey passt (`<citekey>.pdf` bevorzugt, Suffix-Varianten erlaubt).
 
-**Export (2)**
+**Export (3)**
 
 - `penwright_export_pdf` — Kompiliert und exportiert als PDF; Output-Pfad muss im Projekt liegen, Konvention `exports/<name>.pdf`.
+- `penwright_export_print` — Exportiert ein PDF fuer die Druckerei: uebergrosse Seite mit Beschnitt, Schnittmarken in den Ecken, Doppelseiten mit Bundzuwachs. RGB — die Druckerei konvertiert nach CMYK. Nur das ganze Dokument; die Kapitelauswahl liegt im Export-Dialog der App. Schreibt nur temporaere Dateien und aendert das Projekt-Design nie.
 - `penwright_export_docx` — Exportiert als DOCX mit echten Word-Styles (Heading1-6, Quote, CodeBlock, Caption …) und Live-Multilevel-Numbering — der Betreuer kann in Word umordnen und die Nummern aktualisieren sich. Rendert auch die reichen Konstrukte: Abbildungen → Bild + „Abbildung N"-Caption, `#figure(table())` → echte Word-Tabelle, Display-Math + SVG → Bilder via gebundeltem Typst, `@fig/@tbl/@eq`-Cross-Refs → aufgeloest, Fussnoten → echte Word-Fussnoten, Callouts → Akzent-Box; reiner Design-/Layout-Code wird uebersprungen statt geleakt (DOCX = Manuskript, PDF = Design).
 
 **Import & Assets (2)**
@@ -1028,7 +1084,7 @@ Beim naechsten Start oeffnet sich automatisch ein Dialog mit dem Bericht — du 
 
 **Was anonymisiert wird:** Pfade wie `/Users/<Vorname>/...` werden vor dem Schreiben durch `/Users/<redacted>/...` ersetzt. Datei-Inhalte landen nie in den Berichten — nur Datei-**Endungen** und Aktions-Typen (etwa „Datei gespeichert", „Projekt geoeffnet").
 
-**Spaeter wieder oeffnen:** Help → Open Crash Reports oeffnet den Ordner mit allen gespeicherten Berichten.
+**Spaeter wieder oeffnen:** Hilfe → Absturzberichte öffnen oeffnet den Ordner mit allen gespeicherten Berichten.
 
 ---
 

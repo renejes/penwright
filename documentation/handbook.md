@@ -1,7 +1,7 @@
 # Penwright Desktop — User Handbook
 
-> **Version:** 0.10.0 (Pre-Release)
-> **Last updated:** 2026-06-30
+> **Version:** 0.12.0 (Pre-Release)
+> **Last updated:** 2026-07-31
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
 ---
@@ -96,11 +96,11 @@ All panels are resizable by dragging their edges.
 
 All project-level and document-level actions live in the **native menu bar** (top of the screen on macOS, top of the window on Windows / Linux). Five top-level menus:
 
-- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
+- **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), **Save Project as Preset…**, Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
 - **View** — Toggle Sidebar (`Cmd+Alt+B`), Toggle Preview (`Cmd+Shift+P`), plus standard window/zoom roles
 - **Document** — Document Settings (**interface language** + document language + bibliography style; the document's Look lives in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
-- **Help** — User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
+- **Help** — Show Introduction, User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **MCP Connection…**, **Connect to Claude Desktop…**, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
 
 In-text content insertions (image, table, math, citation, divider, page break, etc.) are reachable three ways: the **＋ Insert** button on the left of the toolbar, **slash commands** (type `/` in the editor — see below), or `@` for citations & references.
 
@@ -125,6 +125,46 @@ The toolbar **＋** button and the slash menu draw from the **same list**, so us
 | `/Citation` | Inserts `@` to trigger the citation picker |
 | `/Reference` | Cross-reference picker — pick a `<label>` to insert `@label` |
 | `/Table` | Insert a table (with header row) |
+| `/Article Opener` | Kicker, title, standfirst & byline |
+| `/Drop Cap` | Opening paragraph with a dropped initial |
+| `/Pull Quote` | Large centered quote with attribution |
+| `/Interview Question` | Bold question for a Q&A |
+| `/Note Box` | Framed note with a title |
+| `/Figure Panel` | Photo with a framed side note |
+| `/Columns` | Multi-column section |
+| `/Interlude` | Quiet centered divider |
+| `/Margin Note` | Quiet note in the margin |
+
+### "From this project" — your project's own building blocks
+
+Below the standard entries, the ＋ menu has a section headed **From this project**. It lists the building blocks *this* project defines for itself: a photo panel, a pull-quote, an info box, a price row — whatever was written into the project's own files (`style.typ`, `macros.typ`, …), by you or by the AI that designed it. Picking one inserts a ready-made call with placeholder values you overwrite — a text field carries the parameter's own name, a picture field `assets/bild.jpg`, the body the word `Content`. Optional values are left out entirely so they keep the default the block itself defines. The `/` menu offers the same blocks; it's one flat list, so type the block's name to find it.
+
+Nothing has to be registered for this to work. Penwright reads the project's own definitions and offers them as they are. The menu always shows the block's own name; a comment line directly above the definition becomes the description under it, and otherwise you get the block's signature. (On the card that comes later, the comment *is* the heading.)
+
+**Why a block shows up in some files and not in others:** a building block only works in a file that has imported it. Typst does *not* pass an import from the main document down into a chapter — a chapter that doesn't import the file the block is defined in cannot use it, and the document would stop compiling. So the list is built per file. It shows exactly what is usable at your cursor and changes when you switch files. If a block you expected is missing, the file you are in doesn't import it (the main document usually does).
+
+On a project that defines nothing of its own, the section simply isn't there.
+
+### The building-block card
+
+A building block in your text — one you inserted, or one the AI wrote into the document — is not a wall of code you can only look at. When a block is exactly one call to a building block this file can see, Penwright shows it as a **card**: the block's name at the top, then one row per value, label on the left and the current value on the right. A value that was left out shows as *(default)*. A block that takes no values says so.
+
+- **Click the card** to open a small form with one field per value. What you type goes straight into the document.
+- **A field that wants a file gets a "Choose file…" button** instead of asking you to type a path — pick the image and Penwright copies it into `assets/` and writes the correct relative path for you.
+- **Leaving a field empty** means "use the default from the definition": the value is removed from the call rather than written as an empty text.
+- **`</> Code`** at the top right of the card switches to the raw Typst source of that one block; **Form** switches back. Nothing is lost either way.
+
+An edit replaces exactly the one value you changed. Everything else in the block survives untouched — your line breaks, your comments, and every value you didn't touch.
+
+**Some blocks stay code on purpose.** If a block isn't one whole call that Penwright can read with certainty — two calls in one block, an unclosed bracket, something it couldn't write back unchanged — it keeps the plain text box. That is deliberate: a form over a block that is only half understood would sooner or later edit the wrong spot.
+
+### Tables
+
+A `#table(...)` in your document opens as a **real table you can type in**. Click into a cell and edit it like any other text. The small bar under the table has a gear for adding and removing rows and columns (and deleting the table), and a **✓ Done** button that puts the cursor back in the text below.
+
+The table's own styling — column widths, alignment, background fills, borders, padding — is **kept exactly as written**. The one thing Penwright rewrites is the column count, and only when you actually add or remove a column, because Typst would otherwise silently reflow the rows without complaining. Penwright makes the *content* editable and leaves the design alone. That's the point: in a price table, the thing you want to change is the price.
+
+**Some tables stay a code block on purpose.** If a table does something Penwright can't hand back unchanged — column widths computed by an expression, a cell spanning several columns, a cell whose contents it couldn't reproduce exactly — the whole table stays Typst source. Showing it as an editable table would risk quietly losing part of it on the next save.
 
 ### Multi-tab editor
 
@@ -194,7 +234,7 @@ Project types: Document · Thesis · Paper · Letter · Book · **Magazine** · 
 
 ### Import a design from a preset
 
-In the **Design panel** (sidebar) -> **“Import from preset”** section: pull in the **whole design**, just the **colors**, just the **fonts**, just the **layout**, or the **chapter rubrics** from any preset — straight into your open project. It routes through the safe-apply engine (compile-or-rollback, undoable).
+In the **Look designer** (double-click `style.typ`) -> **“Import from preset”** section: pull in the **whole design**, just the **colors**, just the **fonts**, just the **layout**, or the **chapter rubrics** from any preset — straight into your open project. It routes through the safe-apply engine (compile-or-rollback, undoable).
 
 ### What every new project automatically gets
 
@@ -211,7 +251,7 @@ In the **Design panel** (sidebar) -> **“Import from preset”** section: pull 
 
 ## Sidebar
 
-The sidebar has six tabs:
+The sidebar has five tabs:
 
 ### Files
 - Recursive file tree, Back button, **New Folder** (inline input — Enter saves, Esc cancels), **Add Asset** (file picker that copies into `assets/`)
@@ -440,12 +480,12 @@ The editor and the PDF preview zoom independently, from 50 % to 200 % in 10 % st
 ### Export dialog
 
 For multi-chapter projects, **File -> Export PDF** or **Export DOCX** opens a dialog where you can:
-- Switch the **Format** between PDF and DOCX with a single click
+- Switch the **Format** between PDF, DOCX and Web (HTML) with a single click. Picking Web reveals two more choices: whether the issue becomes one long page or one page per chapter, and whether images are embedded in the HTML or copied beside it
 - **Tick which chapters** to include — every chapter shows its first H1 as the title
 - Toggle the **Bibliography** in/out
 - Use **All / None** shortcuts for the chapter list
 
-The title page, abstract and anything else outside `#include` is always part of the export. Single-file projects without `#include` skip the dialog and go straight to the file-save dialog.
+The title page, abstract and anything else outside `#include` is always part of the export. **PDF always opens this dialog**, even for a single-file document, because the print options live here. Only a single-file DOCX export goes straight to the save dialog.
 
 ### PDF export
 
@@ -461,7 +501,7 @@ When you export a PDF, the dialog now shows a **"For print"** option that turns 
 - **dpi pre-flight:** a non-blocking note lists images that are probably too low-resolution for print (under ~1500 px on the short edge).
 - **"Remember as default":** stores the print settings in the project's design, so the dialog comes pre-filled next time.
 
-Fastest way: **File → Export PDF → tick "For print"**. To set a project up as a print project once, apply the **"Magazine (Print) · A4 + 5 mm bleed"** layout preset in the Design tab — then the dialog is pre-filled and facing pages show live while editing.
+Fastest way: **File → Export PDF → tick "For print"**. To set a project up as a print project once, apply the **"Magazin (Druck) · A4 + 5 mm Beschnitt"** layout preset in the Look designer — then the dialog is pre-filled and facing pages show live while editing.
 
 A **spread image** ("double-truck" — one photo running across two facing pages over the gutter) is available as a design element; it bleeds to the physical edges automatically in the print export. Use the **double-page preview** (see Live Preview) to judge it.
 
@@ -484,7 +524,7 @@ The DOCX is produced with real Word styles and now covers the rich academic cons
 
 ### Web export (HTML) — the Editorial Web Pack
 
-New in 0.10.0: **print *and* web from one source.** Export your document — or a whole magazine — as self-contained, responsive HTML you can put on the web. The same manuscript that becomes your print PDF becomes a live web page, with no second edit.
+**Print *and* web from one source.** Export your document — or a whole magazine — as self-contained, responsive HTML you can put on the web. The same manuscript that becomes your print PDF becomes a live web page, with no second edit.
 
 **Do it:** **File → Export to Web (HTML)…**, then pick a folder — Penwright writes a small bundle there.
 
@@ -521,7 +561,7 @@ Penwright decouples writing from design. You design **where it applies** — thr
 - **One chapter → the status bar.** While editing a chapter, the centre of the status bar shows **Chapter Look ▾** — pick a magazine rubric (Feature / Interview / Essay / …). The **✎** button opens a full editor for that look (accent + primary colour, body/heading font, base size, leading, columns, H1–H3), with **"Apply to all chapters with this look"** vs **"Only this chapter"** (forks a chapter-unique variant). Page format, margins and running heads always stay document-wide.
 - **One spot → Design with AI.** Select a passage, right-click **✨ Design with AI** — a small popover appears at the selection (copy a starter prompt / open Claude). Claude reads it via `penwright_get_selection` and designs that exact spot.
 
-**Safe by design:** every in-app design change is compiled *before* it's committed. If a change wouldn't compile, it's rolled back and your last working look stays on screen — the document is never left broken. The Look designer has an **↩ Undo** for the last design change.
+**Safe by design:** every design change — yours in the app, and the AI's over MCP — is compiled *before* it's committed. If a change wouldn't compile, it's rolled back and your last working look stays on screen; the document is never left broken. The Look designer has an **↩ Undo** for the last design change.
 
 Every change writes `<project>/.penwright/style.json` and regenerates `<project>/style.typ` — the root file pulls those rules in via `#import "style.typ": *` plus `#show: apply-style`.
 
@@ -532,11 +572,12 @@ Every change writes `<project>/.penwright/style.json` and regenerates `<project>
 | **Colors** | Five semantic slots (primary / accent / text / background / muted) — each with a Coloris picker plus a hex text field |
 | **Palette presets** | Eight curated 5-colour palettes (Modern Tech, Editorial, Earth Tones, High Contrast, Minimal Mono, Forest Deep, Sunset Warm, Ocean Classic). Apply only swaps colours |
 | **Themes** | Six full ProjectStyle snapshots (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis). Apply overwrites everything except the Custom Code block |
-| **Layout presets** | Seven geometry swaps (A4 Portrait, A4 Landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial with header strip) — paper, orientation, margin, columns, optional base size |
+| **Layout presets** | Eight geometry swaps (A4 Portrait, A4 Landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, Magazine Editorial with header strip, A2 Poster, Magazin (Druck) · A4 + 5 mm Beschnitt) — paper, orientation, margin, columns, optional base size |
 | **Fonts** | Three font slots (body / heading / code) plus a font browser. Each card live-renders its family + a sample line via the seven bundled OFL fonts |
 | **Scale** | Base size, leading, paragraph spacing, first-line indent |
 | **Layout** | Paper, orientation, margin, columns, page numbering, header markup, footer markup, page fill (background colour expression). Header/Footer accept `{chapter}` (current H1 title) and `{section}` (current H2 title) placeholders — e.g. `{chapter} · ISSUE 1` produces a per-chapter running head that follows the document. |
 | **Headings** | H1–H6 as collapsible cards — size, weight, colour slot, top margin per level; plus a single numbering pattern setting |
+| **Building blocks** | The 24 ready-made layout pieces (see below) — filter the list, fill in the fields, **Insert at cursor**. Warns if the open file doesn't import `style.typ`, because a block there wouldn't find the project colours |
 | **Elements** | Blockquote, Code-Block, Figure (incl. photographer-credit separator + label for the `figure-caption-credit(caption, credit)` helper), Table — each a collapsible card with structured fields (border slot / padding / italic toggle / caption position / zebra rows / etc.) |
 | **Section Styles** | Per-chapter "rubrics" for magazine layouts — named overlays (accent / fonts / columns / heading treatment) you assign to a single chapter from the **Chapters** tab. Five built-in presets (Feature / Interview / Essay / Photo-Essay / Department); collapsible list with an accent swatch, column count and delete. Page geometry and running heads stay document-level |
 | **Custom Typst-Code** | Escape hatch: free-form Typst inside a CodeMirror editor. Appended to `style.typ` inside a fenced block that survives every regeneration |
@@ -553,7 +594,9 @@ The Custom Typst-Code section at the bottom of the Design panel accepts arbitrar
 
 ### Design element library
 
-A library of **22 parametric snippets** — Banner, Sidebar, Pull-Quote (three variants: regular / Display / Block), Callout, Hero, Section Divider (three variants: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image Gallery 2-up / 3-up / asymmetric (1 hero + 2 stacked), Image-Overlay (photo with gradient + headline on top), Stats Box ("By the numbers" sidebar), Photo Caption Wrap (small photo with caption flowing around it via wrap-it), Magazine Cover. They're inserted from Claude Desktop via the `penwright_list_design_elements` / `penwright_insert_design_element` MCP tools; every reference to `style-colors.*` / `style-fonts.*` means the element re-themes automatically when you swap the palette or fonts. The `magazine-cover` uses `#page(margin: 0pt)` for the cover page only — the rest of the document keeps its configured margins. `style.typ` exports three module-level values for this: `style-colors`, `style-fonts`, and a `figure-caption-credit(caption, credit)` helper for photographer-credit captions.
+A library of **24 parametric snippets** — Banner, Sidebar, Pull-Quote (three variants: regular / Display / Block), Callout, Hero, Section Divider (three variants: regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Image Gallery 2-up / 3-up / asymmetric (1 hero + 2 stacked), Image-Overlay (photo with gradient + headline on top), Stats Box ("By the numbers" sidebar), Photo Caption Wrap (small photo with caption flowing around it via wrap-it), Magazine Cover, Full-Bleed Image (edge-to-edge full page), Spread-Opener (full-bleed opener with a headline over a gradient), Margin Note (marginalia in the outer margin, via the bundled `drafting` package), Spread Image (one photo across two facing pages, bleeding to the physical edges in the print export).
+
+You reach them **two ways**: the **Building blocks** section of the Look designer (open `style.typ`) — filter, fill in the fields, "Insert at cursor" — or from Claude Desktop via the `penwright_list_design_elements` / `penwright_insert_design_element` MCP tools. Every reference to `style-colors.*` / `style-fonts.*` means the element re-themes automatically when you swap the palette or fonts. The `magazine-cover` uses `#page(margin: 0pt)` for the cover page only — the rest of the document keeps its configured margins. `style.typ` exports six module-level values for this: `style-colors`, `style-fonts`, `style-bleed` (0 mm on screen, the bleed in a print export — the Spread Image element needs it, so a hand-written `style.typ` without it cannot carry that element), the `figure-caption-credit(caption, credit)` helper for photographer-credit captions, and `chapter-name()` / `section-name()` for running heads.
 
 ### Bundled OFL fonts (offline-ready)
 
@@ -614,7 +657,7 @@ The **Auto-backups** section of **History & Restore** lists every automatic snap
 
 ### AI-Edit Undo
 
-When an external tool (an AI agent, the MCP server, …) modifies a file you have open, Penwright saves the previous content into the AI-snapshot ring buffer **before** applying the change. Step back through them one at a time from the **AI changes** section of **History & Restore** (or the **Undo AI Edit** menu entry). Snapshots survive app restarts (they're persisted to `.penwright/ai-snapshots/`).
+When an external tool (an AI agent, the MCP server, …) modifies a file in the project, the previous content is saved **before** the change is applied — for any file, not just the one you have open. Step back through them one at a time from the **AI changes** section of **History & Restore** (or the **Undo AI Edit** menu entry). Snapshots survive app restarts (they live in `.penwright/ai-snapshots/`), and the AI sees exactly the same list: it can read it and undo its own last edit.
 
 ### Cloud backup (optional)
 
@@ -668,7 +711,7 @@ For rolling back AI edits, see the [Versions & Auto-Backup](#versions--auto-back
   - **Word count + reading time** for the active document (e.g. *1,247 words · 5 min read*) — recalculated live as you type, at 200 words per minute. Code blocks and raw Typst blocks are excluded so the count stays meaningful.
   - **Save state**: "Unsaved" (orange) or "Saved 14:35"
   - **Filename** of the active tab
-  - **License tier** badge (Unlicensed / Licensed / Pro)
+  - **License status** badge (Trial: N days / Licensed / Locked) — click it to open the License dialog
 - Warning on close with unsaved changes
 - **Crash recovery:** auto-backups are written to `<project>/.penwright/backups/<timestamp>/` (interval configurable, default 30 s). If the app crashes and the latest backup is newer than the saved file on disk, Penwright offers to restore it when you reopen the project. See [Versions & Auto-Backup](#versions--auto-backup) for details.
 
@@ -680,7 +723,7 @@ Penwright stores two kinds of state separately — **app preferences** that are 
 
 **Global** (in your OS user data folder):
 - Window position & size
-- Panel states (sidebar/preview/terminal open/closed, sizes, active tab)
+- Panel states (sidebar/preview open/closed, sizes, active tab)
 - Recent Projects (the last 10 project folders — entries that no longer exist are filtered out automatically)
 - Onboarding flag (Welcome screen tick "Don't show again")
 - Zotero `.bib` path
@@ -748,29 +791,36 @@ The dialog shows:
 
 Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Claude Desktop**, **Codex Desktop** or **Clawdbot** work on your Typst documents directly.
 
-> **Note:** the MCP server requires a **valid license** — the same `pw_LIC…` key as the app (there are no tiers). See [License Management](#license-management).
+> **Note:** the MCP server runs on a **valid license** — the same `pw_LIC…` key as the app (there are no tiers) — **or during the free 14-day trial**, unlocked in full. It only refuses once the trial has expired and no key is active. See [License Management](#license-management).
 
 ### What can the MCP server do?
 
 Over MCP (66 tools) the AI can:
 - **Create a whole project from a preset** (`penwright_list_presets` + `penwright_create_from_preset`) — a designed starting point with placeholder content instead of starting from scratch; magazine presets ship a different layout per chapter
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
+- **See the page.** `penwright_render_page` renders a page of the compiled PDF to an image and hands it back, so the AI can judge spacing, overflow, colour and where a heading fell instead of guessing from source
+- **Look up the building blocks your project defines for itself** (`penwright_list_project_macros`) — the same catalogue the ＋ menu shows you, scoped to the file it is working in
 - Change document settings (font, size, language, margins, …) and apply style templates
 - Manage chapters and bibliography end-to-end (incl. anchor-based comment / footnote / cross-reference inserts)
 - Run project-wide search and replace with a versions-safety-net (whole-word lookarounds work for `@citekey` backlinks)
 - Look up source PDFs in `sources/` by citekey
 - Save / list / show / restore versions in the writer-vocabulary used by the Project panel
-- Export PDF and DOCX (DOCX uses real Word styles + live multilevel numbering, and renders figures, display-math, tables, cross-references, footnotes and callouts; pure design code is skipped)
+- **Read the same safety net you see** — list and read the automatic backups, list the undoable edits, and undo the last one (`penwright_list_backups` / `read_backup` / `list_edits` / `undo_last_edit`). Restoring a backup stays your call: the AI points you at History & Restore rather than writing old content back
+- Export PDF, print-ready PDF (bleed + crop marks) and DOCX (DOCX uses real Word styles + live multilevel numbering, and renders figures, display-math, tables, cross-references, footnotes and callouts; pure design code is skipped)
 - Import Markdown and add images (with content-hash dedup + figure builder)
-- Drive the whole design surface — swap themes / palettes / layouts / fonts, insert design elements (22 of them incl. drop-cap, pull-quote variants, article-opener, section-opener, image galleries incl. asymmetric, image-overlay, stats-box, photo-caption-wrap, magazine cover) at anchors, assign per-chapter section styles (magazine rubrics: feature / interview / essay / …), map natural-language intents (`brochure` / `magazine` / `thesis` / …) onto matching theme+layout combos
+- Drive the whole design surface — swap themes / palettes / layouts / fonts, insert design elements (24 of them incl. drop-cap, pull-quote variants, article-opener, section-opener, image galleries incl. asymmetric, image-overlay, stats-box, photo-caption-wrap, magazine cover, full-bleed image, spread-opener, margin note, spread image) at anchors, assign per-chapter section styles (magazine rubrics: feature / interview / essay / …), map natural-language intents (`brochure` / `magazine` / `thesis` / …) onto matching theme+layout combos
 - Switch between projects, run Git operations, and pull Skill Prompts (typst-reference / penwright-conventions / research-workflow / writing-style / design-conventions)
 
-### Setup: auto-discover wizard (macOS)
+**The same guarantees you get in the app.** Every design change the AI makes is written to a staging copy, test-compiled, and only kept if the document still compiles — otherwise the project is put back exactly as it was and you are told why. Every file the AI overwrites gets its previous content saved first, into the same **AI changes** list you can step back through in History & Restore.
 
-On macOS, Penwright offers to connect Claude Desktop automatically — no JSON editing required. Requirements:
+**Two things deliberately have no tool, rather than failing silently:** editing an existing building block instance (the card and its form exist because *you* can't write Typst — the AI writes it directly), and the web export (that lives in **File → Export to Web (HTML)…**, and the export tools say so, so the AI points you at the menu).
 
-- **A valid license activated** (see [License Management](#license-management)) — the MCP server rejects spawn otherwise
-- **Claude Desktop installed** at `/Applications/Claude.app` or `~/Applications/Claude.app`
+### Setup: auto-discover wizard (macOS & Windows)
+
+Penwright offers to connect Claude Desktop automatically — no JSON editing required. Requirements:
+
+- **An active license or a running trial** (see [License Management](#license-management)) — the MCP server rejects spawn once the trial has expired with no key
+- **Claude Desktop installed** at `/Applications/Claude.app` or `~/Applications/Claude.app` (macOS), or in the usual `%LOCALAPPDATA%` location (Windows)
 
 **Flow:**
 
@@ -786,9 +836,9 @@ On macOS, Penwright offers to connect Claude Desktop automatically — no JSON e
 
 **Idempotent:** running setup again is safe — no duplicate entry. If you activate a new license later, re-run the wizard from the Help menu so the new key lands in the config.
 
-### Setup: manual (Windows, Linux, or power users)
+### Setup: manual (Linux, or power users)
 
-The wizard is currently macOS-only. You can also configure manually on macOS if you prefer:
+There is no Claude Desktop on Linux, so the wizard doesn't run there. You can also configure manually on macOS / Windows if you prefer:
 
 **Step 1:** build the server binary (once, in the Penwright repo):
 
@@ -860,7 +910,7 @@ You don't need to edit the config every time you switch projects. Just tell Clau
 
 Claude will call `penwright_set_project` and work with the new project from there on.
 
-### Available tools (59)
+### Available tools (66)
 
 The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 66 tools with one-line descriptions, grouped by category:
 
@@ -877,12 +927,13 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 - `penwright_list_presets` — List all built-in presets (finished, designed projects with placeholder content) — `id` / `type` / `label` / `tagline`, optionally filtered by `type` (magazine, report, cookbook, portfolio, thesis …).
 - `penwright_create_from_preset` — Create a new project from a preset: copies the whole folder (design + macros + assets + Lorem), `git init`, switches to its opening file. Prefer this over `create_project` when a designed starting point is wanted — magazine presets ship a different layout per chapter.
 
-**Document operations (4)**
+**Document operations (5)**
 
 - `penwright_get_document` — Return the current document (content, path, project dir, word count).
 - `penwright_open_file` — Open a `.typ` file as the current document; path absolute or project-relative.
 - `penwright_update_document` — Replace the current document content and save to disk.
 - `penwright_compile` — Verify that the document compiles cleanly; PDF-only, artifact removed afterwards — use `export_pdf` / `export_docx` for real output.
+- `penwright_render_page` — Render a page of the compiled PDF to an image and return it, so the AI can *see* the layout instead of inferring it. Max 2 pages per call.
 
 **Settings (2)**
 
@@ -897,11 +948,11 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 - `penwright_update_style` — Partial deep-merge patch with per-leaf sanitiser; invalid values fall back to the old value.
 - `penwright_list_styles` — List the six built-in themes (Classic Academic, Modern Tech, Editorial Magazine, Minimal, Marketing Brochure, Thesis).
 - `penwright_apply_style` — Apply a theme; overwrites colors/fonts/scale/layout/headings/elements, preserves `custom.preamble`.
-- `penwright_list_layouts` — Return the seven layout presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, A2 Poster, Magazine Editorial).
+- `penwright_list_layouts` — Return the eight layout presets (A4 portrait/landscape, Magazine 2-col, Newsletter 3-col, A5 Booklet, Magazine Editorial, A2 Poster, Magazin (Druck) · A4 + 5 mm Beschnitt).
 - `penwright_apply_layout` — Swap only the `layout.*` values (+ optional `scale.base`) — theme, colors, fonts unchanged.
 - `penwright_list_fonts` — Return the seven bundled OFL fonts with family / category / description.
 - `penwright_apply_palette` — Set the 5-colour palette via `presetId` or per-slot hex overrides (composable).
-- `penwright_list_design_elements` — Library of **22** parametric snippets with their params — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note.
+- `penwright_list_design_elements` — Library of **24** parametric snippets with their params — Banner, Sidebar, Pull-Quote (regular / Display / Block), Callout, Hero, Divider (regular / Asterisks / Ornament), Drop-Cap, Article-Opener, Section-Opener, Gallery 2-up / 3-up / asymmetric, Image-Overlay, Stats-Box, Photo-Caption-Wrap, Magazine-Cover, Full-Bleed-Image, Spread-Opener, Margin-Note, Spread-Image.
 - `penwright_insert_design_element` — Insert an element at an anchor; snippets reference `style-colors.*` / `style-fonts.*` so they re-theme automatically.
 - `penwright_generate_layout` — High-level NL composite: `intent: "magazine"` selects e.g. the Editorial theme + Magazine-Editorial layout + optional Hero opener.
 - `penwright_list_section_styles` — Per-chapter "rubrics": the five presets (feature / interview / essay / photo-essay / department), the project's defined variants, and which chapters use which.
@@ -925,7 +976,7 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 - `penwright_add_citation` — Add a BibTeX entry to `references.bib`; creates the file and `#bibliography` statement if missing.
 - `penwright_ensure_bibliography` — Ensure the project has a `references.bib` and a `#bibliography` statement.
 
-**Cross-references & footnotes (3)**
+**Cross-references, footnotes & building blocks (4)**
 
 - `penwright_list_project_macros` — Return the building blocks this project defines for itself (its own `#let` macros), with parameters, the comment above each as a label, and where it is defined. Pass `targetFile` for only what is callable there.
 - `penwright_list_labels` — Return all `<label>` definitions in the project with type classification (figure / table / equation / heading / other) and caption preview.
@@ -939,12 +990,16 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 - `penwright_resolve_comment` — Mark a comment as resolved (or un-resolve it); the entry stays in the project.
 - `penwright_delete_comment` — Permanently delete a comment (removes the `.md` file).
 
-**Versions (4) — matches the Project panel's vocabulary**
+**Versions, backups & undo (8) — matches the History & Restore hub**
 
 - `penwright_save_version` — Save a named version (Git commit); auto-initialises the repo if missing; local-only, never pushes.
 - `penwright_list_versions` — Return the version history (max. 200, newest first) including an `isAuto` flag for Penwright-internal auto-versions.
 - `penwright_show_version` — Return the per-file diff for one version (added/modified/deleted/renamed + unified-diff hunks).
 - `penwright_restore_version` — Restore files from a historical version into the working tree; save a version first!
+- `penwright_list_backups` — List the automatic backups of this project (timed snapshots of every text file, newest first) — the crash net, distinct from versions and from edit snapshots.
+- `penwright_read_backup` — Read what one backup holds: its file list, or one file's content. Read-only — restoring stays your call in History & Restore.
+- `penwright_list_edits` — List the undoable edit snapshots: the previous version of every file Penwright or the server overwrote, newest first. Same list the **AI changes** section shows.
+- `penwright_undo_last_edit` — Restore the newest edit snapshot, for one file or for whatever was written last. Repeat to step further back.
 
 **Discovery — search & sources (3)**
 
@@ -952,9 +1007,10 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 - `penwright_replace_in_project` — Replace all matches of a query project-wide; **destructive** — call `save_version` first.
 - `penwright_find_source_for_citation` — Look up a PDF in `sources/` matching a citekey (`<citekey>.pdf` preferred, suffix variants allowed).
 
-**Export (2)**
+**Export (3)**
 
 - `penwright_export_pdf` — Compile and export as PDF; output path must lie inside the project — convention is `exports/<name>.pdf`.
+- `penwright_export_print` — Export a PDF for a print shop: oversized page with bleed, corner crop marks, facing pages with a binding gutter. RGB — the shop converts to CMYK. Whole document only; chapter selection lives in the in-app export dialog. Writes temp files and never changes the project design.
 - `penwright_export_docx` — Export as DOCX with real Word styles (Heading1-6, Quote, CodeBlock, Caption …) and live multilevel-numbering — supervisors can reorder in Word and the numbers refresh. Renders the rich constructs too: figures → image + "Figure N" caption, `#figure(table())` → real Word table, display-math + SVG → images via the bundled Typst, `@fig/@tbl/@eq` cross-refs → resolved, footnotes → real Word footnotes, callouts → accent box; pure design/layout code is skipped rather than leaked (DOCX = manuscript, PDF = design).
 
 **Import & assets (2)**
