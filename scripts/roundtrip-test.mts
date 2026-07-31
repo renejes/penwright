@@ -710,6 +710,24 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   const one = 'columns: (auto,), align: (left,)';
   check('the last column cannot be removed away', shiftTableColumn(one, 'remove', 0) === one, shiftTableColumn(one, 'remove', 0));
 
+  // ── "Column before" ──────────────────────────────────────────────────
+  // Read from prosemirror-tables' own source: `addColumnBefore` inserts at
+  // `rect.left`, `addColumnAfter` at `rect.right`. Inserting BEFORE the first
+  // column is the case a count-based fix gets maximally wrong — it would append
+  // the new entry at the far end instead.
+  const first = shiftTableColumn(P, 'insert', 0);
+  check('inserting before the first column puts the new entry first',
+    first.includes('columns: (auto, auto, 1fr, auto)'), first);
+  check('…and every existing column keeps its own styling',
+    first.includes('align: (left, left, center, right)') && first.includes('fill: (red, red, green, blue)'), first);
+
+  // `deleteColumn` removes the whole selected SPAN, so the editor loops. Two
+  // removals at the same index, because each one shifts the rest down onto it.
+  let twoGone = shiftTableColumn(P, 'remove', 1);
+  twoGone = shiftTableColumn(twoGone, 'remove', 1);
+  check('removing a two-column span drops both, from the middle',
+    twoGone.includes('columns: (auto,)') && twoGone.includes('align: (left,)') && twoGone.includes('fill: (red,)'), twoGone);
+
   // An integer columns: counts rather than enumerating.
   const num = shiftTableColumn('columns: 3, align: (left, center, right)', 'insert', 0);
   check('an integer columns: is incremented', num.includes('columns: 4'), num);

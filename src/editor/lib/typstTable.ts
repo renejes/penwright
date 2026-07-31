@@ -37,20 +37,31 @@ const openDropdownCleanups = new Set<() => void>();
  *
  * One transaction so the document is never briefly inconsistent and a single
  * undo takes back the whole edit.
+ *
+ * The indices are the ones prosemirror-tables itself uses (read from its
+ * source): `addColumnBefore` inserts at `rect.left`, `addColumnAfter` at
+ * `rect.right`, and `deleteColumn` removes the whole selected span — which is
+ * why removal loops rather than dropping a single entry.
  */
-function columnCommand(editor: Editor, op: 'insert' | 'remove'): void {
-  // The index has to be read BEFORE the structural change: afterwards the map
-  // describes the new shape and `rect.right` has already moved.
+function columnCommand(editor: Editor, op: 'before' | 'after' | 'remove'): void {
+  // Read BEFORE the structural change: afterwards the map describes the new
+  // shape and `rect.right` has already moved.
   let index: number | null = null;
+  let count = 1;
   try {
     const rect = selectedRect(editor.view.state);
-    index = op === 'insert' ? rect.right : rect.left;
+    index = op === 'after' ? rect.right : rect.left;
+    if (op === 'remove') count = Math.max(1, rect.right - rect.left);
   } catch {
     index = null;                       // selection is not in a table
   }
 
   const chain = editor.chain().focus();
-  const structural = op === 'insert' ? chain.addColumnAfter() : chain.deleteColumn();
+  const structural =
+    op === 'before' ? chain.addColumnBefore()
+    : op === 'after' ? chain.addColumnAfter()
+    : chain.deleteColumn();
+
   structural
     .command(({ tr, dispatch }) => {
       // Runs on the SAME transaction, after the structural step — so `tr.doc`
@@ -62,7 +73,13 @@ function columnCommand(editor: Editor, op: 'insert' | 'remove'): void {
         if (node.type.name !== 'table') continue;
         const params = typeof node.attrs.params === 'string' ? node.attrs.params : '';
         if (!params) return true;       // no parameters of its own — nothing to move
-        const next = shiftTableColumn(params, op, index);
+        let next = params;
+        if (op === 'remove') {
+          // Always at the same index: each removal shifts the rest down onto it.
+          for (let i = 0; i < count; i++) next = shiftTableColumn(next, 'remove', index);
+        } else {
+          next = shiftTableColumn(next, 'insert', index);
+        }
         if (next !== params) tr.setNodeMarkup($from.before(d), undefined, { ...node.attrs, params: next });
         return true;
       }
@@ -142,7 +159,9 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             actions.className = 'table-settings-actions';
 
             const btnData = [
-              { label: t().editorLib.tableAddColumn, action: () => columnCommand(tiptapEditor, 'insert') },
+              { label: t().editorLib.tableAddColumnBefore, action: () => columnCommand(tiptapEditor, 'before') },
+              { label: t().editorLib.tableAddColumn, action: () => columnCommand(tiptapEditor, 'after') },
+              { label: t().editorLib.tableAddRowBefore, action: () => tiptapEditor.chain().focus().addRowBefore().run() },
               { label: t().editorLib.tableAddRow, action: () => tiptapEditor.chain().focus().addRowAfter().run() },
               { label: t().editorLib.tableRemoveColumn, danger: true, action: () => columnCommand(tiptapEditor, 'remove') },
               { label: t().editorLib.tableRemoveRow, danger: true, action: () => tiptapEditor.chain().focus().deleteRow().run() },

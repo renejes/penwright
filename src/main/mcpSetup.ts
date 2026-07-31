@@ -90,7 +90,9 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.32.0: table parameters moved to `shared/tableParams.ts`; the editor now
 // shifts them BY POSITION when a column is added or removed, and the
 // count-based reconciliation is the net for changes that bypass the table UI.
-export const MCP_SETUP_VERSION = '0.32.0';
+// 0.33.0: the table gear menu inserts a column/row BEFORE as well as after,
+// and a multi-column delete drops every selected column's styling.
+export const MCP_SETUP_VERSION = '0.33.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
