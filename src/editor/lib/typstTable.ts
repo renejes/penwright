@@ -88,6 +88,40 @@ function columnCommand(editor: Editor, op: 'before' | 'after' | 'remove'): void 
     .run();
 }
 
+/**
+ * Inserts a row, keeping a `table.header` row first.
+ *
+ * Typst requires `table.header(...)` to be the FIRST positional argument, so a
+ * row ABOVE the header is not representable at all. Inserting one anyway made
+ * the former header row stop being row 0, `serializeTable` then saw no header,
+ * and `table.header(…)` was dropped — the repeating header row silently gone
+ * from every page of the rendered document.
+ *
+ * So when the cursor is in the header row, "row above" inserts BELOW it, as the
+ * first body row. That is the row the user can actually have, they see it
+ * appear, and one undo takes it back — where losing the header changes every
+ * page and nothing on screen says so.
+ */
+function rowCommand(editor: Editor, where: 'before' | 'after'): void {
+  let redirect = false;
+  if (where === 'before') {
+    try {
+      const rect = selectedRect(editor.view.state);
+      const firstRow = rect.table.firstChild;
+      const headerFirst =
+        !!firstRow &&
+        firstRow.childCount > 0 &&
+        Array.from({ length: firstRow.childCount }, (_, i) => firstRow.child(i))
+          .every(cell => cell.type.name === 'tableHeader');
+      redirect = headerFirst && rect.top === 0;
+    } catch {
+      redirect = false;                 // selection is not in a table
+    }
+  }
+  const chain = editor.chain().focus();
+  (where === 'after' || redirect ? chain.addRowAfter() : chain.addRowBefore()).run();
+}
+
 function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet {
   const decorations: Decoration[] = [];
 
@@ -161,8 +195,8 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             const btnData = [
               { label: t().editorLib.tableAddColumnBefore, action: () => columnCommand(tiptapEditor, 'before') },
               { label: t().editorLib.tableAddColumn, action: () => columnCommand(tiptapEditor, 'after') },
-              { label: t().editorLib.tableAddRowBefore, action: () => tiptapEditor.chain().focus().addRowBefore().run() },
-              { label: t().editorLib.tableAddRow, action: () => tiptapEditor.chain().focus().addRowAfter().run() },
+              { label: t().editorLib.tableAddRowBefore, action: () => rowCommand(tiptapEditor, 'before') },
+              { label: t().editorLib.tableAddRow, action: () => rowCommand(tiptapEditor, 'after') },
               { label: t().editorLib.tableRemoveColumn, danger: true, action: () => columnCommand(tiptapEditor, 'remove') },
               { label: t().editorLib.tableRemoveRow, danger: true, action: () => tiptapEditor.chain().focus().deleteRow().run() },
             ];

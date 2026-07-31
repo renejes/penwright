@@ -702,6 +702,36 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   check('an array the author left short is untouched here too',
     short.includes('align: (left, right)') && !short.includes('align: (left, right,'), short);
 
+  // ── The header row has to stay FIRST ────────────────────────────────
+  // Typst requires `table.header(...)` to be the first positional argument, so
+  // a row ABOVE the header is not representable. `serializeTable` derives
+  // "is there a header" from row 0's cell types, so a row inserted above it
+  // silently drops `table.header(…)` and the repeating header is gone from
+  // every page. The editor's "+ row above" therefore inserts BELOW the header
+  // when the cursor is in it (`rowCommand`, typstTable.ts) — untestable here,
+  // since no suite reaches a node view. What IS testable is the shape that
+  // command guarantees, and the loss it exists to prevent.
+  {
+    const src = '#table(\n  columns: 2,\n  table.header(\n    [Kanal], [Rolle],\n  ),\n  [Blog], [Beleg],\n)';
+    const withRow = deserializeTypst(src) as any;
+    const rows = withRow.content[0].content;
+    const blank = () => ({ type: 'tableRow', content: [0, 1].map(() => ({ type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph' }] })) });
+
+    // A body row added anywhere BELOW the header — what the command produces.
+    rows.splice(1, 0, blank());
+    const ok = serializeTypst(withRow);
+    check('a row added below the header keeps table.header', ok.includes('table.header'), ok);
+    check('…and the header cells stay in it', ok.includes('[Kanal], [Rolle]'), ok);
+
+    // And the state the command prevents, asserted so the cost is on record:
+    // the header ATTRIBUTE is lost, but no text is — the cells become ordinary.
+    const above = deserializeTypst(src) as any;
+    above.content[0].content.unshift(blank());
+    const lost = serializeTypst(above);
+    check('a row above the header loses the header, but not its text',
+      !lost.includes('table.header') && lost.includes('[Kanal], [Rolle]'), lost);
+  }
+
   // ── A DICTIONARY is not a per-column array ──────────────────────────
   // `inset:` and `stroke:` accept both forms, and `(x: 8pt, y: 4pt)` splits into
   // two entries that look exactly like a two-column array. Resizing one

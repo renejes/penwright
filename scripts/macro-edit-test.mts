@@ -34,6 +34,7 @@ import {
   encodeArgValue,
   escapeTypstContent,
   escapeTypstString,
+  unescapeTypstString,
 } from '../src/shared/macroCall.ts';
 import { buildMacroIndex, visibleIn, listProjectMacros } from '../src/main/projectMacros.ts';
 
@@ -213,6 +214,29 @@ console.log('\n── Escaping what a form field may contain ──');
     escapeTypstContent('Eine Stunde #emph[scheinbar] nichts'));
   check('an already-escaped bracket is not double-escaped',
     escapeTypstContent('Preis \\] netto') === 'Preis \\] netto', escapeTypstContent('Preis \\] netto'));
+
+  // READ AND WRITE MUST BE INVERSES, or the field is a shredder. `readMacroField`
+  // used to hand the form the raw slice of a `"…"` argument — the ESCAPED source
+  // — and `writeMacroField` escaped it again on the way back, so every
+  // open-and-edit cycle doubled every backslash: one round `\\"`, two `\\\\"`,
+  // three unreadable. Found by an adversarial review of this session's diff.
+  check('a quoted string is unescaped on the way OUT',
+    escapeTypstString(unescapeTypstString('Er sagte \\"ja\\"')) === 'Er sagte \\"ja\\"',
+    unescapeTypstString('Er sagte \\"ja\\"'));
+  {
+    const start = '#note(title: "Er sagte \\"ja\\" und \\\\ auch")[T]';
+    let c = start;
+    for (let i = 0; i < 3; i++) c = writeMacroField(c, 'named:title', 'string', readMacroField(c, 'named:title'))!;
+    check('three open-and-edit cycles change nothing', c === start, { got: c });
+  }
+  {
+    // The content path needs no inverse — `escapeTypstContent` only touches an
+    // UNBALANCED bracket and skips one that is already escaped — but prove it.
+    const start = '#note(title: "T")[Ein \\[Wert\\] hier]';
+    let c = start;
+    for (let i = 0; i < 3; i++) c = writeMacroField(c, 'body', 'content', readMacroField(c, 'body'))!;
+    check('a body with escaped brackets is stable too', c === start, { got: c });
+  }
 
   check('encodeArgValue wraps a string', encodeArgValue('string', 'Angebot') === '"Angebot"');
   check('encodeArgValue wraps content', encodeArgValue('content', 'Angebot') === '[Angebot]');

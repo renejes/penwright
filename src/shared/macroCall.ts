@@ -469,6 +469,19 @@ export function escapeTypstString(text: string): string {
 }
 
 /**
+ * The inverse of `escapeTypstString` — and it has to exist, because a form field
+ * shows TEXT while the source holds an ESCAPED string.
+ *
+ * Without it `readMacroField` handed the field the raw slice `Er sagte \\"ja\\"`,
+ * `writeMacroField` escaped that again on the way back, and every open-and-edit
+ * cycle doubled every backslash: one round `\\\\"`, two rounds `\\\\\\\\"`, three
+ * rounds unreadable. Read and write must be inverses or the field is a shredder.
+ */
+export function unescapeTypstString(text: string): string {
+  return text.replace(/\\(["\\])/g, '$1');
+}
+
+/**
  * Escapes text so it survives inside a `[…]` content block.
  *
  * Only UNBALANCED brackets are escaped. Escaping every `[` would destroy the
@@ -693,12 +706,16 @@ export function readMacroField(content: string, key: string): string {
   if (key === 'body') {
     return parsed.bodyStart === null ? '' : content.slice(parsed.bodyStart, parsed.bodyEnd as number);
   }
-  if (key.startsWith('pos:')) {
-    const arg = parsed.args.filter(a => a.name === null)[Number(key.slice(4))];
-    return arg ? content.slice(arg.innerStart, arg.innerEnd) : '';
-  }
-  const arg = parsed.args.find(a => a.name === key.slice(6));
-  return arg ? content.slice(arg.innerStart, arg.innerEnd) : '';
+  const arg = key.startsWith('pos:')
+    ? parsed.args.filter(a => a.name === null)[Number(key.slice(4))]
+    : parsed.args.find(a => a.name === key.slice(6));
+  if (!arg) return '';
+  const text = content.slice(arg.innerStart, arg.innerEnd);
+  // A string argument holds ESCAPED source; the field shows text. `content` and
+  // `expr` need no counterpart — `escapeTypstContent` only ever touches an
+  // unbalanced bracket and skips one that is already escaped, and an `expr`
+  // field is code, shown and written verbatim.
+  return arg.kind === 'string' ? unescapeTypstString(text) : text;
 }
 
 /**
