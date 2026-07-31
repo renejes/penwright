@@ -1,6 +1,6 @@
 # Penwright — Handover für den nächsten Chat
 
-> **Stand:** 2026-07-31, Ende Session 47 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.29.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **66 Tools**
+> **Stand:** 2026-07-31, Ende Session 47 · Branch `main`, alles committet · App **0.12.0** · `MCP_SETUP_VERSION` **0.30.0** (Binaries neu gebaut) · Typst gebündelt: **0.15.1** · MCP: **66 Tools**
 >
 > **Lies zuerst diese Datei, dann `CLAUDE.md`.** Das Fundament ist gebaut; ab hier geht es um eine Produktfrage, nicht mehr um Reparatur.
 
@@ -12,13 +12,13 @@
 
 Das gilt für alles drei — Text, Struktur, Design — und ausdrücklich auch für das, was die **KI erzeugt**: Wenn Claude für ein Magazin einen eigenen Design-Baustein baut, darf das Ergebnis für den Nutzer kein Code-Block sein, den er nur anschauen kann.
 
-Die Architektur dafür ist entschieden (§3). **Stufe 0, 1 und 2 sind gebaut**; damit ist die Kernaufgabe erledigt: ein KI-erfundener Baustein ist einfügbar UND bearbeitbar, ohne dass jemand Typst tippt.
+**Die gesamte Umsetzungsreihenfolge aus §4a ist abgearbeitet** — Stufe 0, 1, 2 und 3. Ein KI-erfundener Baustein ist einfügbar und bearbeitbar, und Tabellen sind es auch, ohne dass jemand Typst tippt.
 
-> ### ▶ Hier anfangen: **§2 — Tabellen**
+> ### ▶ Hier anfangen: **§6, der manuelle Durchgang durch die App**
 >
-> Der letzte offene Punkt der Umsetzungsreihenfolge und der größte Einzelgewinn für Nicht-Programmierer: **null von sechzehn Tabellen im Korpus sind editierbar**, auch nicht die Preistabellen in Renés Kundenangeboten. Begrenzte Arbeit an einem vorhandenen Parser, blockiert nichts, wird von nichts blockiert.
+> Das ist jetzt die mit Abstand größte Unsicherheit im Projekt und kein Nebenpunkt mehr. Acht Sessions ohne einen einzigen App-Start, und die letzten drei Stufen sind **zum großen Teil UI-Arbeit**: dass die erzeugten Aufrufe kompilieren, die Spleiße byte-genau sind und 39 Projekte pixelgleich rendern, ist bewiesen. Dass die Baustein-Karte und die Tabellen im Editor **gut zu bedienen** sind, ist es nicht — das lässt sich nur am laufenden Programm beurteilen.
 >
-> **Danach ist der manuelle Durchgang durch die App (§6) die größte Unsicherheit im Projekt** — inzwischen sieben Sessions ohne einen App-Start, und Stufe 1+2 sind reine UI-Arbeit, deren Kompilierbarkeit bewiesen ist und deren *Bedienbarkeit* nicht.
+> Danach: die offenen Punkte aus §6 (Windows-Packaging, Launch-Blocker) und der CST, falls Verschachtelung in unbekannten Containern real wird (§3, Ende).
 
 ---
 
@@ -82,28 +82,23 @@ Gemessen über 153 ausgelieferte und 55 echte Dateien: `deserializeTypst` über 
 
 ---
 
-## 2. Der größte Einzelgewinn — **Tabellen** ◀ DER NÄCHSTE SCHRITT
+## 2. Tabellen — ✅ ERLEDIGT (Session 47)
 
-**Null von sechzehn Tabellen im gesamten Korpus sind editierbar.** Auch nicht die Preistabellen in Renés Kundenangeboten. Jede einzelne ist ein Code-Block.
+Vorher: **null von sechzehn** Tabellen im Korpus editierbar, auch nicht die Preistabellen in den Kundenangeboten. Der Grund stand in `parseTable`: `columns:` musste eine ganze Zahl sein, jeder andere Parameter führte zum Abbruch. Gemessen schreiben aber **21 von 27** ein Tupel, 17 übergeben `align:`, 16 `fill:`, 9 `stroke:`, 8 nutzen die Klammerform `table.header[A][B]`.
 
-Der Grund steht in `parseTable` (`deserializer.ts`): es erwartet `#table(columns: N, [cell], …)` mit einer **ganzzahligen** Spaltenzahl. Echte Tabellen schreiben:
+**Jetzt: 10 von 16 sind echte editierbare Tabellen, 6 werden bewusst abgelehnt.**
 
-```typst
-#table(
-  columns: (auto, 1fr, auto),
-  align: (left + top, left + top, right + top),
-  table.header[Phase][Was darin steckt][Preis netto],
-  [*Phase 1* \ #text(…)], …
-)
-```
+Der Ansatz ist derselbe wie beim Raw-Block: **wörtlich behalten, was man nicht versteht.** Die komplette führende Parameterliste wird als Quelltext auf dem Knoten getragen (`params`, deklariert von `TableParams` — ein nicht deklariertes Attribut wirft ProseMirror still weg) und unverändert zurückgeschrieben. Editierbar wird, was der Knotengraph zurückgeben kann: die **Zellen**. Genau das will ein Nicht-Typst-Nutzer an einer Preistabelle ändern — den Preis.
 
-Ein Tupel statt einer Zahl, ein `align:`-Tupel, `table.header[…][…]` in Klammerform. Der Parser steigt in der ersten Zeile aus.
+Drei Formen werden **gemerkt statt normalisiert**, damit Renés Dateien byte-stabil bleiben: die Header-Schreibweise (Klammer vs. Paren) und pro Zelle, ob sie als `"String"` oder `[Content]` geschrieben war. Das ist nicht kosmetisch — `"*fett*"` rendert die Sternchen wörtlich, `[*fett*]` rendert fett.
 
-**Für die Aufgabenstellung ist das der wichtigste einzelne Befund:** Tabellen sind im Geschäftsdokument das häufigste strukturierte Element und komplett unzugänglich. Das zu beheben ist begrenzte Arbeit an einem vorhandenen Parser — **kein CST, kein Rust**. Wer hier anfängt, macht die App für den Zielnutzer spürbar zugänglicher, bevor irgendeine Architekturentscheidung fällt.
+### Was hier am meisten wert war
 
-Abgeschwächt gilt dasselbe für `#figure`, `#align` und `#text` — alle drei haben Parser, die bei realen Argumenten aussteigen.
+**Das Pixel-Gate hat einen echten Inhaltsverlust gefunden, den der Textvergleich durchgelassen hätte.** `parseInline` bildet nur einen Teil von Typsts Inline-Syntax ab und lässt den Rest still fallen. Sobald die Tabelle beansprucht wurde, lief **jede Zelle** durch `parseInline` — und zwei Kundenangebote verloren einen `\`-Umbruch und das `size:` aus `#text(size: 8.5pt, fill: mute)[…]`. Im PDF war das **eine zusätzliche Seite**.
 
-> **Achtung, die Regel gilt weiter:** ein Parser darf nur beanspruchen, was der Knotengraph **zurückgeben** kann (CLAUDE.md, „The round-trip rule"). Wenn `parseTable` `align:` liest, muss der Serializer es wieder schreiben — sonst tauscht man Unzugänglichkeit gegen stillen Verlust. Das Pixel-Gate ist der Beweis, nicht die Meinung.
+Die Lösung ist keine Blacklist bekannter Konstrukte (die verrottet), sondern eine **Selbstprüfung**: jede Zelle wird geparst, zurückgeschrieben und verglichen. Was sich nicht reproduziert, lässt die *ganze* Tabelle wörtlich stehen. Die Round-Trip-Regel per Messung statt per Absicht.
+
+**Der Korpus-Vergleicher hatte selbst einen Fehler**: er splittet an Leerzeilen ohne Verschachtelung zu beachten, und eine Tabelle mit Leerzeilen zwischen den Zeilen — im Kundendokument die Normalform — wurde deshalb als „Inhalt verloren" gemeldet, obwohl das Rendering identisch ist. Das widersprach der Block-Semantik aus Stufe 0. Behoben, und **gegengeprüft**: ohne den Zellen-Guard wird der Test weiterhin rot (5 Dateien), er ist also nicht blind geworden.
 
 ---
 
@@ -170,25 +165,25 @@ Vieles ist da und wird heute nur in eine Richtung benutzt:
 
 ---
 
-## 4a. Umsetzungsreihenfolge
+## 4a. Umsetzungsreihenfolge — abgearbeitet
 
 | Stufe | Was | Stand |
 |---|---|---|
-| **0** | Modus-Stack im Block-Splitter (§3a) | ✅ Session 47 · `37643de` |
-| **1** | `listProjectMacros` + `visibleIn` + Picker-Sektion „Aus diesem Projekt" | ✅ Session 47 · `1426d06` |
-| **2** | `parseMacroCall` + Splice + Formular im `typstRawBlock`-Node-View | ✅ Session 47 |
-| **3** | **Tabellen (§2)** | ⏳ **offen — der nächste Schritt** |
-| später | CST, falls Verschachtelung in unbekannten Containern real wird | Bauprinzip aus §3 beachten: `findMacroForBlock` ist die auszutauschende Stelle |
+| **0** | Modus-Stack im Block-Splitter (§3a) | ✅ `37643de` |
+| **1** | `listProjectMacros` + `visibleIn` + Picker-Sektion „Aus diesem Projekt" | ✅ `1426d06` |
+| **2** | `parseMacroCall` + Splice + Formular im `typstRawBlock`-Node-View | ✅ `9d84e53` |
+| **3** | Tabellen (§2) | ✅ Session 47 |
+| später | CST, falls Verschachtelung in unbekannten Containern real wird | offen · `findMacroForBlock` ist die auszutauschende Stelle |
 
-### Was Stufe 3 (Tabellen) von Stufe 2 erbt
+### Die Methode, die sich über alle vier Stufen bewährt hat
 
-Nicht die Optik, sondern die **Methode** — sie hat in dieser Session dreimal einen Fehler gefunden, den Nachdenken nicht gefunden hätte:
+Sie hat in dieser Session **viermal** einen Fehler gefunden, den Nachdenken nicht gefunden hätte — zweimal in echten Kundendokumenten:
 
-1. **Erst den Korpus messen, dann den Parser schreiben.** Die Reihenfolge der Häufigkeiten (170 × `#name[body]` ohne Klammern) hat das Design bestimmt. Für Tabellen heißt das: erst zählen, welche `#table(...)`-Formen real vorkommen — `columns:`-Tupel, `align:`-Tupel, `table.header[..][..]`, `inset:`, Zellen mit `#text(...)`.
-2. **Den Compiler fragen, nicht schließen.** Drei Wegwerf-`.typ` und `resources/bin/typst-*` beantworten in zwanzig Sekunden, was eine Stunde Überlegung falsch beantwortet.
-3. **Identität über den echten Korpus als tragender Test.** Jede Zelle mit ihrem eigenen Wert ersetzt → byte-identisch. Das ist der Test, der Off-by-one-Fehler fängt, die keine Fixture zeigt.
-4. **Die Round-Trip-Regel gilt unverändert** (§2, Ende): liest `parseTable` ein `align:`, muss der Serializer es zurückschreiben. Sonst tauscht man Unzugänglichkeit gegen stillen Verlust.
-5. **Ablehnen ist eine gültige Antwort.** Was der Parser nicht ganz versteht, bleibt Raw-Block. Verbatim exportiert weiterhin.
+1. **Erst den Korpus messen, dann den Parser schreiben.** Die Häufigkeiten haben jedes Mal das Design bestimmt (170 × `#name[body]` ohne Klammern; 21 × `columns:` als Tupel).
+2. **Den Compiler fragen, nicht schließen.** Drei Wegwerf-`.typ` beantworten in zwanzig Sekunden, was eine Stunde Überlegung falsch beantwortet — und *Pixel* vergleichen, nicht „kompiliert es".
+3. **Nach dem Umbau den UNVERÄNDERTEN Korpus neu parsen.** So kamen die zwei Regressionen heraus, die die neuen Tests glatt passiert hatten.
+4. **Das Pixel-Gate ist der einzige Test, der den Zellen-Verlust gefunden hat.** Der Textvergleich sagte grün.
+5. **Ablehnen ist eine gültige Antwort.** Was der Parser nicht ganz versteht, bleibt Raw-Block und exportiert weiterhin wörtlich.
 
 ## 5. Was dabei nicht kaputtgehen darf
 
@@ -216,7 +211,7 @@ Nicht die Optik, sondern die **Methode** — sie hat in dieser Session dreimal e
 
 - **`npm test`** = `check:mcp` → `typecheck` → `test:unit` → `test:corpus` → `test:compile:corpus` → `test:mcp`. Läuft in `package:*`.
 - **`penwright.corpus.json`** (git-ignoriert) zeigt auf `~/Desktop/LANGSAM` und die beiden Marketing-Ordner. **Wenn René diese Dokumente bearbeitet, kann `npm test` hier rot werden** — das ist das Gate, kein Fehler.
-- **`MCP_SETUP_VERSION` = 0.29.0.** `ensureInstalledBinary` kopiert bei jedem App-Start bedingungslos aus `dist/mcp/bin/`. Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary landet** (Deserializer, `designElements`, `skillTemplates`): bumpen **und** `npm run build:mcp-binary:all`.
+- **`MCP_SETUP_VERSION` = 0.30.0.** `ensureInstalledBinary` kopiert bei jedem App-Start bedingungslos aus `dist/mcp/bin/`. Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary landet** (Deserializer, `designElements`, `skillTemplates`): bumpen **und** `npm run build:mcp-binary:all`.
 - **`npm run fetch:typst`** ist die einzige Wahrheit für die Typst-Version (`TYPST_VERSION` im Skript). `--check` verifiziert ohne Download.
 
 ---

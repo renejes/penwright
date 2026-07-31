@@ -122,7 +122,8 @@ function relaxForm(unit: string): string {
  *
  *   - soft line wrapping inside a paragraph (Typst joins them with a space)
  *   - indentation inside a re-parsed container body
- *   - the number of blank lines between blocks
+ *   - the number of blank lines between blocks — INCLUDING blank lines inside an
+ *     open construct, which are not block boundaries at all (see below)
  *   - a heading becoming its own block
  *   - the three form changes in `relaxForm` above
  *
@@ -140,9 +141,38 @@ function normalise(src: string): string {
     prefix = '';
   };
 
+  // A blank line inside an OPEN construct is not a block boundary. Typst does
+  // not treat it as one and neither does `splitIntoBlocks` — that is why a
+  // multi-line `#table(…)` with blank lines between its rows parses as one
+  // table at all. Splitting here anyway made this comparator disagree with the
+  // block semantics the rest of the repo runs on, and reported a table whose
+  // rows were merely re-spaced as "content lost". The pixel gate proved the
+  // render identical across all 39 projects.
+  //
+  // Counted only in code mode, from the first unescaped `#` or once a construct
+  // is already open — the same rule as the deserializer, for the same reason:
+  // in markup a paren is a paren, and one smiley in prose must not swallow the
+  // rest of the file.
+  let depth = 0;
+  const track = (line: string): void => {
+    let code = depth > 0;
+    let inStr = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inStr) { if (c === '\\') i++; else if (c === '"') inStr = false; continue; }
+      if (c === '/' && line[i + 1] === '/') return;
+      if (c === '"' && code) { inStr = true; continue; }
+      if (c === '#' && line[i - 1] !== '\\') { code = true; continue; }
+      if (!code) continue;
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
+    }
+  };
+
   for (const raw of src.split('\n')) {
     const line = raw.trim();
-    if (!line) { flush(); continue; }
+    if (!line) { if (depth === 0) flush(); continue; }
+    track(raw);
     // A heading is its own unit whether or not a blank line precedes it —
     // Typst reads it that way, and the round trip normalises to that form.
     if (/^={1,6}\s+\S/.test(line)) { flush(); units.push(relaxForm(line.replace(/\s+/g, ' '))); continue; }

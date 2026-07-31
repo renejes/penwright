@@ -547,6 +547,88 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   }
 }
 
+// ─── A table keeps its own styling and becomes cell-editable ────────────────
+//
+// Before this, `parseTable` demanded `columns:` be a plain integer and bailed on
+// every other parameter, so NOT ONE of the 27 real tables in the corpus was
+// editable — the price tables in the client offers included. Measured: 21 write
+// `columns:` as a tuple, 17 pass `align:`, 16 `fill:`, 9 `stroke:`, and 8 use
+// the `table.header[A][B]` bracket form.
+//
+// The fix is the move the raw block already makes: keep verbatim what you do not
+// understand. The parameter list is carried as SOURCE TEXT on the node and
+// written back untouched; the CELLS become editable, which is the whole point —
+// the thing a non-Typst user wants to change in a price table is a price.
+{
+  const ser = (src: string) => serializeTypst(deserializeTypst(src) as any).trim();
+  const node = (src: string) => ((deserializeTypst(src) as any).content ?? [])[0];
+  const flat = (src: string) => ser(src).replace(/\s+/g, ' ');
+
+  const styled = '#table(\n  columns: (auto, 1fr, auto),\n  align: (left + top, left + top, right + top),\n  table.header[Phase][Was][Preis],\n  [*P1*], [Fundament], [1.500 EUR],\n)';
+  check('a tuple columns + align table is a real table node', node(styled)?.type === 'table', node(styled)?.type);
+  check('its parameters are carried verbatim',
+    String(node(styled)?.attrs?.params ?? '').includes('align: (left + top, left + top, right + top)'),
+    node(styled)?.attrs?.params);
+  check('…and written back untouched', flat(styled).includes('align: (left + top, left + top, right + top)'), flat(styled));
+  // The bracket header form renders identically to the paren form (pixel-compared),
+  // but rewriting one into the other would churn eight client files on every save.
+  check('the bracket header form survives', flat(styled).includes('table.header[Phase][Was][Preis]'), flat(styled));
+
+  const paren = '#table(\n  columns: 2,\n  table.header(\n    [A], [B],\n  ),\n  [1], [2],\n)';
+  check('the paren header form survives too', ser(paren).includes('table.header('), ser(paren));
+  check('a plain integer table still round-trips exactly', ser(paren) === paren, { got: ser(paren) });
+
+  // Nine of sixteen corpus tables write their cells as STRINGS. A string is not
+  // markup — `"*fett*"` renders the asterisks literally — so it has to come back
+  // as a string, not as `[*fett*]`.
+  const strings = '#table(\n  columns: (0.9fr, 1.8fr),\n  table.header("Format", "Einsatz"),\n  "Vorher / Nachher", "Beleg",\n)';
+  check('string cells make a table node', node(strings)?.type === 'table', node(strings)?.type);
+  // Byte-identity is not the claim — the serializer has always written the paren
+  // header form across several lines. The claim is that a string stays a STRING:
+  // re-emitting `"Vorher / Nachher"` as `[Vorher / Nachher]` would change what
+  // the cell means the moment its text contains `*` or `_`.
+  check('…and come back as strings, not as markup',
+    flat(strings).includes('"Format", "Einsatz"') && flat(strings).includes('"Vorher / Nachher", "Beleg"'),
+    flat(strings));
+  check('…and a second round trip changes nothing more', ser(ser(strings)) === ser(strings), { got: ser(ser(strings)) });
+
+  // What the node graph cannot give back must not be claimed. Each of these
+  // stays a verbatim raw block.
+  for (const [name, src] of [
+    ['columns as an expression', '#table(columns: (1fr,) * 3, [a], [b], [c])'],
+    ['a table.cell with a colspan', '#table(columns: 2, table.cell(colspan: 2)[wide], [a], [b])'],
+    ['a named parameter AFTER the cells', '#table([a], [b], columns: 2)'],
+    ['an hline between rows', '#table(columns: 2, [a], [b], table.hline(), [c], [d])'],
+    ['a cell count that is not a multiple', '#table(columns: 3, [a], [b])'],
+    // THE ONE THE PIXEL GATE CAUGHT. `parseInline` models a subset of Typst and
+    // silently drops the rest: this cell lost its `\\` linebreak and the `size:`
+    // out of `#text(size: 8.5pt, fill: mute)[…]`, which showed up as a whole
+    // extra page in a client offer. The cell now checks its own round trip.
+    ['a cell whose content does not round-trip', '#table(columns: 1, [*P1* \\ #text(size: 8.5pt, fill: mute)[geliefert]])'],
+    ['a cell with a #linebreak()', '#table(columns: 1, [Text #linebreak() mehr])'],
+    ['a string cell with an escape it cannot carry back', '#table(columns: 1, "Sofort\\n(0-3 Monate)")'],
+  ] as [string, string][]) {
+    check(`refuses: ${name}`, node(src)?.type === 'typstRawBlock', node(src)?.type);
+    check(`${name}: round-trips verbatim`, ser(src) === src, { got: ser(src) });
+  }
+
+  // A stale `columns:` does NOT fail loudly — Typst silently reflows the table
+  // (verified against 0.15.1) — so adding a column through the gear menu has to
+  // rewrite it, and rewrite only it.
+  {
+    const doc = deserializeTypst('#table(\n  columns: (auto, 1fr),\n  align: (left, right),\n  [a], [b],\n)') as any;
+    const table = doc.content[0];
+    // simulate the UI adding a third column
+    for (const row of table.content) {
+      row.content.push({ type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'c' }] }] });
+    }
+    const out = serializeTypst(doc).replace(/\s+/g, ' ');
+    check('a new column widens the columns tuple', out.includes('columns: (auto, 1fr, auto)'), out);
+    check('…and keeps the widths the author chose', out.includes('(auto, 1fr,'), out);
+    check('…and leaves align alone', out.includes('align: (left, right)'), out);
+  }
+}
+
 // ─── Numbered enum items are a list, not a paragraph ────────────────────────
 //
 // `isListItemLine` matched `-`, `+` and `/` but no digits, so a numbered enum

@@ -9,6 +9,8 @@
  */
 
 import { isReferenceLabel, refTypeFromLabel } from '../../shared/refLabels';
+import { parseMacroCall, splitTypstList, extractAdjacentBlocks } from '../../shared/macroCall';
+import { serializeInlineNodes } from './serializer';
 
 interface TipTapDoc {
   type: 'doc';
@@ -996,86 +998,221 @@ function chunkToAlignedNode(
 }
 
 /**
- * Parses a Typst #table(...) block into TipTap table nodes.
- * Supports: #table(columns: N, [cell], ...) with optional table.header(...)
- * Returns null for complex tables (unknown params, non-integer columns) → falls back to raw block.
+ * Parses a Typst `#table(...)` block into TipTap table nodes.
+ *
+ * ── Why this was rewritten (Session 47, Stufe 3) ───────────────────────────
+ *
+ * The previous version demanded `columns:` be a plain integer and bailed on any
+ * other parameter, so **not one of the 27 real tables in the corpus was
+ * editable** — including the price tables in the client offers. Measured:
+ * 21 write `columns:` as a TUPLE, 17 pass `align:`, 16 `fill:`, 11 `inset:`,
+ * 9 `stroke:`, and 8 use the `table.header[A][B]` bracket form.
+ *
+ * The fix is the move the raw block already makes: **keep verbatim what you do
+ * not understand.** Every leading named parameter is carried, as SOURCE TEXT,
+ * on the node's `params` attribute and written back untouched — so `fill:` and
+ * a hand-tuned `stroke:` survive byte-for-byte without this code having any
+ * opinion about them. What becomes editable is what the node graph can actually
+ * give back: the CELLS. That is also the whole user-visible win, because the
+ * thing a non-Typst user wants to change in a price table is a price.
+ *
+ * The round-trip rule is therefore satisfied by construction rather than by
+ * effort (CLAUDE.md: "a WYSIWYG unwrap may only claim what the node graph can
+ * GIVE BACK") — and it has to be, because a stale `columns:` does NOT fail
+ * loudly: Typst silently reflows the table. Verified against 0.15.1, which is
+ * why `serializeTable` rewrites `columns:` whenever the row shape changed.
+ *
+ * Refusals stay generous: `table.cell(...)`, `table.hline()`, a `columns:` that
+ * is an expression rather than a literal, or a named parameter sitting AFTER
+ * the cells all return null and keep the whole block verbatim.
  */
 function parseTable(block: string): TipTapNode | null {
-  // Must start with #table( and end with )
-  if (!block.startsWith('#table(')) return null;
+  const parsed = parseMacroCall(block);
+  if (!parsed || parsed.name !== 'table') return null;
+  if (parsed.argListStart === null || parsed.argListEnd === null) return null;
+  if (parsed.bodyStart !== null) return null;          // `#table(…)[…]` is not a table
 
-  // Find the matching closing paren (the block splitter ensures balanced parens)
-  if (block[block.length - 1] !== ')') return null;
+  // Named parameters must all precede the cells. Typst accepts them after, but
+  // then "everything before the first cell" is no longer the parameter list and
+  // carrying it verbatim would move the user's argument.
+  const firstCellIdx = parsed.args.findIndex(a => a.name === null);
+  if (firstCellIdx === -1) return null;                // no cells at all
+  if (parsed.args.slice(firstCellIdx).some(a => a.name !== null)) return null;
 
-  const inner = block.slice(7, -1).trim();
+  const named = parsed.args.slice(0, firstCellIdx);
+  const cellArgs = parsed.args.slice(firstCellIdx);
 
-  // Extract columns: N (only simple integer supported)
-  const colMatch = inner.match(/^columns:\s*(\d+)\s*,/);
-  if (!colMatch) return null;
+  // Column count, from a literal only. `(1fr,) * 3` is an expression whose value
+  // this code cannot know, and guessing it reshapes the table.
+  const columnsArg = named.find(a => a.name === 'columns');
+  if (!columnsArg) return null;
+  const numCols = tableColumnCount(columnsArg.raw);
+  if (numCols === null || numCols < 1 || numCols > 20) return null;
 
-  const numCols = parseInt(colMatch[1]);
-  if (numCols < 1 || numCols > 20) return null;
+  // The parameters, verbatim, from the first one to the last — separators and
+  // line breaks included, comments included, nothing normalised.
+  const params = named.length
+    ? block.slice(named[0].fullStart, named[named.length - 1].fullEnd)
+    : '';
 
-  let remaining = inner.slice(colMatch[0].length).trim();
+  let headerCells: TableCellSource[] | null = null;
+  let headerForm: 'paren' | 'bracket' = 'paren';
+  const bodyCells: TableCellSource[] = [];
 
-  // Check for unsupported parameters before the first cell
-  // Supported: table.header(...) or [cell]
-  // Unsupported: align:, stroke:, fill:, gutter:, inset:, rows: etc.
-  if (remaining.length > 0 && remaining[0] !== '[' && !remaining.startsWith('table.header(')) {
-    // Check if there's an unsupported param before cells
-    if (/^[a-z]/.test(remaining)) return null;
+  for (const arg of cellArgs) {
+    if (arg.kind === 'content') {
+      bodyCells.push({ text: block.slice(arg.innerStart, arg.innerEnd), literal: false });
+      continue;
+    }
+    if (arg.kind === 'string') {
+      const cell = stringCell(block.slice(arg.innerStart, arg.innerEnd));
+      if (!cell) return null;
+      bodyCells.push(cell);
+      continue;
+    }
+    const raw = arg.raw.trimStart();
+    if (raw.startsWith('table.header')) {
+      if (headerCells || bodyCells.length) return null;   // only one, and first
+      const cells = tableHeaderCells(raw);
+      if (!cells) return null;
+      headerCells = cells;
+      headerForm = raw.slice('table.header'.length).startsWith('[') ? 'bracket' : 'paren';
+      continue;
+    }
+    // `table.cell(colspan: 2)[x]`, `table.hline()`, a bare variable — a cell
+    // this node graph cannot give back. Keep the whole table verbatim.
+    return null;
   }
 
-  // Parse header if present
-  let headerCells: string[] | null = null;
-  if (remaining.startsWith('table.header(')) {
-    remaining = remaining.slice('table.header('.length);
-    const headerResult = extractCellsUntilParen(remaining);
-    if (!headerResult) return null;
-    headerCells = headerResult.cells;
-    remaining = headerResult.rest.replace(/^[\s,]*/, '');
-  }
-
-  // Parse body cells
-  const { cells: bodyCells, rest: trailing } = extractAllCells(remaining);
-
-  // Trailing non-cell content (e.g. `align: center, fill: gray` AFTER the
-  // cells) would be silently dropped and destroyed on the next save — bail
-  // so the whole #table(...) round-trips as a verbatim raw block instead.
-  if (trailing.trim() !== '') return null;
-
-  // Validate cell counts
   if (headerCells && headerCells.length !== numCols) return null;
+  if (bodyCells.length === 0 && !headerCells) return null;
   if (bodyCells.length % numCols !== 0) return null;
+  // The round-trip rule, checked rather than assumed.
+  if (![...(headerCells ?? []), ...bodyCells].every(cellRoundTrips)) return null;
 
-  // Build TipTap table structure
   const rows: TipTapNode[] = [];
-
   if (headerCells) {
     rows.push({
       type: 'tableRow',
       content: headerCells.map((cell) => ({
         type: 'tableHeader',
-        attrs: { colspan: 1, rowspan: 1, colwidth: null },
-        content: [{ type: 'paragraph', content: parseInline(cell.trim()) }],
+        attrs: { colspan: 1, rowspan: 1, colwidth: null, literal: cell.literal },
+        content: [{ type: 'paragraph', content: tableCellContent(cell) }],
       })),
     });
   }
-
   for (let i = 0; i < bodyCells.length; i += numCols) {
     rows.push({
       type: 'tableRow',
       content: bodyCells.slice(i, i + numCols).map((cell) => ({
         type: 'tableCell',
-        attrs: { colspan: 1, rowspan: 1, colwidth: null },
-        content: [{ type: 'paragraph', content: parseInline(cell.trim()) }],
+        attrs: { colspan: 1, rowspan: 1, colwidth: null, literal: cell.literal },
+        content: [{ type: 'paragraph', content: tableCellContent(cell) }],
       })),
     });
   }
-
   if (rows.length === 0) return null;
 
-  return { type: 'table', content: rows };
+  return { type: 'table', attrs: { params, headerForm }, content: rows };
+}
+
+/**
+ * The column count a `columns:` value declares, or null when only Typst could
+ * know. An integer is itself; a literal tuple is its length. Anything else —
+ * `(1fr,) * 3`, a variable, `2 + 1` — is an expression, and a wrong guess
+ * silently reshapes the table rather than failing.
+ */
+function tableColumnCount(raw: string): number | null {
+  const t = raw.trim();
+  if (/^\d+$/.test(t)) return Number(t);
+  const parts = splitTypstList(t);
+  return parts && parts.length > 0 ? parts.length : null;
+}
+
+/**
+ * A table cell as it was WRITTEN, because the two forms do not mean the same
+ * thing. `[*fett*]` is markup and renders bold; `"*fett*"` is a string and
+ * renders the asterisks literally — pixel-compared, they differ. A string cell
+ * therefore becomes plain TEXT, which the serializer re-emits escaped
+ * (`[\\*fett\\*]`), and that reproduces the string's render exactly (also
+ * pixel-compared). Ten of the corpus's sixteen tables write their cells as
+ * strings; treating them as markup would have silently un-escaped every one.
+ */
+interface TableCellSource {
+  text: string;
+  /** From a `"…"` cell — the text is literal, not markup. */
+  literal: boolean;
+}
+
+function tableCellContent(cell: TableCellSource): TipTapNode[] {
+  if (!cell.literal) return parseInline(cell.text.trim());
+  const text = cell.text.trim();
+  return text ? [{ type: 'text', text }] : [];
+}
+
+/**
+ * Does this cell survive being parsed and written back?
+ *
+ * `parseInline` models a subset of Typst's inline syntax and silently drops the
+ * rest. In a paragraph that is tolerable — the block splitter keeps an
+ * unrecognised paragraph verbatim. In a table cell it was not: claiming the
+ * table made every cell go through `parseInline`, and two client offers lost a
+ * `\\` linebreak and the `size:` out of `#text(size: 8.5pt, fill: mute)[…]`.
+ * The pixel gate caught it as an extra page, which is exactly what it is for.
+ *
+ * So the cell checks its own work. Parse it, write it back, compare. Anything
+ * that does not reproduce means the node graph cannot give this cell back, and
+ * the WHOLE table stays a verbatim raw block — the round-trip rule enforced by
+ * measurement rather than by a blacklist of constructs that would rot.
+ */
+function cellRoundTrips(cell: TableCellSource): boolean {
+  if (cell.literal) return true;                 // plain text in, plain text out
+  const text = cell.text.trim();
+  const back = serializeInlineNodes(tableCellContent(cell)).trim();
+  return back === text;
+}
+
+/**
+ * A `"…"` cell's text, or null when it carries an escape this cannot carry back.
+ *
+ * `\\"` and `\\\\` unescape cleanly. Anything else — `\\n`, `\\t`, `\\u{…}` — has no
+ * plain-text equivalent that would re-emit identically, so the whole table stays
+ * verbatim rather than being approximated.
+ */
+function stringCell(inner: string): TableCellSource | null {
+  if (/\\(?!["\\\\])/.test(inner)) return null;
+  return { text: inner.replace(/\\(["\\\\])/g, '$1'), literal: true };
+}
+
+/** The cells of a `table.header(…)` or `table.header[A][B]`, or null. */
+function tableHeaderCells(raw: string): TableCellSource[] | null {
+  const after = raw.slice('table.header'.length);
+  if (after.startsWith('[')) {
+    // Bracket form — 8 corpus sites. Renders identically to the paren form
+    // (pixel-compared), so it round-trips through the paren form the serializer
+    // already emits.
+    const blocks = extractAdjacentBlocks(after, 0);
+    if (!blocks || !blocks.length) return null;
+    if (after.slice(blocks[blocks.length - 1].end).trim() !== '') return null;
+    return blocks.map(b => ({ text: after.slice(b.innerStart, b.innerEnd), literal: false }));
+  }
+  if (after.startsWith('(')) {
+    const inner = parseMacroCall(`#h${after}`);
+    if (!inner || inner.args.some(a => a.name !== null || (a.kind !== 'content' && a.kind !== 'string'))) return null;
+    const out: TableCellSource[] = [];
+    for (const a of inner.args) {
+      const text = after.slice(a.innerStart - 2, a.innerEnd - 2);
+      if (a.kind === 'string') {
+        const cell = stringCell(text);
+        if (!cell) return null;
+        out.push(cell);
+      } else {
+        out.push({ text, literal: false });
+      }
+    }
+    return out;
+  }
+  return null;
 }
 
 /**

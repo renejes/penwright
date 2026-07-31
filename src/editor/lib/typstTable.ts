@@ -7,6 +7,7 @@
  * - "Done" button (right) → exits table, adds a new paragraph below
  */
 
+import { Extension } from '@tiptap/core';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -242,5 +243,82 @@ export const TypstTableCell = TableCell.configure({
 export const TypstTableHeader = TableHeader.configure({
   HTMLAttributes: {
     class: 'typst-table-header',
+  },
+});
+
+/**
+ * Carries a `#table(...)`'s own named parameters, as SOURCE TEXT, on the table
+ * node — `columns: (auto, 1fr), align: (left, right), fill: (…)` and whatever
+ * else the author wrote.
+ *
+ * This is what makes the cells editable without claiming the styling. The
+ * deserializer keeps the parameter list verbatim and `serializeTable` writes it
+ * back untouched, so a hand-tuned `stroke:` survives a round trip byte-for-byte
+ * while the prices inside the table become ordinary editable cells.
+ *
+ * Declaring it HERE is what makes it survive. ProseMirror drops attributes its
+ * schema does not know — the failure that lost heading labels, and that
+ * `ListAttachment` exists to prevent for lists. Without this, the deserializer
+ * would set `params`, the editor would discard them on the first keystroke, and
+ * the next save would emit a bare `columns: N`, silently deleting every
+ * alignment, fill and stroke the author had written.
+ *
+ * Mirrored to `data-typst-params` so it also survives copy/paste and DOM
+ * (de)serialization, following the ListAttachment / HeadingLabel pattern.
+ */
+export const TableParams = Extension.create({
+  name: 'tableParams',
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['table'],
+        attributes: {
+          params: {
+            default: '',
+            parseHTML: (element) => element.getAttribute('data-typst-params') ?? '',
+            renderHTML: (attributes) => {
+              if (!attributes.params) return {};
+              return { 'data-typst-params': attributes.params };
+            },
+          },
+          /**
+           * Which of the two header forms the author wrote. `table.header[A][B]`
+           * and `table.header([A], [B])` render identically (pixel-compared), so
+           * this is not about meaning — it is about not rewriting eight client
+           * files on every save just because we prefer the other spelling.
+           */
+          headerForm: {
+            default: 'paren',
+            parseHTML: (element) => element.getAttribute('data-header-form') ?? 'paren',
+            renderHTML: (attributes) => {
+              if (attributes.headerForm !== 'bracket') return {};
+              return { 'data-header-form': 'bracket' };
+            },
+          },
+        },
+      },
+      {
+        types: ['tableCell', 'tableHeader'],
+        attributes: {
+          /**
+           * The cell was written as a STRING (`"Kanal"`), not as a content block
+           * (`[Kanal]`). The two are not the same thing — `"*fett*"` renders the
+           * asterisks literally — and nine of the corpus's sixteen tables write
+           * their cells this way. Remembering it keeps those files byte-stable;
+           * the moment the user gives such a cell real markup, the serializer
+           * drops back to a content block, because a string could not carry it.
+           */
+          literal: {
+            default: false,
+            parseHTML: (element) => element.getAttribute('data-literal') === 'true',
+            renderHTML: (attributes) => {
+              if (!attributes.literal) return {};
+              return { 'data-literal': 'true' };
+            },
+          },
+        },
+      },
+    ];
   },
 });

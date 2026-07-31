@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import { TypstRawBlock } from './typstRawBlock';
 import { TypstImage } from './typstImage';
-import { TypstTable, TypstTableRow, TypstTableCell, TypstTableHeader } from './typstTable';
+import { TypstTable, TypstTableRow, TypstTableCell, TypstTableHeader, TableParams } from './typstTable';
 import { TypstFootnote } from './typstFootnote';
 import { TypstCitation } from './typstCitation';
 import { TypstReference } from './typstReference';
@@ -209,6 +209,7 @@ export function createEditor(
       TextAlign,
       HeadingLabel,
       ListAttachment,
+      TableParams,
       ...MAGAZINE_NODES,
       ImageDropHandler,
       CommentDecorations,

@@ -1,6 +1,7 @@
 // TipTap JSON → Typst Serializer (Phase 2: with typstRawBlock passthrough)
 
 import type { Node as PMNode } from '@tiptap/pm/model';
+import { parseMacroCall, splitTypstList } from '../../shared/macroCall';
 
 interface TipTapNode {
   type: string;
@@ -342,44 +343,117 @@ function escapeLeadingBlockMarker(text: string): string {
     .replace(/^(\s*)(\d+)\.(\s)/, '$1$2\\.$3');
 }
 
+/**
+ * Writes a table back, keeping the author's own parameters verbatim.
+ *
+ * `attrs.params` holds the source text of everything the `#table(...)` declared
+ * — `columns:`, and whatever `align:` / `fill:` / `stroke:` / `inset:` came with
+ * it — carried through the round trip untouched by `parseTable`. Re-emitting it
+ * rather than synthesising `columns: N` is what lets a hand-styled table be
+ * cell-editable without this code understanding, or destroying, its styling.
+ *
+ * The one thing that MUST be rewritten is the column count, and only when the
+ * user actually changed the table's shape. A stale `columns:` does not fail
+ * loudly — Typst silently reflows the table (verified against 0.15.1), so a
+ * column added through the gear menu would quietly scramble every row.
+ */
 function serializeTable(node: TipTapNode): string {
   const rows = node.content ?? [];
   if (rows.length === 0) return '#table(columns: 1)';
 
-  // Determine column count from first row
   const numCols = (rows[0].content ?? []).length;
-
-  // Check if first row is a header row (all cells are tableHeader)
   const firstRowCells = rows[0].content ?? [];
-  const hasHeader = firstRowCells.every((cell) => cell.type === 'tableHeader');
+  const hasHeader = firstRowCells.length > 0 && firstRowCells.every((cell) => cell.type === 'tableHeader');
 
   const cellLines: string[] = [];
-
+  let startRow = 0;
   if (hasHeader) {
-    // Serialize header row
-    const headerCells = firstRowCells
-      .map((cell) => `[${serializeCellContent(cell)}]`)
-      .join(', ');
-    cellLines.push(`  table.header(\n    ${headerCells},\n  )`);
-
-    // Serialize body rows
-    for (let r = 1; r < rows.length; r++) {
-      const rowCells = (rows[r].content ?? [])
-        .map((cell) => `[${serializeCellContent(cell)}]`)
-        .join(', ');
-      cellLines.push(`  ${rowCells}`);
+    // Keep the form the author wrote. The two render identically
+    // (pixel-compared), so rewriting one into the other would churn eight client
+    // files on every save and buy nothing.
+    if (node.attrs?.headerForm === 'bracket') {
+      cellLines.push(`  table.header${firstRowCells.map(serializeTableCell).join('')}`);
+    } else {
+      cellLines.push(`  table.header(\n    ${firstRowCells.map(serializeTableCell).join(', ')},\n  )`);
     }
+    startRow = 1;
+  }
+  for (let r = startRow; r < rows.length; r++) {
+    cellLines.push(`  ${(rows[r].content ?? []).map(serializeTableCell).join(', ')}`);
+  }
+
+  const params = typeof node.attrs?.params === 'string' ? node.attrs.params : '';
+  const head = params ? reconcileTableColumns(params, numCols) : `columns: ${numCols}`;
+  return `#table(\n  ${head},\n${cellLines.join(',\n')},\n)`;
+}
+
+/**
+ * One cell, in the form it was written in.
+ *
+ * A cell that came from a `"string"` goes back as a string — but ONLY while it
+ * is still plain text. The moment it carries a mark or a node (the user made a
+ * word bold, added a footnote), a string could not express it, so it becomes a
+ * content block. That is the round-trip rule applied per cell: emit the form
+ * that can actually give the content back.
+ */
+function serializeTableCell(cell: TipTapNode): string {
+  const inner = serializeCellContent(cell);
+  if (cell.attrs?.literal === true && isPlainTextCell(cell)) {
+    return `"${plainCellText(cell).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  }
+  return `[${inner}]`;
+}
+
+/** A cell holding nothing but unmarked text — the only thing a string can hold. */
+function isPlainTextCell(cell: TipTapNode): boolean {
+  const blocks = cell.content ?? [];
+  if (blocks.length > 1) return false;
+  if (blocks.length === 0) return true;
+  if (blocks[0].type !== 'paragraph') return false;
+  return (blocks[0].content ?? []).every((n) => n.type === 'text' && !(n.marks ?? []).length);
+}
+
+function plainCellText(cell: TipTapNode): string {
+  const para = (cell.content ?? [])[0];
+  return ((para?.content ?? []).map((n) => n.text ?? '').join(''));
+}
+
+/**
+ * Returns the parameter text with `columns:` made to agree with `numCols`, and
+ * every other character untouched.
+ *
+ * A tuple keeps the widths the author chose and grows or shrinks at the end
+ * (`auto` for a new column, which is Typst's own default); an integer is just
+ * the number. When the count already agrees — the overwhelmingly common case,
+ * since editing a cell does not change the shape — the text is returned
+ * unchanged and the round trip is byte-exact.
+ */
+function reconcileTableColumns(params: string, numCols: number): string {
+  const parsed = parseMacroCall(`#t(${params})`);
+  const arg = parsed?.args.find((a) => a.name === 'columns');
+  if (!arg) return params;
+
+  const OFFSET = 3;                                   // the `#t(` we prefixed
+  const raw = arg.raw.trim();
+  let replacement: string | null = null;
+
+  if (/^\d+$/.test(raw)) {
+    if (Number(raw) !== numCols) replacement = String(numCols);
   } else {
-    // All rows are body rows
-    for (const row of rows) {
-      const rowCells = (row.content ?? [])
-        .map((cell) => `[${serializeCellContent(cell)}]`)
-        .join(', ');
-      cellLines.push(`  ${rowCells}`);
+    const parts = splitTypstList(raw);
+    if (!parts) return params;                        // an expression — leave it alone
+    if (parts.length !== numCols) {
+      const widths = parts.map((p) => raw.slice(p.start, p.end).trim());
+      while (widths.length < numCols) widths.push('auto');
+      widths.length = numCols;
+      // Typst needs the trailing comma to tell a one-element tuple from a
+      // parenthesised expression.
+      replacement = numCols === 1 ? `(${widths[0]},)` : `(${widths.join(', ')})`;
     }
   }
 
-  return `#table(\n  columns: ${numCols},\n${cellLines.join(',\n')},\n)`;
+  if (replacement === null) return params;
+  return params.slice(0, arg.start - OFFSET) + replacement + params.slice(arg.end - OFFSET);
 }
 
 function serializeCellContent(cell: TipTapNode): string {
@@ -403,6 +477,18 @@ function serializeCellContent(cell: TipTapNode): string {
  * URL at the end of a sentence, and that `\/` truncated the auto-detected link.
  * Deciding it here, where the neighbour is known, escapes only what can fuse.
  */
+/**
+ * Serializes inline nodes back to Typst. Exported so the DESERIALIZER can check
+ * its own work: a table cell is only claimed as editable when parsing it and
+ * writing it back reproduces the source (see `cellRoundTrips`). Without that
+ * check, `parseInline` silently drops what it does not model — a `\\` linebreak,
+ * and the `size:` out of `#text(size: 8.5pt, fill: mute)[…]` — which the pixel
+ * gate caught as a whole extra page in a client offer.
+ */
+export function serializeInlineNodes(nodes: TipTapNode[]): string {
+  return serializeInline(nodes);
+}
+
 function serializeInline(nodes: TipTapNode[]): string {
   const parts = nodes.map((node) => serializeInlineNode(node));
   for (let i = 0; i < parts.length - 1; i++) {

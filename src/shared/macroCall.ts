@@ -403,6 +403,46 @@ export function spliceRange(content: string, start: number, end: number, value: 
 }
 
 /**
+ * Splits a parenthesised Typst list literal — `(auto, 1fr, auto)` — into its
+ * top-level elements, or null when `raw` is not one.
+ *
+ * The same mode-aware scanner as an argument list, because it is one: a table's
+ * `columns:` tuple may hold `(auto, 1fr)`, and an `align:` tuple may hold
+ * `(left + top, right + top)`. A trailing comma is normal and does not add an
+ * element — except in the one-element form `(1fr,)`, where Typst requires it
+ * and which is therefore a list of ONE, not of zero.
+ */
+export function splitTypstList(raw: string): { start: number; end: number }[] | null {
+  const t = raw.trim();
+  if (!t.startsWith('(') || !t.endsWith(')')) return null;
+  if (matchDelim(t, 0) !== t.length - 1) return null;      // `(a)(b)` is not one list
+  const offset = raw.indexOf('(');
+  return splitArgs(t, 1, t.length - 1).map(p => ({ start: p.start + offset, end: p.end + offset }));
+}
+
+/**
+ * Reads the run of content blocks that begins at `from`: `[A][B][C]` → three.
+ *
+ * Adjacency is required, as everywhere else in Typst — `[A] [B]` is one block
+ * followed by separate markup. Returns an empty array when `text[from]` is not
+ * `[`, and null when a block never closes.
+ */
+export function extractAdjacentBlocks(
+  text: string,
+  from: number,
+): { innerStart: number; innerEnd: number; end: number }[] | null {
+  const out: { innerStart: number; innerEnd: number; end: number }[] = [];
+  let i = from;
+  while (text[i] === '[') {
+    const close = matchDelim(text, i);
+    if (close === -1) return null;
+    out.push({ innerStart: i + 1, innerEnd: close, end: close + 1 });
+    i = close + 1;
+  }
+  return out;
+}
+
+/**
  * Escapes text so it survives inside a `"…"` argument.
  */
 export function escapeTypstString(text: string): string {

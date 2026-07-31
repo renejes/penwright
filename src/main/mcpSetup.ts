@@ -81,7 +81,10 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.29.0: Stufe 2 — `shared/macroCall.ts` gained the parser and splicer
 // (parseMacroCall / setNamedArg / findMacroForBlock), and it ships in this
 // binary alongside the deserializer.
-export const MCP_SETUP_VERSION = '0.29.0';
+// 0.30.0: Stufe 3 — tables carry their own `#table(…)` parameters verbatim and
+// become cell-editable; the deserializer and `shared/macroCall.ts` both ship in
+// this binary.
+export const MCP_SETUP_VERSION = '0.30.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
