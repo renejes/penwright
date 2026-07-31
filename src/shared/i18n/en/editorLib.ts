@@ -123,12 +123,25 @@ export const editorLib = {
   bibliographyUnknownAuthor: 'Unknown',
 
   // Raw block labels
-  rawBlockMath: 'typst · math',
-  rawBlockConfig: 'typst · configuration',
-  rawBlockCode: 'typst · code',
-  rawBlockComment: 'typst · comment',
-  rawBlockText: 'typst · text',
-  rawBlockDefault: 'typst',
+  /** One human name per raw block — see shared/rawBlockDescription.ts. */
+  spacerTooltip: 'Click to change the spacing',
+  spacerAmountLabel: 'Amount',
+  spacerAmountHint: 'A Typst length, e.g. 0.4em, 12pt, 1cm',
+  rawKindInclude: 'chapter included',
+  rawKindComment: 'note to self',
+  rawKindMath: 'formula',
+  rawKindImport: 'style included',
+  rawKindSetting: 'setting',
+  rawKindRule: 'rule',
+  rawKindPageSetup: 'page setup',
+  rawKindBinding: 'definition',
+  rawKindSpacing: (amount: string): string => `spacing · ${amount}`,
+  rawKindPagebreak: 'page break',
+  rawKindColbreak: 'column break',
+  rawKindLine: 'rule line',
+  rawKindCall: (name: string): string => `${name} · design`,
+  rawKindCode: 'typst code',
+  rawKindText: 'text passage',
 
   // Page break
   pageBreakLabel: 'Page Break',

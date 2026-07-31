@@ -793,6 +793,44 @@ body {
   color: var(--text-color);
 }
 
+/* ─── Bare spacer (`#v(…)`) ────────────────────────────────────────────────
+   60 of the corpus's raw blocks are one of these. As a full code box they read
+   as clutter between the paragraphs they exist to separate, so they get a thin
+   gap that states its own measurement instead. Still a real node — selectable,
+   deletable, draggable — and a click opens the same field popup. */
+.typst-raw-block.pw-is-spacer {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0.25em 0;
+}
+
+.pw-spacer {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  cursor: pointer;
+  padding: 0.15em 0;
+  opacity: 0.35;
+  transition: opacity 0.12s ease;
+}
+.pw-spacer:hover { opacity: 0.85; }
+
+.pw-spacer-rule {
+  flex: 1;
+  height: 0;
+  border-top: 1px dashed currentColor;
+}
+
+.pw-spacer-value {
+  flex: none;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+}
+
 /* ─── Citations ────────────────────────────── */
 .typst-citation {
   display: inline-flex;

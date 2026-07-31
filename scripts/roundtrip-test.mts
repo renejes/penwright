@@ -14,6 +14,7 @@ import { deserializeTypst } from '../src/editor/lib/deserializer.ts';
 import { markdownToTypst } from '../src/shared/markdownImporter.ts';
 import { DESIGN_ELEMENTS, renderDesignElement } from '../src/shared/designElements.ts';
 import { shiftTableColumn, reconcileTableParams } from '../src/shared/tableParams.ts';
+import { describeRawBlock, bareSpacer } from '../src/shared/rawBlockDescription.ts';
 
 let pass = 0;
 let fail = 0;
@@ -447,6 +448,90 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
     ['display math with a blank line', '$ x = y\n\n  + z $\n\nZweiter Absatz.'],
   ] as [string, string][]) {
     check(`${name} stays one block`, types(src).length === 2, types(src));
+  }
+}
+
+// ─── Every raw block can say what it is ────────────────────────────────────
+//
+// The editor used to label a page setup, a spacer, an imported stylesheet and a
+// paragraph of prose all "typst", so the only way to tell them apart was to read
+// the code. A FORM cannot fix that — 79 % of the corpus's 1337 raw blocks hold
+// nothing a form could edit — but a NAME reaches all of them. The vocabulary is
+// taken from what the corpus contains, in order of frequency.
+{
+  const kindOf = (src: string, bt = 'unknown') => describeRawBlock(src, bt).kind;
+
+  for (const [want, src, bt] of [
+    ['comment', '// Aufmacher-Doppelseite', 'comment'],
+    ['math', '$ x = y $', 'math'],
+    ['import', '#import "../style.typ": *', 'config'],
+    ['setting', '#set par(justify: false)', 'config'],
+    ['rule', '#show heading: set text(navy)', 'config'],
+    ['pageSetup', '#page(header: none, margin: 0pt)[x]', 'config'],
+    ['binding', '#let x = 1', 'code'],
+    ['spacing', '#v(0.4em)', 'unknown'],
+    ['pagebreak', '#pagebreak(weak: true)', 'unknown'],
+    ['colbreak', '#colbreak()', 'unknown'],
+    ['line', '#line(length: 1.1cm, stroke: 0.6pt + gray)', 'unknown'],
+    ['call', '#grid(columns: 2, [a], [b])', 'unknown'],
+    ['call', '#bildnachweis("assets/a.png", "Quelle")', 'unknown'],
+    // Prose with no `#` in it at all is text, not code — it is what the
+    // splitter could not place, not something the user wrote as code.
+    ['text', 'Nur Prosa ohne Aufruf.', 'unknown'],
+    ['call', '#place(top + right, dx: 2pt, rect())', 'unknown'],
+    // `code` is the fall-through: code that is not ONE whole call.
+    ['code', '#place(top, rect())\n#place(bottom, rect())', 'unknown'],
+  ] as [string, string, string][]) {
+    check(`described as ${want}: ${src.slice(0, 32)}`, kindOf(src, bt) === want, kindOf(src, bt));
+  }
+  check('a spacing description carries its amount',
+    describeRawBlock('#v(1.8em)', 'unknown').detail === '1.8em', describeRawBlock('#v(1.8em)', 'unknown'));
+  check('a call description carries its name',
+    describeRawBlock('#grid(columns: 2, [a], [b])', 'unknown').detail === 'grid', describeRawBlock('#grid(columns: 2, [a], [b])', 'unknown'));
+
+  // ── Named by CONSEQUENCE, not by position ────────────────────────────
+  // A block is usually a compound, and naming it after its first token was wrong
+  // for about a third of the corpus — and wrong in the dangerous direction: a
+  // block labelled "page break" that actually carries a chapter #include invites
+  // a deletion that removes the chapter. Every one of these was reported by an
+  // adversarial review of this change before it was committed.
+  for (const [want, src, bt] of [
+    ['include', '#pagebreak()\n#include "chapters/02-feature.typ"', 'unknown'],
+    ['include', '#include "chapters/02-feature.typ"', 'unknown'],
+    ['binding', '// Strong section header.\n#let herohead(title) = block(title)', 'comment'],
+    ['comment', '// nur ein Kommentar\n// und noch einer', 'comment'],
+    ['text', '/ Schoen trotz Trockenheit.: Wasser ist auf Mallorca das Thema.', 'unknown'],
+    ['text', '#v(0.6em)\n#text(style: "italic")[Ein ganzer Absatz Fliesstext.]', 'text'],
+    // A unicode macro name must not fall through to "code" — the lesson the
+    // deserializer records paying for twice.
+    ['call', '#uebersicht(x: 1)', 'unknown'],
+    ['call', '#übersicht(x: 1)', 'unknown'],
+    // Two calls in one block is not ONE call, so it falls through — and the
+    // fall-through has to recognise a non-ASCII head to call it code at all.
+    ['code', '#übersicht(a)\n#übersicht(b)', 'unknown'],
+    // An indented block still classifies; the trimStart is load-bearing.
+    ['setting', '\n  #set par(justify: false)', 'config'],
+  ] as [string, string, string][]) {
+    check(`named ${want}: ${src.replace(/\n/g, ' ').slice(0, 40)}`, kindOf(src, bt) === want, kindOf(src, bt));
+  }
+
+  // The spacer only loses its box when it is EXACTLY one `#v(…)`. Anything else
+  // keeps the code, because the gap could not give the rest back.
+  for (const [src, want] of [
+    ['#v(0.4em)', '0.4em'],
+    ['#v(1.2cm)', '1.2cm'],
+    ['#v(0.4em)\n#line(length: 2cm)', null],
+    ['#v(weak: true, 0.4em)', null],
+    ['#v(weak: true)', null],
+    ['#v()', null],
+    // THE DANGEROUS ONE: the gap HIDES everything else, so a comment inside the
+    // call would be swallowed and deleted by the first edit.
+    ['#v(1em /* spaeter 2em */)', null],
+    ['#v(1.5em) // spaeter mehr', null],
+    ['#vspace(2pt)', null],
+    ['#v(0.4em)[body]', null],
+  ] as [string, string | null][]) {
+    check(`bare spacer of ${JSON.stringify(src.slice(0, 26))} → ${want ?? 'no'}`, bareSpacer(src) === want, bareSpacer(src));
   }
 }
 

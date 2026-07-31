@@ -3,6 +3,7 @@ import { TextSelection } from '@tiptap/pm/state';
 import { t } from '../../shared/i18n/store.svelte';
 import { attachFieldPopup, type PopupField } from './fieldPopup';
 import { getProjectMacros, PROJECT_MACROS_EVENT } from './projectMacroStore';
+import { describeRawBlock, bareSpacer } from '../../shared/rawBlockDescription';
 import {
   findMacroForBlock,
   macroFormFields,
@@ -91,7 +92,7 @@ export const TypstRawBlock = Node.create({
       // Label
       const label = document.createElement('div');
       label.classList.add('typst-raw-label');
-      label.textContent = getBlockLabel(node.attrs.blockType);
+      label.textContent = getBlockLabel(String(node.attrs.content ?? ''), node.attrs.blockType);
       dom.appendChild(label);
 
       // ─── The building-block card ────────────────────────────────────────
@@ -303,6 +304,44 @@ export const TypstRawBlock = Node.create({
         exitBlock();
       });
 
+      // ─── A bare spacer is not worth a box ───────────────────────────────
+      //
+      // `#v(0.4em)` is 60 of the corpus's raw blocks — the single largest group
+      // — and every one of them was a full code box with a label and a Done
+      // button, for one number. It reads as clutter between the paragraphs it
+      // separates, which is the opposite of what a spacer is for.
+      //
+      // Shown instead as a thin gap carrying its own measurement. Still a real
+      // node: selectable, deletable, draggable, and clicking it opens the same
+      // field popup to change the amount. `</>` is reachable from there.
+      const spacerEl = document.createElement('div');
+      spacerEl.className = 'pw-spacer';
+      spacerEl.contentEditable = 'false';
+
+      const renderSpacer = (amount: string): void => {
+        spacerEl.replaceChildren();
+        const rule = document.createElement('span');
+        rule.className = 'pw-spacer-rule';
+        const value = document.createElement('span');
+        value.className = 'pw-spacer-value';
+        value.textContent = t().editorLib.rawKindSpacing(amount);
+        spacerEl.append(rule.cloneNode(), value, rule);
+        spacerEl.title = t().editorLib.spacerTooltip;
+      };
+
+      const destroySpacerPopup = attachFieldPopup(spacerEl, () => ({
+        title: t().editorLib.rawKindSpacing(bareSpacer(liveContent()) ?? ''),
+        fields: [{ key: 'amount', label: t().editorLib.spacerAmountLabel, code: true, hint: t().editorLib.spacerAmountHint }],
+        read: () => bareSpacer(liveContent()) ?? '',
+        write: (_key, value) => {
+          const v = value.trim();
+          // An empty amount is not a spacer; refuse rather than write `#v()`.
+          if (!v) return;
+          writeContent(`#v(${v})`);
+        },
+      }));
+      dom.appendChild(spacerEl);
+
       // Back from the code view to the form. Without it `</>` is a one-way
       // door and the form is unreachable for the rest of the session.
       const backBtn = document.createElement('button');
@@ -321,6 +360,21 @@ export const TypstRawBlock = Node.create({
       // Card or code — one of the two, never both. `showRaw` is the user's
       // explicit choice via the `</>` toggle and survives re-renders.
       const render = (): void => {
+        const amount = showRaw ? null : bareSpacer(liveContent());
+        if (amount !== null) {
+          renderSpacer(amount);
+          spacerEl.style.display = '';
+          label.style.display = 'none';
+          card.style.display = 'none';
+          textarea.style.display = 'none';
+          doneBtn.style.display = 'none';
+          backBtn.style.display = 'none';
+          dom.classList.add('pw-is-spacer');
+          return;
+        }
+        spacerEl.style.display = 'none';
+        label.style.display = '';
+        dom.classList.remove('pw-is-spacer');
         const macro = showRaw ? null : matchedMacro();
         if (macro) {
           renderCard(macro);
@@ -362,14 +416,15 @@ export const TypstRawBlock = Node.create({
         stopEvent(event: Event) {
           const target = event.target as HTMLElement | null;
           const tag = target?.tagName;
-          return tag === 'TEXTAREA' || tag === 'BUTTON' || !!target?.closest('.pw-macro-card');
+          return tag === 'TEXTAREA' || tag === 'BUTTON'
+            || !!target?.closest('.pw-macro-card, .pw-spacer');
         },
         ignoreMutation: () => true,
         update(updatedNode) {
           if (updatedNode.type.name !== 'typstRawBlock') return false;
           current = updatedNode;
           dom.className = `typst-raw-block typst-raw-${updatedNode.attrs.blockType}`;
-          label.textContent = getBlockLabel(updatedNode.attrs.blockType);
+          label.textContent = getBlockLabel(String(updatedNode.attrs.content ?? ''), updatedNode.attrs.blockType);
           // Not while the user is typing in the textarea: replacing its value
           // on our own dispatch would reset the caret to the end on every
           // keystroke. `render()` only writes it back when it differs.
@@ -379,26 +434,43 @@ export const TypstRawBlock = Node.create({
         destroy() {
           window.removeEventListener(PROJECT_MACROS_EVENT, onMacros);
           destroyPopup();
+          // The spacer has its own popup and its own click listener; dropping
+          // the handle would leave both alive after the node is gone.
+          destroySpacerPopup();
         },
       };
     };
   },
 });
 
-function getBlockLabel(blockType: string): string {
+/**
+ * The one-line name a block shows.
+ *
+ * Every raw block gets one, because the alternative — the same word "typst" on a
+ * page setup, a spacer, an imported stylesheet and a paragraph of prose — makes
+ * reading the code the only way to tell them apart, which is what this app
+ * exists to avoid. The classification is in `shared/rawBlockDescription.ts` and
+ * returns a KIND; the language belongs here.
+ */
+function getBlockLabel(content: string, blockType: string): string {
   const m = t().editorLib;
-  switch (blockType) {
-    case 'math':
-      return m.rawBlockMath;
-    case 'config':
-      return m.rawBlockConfig;
-    case 'code':
-      return m.rawBlockCode;
-    case 'comment':
-      return m.rawBlockComment;
-    case 'text':
-      return m.rawBlockText;
-    default:
-      return m.rawBlockDefault;
+  const d = describeRawBlock(content, blockType);
+  switch (d.kind) {
+    case 'comment': return m.rawKindComment;
+    case 'include': return m.rawKindInclude;
+    case 'text': return m.rawKindText;
+    case 'math': return m.rawKindMath;
+    case 'import': return m.rawKindImport;
+    case 'setting': return m.rawKindSetting;
+    case 'rule': return m.rawKindRule;
+    case 'pageSetup': return m.rawKindPageSetup;
+    case 'binding': return m.rawKindBinding;
+    case 'spacing': return m.rawKindSpacing(d.detail ?? '');
+    case 'pagebreak': return m.rawKindPagebreak;
+    case 'colbreak': return m.rawKindColbreak;
+    case 'line': return m.rawKindLine;
+    case 'call': return m.rawKindCall(d.detail ?? '');
+    default: return m.rawKindCode;
   }
 }
+

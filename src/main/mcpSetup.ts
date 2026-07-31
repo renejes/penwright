@@ -103,7 +103,9 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // distinguishes "none exist" from "none visible here".
 // 0.37.0: raw blocks that carry prose are classified `text` (label only — the
 // exports still branch on `config` alone).
-export const MCP_SETUP_VERSION = '0.37.0';
+// 0.38.0: every raw block gets a human name (shared/rawBlockDescription.ts),
+// and a bare `#v(…)` renders as a gap instead of a code box.
+export const MCP_SETUP_VERSION = '0.38.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
