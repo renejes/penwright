@@ -1,126 +1,85 @@
 # Penwright Desktop — Next Steps bis zum Release
 
+> **Stand:** 2026-08-03 (nach Session 48) · App **0.12.0** · `MCP_SETUP_VERSION` **0.41.0** · gebündeltes Typst **0.15.1** · MCP **66 Tools**
+>
+> **Was hier drinsteht:** ausschließlich noch offene Arbeit. Das *was und warum* der Veröffentlichung — Lizenz, Modell, Preis, Kanäle, Abbruchkriterien — steht in **[release-strategy.md](release-strategy.md)** und ist entschieden; diese Datei ist die technische Seite davon. Der aktuelle Codestand: [handover.md](handover.md) + [CLAUDE.md](../CLAUDE.md). Historie: [project_status.md](project_status.md).
+
 ---
 
-## 🔑 AKTUELLES ARBEITSZIEL (seit 2026-07-29, Session 43): Round-Trip-Treue, Typst-Update, Parser-Entscheidung
+## 🔑 AKTUELLES ARBEITSZIEL (seit 2026-08-03): veröffentlichen
 
-> Vollständiger Kontext und das *Wie*: [handover.md](handover.md). Die Paritäts-Regel selbst steht in [CLAUDE.md](../CLAUDE.md) → „App ↔ MCP parity".
+**Die Kernschleife ist zu.** Das Arbeitsziel der Sessions 43–46 — „Penwright schreibt beim Öffnen-und-Speichern Dinge um, die es nicht umschreiben darf" — ist abgearbeitet: `scripts/roundtrip-corpus-baseline.json` steht auf **0 Einträgen**, und das Pixel-Gate vergleicht bei jedem `npm test` 39 Projekte über gerenderte Seiten. Das Editor-Ziel der Sessions 47–48 — „benutzbar ohne Typst zu schreiben" — ist im laufenden Programm bestätigt.
 
-**Der MCP-Umbau und die Parität sind abgeschlossen.** Was jetzt oben liegt, ist die Kernschleife des Produkts: Penwright schreibt beim Öffnen-und-Speichern Dinge um, die es nicht umschreiben darf. Vier solcher Fälle sind behoben, **22 sind belegt und offen** — in Dateien, die wir ausliefern, und derselben Sorte, die monatelang unbemerkt in zwei Kundenangeboten lag.
+Was jetzt oben liegt, ist überwiegend **nicht mehr Code**.
 
-### 1. Die 22 Korpus-Verluste schließen ⭐ höchste Priorität
+### 1. Der Startbahn-Block aus [release-strategy.md](release-strategy.md) §10 ⭐
 
-`scripts/roundtrip-corpus-baseline.json` — 22 Einträge in 17 Dateien, gefunden von `npm run test:corpus` über 153 echte `.typ`-Dateien.
+Nicht-technisch, aber blockierend. Dort gepflegt, hier nur verlinkt, damit es nicht zweimal gepflegt wird:
 
-- [ ] **`#opener(…)` mehrzeilig → einzeilig** (10×, alle `magazine-*`-Presets). Vermutlich harmlose Normalisierung — **aber ungeprüft**, und genau diese Annahme war bei `center + horizon` falsch.
-- [ ] **`book-*`-Titelseiten** (3×): `#v(0.3em)` wird zu `#align(center)` — ein echter Strukturwechsel, kein Whitespace.
-- [ ] **Sample-Projekt** (4×), darunter `#raw("\`code\`")` → `` \`\`code\`\` `` (ändert die Ausgabe) und `07-design-showcase.typ`, das zusätzlich **nicht idempotent** ist — ein zweiter Durchlauf ändert nochmal etwas. Das ist die schlimmste Sorte: das Dokument driftet über eine Woche Bearbeitung weiter.
+- [ ] Preis final entscheiden (Polar steht auf €59, Empfehlung €290)
+- [ ] `penwright.online` registrieren + DPMA/EUIPO-Recherche
+- [ ] Die beiden Lizenz-Zusätze anwaltlich gegenlesen lassen
+- [ ] `CONTRIBUTING.md` (keine Code-PRs — Copyright muss bei uns bleiben)
+- [ ] CycloneDX-SBOM + mitgelieferte Lizenztexte prüfen
+- [ ] Drei Bildschirmaufnahmen (§6 dort — die wirksamsten acht Stunden im Plan)
+- [ ] Impressum + Datenschutzerklärung
+- [ ] **Tor am 2026-08-24:** zwanzig Gespräche, ≥6 schriftliche Zusagen
 
-**Vorgehen pro Fall:** minimales Snippet isolieren → als Assertion in `roundtrip-test.mts` **erst rot sehen** → fixen (fast immer im Deserializer) → Baseline-Eintrag streichen → `npm test`. Die Baseline ist eine **Ratsche**: neue Verluste werden rot, *und* ein Eintrag der anfängt zu bestehen wird auch rot. Sie darf nur schrumpfen — wer sie erweitert, um grün zu werden, hat den Test abgeschaltet.
+> ⚠️ `package.json` steht bereits auf `"license": "SEE LICENSE IN LICENSE.md"`, `LICENSE.md` liegt im Repo. Die Tür „nichts permissiv Lizenziertes ist je veröffentlicht" ist damit noch zu — **vor dem ersten öffentlichen Push prüfen**, dass sie es bleibt.
 
-**Zuerst prüfen:** ob alle drei Gruppen dieselbe Ursache haben (zeichenweise zerlegte Makro-Rümpfe). Wenn ja, sind es zwei bis drei Fixes statt 22 — und es ist zugleich das Argument für Punkt 3.
+### 2. Windows — der einzige technische Launch-Blocker
 
-### 2. Typst auf die neue Version ziehen
+- [ ] **Auf echtem Gerät verifizieren.** Das Scaffolding steht (`platformBinary()`, `%APPDATA%`-Pfade, `build:mcp-binary:win`, `fetch:typst -- --win`), aber nichts davon ist je auf Windows gelaufen. Die ersten Fehlerberichte kämen sonst von Fremden und wären nicht reproduzierbar.
+- [ ] **`extraResources` filtert auf `typst-*`** und kopiert damit **jede** vorhandene Compiler-Binary in **jeden** Build (~45 MB pro Plattform). Zusammen mit der Verifikation anfassen.
+- [ ] **Signaturschiene klären.** Azure Trusted Signing ist seit 2025-04-02 auf US-/kanadische Organisationen mit ≥3 Jahren Historie beschränkt. Bleibt ein OV-Zertifikat mit Hardware-Token; [Certums Open-Source-Schiene](https://shop.certum.eu/code-signing.html) ist die günstigste — **aber an Open-Source gebunden, und ob PolyForm-NC deren Prüfung besteht, ist offen.** Dort anfragen, bevor Windows geplant wird.
 
-Gebündelt ist **0.14.2**. Es gibt eine neuere, und der Grund ist nicht Wartung:
+### 3. Finales QA
 
-- [ ] Changelog lesen — **was genau die neue Version an „inbound boxes"** (im Textfluss mitlaufende Rahmen/Boxen) kann. Wenn sie das nativ beherrscht, ersetzt sie eine Klasse handgebauter `#block`/`#place`-Konstrukte in den Design-Elementen und Magazin-Makros.
-- [ ] Binary + `fetch:packages` auf die neue Version, **beide Architekturen**.
-- [ ] **`compile-stability-test` ist der Gradmesser**: ein Compiler-Wechsel, der die Presets pixelidentisch lässt, ist sicher; einer der es nicht tut, sagt sofort wo.
-- [ ] Die 24 gebündelten Typst-Packages auf Kompatibilität prüfen (`audit:packages` prüft Lizenzen, nicht Kompatibilität).
+- [ ] **Reale 100-Seiten-Thesis** plus Design-Fälle (Broschüre, CV, Magazin-Doppelseite).
+- [ ] **Design-with-AI E2E** manuell mit Claude Desktop.
+- [ ] Die im Handover §5 gelisteten **ungeprüften Ecken**: Document-Settings, Kapitel hinzufügen, Bild-Drag-and-Drop, Verlaufs-Hub, Attached Lists.
 
-**Vor Punkt 3** — sonst bewertet man den Parser gegen ein Ziel, das sich gleich bewegt.
+### 4. Schutzarbeit, die noch offen ist
 
-### 3. `typst-syntax` bewerten — bewerten, nicht bauen
+Aus dem Guard-Audit der Session 48 (25 Lücken, drei Wurzeln geschlossen — Details in [handover.md](handover.md) §5). Trifft Projekte ohne Git und ohne Backups, also die vier echten Marketing-Dokumente:
 
-Unser Typst-Parser ist handgeschrieben: `splitIntoBlocks` zählt `{}`/`[]`/`()` und toggelt bei jedem `$` den Mathe-Modus, **ohne Strings, Kommentare oder Escapes zu kennen**; dazu sieben unabhängige Klammer-Scanner und ~17 Tiefenzähler allein im Deserializer. Die 22 offenen Verluste sitzen mit hoher Wahrscheinlichkeit dort.
-
-`typst-syntax` ist das **Parser-Modul des Typst-Compilers selbst**, als eigenständige Rust-Crate: verlustfreier CST (*„an in-order tree traversal will recreate the text of the source file exactly"*), inkrementelles Reparsen, Apache-2.0, ~309k Downloads/Monat, ohne den vollen Compiler nutzbar.
-
-- [ ] **Verifizieren** statt glauben: Version, Lizenz, ob `parse()` wirklich ohne die Compiler-Crates läuft.
-- [ ] **Versionsfrage:** Crate 0.15.x gegen unseren Compiler — brauchen wir Gleichstand? (Vermutlich ja; ein Parser, der eine andere Sprachversion liest als der Compiler, ist schlimmer als ein ungenauer.)
-- [ ] **Zuschnitt:** alles Zerlegen ersetzen, oder nur `splitIntoBlocks`? Es würde das *Zerlegen* ersetzen, nicht das *Verstehen* — Prosa-vs-Raw, die Magazin-Knoten und die Node-Erzeugung blieben unsere.
-- [ ] **Preis ehrlich rechnen:** es gibt **kein** fertiges npm-/WASM-Paket (das einzige rendert, es parst nicht, und steht auf 0.13.1). Eigene `wasm-bindgen`-Crate, zu WASM kompiliert, **in beide Prozesse gebündelt** (der Deserializer läuft in App *und* MCP-Binary). Realistisch **einige Tage**, plus eine Rust-Toolchain in der Build-Kette.
-
-**Empfehlung, die die Bewertung belegen oder widerlegen soll:** *jetzt nicht bauen.* Der billigere Schritt mit fast demselben Effekt ist, `splitIntoBlocks` **string-, kommentar- und escape-aware** zu machen — drei korrekte Scanner dafür stehen schon in derselben Datei (`scanLinkCall`, `matchTypstParens`, `splitTopLevelArgs`). Ein Nachmittag, dieselbe Fehlerklasse. `typst-syntax` ist der saubere **Endzustand**, nicht der nächste Schritt.
-
-### 4. Testaufbau nachziehen
-
-Grundlage steht (`npm test`, `npm run typecheck`, Korpus-Test, `package:*` führt die Gates aus, `compile-stability` meldet nicht mehr falsch grün). Was fehlt — Details in [handover.md](handover.md) §2:
-
-- [ ] **`penwright.corpus.json`** (git-ignoriert) mit lokalen Projektpfaden, die der Korpus-Test automatisch liest. Dann läuft `npm test` über die echten Kundenangebote — dort lagen die Fehler. ~1 h
-- [ ] **`test:compile:corpus`** — Pixelvergleich über 5–6 gebündelte Presets statt nur über den privaten LANGSAM-Ordner; in `package:*`, nicht in `npm test`. ~3 h
-- [ ] **`scripts/run-all.mts`** — eine Bilanz statt elf, damit ein Fehlschlag in der Mitte nicht in 400 Zeilen untergeht. ~2 h
-- [ ] **Kein Framework, kein CI.** `package:*` führt die Gates aus; das reicht für ein Ein-Personen-Projekt mit lokalem Signieren.
+- [ ] **Der Guard erkennt einen Dateinamen, keine Handschrift.** Ein handgeschriebenes Design in `design.typ` statt `style.typ` gilt als adoptiert — gemessen: `update_style` schiebt `#import` + `#show: apply-style` über die Regel des Autors, es kompiliert, safe-apply committet, Seite 1 sieht anders aus.
+- [ ] **Der Marker gilt nur für Zeile 1.** Eine erzeugte `style.typ`, der jemand Makros angehängt hat, wird kommentarlos regeneriert.
+- [ ] **`project:applyBackup`** schreibt beim Wiederherstellen ohne Undo-Eintrag für den aktuellen Stand.
 
 ### 5. DOCX-Export genauer machen
 
-Der Serializer ist seit Session 25 journal-tauglich (echte Word-Styles, Multilevel-Numbering, Figures, Tabellen, Fußnoten, Zitate, rasterisierte Mathe) und Session 33 hat die Magazin-Container ergänzt. Er ist trotzdem die **schwächste der vier Ausgaben** — PDF ist die Wahrheit, HTML wurde in Session 40 auf Design-Treue gezogen, DOCX nicht.
+Unverändert offen, und weiterhin am besten mit einer Bestandsaufnahme statt mit Raten zu beginnen:
 
-- [ ] **Bestandsaufnahme zuerst:** eine reale 100-Seiten-Thesis und ein Magazin exportieren, in Word **und** LibreOffice öffnen, und aufschreiben was fehlt oder falsch ist — statt zu raten. `docx-magazine-test` deckt 19 Fälle ab, das ist wenig gegen das, was ein Dokument kann.
-- [ ] Bekannte Kandidaten: Kopf-/Fußzeilen und Abschnittswechsel · Spaltenlayout (`#columns` wird heute flachgelegt) · Bildplatzierung und Textumfluss (`wrap-content`) · Tabellenbreiten und Zellformatierung · Farb-/Font-Treue gegen die Design-Tokens · Querverweise als **klickbare** Word-Felder statt Text.
-- [ ] **Ein Korpus-Test wie beim Round-Trip**: alle Presets nach DOCX exportieren und maschinell prüfen, was ankommt. Was für Typst funktioniert hat, funktioniert hier genauso.
+- [ ] Eine reale Thesis und ein Magazin nach DOCX exportieren, in Word **und** LibreOffice öffnen, aufschreiben was fehlt. `docx-magazine-test` deckt 19 Fälle ab — wenig gegen das, was ein Dokument kann.
+- [ ] Kandidaten: Kopf-/Fußzeilen und Abschnittswechsel · Spaltenlayout (`#columns` wird flachgelegt) · Bildplatzierung und Textumfluss · Tabellenbreiten · Farb-/Font-Treue gegen die Tokens · Querverweise als klickbare Word-Felder.
+- [ ] **Ein Korpus-Test wie beim Round-Trip.** Was für Typst funktioniert hat, funktioniert hier genauso.
 
 ---
 
 ### Erledigt und abgehakt — nicht neu aufmachen
 
-- [x] **MCP-Umbau** (Blöcke 1–4). Parität auf allen vier Achsen; das adversariale Nach-Audit abgearbeitet. Historie: [handover.md](handover.md), [app-mcp-parity.md](app-mcp-parity.md), Git-Log.
-- [x] **„Können wir die 60 MCP-Tools reduzieren?"** — **gemessen und verworfen.** 15 Autorenaufgaben, **0 Fehlgriffe**, $1,36. [mcp-eval-results.md](eval-transcripts/mcp-eval-results.md); [mcp-tool-consolidation.md](done/mcp-tool-consolidation.md) trägt das Ergebnis oben als Banner.
-- [x] **Web-Export „Editorial Web Pack"** — Phasen 0/A/B/C/D/E gebaut auf `feat/web-export`; **noch nicht nach `main` gemergt**.
+- [x] **Round-Trip-Treue am echten Korpus** (Sessions 44–46). Baseline auf **0**; Pixel-Gate `scripts/compile-corpus-test.mts` läuft in `npm test`.
+- [x] **Typst 0.15.1** gezogen **und** provisioniert (`scripts/fetch-typst.mjs`, `TYPST_VERSION` als einzige Wahrheit). Vorher lieferte jeder Nicht-arm64-Mac-Build **gar keinen** Compiler aus.
+- [x] **`typst-syntax` bewertet, nicht gebaut.** Verlustfreier CST, 214 KB als WASM, einziger Blocker die eigene CSP. Verdikt: der Modus-Stack war die billige Hälfte mit fast demselben Effekt. Zahlen im Anhang des alten Handovers.
+- [x] **Editor ohne Typst-Kenntnisse** (Sessions 47–48): Baustein-Katalog aus den `#let`s des Projekts, Karten mit Formular, editierbare Tabellen, Namen für alle Raw-Blöcke — von René im laufenden Programm bestätigt.
+- [x] **Lizenzumbau** (`9542ec1`): keine Testphase, keine Sperre, kein Feature-Gate. Siehe [release-strategy.md](release-strategy.md) §9.
+- [x] **MCP-Umbau + Parität** (Blöcke 1–4) inkl. adversarialem Nach-Audit. [app-mcp-parity.md](app-mcp-parity.md).
+- [x] **„Können wir die 66 MCP-Tools reduzieren?"** — gemessen und verworfen. 15 Autorenaufgaben, **0 Fehlgriffe**, $1,36. [mcp-eval-results.md](eval-transcripts/mcp-eval-results.md).
+- [x] **Web-Export „Editorial Web Pack"** — Phasen 0/A/B/C/D/E gebaut auf `feat/web-export`; **nicht nach `main` gemergt**.
+- [x] **Print-Export** (Beschnitt, Schnittmarken, Bundzuwachs, dpi-Preflight) + 2-up-Vorschau + `spread-image`. [print-export-plan.md](done/print-export-plan.md).
+- [x] **Erste DOM-Testsuite** (`scripts/popup-dom-test.mts`, Gate-Glied `test:dom`) — schließt die Schicht, in der die schwerste Regression der Session 48 saß.
 
 **Was bewusst asymmetrisch bleibt** (App ↔ KI) steht in [CLAUDE.md](../CLAUDE.md) → „App ↔ MCP parity" und ist **keine** offene Arbeit: engere Export-Sandbox der KI · einseitiger Zustandskanal · echte Fremd-Locks bleiben harte Ablehnung · kein Compile-Verify vor gewöhnlichen Textänderungen · zwei Undo-Systeme · Web-Export ohne MCP-Tool.
 
 ---
 
-> Audit-Datum: 2026-04-17 | Letzte Aktualisierung: 2026-06-30 (Session 39: Web-Export Phase C+D+E-Slice — Mini-Site + Heros; **v0.10.0** nach `main` gemergt + getaggt + DMG gebaut) | App-Version: **0.10.0** (package.json + Doku synchron)
->
-> **Was hier drinsteht:** ausschliesslich noch offene Arbeit Richtung 1.0-Release. Was bereits erledigt ist — Security-Audit, Performance, MCP-Server (57 Tools + Auto-Discover-Wizard mit Bun-compiled Standalone-Binary), Skills (5: typst / Penwright / research / writing-style / design), Design-Editor inkl. Magazine-Polish-Pack + Lifestyle-Quick-Wins (22 Design-Elemente, 7 Layout-Presets, 6 Themes, 8 Palette-Presets, 5 Section-Style-Rubriken), Per-Chapter Section Styles (Phase E), DOCX-Overhaul (journal-submission-tauglich), Crash-Reporting, Dokumenten-Zoom (Editor + PDF, per-Projekt), Cheatsheet, Bestaetigungsdialoge — steht unter [project_status.md](project_status.md) im Session-Log und in den Feature-Tabellen. Separate Plan-Dokumente: [design-editor-plan.md](done/design-editor-plan.md) (Visual-Style-Editor + Design-MCP-Tools), [magazine-polish-plan.md](done/magazine-polish-plan.md) (Round 4 Magazine-Elemente), [third-party-licensing.md](done/third-party-licensing.md) (Typst-Package-Bundling, Hybrid).
+## 0. Was unterhalb dieser Zeile steht
 
----
+Referenzmaterial, kein Arbeitsplan: Security-Befunde niedriger Priorität, teilweise Implementiertes, Build- und Distributionsnotizen, Handbuch-Hosting.
 
-## 0. Stand
+> ⚠️ **§3.3 (Firebase Hosting) und der alte Release-Sprint sind überholt.** Vertrieb und Kanäle entscheidet [release-strategy.md](release-strategy.md) §5/§6: Binaries frei herunterladbar, macOS + Linux zum Start, Windows verschoben, kein Auto-Updater. Die Build-Kommandos in §3.5 gelten weiter.
 
-Die App ist inhaltlich release-ready fuer den akademischen Schreib-Use-Case. **Strategische Entscheidung 2026-05-16:** Penwright startet nicht nur als Akademik-Tool, sondern als Design-Tool fuer beliebige PDF-Outputs (Brochures, Magazines, Reports, CVs, Poster). Der Design-Editor + Typst-Package-Bundling sind inzwischen gebaut (Sessions 20–26, inkl. Per-Chapter Section Styles und journal-grade DOCX) — Penwright startet damit als breitest positioniertes Tool.
-
-Was zwischen heute und v1.0 noch fehlt (**Content ist fertig — verbleibend ist primaer Distribution**):
-
-1. ~~**Typst-Package-Bundling-Setup**~~ — **erledigt** (Session 20): 24 Packages gebundelt, Audit-Script + Acknowledgments-Dialog.
-2. ~~**Design-Editor + MCP-Tools**~~ — **erledigt** (Sessions 21–26): Themes / Palettes / Layouts / Fonts / 22 Design-Elemente / Per-Chapter Section Styles (Phase E).
-3. ~~**Distribution / DMG-Build + Notarization**~~ — **erledigt (Session 27, macOS/Apple Silicon):** ein notarisiertes + gestapeltes DMG wurde gebaut und verifiziert (`spctl: accepted, source=Notarized Developer ID`). `npm run package:mac` läuft durch (Credentials aus `build/notarize.env.local`, git-ignoriert). Details: TYPST_BIN-Wiring für MCP, Notarize-Dedup, Identity-Präfix-Fix, `disable-library-validation` + afterPack-Signierung für Typst/MCP, Electron-Fuses, DMG-Stapling. **Offen:** optionales Download-Hosting; **`penwright.online` registrieren** (Launch-Blocker für Links).
-   ⚠️ **Auto-Updater (electron-updater) ist GESTRICHEN** — Updates über **Newsletter + manuellen Download**. §3.4 unten ist nur noch Referenz.
-4. ~~**Lokalisierung (Englisch / i18n)**~~ — **erledigt (Session 28):** volles i18n, UI komplett EN + DE umschaltbar (leichter Svelte-5-Rune-Store `src/shared/i18n/`, globale `locale`-Persistenz + OS-Erkennung, Sprach-Dropdown in den Settings + Statusleisten-Toggle + StartScreen). Details: `handover.md` §1 + `CLAUDE.md` → „Internationalization (i18n)".
-5. ~~**Handbuch-Online-Hosting**~~ — **nicht mehr noetig:** Handbuch wird **in-app** ausgeliefert (`HandbookViewer.svelte`, `handbook.md`/`handbuch.md` via `?raw`).
-6. **Finales QA** auf einer realen 100-Seiten-Thesis **plus** Design-Use-Cases (Brochure, CV, Magazine-Spread). **Manueller E2E-Test Design-with-AI** mit Claude Desktop.
-7. **Windows** als Fast-Follow (Scaffolding steht; Typst-`.exe` + Test fehlen; Code-Signing bewusst weggelassen).
-
-**🆕 Reihenfolge geändert (2026-06-29):** **Web-Export „Editorial Web Pack" → Phase C → D → E (VOR dem Launch) → dann Release-Sprint** (`penwright.online` registrieren → QA → Windows-Fast-Follow). Hintergrund + Plan: [web-export-feasibility-and-plan.md](web-export-feasibility-and-plan.md); Phase-0-Bugfixes + Phase A + B sind bereits gebaut (Branch `feat/web-export`, s. u.).
-
-### Web-Export PHASE D — ✅ erledigt (Session 39), Branch `feat/web-export`, nicht gemergt
-
-**Entscheidung 2026-06-29 (Session 36):** Ein **HTML-/Web-Export** („Editorial Web Pack") kommt **vor** dem Launch und wird die Launch-Story „**Print UND Web aus einer Quelle**". Volle Recherche + de-riskte Phaseneinteilung: **[web-export-feasibility-and-plan.md](web-export-feasibility-and-plan.md)** (PFLICHTLEKTÜRE, §Phase D).
-
-**Stand (nach Session 37):** **Phase 0 + A + B + C** sind gebaut + verifiziert, auf Branch `feat/web-export` (committet, **nicht gemergt/gepusht**). **Phase C (Keystone) = erledigt:** die 9 Magazin-Makros sind echte AST-Nodes (`src/editor/lib/typstMagazine.ts`) + tragen compile-stabil nach PDF/DOCX/HTML; generischer `#grid` export-seitig reinterpretiert (`src/shared/typstGrid.ts`); B1 (DOCX-Drop) strukturell gefixt; adversarialer Multi-Agent-Review durchlaufen + 5 echte Bugs gefixt. **4 Test-Suites grün** (roundtrip 76/76, html 93/93, docx 19/19, compile-stability 30/30 = alle 6 LANGSAM-Kapitel pixel-identisch). Detail: `handover.md` → „Status Session 37".
-
-**Der neue Chat = PHASE D (Web-Export inhaltlich vollständig):** Heute rendert der Export die *Magazin-Struktur* design-treu, aber **Mathe, Querverweise/Zitate/Fußnoten/Bibliographie und die restlichen Raw-Block-Konstrukte (Figure/Table/Quote)** fehlen/sind Platzhalter. Phase D portiert den **DOCX-Pre-Pass + Render-Logik nach HTML** (`docxSerializer.ts` = ~70% Blueprint). **Architektur-Invariante:** `serializeHtml` bleibt sync+pure; der async Math/Cross-Ref-Pre-Pass baut einen `HtmlExportContext`, der injiziert wird (wie `renderTypstSnippet` bei DOCX), Orchestrierung in `runWebExport`. **Exakte, selbsterklärende Aufgabenliste (D1–D5), Blueprints mit Zeilennummern, Don't-break-Liste + Phase E:** `handover.md` → „Nächste Session — Fokus: 🔑 PHASE D" (PFLICHTLEKTÜRE für den neuen Chat). Danach **Phase E** (Print-only-Reinterpretation + `penwright_export_web` + Auslieferung), **dann** der Release-Sprint unten.
-
-### 🚀 Release-Sprint — nach den fünf Punkten oben
-
-**Entscheidung 2026-06-27:** Wir releasen die Software — „einfach mal raus damit". Stand: **v0.9.0 ist committet, getaggt und gepusht** (bewusst **kein** GitHub-Release — Distribution war noch offen). Themen für die Release-Session:
-
-- **Release planen** — konkrete Schritte + Reihenfolge bis zum ersten öffentlichen Release.
-- **Homepage `penwright.online`** — fertigstellen ODER ggf. **grundlegend neu vom Design her** überarbeiten (Showcase-Projekte aus der Post-Launch-Liste einbauen).
-- **Newsletter** — Anbindung klären (Anbieter, Einbettung auf der Homepage, Double-Opt-in), da Updates per „Newsletter + manueller Download" laufen (Auto-Updater ist gestrichen, §3.4).
-- **Download-Distribution** — wie/wo die notarisierte DMG gehostet wird. **Aktuelle Tendenz: Dropbox** (René hat bereits ein großes Dropbox-Abo) statt Firebase Hosting (§3.3) oder GitHub-Releases (privates Repo → kein Kunden-Kanal). Zu klären: stabile Public-Download-Links, Datei-Versionierung, ggf. Checksumme/SHA auf der Seite.
-- **DMG bauen** — `npm run package:mac` lokal mit Zertifikaten (notarisiert) für die zu verteilende Version.
-- etc. — der Rest in der nächsten Session.
-
-### Post-Launch / Marketing & Roadmap (nach v1.0)
-
-- ~~**🆕 „Für den Druck exportieren" (Print-Export)**~~ — **✅ erledigt 2026-06-14** (MVP §4.1–4.7 **+** 2-up-Doppelseiten-Vorschau §6). Voller Plan + Implementierungs-Summary in [print-export-plan.md](done/print-export-plan.md). Beschnitt (Bleed) + Schnittmarken + Innen-/Außenstege (Bundzuwachs) + dpi-Preflight als eigener Export-Transform (temp `style-print.typ`, kein safe-apply); `StyleLayout` um `bleed`/`cropMarks`/`facingPages`/`binding` (optional); Generator-Print-Modus (oversized `width`/`height` + `PAPER_MM` + `crop-marks()`-Helper + `style-bleed`-Export); ExportDialog-Print-Block + Layout-Preset „Magazin (Druck)" + MCP-Tool `penwright_export_print` (`MCP_SETUP_VERSION` → 0.13.0); 2-up-Vorschau via `zoomState.spread` (per-Projekt persistiert). **Full-Bleed-Elemente brauchten keine Änderung** (bluten via geerbter oversized Seite). **Bewusst offen:** `spread-image` (Doppelseiten-Bild über den Bund) + CMYK/PDF-X (Engine-Grenze [#3143](https://github.com/typst/typst/issues/3143) — die gezeichneten Schnittmarken SIND die Trim-Definition, CMYK bleibt Druckerei-/Acrobat-/Ghostscript-Nachschritt). MCP-Binary beim nächsten `package:mac` neu bauen.
-- **Showcase-Projekte für die Homepage.** Ein paar verschiedene fertige Beispielprojekte generieren — z. B. **Thesis, Magazin-Spread, Brochure/Flyer, CV/Lebenslauf, Report, Newsletter** — und als **Auszüge/Screenshots auf penwright.online** zeigen, *was* mit Penwright möglich ist und *in welchem Umfang* (Material für die Landingpage). Jeweils: echtes Mini-Projekt + gerendertes PDF + 1–2 Editor-/Look-Screenshots. Demonstriert die breite Positionierung (akademisch **und** Design).
-- **MCP Apps — evaluiert 2026-06-08 → pre-launch verworfen.** Offizielle MCP-Erweiterung (Spec 2026-01-26, production, Claude Desktop unterstützt es); technisch sauber integrierbar (`ui://`-Resource + `registerAppTool`, chunked PDF-Bytes wie `pdf-server`, HTML ins Bun-Binary, läuft über stdio). **Aber:** Penwright *ist* schon die live-aktualisierende PDF-Vorschau → eine eingebettete, on-demand, schlechtere Variante in Claude ist ein Nachbau des App-Kerns dort, wo die volle App eh läuft (lokales stdio = gleiche Maschine, strukturell redundant). Echter Wert nur: Marketing-Story (billiger per Demo-GIF) + ein Vorher/Nachher-Design-Widget. **Re-Eval frühestens post-launch**, und dann nur das Widget, nicht der volle Viewer. Volle Notizen: `handover.md` §2. Refs: `github.com/modelcontextprotocol/ext-apps` (Beispiel `examples/pdf-server`).
-- **Design-Vorher/Nachher-Vergleich — evaluiert 2026-06-08, vorerst nicht gebaut.** Versionierung löst es nicht (Token-Diff ist als Design-Entscheidung wertlos); Safe-Apply + Design-Undo + Live-Vorschau geben schon einen sequenziellen Vergleich. Echte Lücke nur „gleichzeitig nebeneinander" — schmaler Nutzen, v. a. bei subtilen Änderungen. **Wenn je:** Design-Undo zu einem **A/B-Toggle** ausbauen (Snapshots nimmt Safe-Apply eh auf), kein Split-Screen. Nicht launch-blocking.
 
 ---
 
@@ -157,10 +116,18 @@ npm install                              # einmalig Dependencies installieren
 npm run dev                              # Dev-Server + Hot-Reload
 npm run build                            # electron-vite build (Main + Preload + Renderer)
 npm run build:mcp                        # esbuild MCP Server -> dist/mcp/server.mjs
+npm run build:mcp-binary:all             # Bun-Standalone-Binaries (arm64 + x86)
+npm test                                 # das Gate, laeuft auch in package:*
 npm run package:mac                      # electron-builder --mac (DMG + ZIP)
 npm run package:win                      # electron-builder --win (NSIS)
 npm run package:linux                    # electron-builder --linux (AppImage + deb)
 ```
+
+`npm test` = `check:mcp` → `typecheck` → `test:unit` → `test:dom` → `test:corpus` →
+`test:compile:corpus` → `test:mcp`. **`test:dom` startet ein headless Electron-Fenster**
+und ist ohne Electron ein Fehlschlag, kein stiller Skip (`--allow-skip`, wenn wirklich
+gemeint). Nach jeder Änderung an `server.ts` **oder an geteiltem Code, der in der Binary
+landet**: `MCP_SETUP_VERSION` bumpen **und** `build:mcp-binary:all`.
 
 Alle `dev`/`build`/`start` Scripts prefixen `unset ELECTRON_RUN_AS_NODE` — noetig wenn aus VS Code/Cursor Terminal gestartet (Terminal.app/iTerm2 haben das Problem nicht).
 
