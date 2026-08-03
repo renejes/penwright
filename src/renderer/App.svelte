@@ -18,7 +18,7 @@
   import NewProjectDialog from './components/NewProjectDialog.svelte';
   import SavePresetDialog from './components/SavePresetDialog.svelte';
   import LicenseDialog from './components/LicenseDialog.svelte';
-  import LicenseGate from './components/LicenseGate.svelte';
+  import UsageDialog from './components/UsageDialog.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
   import HandbookViewer from './components/HandbookViewer.svelte';
   import ExportDialog from './components/ExportDialog.svelte';
@@ -343,8 +343,10 @@
         }
       });
 
-      // Validate license on startup, then resolve the local entitlement
-      // (licensed / trial / expired) — the single source of truth for gating.
+      // Validate the commercial licence on startup, then resolve the local
+      // state. Nothing here gates anything — the app is complete and free for
+      // personal use; this only labels the status bar and decides whether the
+      // dismissible notice and the first-run usage question appear.
       // Validate first so the stored status is fresh before getEntitlement reads it.
       electronAPI.invoke('license:validate').then((result) => {
         if (result && typeof result === 'object') {
@@ -357,9 +359,14 @@
       }).finally(() => {
         electronAPI.invoke('license:getEntitlement').then((ent) => {
           if (ent && typeof ent === 'object') {
-            const e = ent as { access: 'licensed' | 'trial' | 'expired'; trialDaysLeft?: number };
+            const e = ent as {
+              access: 'personal' | 'commercial';
+              usage: 'personal' | 'commercial' | null;
+              licenseDue: boolean;
+            };
             uiState.licenseAccess = e.access;
-            if (typeof e.trialDaysLeft === 'number') uiState.trialDaysLeft = e.trialDaysLeft;
+            uiState.usageContext = e.usage;
+            uiState.licenseDue = e.licenseDue;
           }
         });
       });
@@ -1104,12 +1111,20 @@
   <!-- Titlebar drag region (macOS hiddenInset) -->
   <div class="titlebar-drag-region"></div>
 
-  <!-- Trial banner: slim, non-blocking, only during the local trial. -->
-  {#if uiState.licenseAccess === 'trial'}
+  <!-- Licence notice: slim, dismissible, and shown ONLY to someone who said
+       they use Penwright commercially and has no licence. Personal users
+       never see it. It never blocks anything. -->
+  {#if uiState.licenseDue && !uiState.licenseNoticeDismissed}
     <div class="trial-banner">
-      <span>{t().app.trialLeft(uiState.trialDaysLeft)}</span>
+      <span>{t().license.noticeText}</span>
       <button class="trial-buy" onclick={openCheckout}>
-        {t().app.buyNow}
+        {t().license.noticeBuy}
+      </button>
+      <button
+        class="trial-dismiss"
+        onclick={() => (uiState.licenseNoticeDismissed = true)}
+      >
+        {t().license.noticeDismiss}
       </button>
     </div>
   {/if}
@@ -1321,8 +1336,8 @@
     {#if savePresetState.show}
       <SavePresetDialog onClose={() => { savePresetState.show = false; }} />
     {/if}
-    {#if uiState.licenseAccess === 'expired'}
-      <LicenseGate />
+    {#if uiState.usageContext === null}
+      <UsageDialog />
     {/if}
     {#if uiState.showLicense}
       <LicenseDialog
@@ -1483,17 +1498,17 @@
       </button>
       <button
         class="status-toggle"
-        class:licensed={uiState.licenseAccess === 'licensed'}
-        class:expired={uiState.licenseAccess === 'expired'}
+        class:licensed={uiState.licenseAccess === 'commercial'}
+        class:expired={uiState.licenseDue}
         onclick={() => (uiState.showLicense = true)}
         title={t().app.licenseTitle}
       >
-        {#if uiState.licenseAccess === 'licensed'}
+        {#if uiState.licenseAccess === 'commercial'}
           {t().app.licensed}
-        {:else if uiState.licenseAccess === 'trial'}
-          {t().app.trialStatus(uiState.trialDaysLeft)}
+        {:else if uiState.licenseDue}
+          {t().app.licenseDue}
         {:else}
-          {t().app.locked}
+          {t().app.personal}
         {/if}
       </button>
     </div>
@@ -1908,7 +1923,7 @@
     font-family: inherit;
   }
 
-  /* ─── Trial banner (slim, non-blocking) ─── */
+  /* ─── Licence notice (slim, dismissible, never blocking) ─── */
   .trial-banner {
     flex-shrink: 0;
     display: flex;
@@ -1939,6 +1954,21 @@
 
   .trial-buy:hover {
     background: #934636;
+  }
+
+  .trial-dismiss {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #a08b7e;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+
+  .trial-dismiss:hover {
+    color: #7a5c4e;
   }
 
   /* ─── Editor Zoom Indicator + Popover ─── */

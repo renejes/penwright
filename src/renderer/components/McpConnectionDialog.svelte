@@ -17,14 +17,14 @@
   type Target = 'meta' | 'claude';
   type Step = 'loading' | 'choose' | 'applying' | 'done' | 'error';
 
-  type Access = 'licensed' | 'trial' | 'expired';
+  /** Licence state, informational only — the server starts for everyone. */
+  type Access = 'personal' | 'commercial';
   interface ConnectionStatus {
     target: Target | null;
     effectiveTarget: Target;
     defaultTarget: Target;
     metaReachable: boolean;
     access: Access;
-    trialDaysLeft: number | null;
     supported: boolean;
     metaConfigPath: string;
     claudeConfigPath: string;
@@ -148,11 +148,7 @@
         </button>
       </div>
 
-      {#if status.access === 'expired'}
-        <div class="note amber">{t().mcpConnection.noAccess}</div>
-      {:else if status.access === 'trial'}
-        <div class="note green">{t().mcpConnection.trialActive(status.trialDaysLeft ?? 14)}</div>
-      {/if}
+      <div class="note green">{t().mcpConnection.freeForEveryone}</div>
 
       <div class="actions">
         <button class="btn btn-secondary" onclick={close}>{t().mcpConnection.close}</button>
@@ -178,11 +174,7 @@
           {result.claude.method === 'cli' ? t().mcpConnection.done.viaCli : t().mcpConnection.done.viaFile}
         </p>
       {/if}
-      {#if result.access === 'expired'}
-        <div class="note amber">{t().mcpConnection.noAccess}</div>
-      {:else if result.access === 'trial' && status}
-        <div class="note green">{t().mcpConnection.trialActive(status.trialDaysLeft ?? 14)}</div>
-      {/if}
+      <div class="note green">{t().mcpConnection.freeForEveryone}</div>
       {#if status}
         <details class="paths">
           <summary>{t().mcpConnection.details}</summary>

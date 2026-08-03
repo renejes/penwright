@@ -272,23 +272,21 @@ function deepMergeStyle(base: ProjectStyle, patch: unknown): ProjectStyle {
 
 // ─── State ───────────────────────────────────────────
 
-const POLAR_ORG_ID = 'a5a6573b-aacf-4501-a6c1-ebc15ef67b04';
-
 interface ServerState {
   projectDir: string;
   currentFile: string | null;
+  /**
+   * The commercial licence key, if the host passed one. Recorded so a future
+   * feature can say "licensed", never checked to decide whether to start —
+   * the server runs for everyone. See documentation/release-strategy.md §9.
+   */
   licenseKey: string | null;
-  /** Epoch-ms the local 14-day trial ends; set during the demo (no license). */
-  trialUntil: number | null;
-  licenseValidated: boolean;
 }
 
 const state: ServerState = {
   projectDir: '',
   currentFile: null,
   licenseKey: null,
-  trialUntil: null,
-  licenseValidated: false,
 };
 
 // ─── Parse CLI args ──────────────────────────────────
@@ -336,9 +334,6 @@ function parseArgs(): void {
       state.projectDir = path.resolve(args[++i]);
     } else if (args[i] === '--license-key' && args[i + 1]) {
       state.licenseKey = args[++i];
-    } else if (args[i] === '--trial-until' && args[i + 1]) {
-      const v = Number(args[++i]);
-      if (Number.isFinite(v)) state.trialUntil = v;
     } else if (args[i] === '--file' && args[i + 1]) {
       const filePath = path.resolve(args[++i]);
       state.currentFile = filePath;
@@ -348,15 +343,9 @@ function parseArgs(): void {
     }
   }
 
-  // License key from env var
+  // License key from env var (recorded, never checked — see ServerState).
   if (!state.licenseKey && process.env.PENWRIGHT_LICENSE_KEY) {
     state.licenseKey = process.env.PENWRIGHT_LICENSE_KEY;
-  }
-
-  // Trial-until from env var (set by Penwright during the 14-day demo).
-  if (state.trialUntil === null && process.env.PENWRIGHT_TRIAL_UNTIL) {
-    const v = Number(process.env.PENWRIGHT_TRIAL_UNTIL);
-    if (Number.isFinite(v)) state.trialUntil = v;
   }
 
   // Fallback: env var
@@ -4239,60 +4228,17 @@ tool(
   },
 );
 
-// ─── License Validation ─────────────────────────────
-
-async function validateProLicense(): Promise<boolean> {
-  if (!state.licenseKey) return false;
-  if (!state.licenseKey.startsWith('pw_LIC')) return false;
-
-  try {
-    const response = await fetch('https://api.polar.sh/v1/customer-portal/license-keys/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        key: state.licenseKey,
-        organization_id: POLAR_ORG_ID,
-      }),
-    });
-    if (!response.ok) return false;
-    const data = await response.json() as { status: string };
-    return data.status === 'granted';
-  } catch {
-    // Offline — allow if key has Pro prefix (trust locally)
-    return true;
-  }
-}
-
-/** True while the local 14-day demo is still running. */
-function trialActive(): boolean {
-  return state.trialUntil !== null && Date.now() < state.trialUntil;
-}
-
-/**
- * MCP access is granted by a valid paid license OR an active 14-day trial —
- * the full feature set is unlocked during the demo.
- */
-async function validateAccess(): Promise<boolean> {
-  if (await validateProLicense()) return true;
-  return trialActive();
-}
-
 // ─── Start Server ────────────────────────────────────
+//
+// There is deliberately NO access check here. Penwright is free and complete
+// for personal, academic and hobby use, and the MCP layer is ungated for
+// everyone: it drives no purchases, it is the product's best demo, and it is
+// its most support-intensive surface — a paywall there was the model backwards.
+// `PENWRIGHT_LICENSE_KEY` is recorded (see state.licenseKey) but never checked.
+// See documentation/release-strategy.md §9.
 
 async function main() {
   parseArgs();
-
-  // Access = paid license OR live 14-day trial. The full tool set runs in both.
-  state.licenseValidated = await validateAccess();
-  if (!state.licenseValidated) {
-    console.error(
-      'Penwright MCP Server requires a valid license or an active 14-day trial.\n' +
-      'Provide your key via --license-key pw_LIC_xxx or PENWRIGHT_LICENSE_KEY env var,\n' +
-      'or run it from Penwright during the free trial.\n' +
-      'Get a license at https://buy.polar.sh/polar_cl_u6Fn7z0pPvGUX6pWvPJE4U9bWSBg80fiNdJw12vbJzm'
-    );
-    process.exit(1);
-  }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

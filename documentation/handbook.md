@@ -55,7 +55,7 @@ To stop working on a project without quitting the app, use **File -> Close Proje
 | bar  |  WYSIWYG Editor               |   (live PDF)          |
 |      |                               |                       |
 +------+-------------------------------+-----------------------+
-| [Project][Preview]  Chapter Look ▾  1,247 words · …  DE  Trial |
+| [Project][Preview]  Chapter Look ▾  1,247 words · …  DE  Personal |
 +--------------------------------------------------------------+
 ```
 The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in the top bar; clicking one shows that panel, clicking the active one collapses the sidebar. The **＋ button** on the left of the toolbar opens the insert menu (see [Inserting content](#inserting-content---button--and-)). The **status bar centre** is the contextual **Look** control (Chapter Look / Global-Look / Look — see [the Look model](#design--the-look-model)). There is no separate "Design" tab — design lives in `style.typ` and the status bar.
@@ -711,7 +711,7 @@ For rolling back AI edits, see the [Versions & Auto-Backup](#versions--auto-back
   - **Word count + reading time** for the active document (e.g. *1,247 words · 5 min read*) — recalculated live as you type, at 200 words per minute. Code blocks and raw Typst blocks are excluded so the count stays meaningful.
   - **Save state**: "Unsaved" (orange) or "Saved 14:35"
   - **Filename** of the active tab
-  - **License status** badge (Trial: N days / Licensed / Locked) — click it to open the License dialog
+  - **License status** badge (Personal use / Licence due / Licensed) — click it to open the License dialog
 - Warning on close with unsaved changes
 - **Crash recovery:** auto-backups are written to `<project>/.penwright/backups/<timestamp>/` (interval configurable, default 30 s). If the app crashes and the latest backup is newer than the saved file on disk, Penwright offers to restore it when you reopen the project. See [Versions & Auto-Backup](#versions--auto-backup) for details.
 
@@ -740,35 +740,42 @@ The app **always starts on the Start Screen** — there is no auto-reopen. This 
 
 ---
 
-## License Management
+## License
 
-Penwright is a **one-time purchase — €59**. A single license, no subscription, no tiers. **One key (`pw_LIC…`) unlocks everything**, including the MCP server for AI integration.
+**Penwright is free for personal, academic and hobby use — every feature, forever, including the full MCP / AI integration.** No key, no account, no time limit. **Commercial use requires a licence.**
 
-### Free trial
+There is **no trial, no expiry and nothing that ever locks.** The distinction is *who* is using Penwright, not *what* they may use — and the app cannot detect that, so it asks.
 
-On first launch you get a **14-day local trial** with the full feature set — no key and no account required. The status bar shows the days remaining, and a slim banner offers **"Buy now – €59"**. When the trial runs out, Penwright is blocked behind a purchase screen until you enter a key.
+### The one question, once
+
+On first launch Penwright asks how you use it:
+
+- **Privately, for study or research** → free forever. Nothing else to do, and you will never see the question or a notice again.
+- **At work, commercially** → a licence is due. Everything stays unlocked in the meantime; you get a slim, dismissible notice, never a wall.
+
+You can change the answer any time in the License dialog.
 
 ### License status in the status bar
 
-The bottom-right of the status bar shows your current state:
-- **Trial: N days** — trial active, N days remaining
-- **Licensed** — a valid key is active
-- **Locked** — trial expired and no key yet; the app is blocked until you activate
+The bottom-right of the status bar shows:
+- **Personal use** — free use, nothing pending
+- **Licence due** — you said you use Penwright commercially and no key is active yet
+- **Licensed** — a valid commercial key is active
 
-**Click the status** to open the License dialog.
+**Click the status** to open the License dialog, which is also where you switch between private and commercial use.
 
 ### Buying & activating
 
-1. **Buy** — the **"Buy"** button (in the trial banner, the License dialog, or the lock screen) opens the **Polar checkout** directly. After payment you receive your `pw_LIC…` key by e-mail.
-2. **Activate** — open the License dialog (click the license status), paste the key, confirm. It is validated against **Polar** and stored locally (encrypted in the system keychain). The license is active immediately and any lock screen disappears.
+1. **Buy** — the **"Buy licence"** button (in the notice or the License dialog) opens the **Polar checkout**. After payment you receive your `pw_LIC…` key by e-mail.
+2. **Activate** — open the License dialog, paste the key, confirm. It is validated against **Polar** and stored locally, encrypted in the system keychain.
 
 ### Offline use
 
-Once validated, Penwright works without an internet connection. A **7-day grace period** applies — after 7 days without an online re-validation it falls back to the trial/locked state until you reconnect. Offline grace never extends the free trial.
+Penwright works fully offline in every case. For a commercial licence a **7-day grace period** applies — after 7 days without an online re-validation the badge falls back to *Personal use* until you reconnect. **That costs you nothing**: the app is complete either way.
 
 ### Security
 
-License data is encrypted via Electron's `safeStorage` and stored in the system keychain (macOS), DPAPI (Windows) or libsecret (Linux). The MCP server independently validates the same key on startup.
+License data is encrypted via Electron's `safeStorage` and stored in the system keychain (macOS), DPAPI (Windows) or libsecret (Linux). The MCP server does **not** check it — it runs for everyone.
 
 ---
 
@@ -791,7 +798,7 @@ The dialog shows:
 
 Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Claude Desktop**, **Codex Desktop** or **Clawdbot** work on your Typst documents directly.
 
-> **Note:** the MCP server runs on a **valid license** — the same `pw_LIC…` key as the app (there are no tiers) — **or during the free 14-day trial**, unlocked in full. It only refuses once the trial has expired and no key is active. See [License Management](#license-management).
+> **Note:** the MCP server is **unlocked for everyone** — all 66 tools, no key, no time limit. It is never gated, whether you use Penwright privately or commercially. See [License](#license).
 
 ### What can the MCP server do?
 
@@ -819,7 +826,7 @@ Over MCP (66 tools) the AI can:
 
 Penwright offers to connect Claude Desktop automatically — no JSON editing required. Requirements:
 
-- **An active license or a running trial** (see [License Management](#license-management)) — the MCP server rejects spawn once the trial has expired with no key
+- Nothing licence-related — the MCP server starts for everyone (see [License](#license))
 - **Claude Desktop installed** at `/Applications/Claude.app` or `~/Applications/Claude.app` (macOS), or in the usual `%LOCALAPPDATA%` location (Windows)
 
 **Flow:**

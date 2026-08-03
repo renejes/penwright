@@ -51,6 +51,7 @@ import {
   saveMcpSetupVersion,
   getMcpTarget,
   setMcpTarget,
+  setUsageContext,
   type PanelState,
   type BackupConfig,
   type ProjectPreferences,
@@ -886,14 +887,12 @@ export function setupIPC(): void {
     const metaReachable = await probeMetaMcp();
     const defaultTarget: McpTarget = metaReachable ? 'meta' : 'claude';
     const { access } = buildMcpEnv();
-    const ent = getEntitlement();
     return {
       target,                                  // null until the user/default decides
       effectiveTarget: target ?? defaultTarget,
       defaultTarget,
       metaReachable,
-      access,                                  // 'licensed' | 'trial' | 'expired'
-      trialDaysLeft: ent.trialDaysLeft ?? null,
+      access,                                  // 'personal' | 'commercial' — informational only
       supported: true,                         // Meta-MCP + Claude Code work on all platforms
       metaConfigPath: getMetaConfigPath(),
       claudeConfigPath: getClaudeCodeConfigPath(),
@@ -944,9 +943,17 @@ export function setupIPC(): void {
     };
   });
 
-  // Local entitlement (licensed / trial / expired) — the single source of
-  // truth for gating in the renderer. Resolves synchronously from stored data.
+  // Local licence state (personal / commercial) — the single source of truth
+  // for the status-bar label and the dismissible notice. It gates NOTHING:
+  // the app is complete and free for personal use, forever.
   ipcMain.handle('license:getEntitlement', () => getEntitlement());
+
+  // The one-time "how do you use Penwright?" answer. Changeable any time from
+  // the licence dialog; `null` re-opens the question on next launch.
+  ipcMain.handle('license:setUsage', (_event, usage: string) => {
+    setUsageContext(usage === 'personal' || usage === 'commercial' ? usage : null);
+    return getEntitlement();
+  });
 
   ipcMain.handle('license:openCheckout', () => {
     shell.openExternal(PENWRIGHT_CHECKOUT_URL);

@@ -22,7 +22,7 @@ import { app, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getEntitlement, getTrialEndMs, type Access } from './licenseManager';
+import { getEntitlement, type Access } from './licenseManager';
 import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath';
 
 /**
@@ -105,7 +105,11 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // exports still branch on `config` alone).
 // 0.38.0: every raw block gets a human name (shared/rawBlockDescription.ts),
 // and a bare `#v(…)` renders as a gap instead of a code box.
-export const MCP_SETUP_VERSION = '0.39.0';
+// 0.40.0: the server no longer refuses to start. The trial is gone and the MCP
+// layer is ungated for everyone; PENWRIGHT_TRIAL_UNTIL is no longer written and
+// PENWRIGHT_LICENSE_KEY is informational. Hosts configured by an older version
+// still carry a stale trial timestamp, so the config must be rewritten.
+export const MCP_SETUP_VERSION = '0.40.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude
@@ -284,28 +288,25 @@ export function ensureInstalledBinary(): string {
 /**
  * Build the environment block every MCP host gets for the Penwright server.
  *
- * Access is unlocked for the FULL 14-day trial as well as for paid licenses —
- * exactly one of two credentials is baked in:
- *   - PENWRIGHT_LICENSE_KEY → present when a `pw_LIC…` key is active.
- *   - PENWRIGHT_TRIAL_UNTIL → epoch-ms the trial ends; present during the demo
- *     when no license is active. The server starts while `now < this`.
- * Once the trial has expired with no license, neither is set and the server
- * refuses to start (the `access` field is `'expired'`).
+ * The MCP server is NEVER gated — it starts for everyone, licensed or not.
+ * That is deliberate: it drives no purchases (nobody buys a desktop app to
+ * obtain an MCP server), it is the product's best demo, and it is its most
+ * support-intensive surface. Gating it put the paywall in exactly the wrong
+ * place. See documentation/release-strategy.md §9.
  *
+ *   - PENWRIGHT_LICENSE_KEY → present when a `pw_LIC…` key is active. Purely
+ *     informational: the server records it, it does not check it to start.
  *   - TYPST_BIN / TYPST_PACKAGE_PATH / TYPST_FONT_PATH → the bundled Typst
  *     toolchain so the decoupled server compiles/exports on a machine with no
  *     system Typst. All three point into the current .app's Resources.
  *
- * Unlike `setupMcpServer`, this never throws — callers inspect `access` to
- * decide whether to warn (`'expired'`) or note the demo (`'trial'`).
+ * Never throws. `access` is reported for display only.
  */
 export function buildMcpEnv(): { env: Record<string, string>; access: Access } {
   const ent = getEntitlement();
   const env: Record<string, string> = {};
-  if (ent.access === 'licensed' && ent.key) {
+  if (ent.key) {
     env['PENWRIGHT_LICENSE_KEY'] = ent.key;
-  } else if (ent.access === 'trial') {
-    env['PENWRIGHT_TRIAL_UNTIL'] = String(getTrialEndMs());
   }
   const typstBin = getTypstPath();
   if (typstBin && path.isAbsolute(typstBin)) env['TYPST_BIN'] = typstBin;
@@ -344,17 +345,10 @@ export async function setupMcpServer(): Promise<SetupResult> {
     throw new Error('MCP setup is only supported on macOS and Windows.');
   }
 
-  // The MCP server runs for the full 14-day demo AND with a paid license — the
-  // matching credential (license key or trial-until timestamp) is baked into
-  // the config env so Claude Desktop can spawn it independently of Penwright.
-  // It only refuses once the demo has expired with no license.
+  // The MCP server runs for everyone — there is nothing to refuse here. The
+  // env carries the Typst toolchain (and the licence key, if any) so Claude
+  // Desktop can spawn it independently of whether Penwright is running.
   const mcpEnv = buildMcpEnv();
-  if (mcpEnv.access === 'expired') {
-    throw new Error(
-      'Deine 14-taegige Penwright-Demo ist abgelaufen. Aktiviere eine Lizenz unter ' +
-      '"Lizenz" in der Status-Leiste, um den MCP-Server weiter zu nutzen.',
-    );
-  }
 
   // Copy into a stable, user-writable location. We rewrite on every run
   // so updating Penwright upgrades the sidecar in lockstep.

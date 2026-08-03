@@ -1,8 +1,21 @@
 /**
- * License Manager — Polar SDK integration for license validation.
+ * License Manager — Polar SDK integration for commercial licence validation.
  *
  * Handles: activation, validation, offline grace period, tier detection.
  * Uses @polar-sh/sdk Customer Portal endpoints (no auth token needed).
+ *
+ * ─── The model ───────────────────────────────────────────────────────────
+ * Penwright is FREE and complete for personal, academic and hobby use —
+ * every feature, including all 66 MCP tools. A commercial licence is required
+ * for commercial use.
+ *
+ * There is NO trial, NO expiry and NO feature gate. Nothing in this module
+ * ever locks anything: the distinction is WHO is using the app, not WHAT they
+ * may use, and the app cannot detect that — so it asks once (see
+ * `persistenceManager.getUsageContext`) and shows a dismissible notice when a
+ * self-declared commercial user has no licence.
+ *
+ * See documentation/release-strategy.md for why.
  */
 
 import { Polar } from '@polar-sh/sdk';
@@ -11,17 +24,16 @@ import {
   getLicenseData,
   saveLicenseData,
   clearLicenseData,
-  ensureTrialStarted,
+  getUsageContext,
   getLocale,
   type LicenseData,
+  type UsageContext,
 } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
 
 const POLAR_ORG_ID = 'a5a6573b-aacf-4501-a6c1-ebc15ef67b04';
 /** Days a valid license keeps working offline before re-validation is forced. */
 const OFFLINE_GRACE_DAYS = 7;
-/** Length of the local, no-key trial granted on first launch. */
-const TRIAL_DAYS = 14;
 /** Penwright license keys all start with this prefix (single tier, set in Polar). */
 const LICENSE_KEY_PREFIX = 'pw_LIC';
 
@@ -151,59 +163,61 @@ export async function deactivateLicense(): Promise<void> {
   clearLicenseData();
 }
 
-// ─── Entitlement (local, synchronous gate) ──────────
-// The ONLY gate: getEntitlement() below. (The former isLicensed()/isProUser()
-// wrappers had no callers and were removed in the pre-launch cleanup.)
+// ─── Entitlement (local, synchronous) ───────────────
+// Describes the licence situation. It does NOT gate anything — no caller may
+// use it to lock a feature, block the UI or refuse to start the MCP server.
+// Its only jobs are the status-bar label and the dismissible notice.
 
-export type Access = 'licensed' | 'trial' | 'expired';
+/** Whether a paid commercial licence is active on this device. */
+export type Access = 'personal' | 'commercial';
 
 export interface Entitlement {
+  /** 'commercial' iff a valid licence is active locally; 'personal' otherwise. */
   access: Access;
-  /** Whole days left in the local trial, only present when access === 'trial'. */
-  trialDaysLeft?: number;
+  /** What the user declared at first launch; `null` until they answer. */
+  usage: UsageContext;
+  /**
+   * True when the user said they use Penwright commercially but no licence is
+   * active. Drives the dismissible notice — and nothing else.
+   */
+  licenseDue: boolean;
   tier: LicenseTier;
   key: string | null;
 }
 
 /**
- * The single source of truth for feature-gating. Resolves synchronously from
- * locally stored data so the UI can gate immediately on boot; `validateLicense`
- * runs async in the background and updates the stored status on revoke/expiry,
- * after which this falls back to the trial/expired path.
+ * The single source of truth for the licence state. Resolves synchronously
+ * from locally stored data so the UI can label itself immediately on boot;
+ * `validateLicense` runs async in the background and updates the stored status
+ * on revoke, after which this falls back to `personal`.
  *
- * Offline grace never extends the trial: a locally-licensed device stays
- * `licensed` for up to OFFLINE_GRACE_DAYS without a network check, otherwise
- * we fall through to the trial clock (and `expired` once it runs out).
+ * A locally-licensed device stays `commercial` for up to OFFLINE_GRACE_DAYS
+ * without a network check. Falling back to `personal` costs the user nothing —
+ * the app keeps working in full either way.
  */
 export function getEntitlement(): Entitlement {
   const d = getLicenseData();
+  const usage = getUsageContext();
   const licensedLocally =
     d.licenseStatus === 'active' &&
     !!d.licenseKey &&
     (Date.now() - (d.lastValidation || 0)) / 86400000 < OFFLINE_GRACE_DAYS;
-  if (licensedLocally) {
-    return { access: 'licensed', tier: d.licenseTier, key: d.licenseKey };
-  }
 
-  const started = ensureTrialStarted();
-  const daysUsed = (Date.now() - started) / 86400000;
-  if (daysUsed < TRIAL_DAYS) {
+  if (licensedLocally) {
     return {
-      access: 'trial',
-      trialDaysLeft: Math.max(0, Math.ceil(TRIAL_DAYS - daysUsed)),
-      tier: null,
-      key: null,
+      access: 'commercial',
+      usage,
+      licenseDue: false,
+      tier: d.licenseTier,
+      key: d.licenseKey,
     };
   }
 
-  return { access: 'expired', tier: null, key: null };
-}
-
-/**
- * Absolute epoch-ms at which the local 14-day trial ends (starting the clock
- * if it hasn't been started yet). Baked into the MCP server's config env as
- * `PENWRIGHT_TRIAL_UNTIL` so the decoupled server unlocks for the full demo.
- */
-export function getTrialEndMs(): number {
-  return ensureTrialStarted() + TRIAL_DAYS * 86400000;
+  return {
+    access: 'personal',
+    usage,
+    licenseDue: usage === 'commercial',
+    tier: null,
+    key: null,
+  };
 }

@@ -29,10 +29,10 @@ Penwright MCP Server (Standalone-Binary, Bun-compiled)
 
 ### Empfohlen: Auto-Setup ueber die App
 
-1. Penwright oeffnen → **Hilfe → Mit Claude Desktop verbinden** (MCP-Setup-Wizard, `McpSetupWizard.svelte`). Voraussetzung: Claude Desktop ist installiert + eine gueltige Penwright-Lizenz **oder eine laufende 14-Tage-Demo** (der MCP-Server ist in der kompletten Demo freigeschaltet — s. „Lizenz" unten).
+1. Penwright oeffnen → **Hilfe → Mit Claude Desktop verbinden** (MCP-Setup-Wizard, `McpSetupWizard.svelte`). Voraussetzung: Claude Desktop ist installiert. **Eine Lizenz ist nicht noetig** — der MCP-Server ist fuer alle freigeschaltet (s. „Lizenz" unten).
 2. Der Wizard kopiert die **Bun-kompilierte Standalone-Binary** (`penwright-mcp`, ~64 MB) aus dem App-Bundle (`Contents/Resources/mcp/bin/`) nach `~/Library/Application Support/Penwright/mcp-server/` und traegt einen `penwright`-Eintrag (Schluessel `MCP_SERVER_KEY`) in `~/Library/Application Support/Claude/claude_desktop_config.json` ein — **idempotent**, andere `mcpServers` bleiben erhalten, mit timestamped Backup.
 3. In den Eintrag schreibt der Wizard die noetigen Env-Variablen:
-   - `PENWRIGHT_LICENSE_KEY` — der Lizenz-Key (Server validiert beim Start selbst).
+   - `PENWRIGHT_LICENSE_KEY` — der Lizenz-Key, falls eine kommerzielle Lizenz aktiv ist. Rein informativ: der Server notiert ihn, prueft ihn aber nicht (s. „Lizenz").
    - `TYPST_BIN` / `TYPST_PACKAGE_PATH` / `TYPST_FONT_PATH` — zeigen auf die gebuendelte Typst-Binary, die `@preview/*`-Packages und die OFL-Fonts im App-Bundle, **damit der Server auch auf einer Maschine ohne System-Typst kompiliert/exportiert**.
 4. Claude Desktop neu starten. Die Penwright-Tools erscheinen im MCP-Menue.
 
@@ -45,7 +45,7 @@ Statt (oder zusaetzlich zu) Claude Desktop kann Penwright sich auch bei **genau 
 - **Meta-MCP** — lokaler Aggregator-Proxy auf `http://localhost:3663`. Registrierung per `POST /register` (Hot-Reload, dedupliziert per `name`); Deregistrierung durch Editieren der beobachteten `…/com.metamcp.desktop/config.json` (es gibt keinen HTTP-Unregister).
 - **Claude Code** — User-Scope (global): `claude mcp add --scope user penwright --env … -- <bin>`, mit Fallback auf ein direktes `~/.claude.json`-Edit, falls die `claude`-CLI nicht im PATH liegt.
 
-Es ist **immer nur genau eine** dieser beiden Registrierungen aktiv (kein Doppel-Eintrag). Beim Start wird der gewaehlte Zustand idempotent hergestellt: Ziel registrieren, anderes Ziel deregistrieren. Server-Definition (Binary + Env, inkl. der oben genannten Typst-Pfade und Lizenz/Trial-Credential) ist identisch zum Claude-Desktop-Eintrag. Der **Claude-Desktop-Wizard** oben bleibt davon unberuehrt (eigener Host, koexistiert).
+Es ist **immer nur genau eine** dieser beiden Registrierungen aktiv (kein Doppel-Eintrag). Beim Start wird der gewaehlte Zustand idempotent hergestellt: Ziel registrieren, anderes Ziel deregistrieren. Server-Definition (Binary + Env, inkl. der oben genannten Typst-Pfade) ist identisch zum Claude-Desktop-Eintrag. Der **Claude-Desktop-Wizard** oben bleibt davon unberuehrt (eigener Host, koexistiert).
 
 ### Manuell (Power-User / Dev)
 
@@ -539,7 +539,7 @@ Der Agent ruft sie ueber MCP `prompts/get` ab. Inhalt liegt in `<projekt>/.claud
 
 ## Voraussetzungen
 
-**Beim Auto-Setup (Standalone-Binary) brauchst du weder System-Node noch System-Typst** — die Binary ist eigenstaendig, und Typst-Binary/Packages/Fonts kommen gebuendelt aus dem App-Bundle (via `TYPST_BIN` & Co.). Noetig sind nur **Claude Desktop** + eine gueltige **Penwright-Lizenz** (`pw_LIC…`) **oder eine laufende 14-Tage-Demo** (s. „Lizenz").
+**Beim Auto-Setup (Standalone-Binary) brauchst du weder System-Node noch System-Typst** — die Binary ist eigenstaendig, und Typst-Binary/Packages/Fonts kommen gebuendelt aus dem App-Bundle (via `TYPST_BIN` & Co.). Noetig ist nur **Claude Desktop** — der MCP-Server laeuft ohne Lizenz und ohne Zeitlimit (s. „Lizenz").
 
 Fuer den **manuellen Node-Pfad** zusaetzlich:
 
@@ -564,13 +564,16 @@ winget install --id Typst.Typst
 
 ## Lizenz
 
-Der MCP Server laeuft mit einer **gueltigen Lizenz ODER waehrend der 14-Tage-Demo** — er ist in der kompletten Demo voll freigeschaltet (`validateAccess()` = gueltige Lizenz **oder** aktiver Trial). Konkret:
+**Der MCP Server ist ungesperrt. Er startet fuer alle** — alle 66 Tools, ohne Key, ohne Zeitlimit, egal ob Penwright privat oder kommerziell genutzt wird. Es gibt **keinen** `validateAccess()`-Check mehr und keine Testphase.
 
-- **Lizenz aktiv** → der App-seitige `buildMcpEnv()` schreibt `env.PENWRIGHT_LICENSE_KEY` (derselbe `pw_LIC…`-Key wie die App, Single-Tier); der Server validiert beim Start selbst.
-- **Demo laeuft, keine Lizenz** → stattdessen `env.PENWRIGHT_TRIAL_UNTIL=<Trial-Ende epoch-ms>`; der Server startet, solange `now < PENWRIGHT_TRIAL_UNTIL`.
-- **Demo abgelaufen, keine Lizenz** → kein Credential, der Server verweigert den Start (Tools nicht verfuegbar).
+- **Lizenz aktiv** → `buildMcpEnv()` schreibt `env.PENWRIGHT_LICENSE_KEY` (derselbe `pw_LIC…`-Key wie die App). Der Server **notiert** ihn (`state.licenseKey`), **prueft ihn aber nie**, um zu entscheiden, ob er startet.
+- **Keine Lizenz** → kein Credential, und der Server startet trotzdem vollstaendig.
 
-Das gilt fuer **alle In-App-Registrierungswege** (Claude-Desktop-Wizard, Meta-MCP, Claude Code). Die standalone **`.mcpb`-Distribution** ist ein separater Manual-Install-Kanal ohne App-Trial-Stempel und bleibt **lizenzpflichtig** (`license_key` ist dort `required`).
+Das gilt fuer **alle In-App-Registrierungswege** (Claude-Desktop-Wizard, Meta-MCP, Claude Code).
+
+> **Warum ungesperrt:** Die MCP-Schicht treibt keine Kaeufe (niemand kauft eine Desktop-App, um einen MCP-Server zu bekommen), sie ist das beste Demo-Objekt des Produkts, und sie ist die supportintensivste Oberflaeche darin. Eine Stunde E-Mail-Debugging frisst die Marge von zehn Lizenzen. Ein Gate ausgerechnet dort war das Modell falsch herum. Vollstaendige Begruendung: [release-strategy.md](release-strategy.md) §9.
+>
+> Penwright selbst ist fuer private, akademische und Hobby-Nutzung kostenlos; kommerzielle Nutzung braucht eine Lizenz. Die Unterscheidung liegt bei **wer**, nicht bei **was** — und wird nirgends technisch erzwungen.
 
 ---
 

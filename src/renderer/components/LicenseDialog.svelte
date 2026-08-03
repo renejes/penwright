@@ -18,19 +18,42 @@
   let loading = $state(false);
   let error = $state('');
 
-  // Pull the local entitlement (licensed / trial / expired) and mirror it into
-  // global UI state so the LicenseGate / status bar update without a reload.
+  // Pull the local licence state and mirror it into global UI state so the
+  // status bar and the notice update without a reload. Nothing is gated on
+  // this — a failure here costs a label, not access.
   async function refreshEntitlement() {
     try {
       const ent = await api.invoke('license:getEntitlement') as {
-        access: 'licensed' | 'trial' | 'expired'; trialDaysLeft?: number;
+        access: 'personal' | 'commercial';
+        usage: 'personal' | 'commercial' | null;
+        licenseDue: boolean;
       };
       if (ent && typeof ent === 'object') {
         uiState.licenseAccess = ent.access;
-        if (typeof ent.trialDaysLeft === 'number') uiState.trialDaysLeft = ent.trialDaysLeft;
+        uiState.usageContext = ent.usage;
+        uiState.licenseDue = ent.licenseDue;
       }
     } catch {
-      // best-effort — gating already has its boot-time value
+      // best-effort — the label already has its boot-time value
+    }
+  }
+
+  /** Change the declared usage. Re-shows the notice when switching to commercial. */
+  async function setUsage(usage: 'personal' | 'commercial') {
+    try {
+      const ent = await api.invoke('license:setUsage', usage) as {
+        access: 'personal' | 'commercial';
+        usage: 'personal' | 'commercial' | null;
+        licenseDue: boolean;
+      };
+      if (ent && typeof ent === 'object') {
+        uiState.licenseAccess = ent.access;
+        uiState.usageContext = ent.usage;
+        uiState.licenseDue = ent.licenseDue;
+        uiState.licenseNoticeDismissed = false;
+      }
+    } catch {
+      // best-effort — the stored answer is unchanged
     }
   }
 
@@ -87,7 +110,7 @@
       uiState.licenseTier = null;
       uiState.licenseKey = null;
       uiState.licenseMessage = '';
-      // Re-resolve entitlement: falls back to trial or expired.
+      // Re-resolve: falls back to 'personal'. The app stays fully usable.
       await refreshEntitlement();
     } catch (err) {
       error = String(err);
@@ -162,10 +185,78 @@
         </button>
       </div>
     {/if}
+
+    <!-- Usage row: free personal use is a right, not a fallback, so it says so
+         and stays switchable. Shown in both states. -->
+    <div class="usage-row">
+      <span class="usage-label">{t().license.dialogUsageLabel}</span>
+      <div class="usage-switch">
+        <button
+          class="usage-pill"
+          class:active={uiState.usageContext === 'personal'}
+          onclick={() => setUsage('personal')}
+        >{t().license.dialogUsagePersonal}</button>
+        <button
+          class="usage-pill"
+          class:active={uiState.usageContext === 'commercial'}
+          onclick={() => setUsage('commercial')}
+        >{t().license.dialogUsageCommercial}</button>
+      </div>
+      {#if uiState.usageContext === 'personal'}
+        <p class="usage-note">{t().license.dialogPersonalFree}</p>
+      {/if}
+    </div>
   </div>
 </div>
 
 <style>
+  .usage-row {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #ece8e0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .usage-label {
+    font-size: 12px;
+    color: #8a8174;
+  }
+
+  .usage-switch {
+    display: flex;
+    gap: 6px;
+  }
+
+  .usage-pill {
+    padding: 5px 14px;
+    border: 1px solid #e2ded5;
+    border-radius: 999px;
+    background: transparent;
+    color: #6b6357;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+
+  .usage-pill:hover {
+    border-color: #c9c2b6;
+  }
+
+  .usage-pill.active {
+    border-color: #a8503a;
+    background: #a8503a;
+    color: #fff;
+  }
+
+  .usage-note {
+    margin: 0;
+    font-size: 12px;
+    color: #7a9a6b;
+  }
+
   .license-overlay {
     position: fixed;
     inset: 0;

@@ -55,7 +55,7 @@ Um ein Projekt zu schliessen ohne die App zu beenden: **File -> Close Project** 
 | bar  |  WYSIWYG Editor               |   (Live-PDF)          |
 |      |                               |                       |
 +------+-------------------------------+-----------------------+
-| [Project][Preview]  Kapitel-Look ▾  1.247 Wörter · …  DE  Trial |
+| [Project][Preview]  Kapitel-Look ▾  1.247 Wörter · …  DE  Privat |
 +--------------------------------------------------------------+
 ```
 Die **Navigations-Tabs** (Files / Outline / Chapters / Project / Comments) sitzen in der Top-Bar; Klick zeigt das Panel, Klick auf den aktiven Tab klappt die Seitenleiste ein. Der **＋-Button** links in der Toolbar öffnet das Einfügen-Menü (siehe [Inhalte einfügen](#inhalte-einfügen--button--und-)). Die **Mitte der Statusleiste** ist die kontextuelle **Look**-Steuerung (Kapitel-Look / Global-Look / Look — siehe [das Look-Modell](#design--das-look-modell)). Es gibt keinen separaten „Design"-Tab — Gestalten lebt in `style.typ` und der Statusleiste.
@@ -711,7 +711,7 @@ Zum Rueckgaengig-Machen von AI-Edits siehe Abschnitt [Versionen & Auto-Backup](#
   - **Wortzahl + Lesezeit** des aktiven Dokuments (z. B. *1.247 Wörter · 5 Min Lesezeit*) — live waehrend du tippst, mit 200 Woertern pro Minute. Code-Bloecke und rohe Typst-Bloecke werden nicht mitgezaehlt, damit der Wert sinnvoll bleibt.
   - **Save-Status:** "Unsaved" (orange) oder "Saved 14:35"
   - **Dateiname** des aktiven Tabs
-  - **Lizenz-Status**-Badge (Testphase: N Tage / Lizenziert / Gesperrt) — Klick oeffnet den Lizenz-Dialog
+  - **Lizenz-Status**-Badge (Private Nutzung / Lizenz offen / Lizenziert) — Klick oeffnet den Lizenz-Dialog
 - Warnung beim Schliessen bei ungespeicherten AEnderungen
 - **Crash Recovery:** Auto-Backups werden nach `<projekt>/.penwright/backups/<timestamp>/` geschrieben (Intervall konfigurierbar, Default 30 s). Wenn die App abstuerzt und das juengste Backup neuer ist als die zuletzt gespeicherte Datei auf der Platte, bietet Penwright beim Wiederoeffnen des Projekts an, den Backup-Stand zurueckzuholen. Details siehe [Versionen & Auto-Backup](#versionen--auto-backup).
 
@@ -740,35 +740,42 @@ Die App **startet immer am Start Screen** — kein Auto-Reopen. Bewusste Designe
 
 ---
 
-## Lizenz-Management
+## Lizenz
 
-Penwright ist ein **Einmalkauf — 59 €**. Eine Lizenz, kein Abo, keine Stufen. **Ein Key (`pw_LIC…`) schaltet alles frei**, inklusive des MCP-Servers fuer die KI-Integration.
+**Penwright ist fuer private, akademische und Hobby-Nutzung kostenlos — alle Funktionen, dauerhaft, inklusive der kompletten MCP-/KI-Integration.** Kein Key, kein Account, kein Zeitlimit. **Kommerzielle Nutzung braucht eine Lizenz.**
 
-### Kostenlose Testphase
+Es gibt **keine Testphase, keinen Ablauf und nichts, das jemals sperrt.** Unterschieden wird, *wer* Penwright nutzt, nicht *was* er nutzen darf — und das kann die App nicht erkennen, also fragt sie.
 
-Beim ersten Start bekommst du eine **14-taegige lokale Testphase** mit vollem Funktionsumfang — ohne Key, ohne Account. Die Status Bar zeigt die verbleibenden Tage, ein schlanker Banner bietet **„Jetzt kaufen – 59 €"**. Laeuft die Testphase ab, wird Penwright hinter einem Kauf-Screen gesperrt, bis du einen Key eingibst.
+### Die eine Frage, einmal
+
+Beim ersten Start fragt Penwright, wie du es nutzt:
+
+- **Privat, fuer Studium oder Forschung** → dauerhaft kostenlos. Sonst nichts zu tun, und du siehst weder die Frage noch einen Hinweis je wieder.
+- **Beruflich, kommerziell** → eine Lizenz ist faellig. Freigeschaltet bleibt in der Zwischenzeit alles; du bekommst einen schmalen, wegklickbaren Hinweis, nie eine Wand.
+
+Die Antwort ist jederzeit im Lizenz-Dialog aenderbar.
 
 ### Lizenzstatus in der Status Bar
 
-In der Status Bar (unten rechts) wird dein aktueller Status angezeigt:
-- **Testphase: N Tage** — Testphase aktiv, N Tage verbleibend
-- **Lizenziert** — ein gueltiger Key ist aktiv
-- **Gesperrt** — Testphase abgelaufen, noch kein Key; die App ist gesperrt, bis du aktivierst
+In der Status Bar (unten rechts) steht:
+- **Private Nutzung** — kostenlose Nutzung, nichts offen
+- **Lizenz offen** — du hast kommerzielle Nutzung angegeben, es ist noch kein Key aktiv
+- **Lizenziert** — ein gueltiger kommerzieller Key ist aktiv
 
-**Klick auf den Lizenzstatus** oeffnet den Lizenz-Dialog.
+**Klick auf den Lizenzstatus** oeffnet den Lizenz-Dialog — dort wechselst du auch zwischen privater und kommerzieller Nutzung.
 
 ### Kaufen & aktivieren
 
-1. **Kaufen** — der Kauf-Button (**„Jetzt kaufen – 59 €"** im Banner, **„Lizenz kaufen – 59 €"** auf dem Sperr-Screen) oeffnet direkt den **Polar-Checkout**. Nach der Zahlung bekommst du deinen `pw_LIC…`-Key per E-Mail.
-2. **Aktivieren** — Lizenz-Dialog oeffnen (Klick auf den Lizenzstatus), Key einfuegen, bestaetigen. Er wird gegen **Polar** validiert und lokal gespeichert (verschluesselt im System-Keychain). Die Lizenz ist sofort aktiv und ein eventueller Sperr-Screen verschwindet.
+1. **Kaufen** — der Button **„Lizenz kaufen"** (im Hinweis oder im Lizenz-Dialog) oeffnet direkt den **Polar-Checkout**. Nach der Zahlung bekommst du deinen `pw_LIC…`-Key per E-Mail.
+2. **Aktivieren** — Lizenz-Dialog oeffnen, Key einfuegen, bestaetigen. Er wird gegen **Polar** validiert und lokal gespeichert (verschluesselt im System-Keychain).
 
 ### Offline-Nutzung
 
-Einmal validiert, funktioniert Penwright ohne Internetverbindung. Es gilt eine **7-Tage Grace Period** — nach 7 Tagen ohne erneute Online-Validierung faellt die App zurueck in den Testphasen-/Sperr-Zustand, bis du wieder online bist. Die Offline-Grace verlaengert die Testphase nie.
+Penwright funktioniert in jedem Fall vollstaendig offline. Fuer eine kommerzielle Lizenz gilt eine **7-Tage Grace Period** — nach 7 Tagen ohne erneute Online-Validierung faellt das Abzeichen auf *Private Nutzung* zurueck, bis du wieder online bist. **Das kostet dich nichts**: die App ist so oder so vollstaendig.
 
 ### Sicherheit
 
-Die Lizenzdaten werden mittels Electrons `safeStorage` verschluesselt im System-Keychain (macOS), DPAPI (Windows) oder libsecret (Linux) abgelegt. Der MCP-Server validiert denselben Key beim Start unabhaengig.
+Die Lizenzdaten werden mittels Electrons `safeStorage` verschluesselt im System-Keychain (macOS), DPAPI (Windows) oder libsecret (Linux) abgelegt. Der MCP-Server prueft sie **nicht** — er laeuft fuer alle.
 
 ---
 
@@ -791,7 +798,7 @@ Der Dialog zeigt:
 
 Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol), mit dem externe KI-Anwendungen wie **Claude Desktop**, **Codex Desktop** oder **Clawdbot** direkt mit deinen Typst-Dokumenten arbeiten koennen — ohne das Terminal zu benutzen.
 
-> **Hinweis:** Der MCP-Server laeuft mit einer **gueltigen Lizenz** — demselben `pw_LIC…`-Key wie die App (keine Stufen) — **oder waehrend der kostenlosen 14-taegigen Testphase**, dann in vollem Umfang. Er verweigert erst, wenn die Testphase abgelaufen ist und kein Key aktiv ist. Siehe [Lizenz-Management](#lizenz-management).
+> **Hinweis:** Der MCP-Server ist **fuer alle freigeschaltet** — alle 66 Tools, ohne Key, ohne Zeitlimit. Er wird nie gesperrt, egal ob du Penwright privat oder kommerziell nutzt. Siehe [Lizenz](#lizenz).
 
 ### Was kann der MCP-Server?
 
@@ -819,7 +826,7 @@ Die KI kann ueber den MCP-Server (66 Tools):
 
 Penwright bietet automatisch an, Claude Desktop zu verbinden — du musst keine JSON-Datei selbst editieren. Voraussetzungen:
 
-- **Aktive Lizenz oder laufende Testphase** (siehe [Lizenz-Management](#lizenz-management)) — der MCP-Server lehnt erst ab, wenn die Testphase ohne Key abgelaufen ist
+- Nichts Lizenzbezogenes — der MCP-Server startet fuer alle (siehe [Lizenz](#lizenz))
 - **Claude Desktop installiert** unter `/Applications/Claude.app` bzw. `~/Applications/Claude.app` (macOS) oder am ueblichen `%LOCALAPPDATA%`-Ort (Windows)
 
 **Ablauf:**

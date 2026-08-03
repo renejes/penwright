@@ -64,8 +64,13 @@ interface StoreSchema {
   panelState: PanelState;
   recentProjects: RecentProject[];
   onboardingSeen: boolean;
-  /** Epoch ms when the local 14-day trial first started; null until first launch records it. */
-  trialStartedAt: number | null;
+  /**
+   * What the user says they use Penwright for. `null` until they answer once,
+   * at first launch. Personal/academic/hobby use is free forever; commercial
+   * use needs a licence. Nothing is ever gated on this — it decides only
+   * whether the (dismissible) licence notice is shown at all.
+   */
+  usageContext: 'personal' | 'commercial' | null;
   zoteroBibPath: string | null;
   /** Encrypted (OS keychain) base64 blob containing the full LicenseData payload. */
   licenseBlob: string | null;
@@ -108,7 +113,7 @@ const store = new Store<StoreSchema>({
     },
     recentProjects: [],
       onboardingSeen: false,
-    trialStartedAt: null,
+    usageContext: null,
     zoteroBibPath: null,
     licenseBlob: null,
     backupConfig: DEFAULT_BACKUP_CONFIG,
@@ -212,18 +217,24 @@ export function setPreviewMode(mode: string): void {
   store.set('previewMode', mode === 'manual' ? 'manual' : 'auto');
 }
 
-// ─── Local Trial ─────────────────────────────────
-// First launch stamps `trialStartedAt`; the 14-day clock is read from it.
-// Stored in global electron-store (not per-project) so the trial is per-device.
+// ─── Usage context ───────────────────────────────
+// Penwright is free for personal, academic and hobby use, and needs a paid
+// licence for commercial use. The app cannot detect which one applies, so it
+// asks once at first launch and remembers the answer here.
+//
+// This is NOT a gate. Nothing is ever locked, whatever the answer. It decides
+// only whether the dismissible "commercial use needs a licence" notice appears.
 
-/** Returns the trial start (epoch ms), recording `Date.now()` on first call. */
-export function ensureTrialStarted(): number {
-  let t = store.get('trialStartedAt');
-  if (!t) {
-    t = Date.now();
-    store.set('trialStartedAt', t);
-  }
-  return t;
+export type UsageContext = 'personal' | 'commercial' | null;
+
+/** What the user declared. `null` means they have not been asked yet. */
+export function getUsageContext(): UsageContext {
+  const u = store.get('usageContext');
+  return u === 'personal' || u === 'commercial' ? u : null;
+}
+
+export function setUsageContext(usage: UsageContext): void {
+  store.set('usageContext', usage === 'personal' || usage === 'commercial' ? usage : null);
 }
 
 // ─── MCP Setup Version ──────────────────────────

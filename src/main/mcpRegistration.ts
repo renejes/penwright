@@ -57,10 +57,10 @@ export interface EnsureResult {
   meta: SideResult;
   claude: SideResult;
   /**
-   * Whether the registered server can actually start: 'licensed' or 'trial'
-   * both run; 'expired' means the 14-day demo lapsed with no license.
+   * Licence state of the registered server, for display only. The server
+   * always starts — 'personal' is not a degraded mode.
    */
-  access: 'licensed' | 'trial' | 'expired';
+  access: 'personal' | 'commercial';
 }
 
 const META_BASE = 'http://localhost:3663';
@@ -72,11 +72,9 @@ function emptySide(): SideResult {
   return { registered: false, unregistered: false, method: null, error: null };
 }
 
-/** Which credential (if any) is baked into the server env → can it start? */
-function envAccess(env: Record<string, string>): 'licensed' | 'trial' | 'expired' {
-  if ('PENWRIGHT_LICENSE_KEY' in env) return 'licensed';
-  if ('PENWRIGHT_TRIAL_UNTIL' in env) return 'trial';
-  return 'expired';
+/** Does the server env carry a commercial licence key? Display only. */
+function envAccess(env: Record<string, string>): 'personal' | 'commercial' {
+  return 'PENWRIGHT_LICENSE_KEY' in env ? 'commercial' : 'personal';
 }
 
 // ─── Server definition ──────────────────────────────
@@ -351,7 +349,7 @@ export async function ensureMcpTarget(target: McpTarget): Promise<EnsureResult> 
     ok: false,
     meta: emptySide(),
     claude: emptySide(),
-    access: 'expired',
+    access: 'personal',
   };
 
   let def: ServerDefinition;

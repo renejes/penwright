@@ -20,9 +20,8 @@ export const mcpConnection = {
   apply: 'Apply',
   applying: 'Applying…',
   close: 'Close',
-  trialActive: (days: number): string =>
-    `Demo active — the MCP server is fully unlocked for the rest of your 14-day trial (${days} day${days === 1 ? '' : 's'} left).`,
-  noAccess: 'Your 14-day demo has expired — the server is registered but won\'t start until you activate a license.',
+  freeForEveryone:
+    'The MCP server is unlocked for everyone — all 66 tools, no key, no time limit.',
 
   done: {
     metaTitle: 'Connected via Meta-MCP',

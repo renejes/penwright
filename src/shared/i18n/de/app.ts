@@ -44,12 +44,11 @@ export const app: AppMessages = {
   switchLanguage: 'Sprache wechseln (Englisch / Deutsch)',
   licenseTitle: 'Lizenz',
   licensed: 'Lizenziert',
-  locked: 'Gesperrt',
-  trialStatus: (days: number) => `Testphase: ${days} ${days === 1 ? 'Tag' : 'Tage'}`,
-
-  // Trial banner
-  trialLeft: (days: number) => `Testphase — noch ${days} ${days === 1 ? 'Tag' : 'Tage'}`,
-  buyNow: 'Jetzt kaufen – 59 €',
+  /** Statusleiste bei kostenloser Privatnutzung. Keine Einschraenkung. */
+  personal: 'Private Nutzung',
+  /** Statusleiste: kommerziell erklaert, noch keine Lizenz. Blockiert nie. */
+  licenseDue: 'Lizenz offen',
+  buyNow: 'Lizenz kaufen',
 
   // Hinweis, wenn ein Speichern eine gleichzeitige Aenderung ueberschrieben
   // hat. Die andere Fassung liegt als Snapshot vor — also Hinweis, kein Fehler.

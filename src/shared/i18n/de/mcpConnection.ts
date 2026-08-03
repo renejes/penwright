@@ -22,9 +22,8 @@ export const mcpConnection: McpConnectionMessages = {
   apply: 'Übernehmen',
   applying: 'Wird übernommen…',
   close: 'Schließen',
-  trialActive: (days: number): string =>
-    `Demo aktiv — der MCP-Server ist für die restlichen Tage deiner 14-Tage-Demo voll freigeschaltet (noch ${days} Tag${days === 1 ? '' : 'e'}).`,
-  noAccess: 'Deine 14-Tage-Demo ist abgelaufen — der Server wird registriert, startet aber erst nach der Lizenzaktivierung.',
+  freeForEveryone:
+    'Der MCP-Server ist für alle freigeschaltet — alle 66 Tools, ohne Schlüssel, ohne Zeitlimit.',
 
   done: {
     metaTitle: 'Über Meta-MCP verbunden',

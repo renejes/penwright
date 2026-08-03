@@ -3,7 +3,8 @@
   "version": "0.12.0",
   "description": "Penwright — A WYSIWYG editor for Typst documents",
   "author": "René Jesser",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "unset ELECTRON_RUN_AS_NODE && electron-vite dev",
