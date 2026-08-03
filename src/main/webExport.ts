@@ -19,6 +19,7 @@ import { serializeHtml, type ArticleMeta, type HtmlExportContext } from '../shar
 import { styleToCss } from '../shared/styleToCss';
 import { sanitizeProjectStyle, type ProjectStyle } from '../shared/styleTypes';
 import { inferStyleFromTypst, detectLeadStyle } from '../shared/styleInference';
+import { isDesignAdopted } from '../shared/styleWrite';
 import type { MagazineArticle } from '../shared/magazineSplit';
 import { buildFontAssets, writeFontFiles, type FontAssets } from './webFonts';
 
@@ -121,7 +122,14 @@ export function prepareWebDesign(args: {
 
   let style: ProjectStyle | null = args.styleOverride ?? null;
   let inferred = false;
-  if (!style) {
+  // The fallback asks the guard ITSELF rather than trusting the caller to have
+  // asked. `runWebExport` passes `null` for a hand-written project — and this
+  // read handed the same style.json straight back, so the decision never
+  // reached the output: measured end-to-end into `index.html`, an authored
+  // Montserrat/Playfair look came out as the defaults in a stray style.json.
+  // A flag would have been forgotten too: `scripts/web-export-proof.mts` calls
+  // this with no override at all.
+  if (!style && isDesignAdopted(rootDir)) {
     try {
       const p = path.join(rootDir, '.penwright', 'style.json');
       if (fs.existsSync(p)) style = sanitizeProjectStyle(JSON.parse(fs.readFileSync(p, 'utf-8')));

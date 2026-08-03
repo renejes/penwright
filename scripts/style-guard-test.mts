@@ -31,6 +31,7 @@ import {
   isHandwrittenStyle,
   readProjectStyleWithCustom,
   isDesignAdopted,
+  findStyleTypFiles,
   resolveDesignRoot,
 } from '../src/shared/styleWrite.ts';
 import { STYLE_TYPST_MARKER, generateStyleTypst } from '../src/shared/styleParser.ts';
@@ -170,6 +171,78 @@ console.log('\nplanStyleWrites');
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+// ─── 2b. The guard is asked of the PROJECT, not of the open file ────
+//
+// The measured hole, and the one that mattered: the design home was resolved
+// from whatever file happened to be open. On a project whose root is called
+// `Angebot.typ`, `findRootFileIn` finds nothing by name, so the fallback
+// `findRootFile(currentFile)` decides — and that returns a `.typ` nobody
+// includes AS ITSELF. The guard then asked `chapters/style.typ`, found nothing,
+// said "go ahead", and a second design system was generated beside the real
+// one. Four ordinary routes reach that state: an orphaned chapter file,
+// "Import Markdown" (which creates one and opens it), "Save As…" (which moves
+// the open file out of the project entirely), and the ↑ button in the tree.
+{
+  const dir = makeProject('handwritten');
+  const orphan = path.join(dir, 'chapters', '99-notizen.typ');
+  fs.writeFileSync(orphan, '= Notizen\n\nNoch nicht eingebunden.\n');
+  const before = sha(path.join(dir, 'style.typ'));
+
+  const plan = planStyleWrites({ projectDir: dir, currentFile: orphan, style: DEFAULT_PROJECT_STYLE });
+  check('an orphaned open file does not walk past the authored style.typ', plan.ok === false);
+  check('…and the refusal names the file it protected', plan.ok === false && plan.styleTypPath === path.join(dir, 'style.typ'), plan.ok === false ? plan.styleTypPath : '');
+  check('…nothing was written', sha(path.join(dir, 'style.typ')) === before);
+  check('…and no style.typ appeared in chapters/', !fs.existsSync(path.join(dir, 'chapters', 'style.typ')));
+
+  // "Save As…" leaves projectDir alone and points currentFile outside it.
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-outside-'));
+  const stray = path.join(outside, 'Kopie.typ');
+  fs.writeFileSync(stray, '= Kopie\n');
+  const planOut = planStyleWrites({ projectDir: dir, currentFile: stray, style: DEFAULT_PROJECT_STYLE });
+  check('a file opened outside the project does not disarm it either', planOut.ok === false);
+  check('…and nothing was written next to that file', !fs.existsSync(path.join(outside, 'style.typ')));
+  fs.rmSync(outside, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+{
+  // The other half: ask about one file, write to another. A project that
+  // already HAS a generated style.typ must keep using it, even when the
+  // resolution wanders — otherwise the same wandering produces a duplicate.
+  //
+  // The root is deliberately NOT called main.typ. With a by-name hit the
+  // resolution never wanders and the case proves nothing — which is exactly how
+  // an earlier version of this assertion passed against the unfixed code.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-guard-gen-named-'));
+  fs.mkdirSync(path.join(dir, 'chapters'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'Angebot.typ'), ROOT_MANAGED);
+  fs.writeFileSync(path.join(dir, 'chapters', '01-intro.typ'), '= Intro\n');
+  fs.writeFileSync(path.join(dir, 'style.typ'), generateStyleTypst(sanitizeProjectStyle(DEFAULT_PROJECT_STYLE)));
+  const orphan = path.join(dir, 'chapters', '99-notizen.typ');
+  fs.writeFileSync(orphan, '= Notizen\n');
+  const plan = planStyleWrites({ projectDir: dir, currentFile: orphan, style: DEFAULT_PROJECT_STYLE });
+  check('a generated project still plans writes', plan.ok === true);
+  check(
+    'the existing style.typ is the target, not a new one in chapters/',
+    plan.ok === true && plan.writes.some(w => w.abs === path.join(dir, 'style.typ'))
+      && !plan.writes.some(w => w.abs === path.join(dir, 'chapters', 'style.typ')),
+    plan.ok === true ? plan.writes.map(w => path.relative(dir, w.abs)) : '',
+  );
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+{
+  // A design that lives one folder down — the shape `ensureStyleFiles` walked
+  // past, because it asks with currentFile = null and so only ever looked at
+  // the project root.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-guard-nested-'));
+  fs.mkdirSync(path.join(dir, 'doc'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'doc', 'style.typ'), HANDWRITTEN_STYLE);
+  fs.writeFileSync(path.join(dir, 'doc', 'Angebot.typ'), ROOT_AUTHORED);
+  check('an authored style.typ in a subfolder is found', !isDesignAdopted(dir, null));
+  const plan = planStyleWrites({ projectDir: dir, currentFile: null, style: DEFAULT_PROJECT_STYLE });
+  check('…and planStyleWrites refuses on it', plan.ok === false);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 // ─── 3. Root resolution never invents a file ────────────────────────
 
 console.log('\nDesign-root resolution');
@@ -260,6 +333,155 @@ if (!fs.existsSync(MCP_ENTRY)) {
     check('style.json was written', fs.existsSync(path.join(dir, '.penwright', 'style.json')));
     fs.rmSync(dir, { recursive: true, force: true });
   }
+  {
+    // The CONTENT tools reached the same file with no guard at all. Measured:
+    // `penwright_write_file` replaced an authored design system outright and
+    // reported success. On these projects — no Git, no backups — the edit
+    // snapshot was the only way back, and nothing told the agent it had needed
+    // one. One rule for one file: if Penwright will not regenerate it, it will
+    // not overwrite it either.
+    const dir = makeProject('handwritten');
+    const styleTyp = path.join(dir, 'style.typ');
+    const before = sha(styleTyp);
+    const out = await callMcp(dir, [
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'penwright_set_project', arguments: { projectDir: dir } } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'penwright_write_file', arguments: { filePath: 'style.typ', content: '// weg\n' } } },
+    ]);
+    check('write_file cannot replace an authored style.typ', /Refusing to overwrite/i.test(out), out.slice(-300));
+    check('…and it is byte-identical afterwards', sha(styleTyp) === before);
+
+    // …while an ordinary chapter is still perfectly writable.
+    const chapter = path.join(dir, 'chapters', '01-intro.typ');
+    await callMcp(dir, [
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'penwright_set_project', arguments: { projectDir: dir } } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'penwright_write_file', arguments: { filePath: 'chapters/01-intro.typ', content: '= Intro\n\nNeu.\n' } } },
+    ]);
+    check('the guard is not a blanket block on writing', /Neu\./.test(fs.readFileSync(chapter, 'utf-8')));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  {
+    // …and the guard must not close the way BACK. `replace_in_project` still
+    // reaches style.typ (it writes outside guardWrite), so damage is possible;
+    // once done, the file on disk no longer carries the marker, so a naive
+    // guard read it as authored and refused the very snapshot that would undo
+    // the damage. Measured against HEAD, where the same sequence restored it.
+    const dir = makeProject('handwritten');
+    const styleTyp = path.join(dir, 'style.typ');
+    const before = sha(styleTyp);
+    // `olive` really is in HANDWRITTEN_STYLE — an earlier version of this used a
+    // word the fixture does not contain, so the replace changed nothing and the
+    // restore had nothing to do. The hash then matched for the wrong reason and
+    // the assertion passed with the exemption removed.
+    const damaged = await callMcp(dir, [
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'penwright_set_project', arguments: { projectDir: dir } } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'penwright_replace_in_project', arguments: { query: 'olive', replacement: 'akzent' } } },
+    ]);
+    check('the damage actually happened (replace_in_project reaches style.typ)', sha(styleTyp) !== before, damaged.slice(-200));
+    const out = await callMcp(dir, [
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'penwright_set_project', arguments: { projectDir: dir } } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'penwright_undo_last_edit', arguments: { file: 'style.typ' } } },
+    ]);
+    check('…and undo_last_edit can still put it back', sha(styleTyp) === before, out.slice(-350));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// ─── 5b. The export paths ask the SAME question ─────────────────────
+//
+// Three of them branched on "does .penwright/style.json exist" instead of the
+// marker — a different, weaker test. One stray style.json (from the resolution
+// hole above, or a single write from the agent) therefore replaced an authored
+// look with Penwright defaults across the web export, and sent the print export
+// down the branch that regenerates style.typ and repoints the root's `#import`
+// at a file where the author's `#let cover(…)` does not exist.
+console.log('\nExport paths use the marker, not the presence of style.json');
+{
+  const dir = makeProject('handwritten-adopted');   // authored style.typ + a style.json
+  check('the fixture is the contested shape', isHandwrittenStyle(fs.readFileSync(path.join(dir, 'style.typ'), 'utf-8')) && fs.existsSync(path.join(dir, '.penwright', 'style.json')));
+  check('…and the guard says: not adopted', !isDesignAdopted(dir, null));
+
+  // The WEB export, driven through the real resolver rather than through a copy
+  // of its condition. `prepareWebDesign` is the code that decides, and it used
+  // to re-read the same style.json the caller had just declined to pass — so a
+  // test that recomputed `isDesignAdopted(...) && existsSync(...)` itself proved
+  // nothing about the export at all, and stayed green with the fix reverted.
+  {
+    const { prepareWebDesign } = await import('../src/main/webExport.ts');
+    const merged = fs.readFileSync(path.join(dir, 'Angebot.typ'), 'utf-8');
+    const design = prepareWebDesign({ rootDir: dir, mergedContent: merged, styleOverride: null });
+    check(
+      'the web export does not take the stray style.json',
+      design.inferred === true,
+      { inferred: design.inferred, body: design.style?.fonts?.body },
+    );
+    check(
+      '…it reads the authored design instead',
+      /Playfair|Montserrat|EB Garamond|Inter/.test(String(design.style?.fonts?.heading ?? '') + String(design.style?.fonts?.body ?? ''))
+        || design.style?.colors?.background !== DEFAULT_PROJECT_STYLE.colors.background,
+      design.style?.fonts,
+    );
+  }
+
+  // And the print plan the same branch feeds: with an authored design it must
+  // leave the author's `#import` alone rather than repointing it at a generated
+  // print file where none of their macros exist.
+  {
+    const { planPrintExport, TEMP_STYLE_PRINT_BASENAME } = await import('../src/shared/printExportPlan.ts');
+    const rootFile = path.join(dir, 'Angebot.typ');
+    const rootContent = fs.readFileSync(rootFile, 'utf-8');
+    const style = isDesignAdopted(dir, null) && fs.existsSync(path.join(dir, '.penwright', 'style.json'))
+      ? sanitizeProjectStyle(DEFAULT_PROJECT_STYLE)
+      : null;
+    const plan = planPrintExport({
+      rootFile, rootContent, originalRoot: rootFile,
+      print: { bleed: '5mm', cropMarks: true },
+      style,
+      buildOverlay: () => '#set page(margin: 0pt)',
+      injectOverlay: (c, o) => `${o}\n${c}`,
+    });
+    check(
+      'the print plan leaves the authored #import alone',
+      !plan.writes.some(w => w.abs.endsWith(TEMP_STYLE_PRINT_BASENAME)),
+      plan.writes.map(w => path.basename(w.abs)),
+    );
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ─── 5c. findStyleTypFiles itself ───────────────────────────────────
+//
+// Four behaviours the guard now rests on, none of which had an assertion.
+console.log('\nfindStyleTypFiles');
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-scan-'));
+  fs.writeFileSync(path.join(dir, 'style.typ'), HANDWRITTEN_STYLE);
+  fs.mkdirSync(path.join(dir, 'chapters'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'chapters', 'style.typ'), generateStyleTypst(sanitizeProjectStyle(DEFAULT_PROJECT_STYLE)));
+  // Skipped folders, and a copy too deep to speak for the project.
+  for (const skip of ['.penwright', 'node_modules', 'assets']) {
+    fs.mkdirSync(path.join(dir, skip), { recursive: true });
+    fs.writeFileSync(path.join(dir, skip, 'style.typ'), HANDWRITTEN_STYLE);
+  }
+  fs.mkdirSync(path.join(dir, 'templates', 'fremd'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'templates', 'fremd', 'style.typ'), HANDWRITTEN_STYLE);
+
+  const hits = findStyleTypFiles(dir);
+  const rel = hits.map(h => path.relative(dir, h.abs).split(path.sep).join('/')).sort();
+  check('finds the root and one level down', rel.includes('style.typ') && rel.includes('chapters/style.typ'), rel);
+  check('skips .penwright, node_modules and assets', !rel.some(r => /^(\.penwright|node_modules|assets)\//.test(r)), rel);
+  check('does not reach a copy two levels down', !rel.includes('templates/fremd/style.typ'), rel);
+  check('marks authored vs generated correctly',
+    hits.find(h => h.abs === path.join(dir, 'style.typ'))?.authored === true
+    && hits.find(h => h.abs === path.join(dir, 'chapters', 'style.typ'))?.authored === false, hits);
+  check('shallowest first', path.relative(dir, hits[0].abs) === 'style.typ', rel);
+  // …and the deep foreign copy must NOT lock the project on its own.
+  const clean = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-scan-clean-'));
+  fs.writeFileSync(path.join(clean, 'style.typ'), generateStyleTypst(sanitizeProjectStyle(DEFAULT_PROJECT_STYLE)));
+  fs.mkdirSync(path.join(clean, 'templates', 'fremd'), { recursive: true });
+  fs.writeFileSync(path.join(clean, 'templates', 'fremd', 'style.typ'), HANDWRITTEN_STYLE);
+  check('a foreign template deep inside does not lock a managed project', isDesignAdopted(clean, null));
+  fs.rmSync(clean, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 // ─── 6. The guard must not be erodible from outside ─────────────────

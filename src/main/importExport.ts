@@ -30,6 +30,7 @@ import { sanitizeProjectStyle, DEFAULT_PROJECT_STYLE } from '../shared/styleType
 import { appState } from './appState';
 import { findBibFiles } from '../shared/bibDiscovery';
 import { planPrintExport, TEMP_EXPORT_BASENAME, TEMP_STYLE_PRINT_BASENAME } from '../shared/printExportPlan';
+import { isDesignAdopted } from '../shared/styleWrite';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
 import { saveZoteroBibPath, getProjectStyle, hasProjectStyle, getLocale } from './persistenceManager';
@@ -195,7 +196,11 @@ function writePrintExportTemp(rootFile: string, config: ExportConfig): { tempRoo
     rootContent,
     originalRoot: original,
     print: config.print!,
-    style: appState.projectDir && hasProjectStyle(appState.projectDir)
+    // `isDesignAdopted`, not "a style.json exists" — see the same guard in the
+    // MCP export. On a hand-written project a stray style.json sent this down
+    // the token branch, which regenerates style.typ in print mode and repoints
+    // the root's `#import` at a file where the author's macros do not exist.
+    style: appState.projectDir && isDesignAdopted(appState.projectDir) && hasProjectStyle(appState.projectDir)
       ? getProjectStyle(appState.projectDir)
       : null,
     buildOverlay: buildPrintGeometryOverlay,
@@ -567,7 +572,10 @@ export async function runWebExport(config: {
     // tokens INFERRED from the hand-written style.typ/macros (styleInference)
     // — plus the @font-face files for the winning families, so the export
     // looks right on machines that don't have the fonts installed.
-    const styleOverride = appState.projectDir && hasProjectStyle(appState.projectDir)
+    // Same test as the print export: a style.json that Penwright did not put
+    // there must not silence the inference. Without this, one stray file
+    // replaced an authored look with Penwright defaults across the whole site.
+    const styleOverride = appState.projectDir && isDesignAdopted(appState.projectDir) && hasProjectStyle(appState.projectDir)
       ? getProjectStyle(appState.projectDir)
       : null;
     const design = prepareWebDesign({

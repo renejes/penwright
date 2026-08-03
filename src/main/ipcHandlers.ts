@@ -1127,7 +1127,13 @@ export function setupIPC(): void {
     if (!plan.ok) {
       return {
         ok: false as const,
-        error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(path.basename(plan.styleTypPath)),
+        // The path RELATIVE TO THE PROJECT, not the basename. The guard now
+        // answers for the whole project, so the file that stopped this may sit
+        // in a folder the user is not looking at — "a hand-written style.typ"
+        // then names nothing they can act on.
+        error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(
+          appState.projectDir ? path.relative(appState.projectDir, plan.styleTypPath) : plan.styleTypPath,
+        ),
         kept: true as const,
       };
     }
@@ -1240,7 +1246,13 @@ export function setupIPC(): void {
     if (!plan.ok) {
       return {
         ok: false as const,
-        error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(path.basename(plan.styleTypPath)),
+        // The path RELATIVE TO THE PROJECT, not the basename. The guard now
+        // answers for the whole project, so the file that stopped this may sit
+        // in a folder the user is not looking at — "a hand-written style.typ"
+        // then names nothing they can act on.
+        error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(
+          appState.projectDir ? path.relative(appState.projectDir, plan.styleTypPath) : plan.styleTypPath,
+        ),
         kept: true as const,
       };
     }
@@ -1283,7 +1295,13 @@ export function setupIPC(): void {
       if (!plan.ok) {
         return {
           ok: false as const,
-          error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(path.basename(plan.styleTypPath)),
+          // The path RELATIVE TO THE PROJECT, not the basename. The guard now
+        // answers for the whole project, so the file that stopped this may sit
+        // in a folder the user is not looking at — "a hand-written style.typ"
+        // then names nothing they can act on.
+        error: resolveDict(getLocale()).mainDialogs.handwrittenStyleRefused(
+          appState.projectDir ? path.relative(appState.projectDir, plan.styleTypPath) : plan.styleTypPath,
+        ),
           kept: true as const,
         };
       }

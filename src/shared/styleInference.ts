@@ -53,9 +53,18 @@ export interface InferredStyle {
 // ─── Small parsing helpers ───────────────────────────────────────────────────
 
 /** All `#name(…)` argument lists in `src` (bracket-matched, multi-line). */
-function findCalls(src: string, name: string): string[] {
+function findCalls(src: string, name: string, setOnly = false): string[] {
   const out: string[] = [];
-  const re = new RegExp(`(?:#set\\s+|#|\\bset\\s+)${name}\\s*\\(`, 'g');
+  // `setOnly` excludes a bare `#text(…)`. That is not a nicety: `#text()` styles
+  // one fragment, `set text()` states the document rule, and the body-text scan
+  // below picks the LONGEST matching argument list. A decorative
+  // `#text(font: head-font, size: 54pt, weight: 300, fill: rgb("#c3cad6"))`
+  // inside a heading rule is longer than the real
+  // `set text(font: body-font, size: 9.5pt, fill: ink)` — so an inline flourish
+  // would define the document's body font and base size. Same failure as the
+  // heading scan next door, one level up.
+  const prefix = setOnly ? '(?:#set\\s+|\\bset\\s+)' : '(?:#set\\s+|#|\\bset\\s+)';
+  const re = new RegExp(`${prefix}${name}\\s*\\(`, 'g');
   let m: RegExpExecArray | null;
   while ((m = re.exec(src))) {
     const open = m.index + m[0].length - 1;
@@ -145,7 +154,17 @@ function collectBindings(src: string): { colors: Map<string, string>; strings: M
     const hex = colorExprToHex(rhs.replace(/\/\/.*$/, '').trim());
     if (hex) { colors.set(name, hex); continue; }
     const str = rhs.match(/^"((?:[^"\\]|\\.)*)"\s*(\/\/.*)?$/);
-    if (str) strings.set(name, str[1].replace(/\\"/g, '"'));
+    if (str) { strings.set(name, str[1].replace(/\\"/g, '"')); continue; }
+    // A font is often bound to a FALLBACK LIST rather than one name:
+    //   #let body-font = ("Inter", "Inter 16pt")
+    // Typst uses the first family that resolves, so the first entry is the one
+    // the document is designed in. Dropping the binding — which is what happened
+    // — lost the body font entirely and the export fell back to a default serif
+    // that does not exist as a file on the machine. Measured in one of the four
+    // hand-written corpus projects; its sibling binds a plain string and always
+    // worked, which is why the gap went unnoticed.
+    const list = rhs.match(/^\(\s*"((?:[^"\\]|\\.)*)"/);
+    if (list) strings.set(name, list[1].replace(/\\"/g, '"'));
   }
   return { colors, strings };
 }
@@ -200,7 +219,29 @@ function headingRules(src: string): Map<number, { size?: string; weight?: string
     const tail = src.slice(m.index + m[0].length);
     const endM = tail.search(/\n\s*(?:#?show\s|#let\s)/);
     const rule = tail.slice(0, endM > 0 ? endM : 1200);
-    // Every `text(` call inside; prefer the one that renders `it.body` / `it)`.
+    // Every `text(` call inside; prefer the one that renders the heading body.
+    //
+    // A heading rule routinely contains SEVERAL `text(…)` calls, and only one of
+    // them sets the heading. Measured across the four hand-written projects in
+    // the corpus, the first one is a decorative chapter number:
+    //
+    //   text(font: head-font, size: 54pt, weight: 300, …)[#chap-num()]   ← number
+    //   text(font: head-font, size: 26pt, weight: 700, …)[#it.body]      ← heading
+    //
+    // so "take the first" reported 54pt where the heading is 26pt — a factor of
+    // 2.08, in three of the four projects (26/54, 27/58, 26/54). The web export
+    // then rendered every h1 at roughly twice its real size.
+    //
+    // The `it` test looked ONLY inside the parentheses. Both spellings occur in
+    // the corpus and both are ordinary Typst: `it.body` as a positional argument
+    // (`text(size: 25pt, …, it.body)` — the one project that read correctly), and
+    // as the trailing content block (`text(size: 26pt, …)[#it.body]` — the three
+    // that did not). So the body block is now searched as well.
+    //
+    // Adjacency is required, and that is Typst's own rule rather than a
+    // shortcut: a `[…]` binds to the call before it only when byte-adjacent
+    // (compiler-verified, see CLAUDE.md) — a space, a newline or a comment
+    // between `)` and `[` makes it a separate block.
     let best: string | undefined;
     const tre = /\btext\s*\(/g;
     let t: RegExpExecArray | null;
@@ -208,7 +249,8 @@ function headingRules(src: string): Map<number, { size?: string; weight?: string
       const open = t.index + t[0].length - 1;
       const b = matchBracket(rule, open, '(', ')');
       if (!b) continue;
-      if (/\bit\b/.test(b.inner)) { best = b.inner; break; }
+      const body = rule[b.end] === '[' ? (matchBracket(rule, b.end, '[', ']')?.inner ?? '') : '';
+      if (/\bit\b/.test(b.inner) || /\bit\b/.test(body)) { best = b.inner; break; }
       best ??= b.inner;
     }
     if (!best) continue;
@@ -254,7 +296,7 @@ export function inferStyleFromTypst(sources: string[]): InferredStyle {
   let lang: string | undefined;
 
   // --- body text: the `set text(…)` with a size (the document-level one) -----
-  const textCalls = findCalls(src, 'text').filter((a) => /(^|[,(\s])size\s*:/.test(a) && /(^|[,(\s])font\s*:/.test(a));
+  const textCalls = findCalls(src, 'text', true).filter((a) => /(^|[,(\s])size\s*:/.test(a) && /(^|[,(\s])font\s*:/.test(a));
   // Prefer the longest arg list — the apply-style one carries font+size+fill+lang.
   textCalls.sort((a, b) => b.length - a.length);
   const bodyArgs = textCalls[0];

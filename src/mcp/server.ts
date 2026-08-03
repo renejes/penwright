@@ -57,6 +57,8 @@ import {
   resolveDesignRoot,
   handwrittenStyleMessage,
   isDesignAdopted,
+  isHandwrittenStyle,
+  STYLE_TYP_BASENAME,
   styleJsonPath,
 } from '../shared/styleWrite.js';
 import { safeApply, fsIO, type VerifyOutcome } from '../shared/safeApply.js';
@@ -406,8 +408,8 @@ function parseArgs(): void {
  * the project — none of those is authored work, and snapshotting them would
  * fill the undo list with noise.
  */
-function guardedWrite(abs: string, content: string): void {
-  const resolved = guardWrite(abs);
+function guardedWrite(abs: string, content: string, opts: { restoring?: boolean } = {}): void {
+  const resolved = guardWrite(abs, opts);
   // Atomic: the app's watcher fires on `change` and reads immediately, and
   // every Typst compile reads the whole project. A truncate-then-fill hands
   // either of them a half-written document.
@@ -424,7 +426,20 @@ function guardedWrite(abs: string, content: string): void {
  *
  * Returns the resolved absolute path so callers can write to it directly.
  */
-function guardWrite(abs: string): string {
+/**
+ * `restoring` exempts a write that puts a PREVIOUS state back — the undo path.
+ *
+ * Without it the authored-style refusal below closed the very rescue it was
+ * written to preserve: once an unguarded route (`replace_in_project`) had
+ * damaged an authored `style.typ`, the file on disk no longer carried the
+ * marker, so `penwright_undo_last_edit` read it as authored and refused to
+ * write the snapshot back. Reproduced end-to-end, and against HEAD, where the
+ * same sequence restored it. The guard asks "may I replace this design with
+ * something else"; a restore is the opposite of that.
+ *
+ * Deliberately not a general `force`: it is set at exactly one call site.
+ */
+function guardWrite(abs: string, opts: { restoring?: boolean } = {}): string {
   const resolved = path.resolve(abs);
   const base = path.basename(resolved);
   const root = state.projectDir ? path.resolve(state.projectDir) : null;
@@ -449,6 +464,31 @@ function guardWrite(abs: string): string {
       `"${path.relative(root!, resolved)}" is inside a store Penwright manages (auto-backups / edit snapshots). ` +
       `Those are the user's recovery net — read them with penwright_list_backups or penwright_list_edits, but do not write into them.`,
     );
+  }
+
+  // An authored `style.typ` is refused here, not only in the design planner.
+  //
+  // The design tools ask the guard and refuse correctly — measured. Every
+  // CONTENT tool went straight past it to the same file: `write_file` and
+  // `update_document` replaced an authored design system outright and reported
+  // success, and `insert_design_element(file: "style.typ")` was stopped only by
+  // the compile verify, which passes through whenever the document was already
+  // failing to compile. The triggers are ordinary ("rewrite my design system",
+  // "use a warmer green"), and the projects this protects typically have no Git
+  // and no backups — the edit snapshot is the only way back, and nothing told
+  // the agent it had just needed one.
+  //
+  // One rule for one file: if Penwright will not regenerate it, Penwright will
+  // not overwrite it either.
+  const styleTypOnDisk = (): string | null => {
+    try { return fs.existsSync(resolved) ? fs.readFileSync(resolved, 'utf-8') : null; } catch { return null; }
+  };
+  // `toLowerCase`, because macOS and Windows file systems are case-insensitive:
+  // `Style.typ` and `style.typ` are the SAME file there, and comparing the name
+  // as written let one spelling walk straight past the other's protection.
+  if (!opts.restoring && inProject && base.toLowerCase() === STYLE_TYP_BASENAME
+      && isHandwrittenStyle(styleTypOnDisk())) {
+    throw new Error(handwrittenStyleMessage(path.relative(root!, resolved)));
   }
 
   if (inProject && !isTemp && !isState) {
@@ -1776,7 +1816,14 @@ tool(
           facingPages: facingPages ?? true,
           binding: binding ?? '5mm',
         },
-        style: fs.existsSync(path.join(dir, '.penwright', 'style.json'))
+        // `isDesignAdopted`, not "a style.json exists". Those are different
+        // questions and this branch is destructive when they disagree: on a
+        // hand-written project a stray style.json sent the export down the
+        // token path, which regenerates style.typ in print mode and repoints
+        // the root's `#import` at it — into a file where the author's `#let
+        // cover(…)` does not exist. The overlay branch below is the honest one
+        // for an authored design, and it is what the app now takes too.
+        style: isDesignAdopted(dir) && fs.existsSync(path.join(dir, '.penwright', 'style.json'))
           ? readProjectStyle(dir)
           : null,
         buildOverlay: buildPrintGeometryOverlay,
@@ -3400,7 +3447,10 @@ tool(
     // own snapshot, so an undo is itself undoable (a redo, in effect) and a
     // foreign lock still refuses.
     const target = taken.snapshot.filePath;
-    guardedWrite(target, taken.snapshot.content);
+    // `restoring`: this puts a previous state BACK. Without the exemption the
+    // authored-style guard refused exactly the file it exists to protect, once
+    // something else had already damaged it.
+    guardedWrite(target, taken.snapshot.content, { restoring: true });
     // Only now — an undo that failed to write must not have consumed the entry
     // it needed.
     taken.commit();

@@ -69,6 +69,66 @@ export function isHandwrittenStyle(styleTypSource: string | null): boolean {
   return styleTypSource.split('\n')[0].trim() !== STYLE_TYPST_MARKER;
 }
 
+/** Folders a design file never lives in — and that a scan must not descend. */
+const SCAN_SKIP = /^(\.git|\.penwright|node_modules|dist|build|out|release|assets|sources|comments|exports|fonts)$/;
+
+export interface StyleTypLocation {
+  abs: string;
+  /** True when Penwright did not generate it — the file the guard protects. */
+  authored: boolean;
+}
+
+/**
+ * Every `style.typ` inside the project, with whether it is the author's.
+ *
+ * The guard used to ask exactly ONE path: the one derived from the file that
+ * happened to be open. That is the wrong question, and it was measurably
+ * answerable "yes, go ahead" while an authored `style.typ` sat one directory
+ * away — because `resolveDocumentRoot` falls back to `findRootFile(currentFile)`
+ * and that returns a `.typ` nobody includes AS ITSELF. Reached by four ordinary
+ * routes on a project whose root is called `Angebot.typ` (so the by-name lookup
+ * finds nothing and the fallback decides): an orphaned chapter, "Import
+ * Markdown" (which creates exactly such a file and opens it), "Save As…" (which
+ * moves `currentFilePath` out of the project and leaves `projectDir`), and the
+ * ↑ button in the file tree. In each, a second, competing design system was
+ * generated beside the real one.
+ *
+ * So the question is now asked of the PROJECT. Bounded, and deliberately so:
+ * `withFileTypes` reports a symlinked directory as neither file nor directory,
+ * so the walk cannot be led outside by one.
+ *
+ * `maxDepth = 1` — the project root and one folder below it — because the veto
+ * has a cost in the other direction. A deep scan let ANY file called
+ * `style.typ` freeze the whole design surface: a template copied in for
+ * reference, an old backup folder, a second project someone parked inside this
+ * one. Worse, the agent could lock a healthy project against itself simply by
+ * writing a file with that name. Depth 1 covers both shapes that actually
+ * occur — the design beside the root (all four hand-written corpus projects)
+ * and the `doc/` layout where root and style sit one level down — while a
+ * stray copy further in no longer speaks for the project.
+ */
+export function findStyleTypFiles(projectDir: string, maxDepth = 1): StyleTypLocation[] {
+  const found: StyleTypLocation[] = [];
+  const walk = (dir: string, depth: number): void => {
+    if (depth > maxDepth || found.length >= 16) return;
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        if (e.name.startsWith('.') || SCAN_SKIP.test(e.name)) continue;
+        walk(path.join(dir, e.name), depth + 1);
+      } else if (e.isFile() && e.name === STYLE_TYP_BASENAME) {
+        const abs = path.join(dir, e.name);
+        found.push({ abs, authored: isHandwrittenStyle(readStyleTyp(abs)) });
+      }
+    }
+  };
+  walk(projectDir, 0);
+  // Shallowest first: the one nearest the project root is the design home.
+  found.sort((a, b) => a.abs.split(path.sep).length - b.abs.split(path.sep).length);
+  return found;
+}
+
 /**
  * May Penwright generate this project's `style.typ`?
  *
@@ -88,7 +148,11 @@ export function isHandwrittenStyle(styleTypSource: string | null): boolean {
 export function isDesignAdopted(projectDir: string, currentFile: string | null = null): boolean {
   const rootFile = resolveDesignRoot(projectDir, currentFile);
   const styleTypPath = path.join(styleTypDir(projectDir, rootFile), STYLE_TYP_BASENAME);
-  return !isHandwrittenStyle(readStyleTyp(styleTypPath));
+  if (isHandwrittenStyle(readStyleTyp(styleTypPath))) return false;
+  // …and anywhere else in the project. Asking only the resolved path answered
+  // "adopted" for a project that plainly owns an authored design, because the
+  // resolution had wandered off to a folder with no `style.typ` at all.
+  return !findStyleTypFiles(projectDir).some(s => s.authored);
 }
 
 /** Reads `style.typ` from disk, or null if absent/unreadable. */
@@ -168,11 +232,26 @@ export function planStyleWrites(args: {
 }): StyleWritePlan {
   const style = sanitizeProjectStyle(args.style);
   const rootFile = resolveDesignRoot(args.projectDir, args.currentFile);
-  const styleTypPath = path.join(styleTypDir(args.projectDir, rootFile), STYLE_TYP_BASENAME);
+  const resolved = path.join(styleTypDir(args.projectDir, rootFile), STYLE_TYP_BASENAME);
 
-  if (isHandwrittenStyle(readStyleTyp(styleTypPath))) {
-    return { ok: false, reason: 'handwritten-style', styleTypPath };
+  // Ask the project, not just the file that happens to be open. An authored
+  // `style.typ` ANYWHERE inside it settles the question — see `findStyleTypFiles`
+  // for the four ordinary routes that used to walk past one.
+  const existing = findStyleTypFiles(args.projectDir);
+  const authored = isHandwrittenStyle(readStyleTyp(resolved))
+    ? resolved
+    : existing.find(s => s.authored)?.abs;
+  if (authored) {
+    return { ok: false, reason: 'handwritten-style', styleTypPath: authored };
   }
+
+  // Write to the file that was CHECKED. Asking about one path and writing to
+  // another is how a second design system appeared beside the real one: the
+  // project already had a generated `style.typ` at its root, the resolution
+  // pointed into `chapters/`, and a fresh one was created there. An existing
+  // generated file is the design home whatever is open; only a project that has
+  // none at all falls back to the resolved path.
+  const styleTypPath = existing.find(s => !s.authored)?.abs ?? resolved;
 
   const writes: StyleWrite[] = [
     { abs: styleJsonPath(args.projectDir), content: JSON.stringify(style, null, 2) },
@@ -198,10 +277,21 @@ export function planStyleWrites(args: {
  * the English form to the agent.
  */
 export function handwrittenStyleMessage(styleTypPath: string): string {
+  // Names the actual PATH, not just the basename: the file that stopped this may
+  // sit in a different folder from the one being edited, and "a hand-written
+  // style.typ" then reads as a puzzle.
+  //
+  // The sentence used to add "and no .penwright/style.json beside it". That
+  // stopped being true when adoption came to hang on the marker alone, and a
+  // model reading a false, namable precondition tries to satisfy it — writing
+  // the style.json and coming back. Removed rather than corrected: the presence
+  // of a style.json is not a reason either way.
   return (
-    `This project has a hand-written ${path.basename(styleTypPath)} that Penwright did not generate, ` +
-    `and no .penwright/style.json beside it. Refusing to overwrite it — regenerating would destroy ` +
-    `the author's design system (colours, fonts, and any #let macros the document calls). ` +
-    `To manage this project's design with Penwright, rename ${path.basename(styleTypPath)} first.`
+    `This project has a hand-written ${styleTypPath} that Penwright did not generate. ` +
+    `Refusing to overwrite it — regenerating would destroy the author's design system ` +
+    `(colours, fonts, and any #let macros the document calls), and such projects usually ` +
+    `have no Git history to recover from. Creating a .penwright/style.json will NOT change ` +
+    `this answer. To manage this project's design with Penwright, rename ` +
+    `${path.basename(styleTypPath)} first.`
   );
 }

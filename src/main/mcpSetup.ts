@@ -109,7 +109,15 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // layer is ungated for everyone; PENWRIGHT_TRIAL_UNTIL is no longer written and
 // PENWRIGHT_LICENSE_KEY is informational. Hosts configured by an older version
 // still carry a stale trial timestamp, so the config must be rewritten.
-export const MCP_SETUP_VERSION = '0.40.0';
+// 0.41.0: the hand-written-style guard is asked of the PROJECT rather than of
+// whatever file is open (an orphaned chapter, "Save As…" or the ↑ button used to
+// walk past an authored style.typ and generate a second design system beside
+// it), it writes to the file it checked, the three export paths branch on the
+// marker instead of "a style.json exists", and an authored style.typ is refused
+// in guardWrite — write_file and update_document replaced one outright. The
+// undo path carries an explicit `restoring` exemption, or that same refusal
+// would close the only way back once another route had already done damage.
+export const MCP_SETUP_VERSION = '0.41.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

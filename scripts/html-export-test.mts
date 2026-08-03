@@ -736,6 +736,57 @@ console.log('\n── Test 18: design fidelity round (inference / leaks / cover 
   check('inference: justify lands in custom.preamble for styleToCss', /justify:\s*true/.test(inf.style.custom?.preamble ?? ''));
   check('lead detection: standfirst (no dropcap in definition) / dropcap (droplet)', detectLeadStyle([handStyle]) === 'standfirst' && detectLeadStyle(['#let lead(body) = dropcap(height: 3, body)']) === 'dropcap');
 
+  // 17a-bis — the OTHER shape of a heading rule, and the one that read wrong.
+  //
+  // The fixture above puts `it.body` inside the parentheses. That is the shape
+  // of exactly ONE of the four hand-written corpus projects — and the only one
+  // whose h1 was inferred correctly, which is why nothing caught this.
+  //
+  // The other three write a decorative chapter number FIRST and the heading as a
+  // trailing content block. Taking "the first text() call" gave 54pt where the
+  // heading is 26pt, in every one of them (26/54, 27/58, 26/54 — factor ~2.08).
+  // The body font is bound to a fallback LIST there, which the binding table
+  // dropped, so the family was lost entirely and fell back to a default.
+  {
+    const numberFirst = [
+      '#let ink = rgb("#222222")',
+      '#let body-font = ("Inter", "Inter 16pt")',   // a fallback list, not one name
+      '#let head-font = "Inter Tight"',
+      '#let apply-style(body) = {',
+      '  set text(font: body-font, size: 9.5pt, fill: ink)',
+      '  show heading.where(level: 1): it => {',
+      '    block[',
+      '      #text(font: head-font, size: 54pt, weight: 300, fill: rgb("#c3cad6"))[#chap-num()]',
+      '      #text(font: head-font, size: 26pt, weight: 700, fill: ink)[#it.body]',
+      '    ]',
+      '  }',
+      '  body',
+      '}',
+    ].join('\n');
+    const inf2 = inferStyleFromTypst([numberFirst]);
+    check(
+      'inference: a heading body in a trailing […] wins over a decorative number',
+      inf2.style.headings?.h1?.size === '26pt',
+      inf2.style.headings?.h1,
+    );
+    check(
+      'inference: a font bound to a fallback list resolves to its first family',
+      inf2.style.fonts?.body === 'Inter',
+      inf2.style.fonts,
+    );
+
+    // Typst binds a trailing `[…]` to the call before it ONLY when byte-adjacent.
+    // With a space between, it is a separate block and says nothing about which
+    // `text()` sets the heading — so the rule must fall back to the first call
+    // rather than claim the second.
+    const spaced = numberFirst.replace('fill: ink)[#it.body]', 'fill: ink) [#it.body]');
+    check(
+      'inference: a […] separated by a space does not bind to the call',
+      inferStyleFromTypst([spaced]).style.headings?.h1?.size === '54pt',
+      inferStyleFromTypst([spaced]).style.headings?.h1,
+    );
+  }
+
   // 17b — comment + multi-line #let definitions never leak as prose.
   const defBlock = [
     '// Zeile der Management-Summary: Label + Inhalt',
