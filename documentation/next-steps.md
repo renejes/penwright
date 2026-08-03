@@ -18,20 +18,20 @@ Nicht-technisch, aber blockierend. Dort gepflegt, hier nur verlinkt, damit es ni
 
 - [ ] Preis final entscheiden (Polar steht auf €59, Empfehlung €290)
 - [ ] `penwright.online` registrieren + DPMA/EUIPO-Recherche
-- [ ] Die beiden Lizenz-Zusätze anwaltlich gegenlesen lassen
-- [ ] `CONTRIBUTING.md` (keine Code-PRs — Copyright muss bei uns bleiben)
+- [ ] Die Lizenzwahl anwaltlich gegenlesen lassen — **PolyForm Strict 1.0.0 unverändert**, keine Zusätze mehr (release-strategy §3 hat die beiden geplanten Rider verworfen: Strict tut das ab Werk und ist von Lizenzanwälten geschrieben)
+- [x] ~~`CONTRIBUTING.md`~~ — in `9542ec1` angelegt (keine Code-PRs, damit das Copyright ungeteilt bleibt)
 - [ ] CycloneDX-SBOM + mitgelieferte Lizenztexte prüfen
 - [ ] Drei Bildschirmaufnahmen (§6 dort — die wirksamsten acht Stunden im Plan)
 - [ ] Impressum + Datenschutzerklärung
 - [ ] **Tor am 2026-08-24:** zwanzig Gespräche, ≥6 schriftliche Zusagen
 
-> ⚠️ `package.json` steht bereits auf `"license": "SEE LICENSE IN LICENSE.md"`, `LICENSE.md` liegt im Repo. Die Tür „nichts permissiv Lizenziertes ist je veröffentlicht" ist damit noch zu — **vor dem ersten öffentlichen Push prüfen**, dass sie es bleibt.
+> ⚠️ `package.json` steht bereits auf `"license": "SEE LICENSE IN LICENSE.md"`, `LICENSE.md` und `LICENSE-PolyForm-Strict-1.0.0.md` liegen im Repo. Die Tür „nichts permissiv Lizenziertes ist je veröffentlicht" ist damit noch zu — **vor dem ersten öffentlichen Push prüfen**, dass sie es bleibt. Das MIT-Badge und die Zeile „MIT © René Jesser" im `README.md` waren die zweite offene Stelle und sind in Session 48 korrigiert.
 
 ### 2. Windows — der einzige technische Launch-Blocker
 
 - [ ] **Auf echtem Gerät verifizieren.** Das Scaffolding steht (`platformBinary()`, `%APPDATA%`-Pfade, `build:mcp-binary:win`, `fetch:typst -- --win`), aber nichts davon ist je auf Windows gelaufen. Die ersten Fehlerberichte kämen sonst von Fremden und wären nicht reproduzierbar.
 - [ ] **`extraResources` filtert auf `typst-*`** und kopiert damit **jede** vorhandene Compiler-Binary in **jeden** Build (~45 MB pro Plattform). Zusammen mit der Verifikation anfassen.
-- [ ] **Signaturschiene klären.** Azure Trusted Signing ist seit 2025-04-02 auf US-/kanadische Organisationen mit ≥3 Jahren Historie beschränkt. Bleibt ein OV-Zertifikat mit Hardware-Token; [Certums Open-Source-Schiene](https://shop.certum.eu/code-signing.html) ist die günstigste — **aber an Open-Source gebunden, und ob PolyForm-NC deren Prüfung besteht, ist offen.** Dort anfragen, bevor Windows geplant wird.
+- [ ] **Signaturschiene klären.** Azure Trusted Signing ist seit 2025-04-02 auf US-/kanadische Organisationen mit ≥3 Jahren Historie beschränkt. Bleibt ein OV-Zertifikat mit Hardware-Token; [Certums Open-Source-Schiene](https://shop.certum.eu/code-signing.html) ist die günstigste — **aber an Open-Source gebunden, und ob PolyForm Strict deren Prüfung besteht, ist offen.** Dort anfragen, bevor Windows geplant wird.
 
 ### 3. Finales QA
 
@@ -66,7 +66,7 @@ Unverändert offen, und weiterhin am besten mit einer Bestandsaufnahme statt mit
 - [x] **Lizenzumbau** (`9542ec1`): keine Testphase, keine Sperre, kein Feature-Gate. Siehe [release-strategy.md](release-strategy.md) §9.
 - [x] **MCP-Umbau + Parität** (Blöcke 1–4) inkl. adversarialem Nach-Audit. [app-mcp-parity.md](app-mcp-parity.md).
 - [x] **„Können wir die 66 MCP-Tools reduzieren?"** — gemessen und verworfen. 15 Autorenaufgaben, **0 Fehlgriffe**, $1,36. [mcp-eval-results.md](eval-transcripts/mcp-eval-results.md).
-- [x] **Web-Export „Editorial Web Pack"** — Phasen 0/A/B/C/D/E gebaut auf `feat/web-export`; **nicht nach `main` gemergt**.
+- [x] **Web-Export „Editorial Web Pack"** — Phasen 0/A/B/C/D/E, seit v0.10.0/v0.11.0 ausgeliefert. (Der Branch `feat/web-export` existiert noch, ist aber vollständig in `main` enthalten — `git log main..feat/web-export` ist leer. Die Notiz „nicht gemergt" stand seit v0.10.0 falsch in den Dokumenten.)
 - [x] **Print-Export** (Beschnitt, Schnittmarken, Bundzuwachs, dpi-Preflight) + 2-up-Vorschau + `spread-image`. [print-export-plan.md](done/print-export-plan.md).
 - [x] **Erste DOM-Testsuite** (`scripts/popup-dom-test.mts`, Gate-Glied `test:dom`) — schließt die Schicht, in der die schwerste Regression der Session 48 saß.
 

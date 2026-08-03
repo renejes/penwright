@@ -7,10 +7,10 @@
 A standalone desktop app for WYSIWYG editing of [Typst](https://typst.app) documents —
 from academic theses to design-grade magazines, brochures and reports.
 
-![version](https://img.shields.io/badge/version-0.11.0-3b6ea5)
+![version](https://img.shields.io/badge/version-0.12.0-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
-![Windows](https://img.shields.io/badge/Windows-fast--follow-777777)
-![license](https://img.shields.io/badge/license-MIT-3fa45b)
+![Windows](https://img.shields.io/badge/Windows-planned-777777)
+![license](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-3fa45b)
 
 </div>
 
@@ -82,5 +82,7 @@ Windows is scaffolded as a fast-follow. Updates ship via newsletter + manual dow
 
 ## 📄 License
 
-MIT © René Jesser. Bundled third-party Typst packages and fonts keep their own licenses —
-see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+**Source-available, not Open Source.** [PolyForm Strict 1.0.0](LICENSE-PolyForm-Strict-1.0.0.md)
+© René Jesser — see [`LICENSE.md`](LICENSE.md). Private, academic and hobby use of the app is
+free and permanent; commercial use needs a licence. Bundled third-party Typst packages and fonts
+keep their own licenses — see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).

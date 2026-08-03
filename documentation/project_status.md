@@ -29,7 +29,7 @@
 > - **macOS „just works" bewiesen:** notarisiertes + gestapeltes DMG gebaut (`spctl: Notarized Developer ID`). `TYPST_BIN`/Package/Font-Path für MCP, Notarize-Dedup, Identity-Präfix-Fix, Electron-Fuses, Typst+MCP signiert.
 > - **Härtung:** Security (dropImage-Traversal, tote URL, Fuses) + Performance (wordStats/Kommentar-Dekorationen/Compile-Cancel/async-Backup). **Onboarding-Wizard.** **Windows-Scaffolding** (ungetestet).
 > - Davor Session 26: **Phase E — Per-Chapter Section Styles**; Session 25: **DOCX-Overhaul**.
-> **Version:** 0.12.0 (Pre-Release) — package.json + Doku synchron. **Nächste Aufgabe:** 🔑 **der manuelle Durchgang durch die App** — acht Sessions ohne einen einzigen App-Start, und die letzten Stufen sind zum großen Teil UI-Arbeit: dass die erzeugten Aufrufe kompilieren, die Spleiße byte-genau sind und 39 Projekte pixelgleich rendern, ist bewiesen; dass die Baustein-Karte und die Tabellen **gut zu bedienen** sind, lässt sich nur am laufenden Programm beurteilen. Danach die Launch-Blocker: `penwright.online` registrieren, QA auf einer realen 100-Seiten-Thesis, Windows als Fast-Follow. Details: `handover.md` §6.
+> **Version:** 0.12.0 (Pre-Release) — package.json + Doku synchron. **Nächste Aufgabe:** 🔑 **veröffentlichen.** Der App-Durchgang hat in Session 48 stattgefunden — alle sechs offenen UI-Punkte bestätigt. Was bleibt, ist überwiegend nicht-technisch und steht in [release-strategy.md](release-strategy.md) §10; der einzige technische Launch-Blocker ist **Windows** (ungeprüft auf echtem Gerät, Signaturschiene offen). Details: `handover.md` §0 und [next-steps.md](next-steps.md).
 
 ---
 
@@ -49,7 +49,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - **Lokales Crash-Reporting:** Plaintext-Reports nach `<userData>/crash-reports/`, Boot-Dialog beim naechsten Start, User entscheidet selbst ueber Weitergabe — keine externe Telemetrie
 - **MCP-Server mit 66 Tools**: Versionen- + Verlaufs-API (inkl. Auto-Backups + Undo-Netz), Writer-Features (Comments / Cross-Refs / Footnotes / projekt-eigene Bausteine), Discovery (Search / Replace / Citation-Source-Lookup), Import / Export / Assets (inkl. `penwright_export_print` für druckfertige PDFs), Presets, **Design-Surface (16 Tools, inkl. per-Chapter Section Styles + `penwright_get_selection`)** — externe Agents koennen die kompletten Editor- und Design-Workflows fahren, und jede Design-Mutation wird vor dem Commit test-kompiliert und bei Fehler zurueckgerollt
 - **Distribution macOS:** notarisiertes + gestapeltes DMG-Build erfolgreich (`npm run package:mac`, Apple Silicon). Auto-Updater **gestrichen** (Updates per Newsletter).
-- **Offen fuer Launch:** **manueller Durchgang durch die App** (groesste verbliebene Unsicherheit — acht Sessions ohne App-Start), `penwright.online` registrieren, finale QA auf echter 100-Seiten-Thesis, Windows als Fast-Follow. (Lokalisierung EN/DE ist seit Session 28 fertig.)
+- **Offen fuer Launch:** die Startbahn aus [release-strategy.md](release-strategy.md) §10 (Domain, Preis, SBOM, Impressum, das Tor am 2026-08-24), **Windows** als einziger technischer Blocker, finale QA auf echter 100-Seiten-Thesis. Der manuelle App-Durchgang ist in Session 48 erfolgt. (Lokalisierung EN/DE ist seit Session 28 fertig.)
 
 **Codebase:** ~24.500 Zeilen in 87 Dateien (Session 16)
 - Main Process: ~4.200 Zeilen (20 Module inkl. `pathSecurity`, `projectSearch`, `commentManager`, `citationSources`, `crashReporter`)
@@ -84,7 +84,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 | Code-Editor | CodeMirror 6 | 6.x |
 | PDF Viewer | pdfjs-dist | 5.x |
 | MCP Server | @modelcontextprotocol/sdk | 1.28 |
-| MCP-Binary | Bun `--compile` (Standalone) | `MCP_SETUP_VERSION` 0.30.0 |
+| MCP-Binary | Bun `--compile` (Standalone) | `MCP_SETUP_VERSION` 0.41.0 |
 | Persistenz | electron-store | 10.x |
 | Lizenz-Management | @polar-sh/sdk | 0.x |
 | Lizenz-Verschluesselung | Electron safeStorage | OS-Keychain / DPAPI / libsecret |
@@ -184,7 +184,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] **About-Dialog** — Version, Electron/Chromium/Node-Versionen, Platform/Arch, Lizenz-Tier (Unlicensed/Basic/Pro-Badge), Links (User Guide, Website, Report Issue), "Copy Diagnostics" fuer Bug-Reports
 - [x] **Bestaetigungsdialoge bei destruktiven Cloud-Ops:** Restore Version, Apply Backup, Cloud-Backup laden (Pull) — Vokabular bleibt im Versionen-Sprech, kein „Pull / Reset / Branch"
 
-**MCP Server (Model Context Protocol) — 66 Tools, Server-Version 0.12.0 (`MCP_SETUP_VERSION` 0.30.0):**
+**MCP Server (Model Context Protocol) — 66 Tools, Server-Version 0.12.0 (`MCP_SETUP_VERSION` 0.41.0):**
 - [x] Eigenstaendiger Bun-Standalone-Binary (`src/mcp/server.ts`), entkoppelt von der laufenden App
 - [x] **Wo bin ich (5):** set_project, get_document, open_file, list_files, read_file
 - [x] **Schreiben (4):** update_document, write_file, import_markdown, add_image (Content-Hash-Dedup auf `assets/`, Pfad relativ zur **Zieldatei** — Typst loest `image()` dateirelativ auf)
@@ -208,7 +208,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] Dynamischer Projektwechsel (kein hardcoded Pfad in Config)
 - [x] Getestet mit Claude Desktop (Cowork)
 - [x] **5 Skill-Dateien als MCP Prompts** (typst-reference, penwright-conventions, research-workflow, writing-style, design-conventions) — Inhalt aus `src/shared/skillTemplates.ts`, deployed pro Projekt nach `.claude/skills/<name>/SKILL.md`. Tilde-Fences (`~~~`) statt Backticks im Source, damit keine Escape-Hoelle in TS-Strings. Dazu das Handbuch als MCP-Resource (Session 43)
-- [x] Pro-Lizenz-Gating (`PENWRIGHT_LICENSE_KEY`) — **waehrend der 14-Tage-Demo voll freigeschaltet** ueber `PENWRIGHT_TRIAL_UNTIL`, das die App beim Registrieren einbackt
+- [x] ~~Pro-Lizenz-Gating (`PENWRIGHT_LICENSE_KEY`)~~ — **entfallen (Session 48, `9542ec1`).** Kein Gating, keine Demo, kein `PENWRIGHT_TRIAL_UNTIL`; ein Key ist rein informativ. [release-strategy.md](release-strategy.md) §9.
 - [x] **Doku:** [mcp-server.md](mcp-server.md) mit allen 66 Tools + Workflow-Beispielen; `npm run check:mcp` laesst den Build scheitern, wenn sie von `server.ts` abweicht
 
 **App ↔ MCP-Paritaet (Sessions 41–43) — die KI arbeitet unter denselben Garantien wie der Mensch:**
@@ -221,7 +221,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] Nachgewiesen von `scripts/parity-guards-test.mts`, `session-handoff-test.mts`, `write-provenance-test.mts`, `style-guard-test.mts` — jeder Fix mit einem Test, der ohne ihn rot wird (per Zuruecknehmen geprueft)
 
 **Testaufbau + Round-Trip-Sicherheit (Sessions 43–47):**
-- [x] **`npm test`** als Gate vor jedem Commit und in `package:{mac,win,linux}`: `check:mcp` → `typecheck` → `test:unit` → `test:corpus` → `test:compile:corpus` → `test:mcp`, ~2 Minuten. Kein Test-Framework, kein CI — eigenstaendige Assert-Skripte auf Wegwerf-Fixtures in `os.tmpdir()`
+- [x] **`npm test`** als Gate vor jedem Commit und in `package:{mac,win,linux}`: `check:mcp` → `typecheck` → `test:unit` → `test:dom` → `test:corpus` → `test:compile:corpus` → `test:mcp`, ~2 Minuten. Kein Test-Framework, kein CI — eigenstaendige Assert-Skripte auf Wegwerf-Fixtures in `os.tmpdir()`
 - [x] **Korpus-Textvergleich** (`roundtrip-corpus-test`) ueber jede erreichbare echte `.typ`; **die Baseline ist leer** — jeder Eintrag ist gefixt oder als unsichtbar bewiesen, jeder Fehlschlag also eine Nachricht
 - [x] **Pixel-Gate** (`compile-corpus-test`): kopiert jedes Korpus-**Projekt**, kompiliert die Wurzel, round-trippt jede Datei, kompiliert erneut und vergleicht **dekodierte Pixel** — ganzes Projekt, also Seitenzahlen, Outline und kapitelübergreifende Referenzen inklusive. Rendert mit `--ignore-system-fonts`
 - [x] **`penwright.corpus.json`** (git-ignoriert) richtet beide Suiten auf echte Projektordner ausserhalb des Repos. Dort lagen alle bisher gefundenen inhaltszerstoerenden Round-Trip-Bugs — nicht in den Presets
@@ -271,8 +271,8 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 - [x] `licenseManager.ts` mit Polar SDK (activate, validate, deactivate, 30-Tage Offline-Grace)
 - [x] `LicenseDialog.svelte` (Key-Eingabe, Status-Anzeige, Deaktivierung, Upgrade-Button)
 - [x] 5 IPC Channels (license:activate/validate/deactivate/getStatus/openCheckout)
-- [x] Status Bar zeigt "Unlicensed" / "Licensed" / "Pro" — klickbar
-- [x] MCP Server Pro-gated
+- [x] Status Bar zeigt „Lizenziert" / „Lizenz offen" / „Privat" — klickbar (die drei Zustände von `getEntitlement()`; „Unlicensed/Pro" gibt es seit `9542ec1` nicht mehr)
+- [x] ~~MCP Server Pro-gated~~ — **abgeschafft (Session 48, `9542ec1`):** der Server startet bedingungslos; `validateAccess()` und `PENWRIGHT_TRIAL_UNTIL` sind gelöscht. Begründung: [release-strategy.md](release-strategy.md) §9.
 - [x] Benutzerfreundliche Fehlermeldungen (ungueltige Keys, Geraetelimits, Offline)
 
 **Security (Session 6 + 8):**
@@ -304,7 +304,7 @@ vswrite Desktop ist eine eigenstaendige Electron Desktop-App, portiert aus der v
 
 ### Noch offen vor Launch
 
-- [ ] **Manueller Durchgang durch die App** — groesste verbliebene Unsicherheit: acht Sessions ohne einen einzigen App-Start, und die Baustein-Karte, die editierbaren Tabellen und die Gruppe „Aus diesem Projekt" sind zum grossen Teil UI-Arbeit. Dass die erzeugten Aufrufe kompilieren und die Spleisse byte-genau sind, ist bewiesen; wie sie sich **bedienen**, nicht
+- [x] **Manueller Durchgang durch die App** — in Session 48 erfolgt; alle sechs offenen UI-Punkte (Slash-Menue am Cursor, Datei-Picker, Scrollen bei offenem Popup, das siebenfeldrige `#cover`-Formular, Blocknamen und `#v`-Luecke, Zahnrad-Menue) bestaetigt.
 - [ ] **`penwright.online` registrieren** — bis dahin loesen Website-/Pricing-Links nicht auf
 - [ ] **QA auf echter 100-Seiten-Thesis** (nicht nur die 8 Test-Chapters)
 - [ ] **Windows als Fast-Follow** — verdrahtet, aber auf echtem Geraet ungeprueft

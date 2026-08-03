@@ -14,7 +14,7 @@ Damit verschiebt sich der Schwerpunkt. Was jetzt oben liegt, ist nicht mehr Edit
 
 > ### ▶ Hier anfangen: die Startbahn aus [release-strategy.md](release-strategy.md)
 >
-> Der Lizenzumbau ist **fertig und committet** (`9542ec1`): keine Testphase, keine Sperre, kein Feature-Gate. Was noch fehlt, ist überwiegend nicht-technisch und steht dort in §10 — Domain registrieren, die Lizenz-Zusätze anwaltlich gegenlesen, `CONTRIBUTING.md`, SBOM, drei Bildschirmaufnahmen, und das **Tor am 2026-08-24**: zwanzig Gespräche, ≥6 schriftliche Zusagen.
+> Der Lizenzumbau ist **fertig und committet** (`9542ec1`): keine Testphase, keine Sperre, kein Feature-Gate. Was noch fehlt, ist überwiegend nicht-technisch und steht dort in §10 — Domain registrieren, die Lizenzwahl anwaltlich gegenlesen (PolyForm Strict 1.0.0, unverändert — die zwei geplanten Zusätze sind verworfen), SBOM, drei Bildschirmaufnahmen, und das **Tor am 2026-08-24**: zwanzig Gespräche, ≥6 schriftliche Zusagen.
 >
 > **Der einzige technische Launch-Blocker ist Windows** (§5 dort: ungeprüft auf echtem Gerät, Signaturschiene ungeklärt).
 >
@@ -74,7 +74,7 @@ Drei Wurzeln geschlossen:
 
 ## 3. Der blinde Fleck hat sich verschoben
 
-`CLAUDE.md` sagte: *kein Test erreicht einen ProseMirror-Node-View.* Das gilt weiterhin — aber die Schicht darunter ist jetzt abgedeckt.
+Das letzte Handover sagte: *kein Test erreicht einen ProseMirror-Node-View.* Das gilt weiterhin — aber die Schicht darunter ist jetzt abgedeckt. (Nebenbei, weil es ein Muster ist: das letzte Handover behauptete, diese Lehre stehe in `CLAUDE.md`. Sie stand nie dort — die Datei nennt nur die *Folge* daraus, dass reine Logik nach `shared/` gehört, damit ein Test sie fahren kann. Eine Lehre, die man für aufgeschrieben hält, ist nicht aufgeschrieben.)
 
 **Warum es sie brauchte:** die schwerste Regression dieser Session saß genau dort. `Math.max(rect.height, scrollHeight)` gibt für ein Element mit CSS-`max-height` die *Inhaltshöhe* — beim Slash-Menü 586 statt der gerenderten 320. `clampPopup` schloss daraus „passt nirgends" und klemmte an den oberen Fensterrand. Ein `/` mitten im Dokument öffnete die Befehlsliste **über der Zeile, in die gerade getippt wurde**, an derselben Stelle egal wo der Cursor stand. Die Geometrie war die ganze Zeit korrekt; die falsche Zahl kam bei ihr an.
 
@@ -134,7 +134,7 @@ Document-Settings (schreibt die Wurzel), Kapitel hinzufügen, Bild-Drag-and-Drop
 - **codly 1.3.0** referenziert den in Typst 0.15 entfernten `pattern`-Typ. Nichts, was wir ausliefern, erreicht diese Zweige. Auf 1.4 warten.
 - **`paper-preprint` / `thesis-classic`** fordern *New Computer Modern* in Semibold — Typsts eingebaute Schrift hat 400/700. Durch Bündeln nicht lösbar.
 - **Verschachtelte Blockkommentare** erscheinen im Editor als bearbeitbarer Inhalt. PDF identisch, also Editor-Integrität, kein Datenverlust.
-- **Branch `feat/web-export`** unverändert, nicht nach `main` gemergt.
+- **Branch `feat/web-export`** existiert noch, ist aber **vollständig in `main` enthalten** (`git log main..feat/web-export` ist leer). Die Notiz „nicht gemergt" stand seit v0.10.0 falsch in den Dokumenten — kann gelöscht werden.
 
 ---
 

@@ -32,9 +32,9 @@
     "license_key": {
       "type": "string",
       "title": "Penwright License Key",
-      "description": "Your Penwright license key (starts with pw_LIC_). Required — the MCP server refuses to start without it. Get one at https://penwright.online.",
+      "description": "Your Penwright licence key (starts with pw_LIC_), if you have one. Optional — the server runs fully without it; a key only records that this is a commercially licensed install. See https://penwright.online.",
       "sensitive": true,
-      "required": true
+      "required": false
     }
   },
   "server": {
