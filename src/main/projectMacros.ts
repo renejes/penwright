@@ -168,6 +168,97 @@ interface MacroIndex {
 
 const IMPORT_RE = /^#import\s+"([^"]+)"\s*(?::\s*([^\n]*))?/;
 
+/**
+ * The calls that consume a path and thereby fix which file it resolves against.
+ *
+ * All of these were checked against the bundled 0.15.1, not assumed: each
+ * resolves relative to the file it is WRITTEN in, exactly as `image()` does.
+ *
+ * The lookbehinds are load-bearing, and there are two because Typst spells two
+ * different things with a dot.
+ *
+ *   1. Not part of a longer name. `\b` matches after any non-word character, so
+ *      a plain `\bimage\(` also fired on `hero-image(` — a macro that merely
+ *      calls ANOTHER macro whose name ends in `image` claimed to resolve the
+ *      path itself, which is exactly the pass-it-on case this detects.
+ *   2. Not a FIELD access. `mod.image(` is somebody else's function.
+ *      But `..csv(x)` is the SPREAD operator and IS the builtin — excluding
+ *      every leading dot rejected `table(..csv(datei).flatten())`, so the
+ *      second lookbehind only fires on a dot that follows a name or a closing
+ *      delimiter.
+ */
+const PATH_CONSUMER_RE =
+  /(?<![\p{L}\p{N}_\-])(?<![\p{L}\p{N}_)\]]\.)(image|read|bibliography|csv|json|yaml|xml|toml|cbor|plugin)\s*\(/u;
+
+/**
+ * The source range of a `#let`'s body: `#let name(params) = ‹body›`.
+ *
+ * Bounded by matching delimiters rather than by scanning for the next
+ * module-level line, because that heuristic was wrong in both directions and
+ * each direction produced a wrong answer in the UI:
+ *
+ *   - too SHORT: a `[…]` body may hold `#set text(size: 8pt)` at column 0,
+ *     which is ordinary markup. Cutting there hid the `#image()` below it and
+ *     the form warned about an indirection that did not exist.
+ *   - too LONG: the last `#let` in a file had no "next statement" to stop at,
+ *     so it ran to EOF and read the chapter's own prose. A `#figure(image(…))`
+ *     further down made an unrelated macro claim it consumed the path itself.
+ *
+ * Reads one expression: an optional identifier path followed by any run of
+ * call/block delimiters (`block(inset: 8pt)[…]`, `image(p)`, `context { … }`),
+ * with `matchTypstDelim` doing the nesting, strings and comments. Stops at a
+ * newline between tokens, so a body that ends cannot swallow what follows.
+ */
+function letBodyRange(content: string, afterParams: number): [number, number] {
+  let i = afterParams;
+  while (i < content.length && /\s/.test(content[i])) i++;
+  if (content[i] !== '=') return [afterParams, afterParams];
+  i++;
+  while (i < content.length && /\s/.test(content[i])) i++;
+
+  const start = i;
+  while (i < content.length) {
+    const c = content[i];
+    if (c === '(' || c === '[' || c === '{') {
+      const end = matchTypstDelim(content, i);
+      // Unclosed: the file is mid-edit. Claim the rest rather than half of it —
+      // a truncated body is what produced the false negatives above.
+      if (end === -1) return [start, content.length];
+      i = end + 1;
+      continue;
+    }
+    // Same line only. A newline between tokens ends the expression; one INSIDE
+    // a delimiter never reaches here.
+    if (c === ' ' || c === '\t') { i++; continue; }
+    if (/[\p{L}\p{N}_.\-]/u.test(c)) { i++; continue; }
+    break;
+  }
+  return [start, i];
+}
+
+/**
+ * Whether this `#let`'s own body is where a path argument gets consumed.
+ *
+ * Typst resolves a path relative to the file holding the `image()` call, so
+ * this is the difference between "the definition file is provably the right
+ * base" and "the value is only passed on and the base could be a third file".
+ * Measured: in a two-hop chain (`macros.typ` → `sub/deep.typ`, `image()` in
+ * `deep.typ`) the value must be relative to `deep.typ`, and the compiler's
+ * error points there.
+ *
+ * Comments and string literals are stripped first, so a `// resize the image(…)`
+ * note or a `"image("` inside a string cannot claim a consumption that is not
+ * there. All 22 path macros in the corpus answer true.
+ */
+function bodyConsumesPath(content: string, afterParams: number): boolean {
+  const [from, to] = letBodyRange(content, afterParams);
+  const body = content.slice(from, to)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
+  return PATH_CONSUMER_RE.test(body);
+}
+
 /** Parses one file's module-level `#let` functions and `#import` edges. */
 function indexFile(filePath: string, root: string, content: string): {
   macros: ProjectMacro[];
@@ -229,6 +320,7 @@ function indexFile(filePath: string, root: string, content: string): {
       filePath,
       relPath,
       line: i + 1,
+      resolvesPathsHere: params.some(p => p.isPath) ? bodyConsumesPath(content, close + 1) : undefined,
     });
   }
 

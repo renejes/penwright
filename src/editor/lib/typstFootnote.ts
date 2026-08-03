@@ -1,5 +1,6 @@
 import { Node, type Editor } from '@tiptap/core';
 import { t } from '../../shared/i18n/store.svelte';
+import { attachFloating, closeOnOutside, type FloatingHandle } from './popupAnchor';
 
 /**
  * Insert a footnote at the current selection and immediately open its
@@ -109,16 +110,17 @@ export const TypstFootnote = Node.create({
 
       // Popup editor elements
       let popup: HTMLDivElement | null = null;
-      let backdrop: HTMLDivElement | null = null;
+      let floating: FloatingHandle | null = null;
+      let unbindOutside: (() => void) | null = null;
 
       function closePopup() {
+        floating?.stop();
+        floating = null;
+        unbindOutside?.();
+        unbindOutside = null;
         if (popup) {
           popup.remove();
           popup = null;
-        }
-        if (backdrop) {
-          backdrop.remove();
-          backdrop = null;
         }
       }
 
@@ -142,22 +144,11 @@ export const TypstFootnote = Node.create({
           return;
         }
 
-        const rect = dom.getBoundingClientRect();
-
-        // Backdrop to close on outside click
-        backdrop = document.createElement('div');
-        backdrop.className = 'footnote-popup-backdrop';
-        backdrop.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          closePopup();
-        });
-        document.body.appendChild(backdrop);
-
-        // Popup panel
+        // Popup panel. Placed by `attachFloating` once it is in the document and
+        // measurable — a footnote badge is inline, so at the end of a line the
+        // old `left = rect.left` pushed a 300 px panel off the right edge.
         popup = document.createElement('div');
         popup.className = 'footnote-popup';
-        popup.style.left = `${rect.left}px`;
-        popup.style.top = `${rect.bottom + 4}px`;
 
         const label = document.createElement('div');
         label.className = 'footnote-popup-label';
@@ -180,6 +171,9 @@ export const TypstFootnote = Node.create({
         // Save on every input (live update)
         textarea.addEventListener('input', () => {
           updateNodeContent(textarea.value);
+          // The textarea just grew; re-place so it cannot walk out of the
+          // viewport while it is being typed into.
+          floating?.update();
         });
 
         // Close on Escape, confirm on Cmd+Enter
@@ -205,12 +199,26 @@ export const TypstFootnote = Node.create({
 
         document.body.appendChild(popup);
 
+        // `cap` because `.footnote-popup` has no max-height of its own and a
+        // long note grows without limit on a page that cannot scroll.
+        floating = attachFloating(
+          popup,
+          () => (dom.isConnected ? dom.getBoundingClientRect() : null),
+          { cap: true, observe: dom },
+        );
+        // Replaces the full-screen backdrop this used to build. Measured: that
+        // backdrop took `.editor-container` from 480 px of wheel scroll to 0 —
+        // while a footnote was open the document could not be scrolled at all.
+        unbindOutside = closeOnOutside(() => [popup, dom], closePopup);
+
         // Focus and auto-resize after mount
         requestAnimationFrame(() => {
           textarea.focus();
           textarea.selectionStart = textarea.value.length;
           textarea.selectionEnd = textarea.value.length;
           autoResize();
+          // The height is only final after the resize.
+          floating?.update();
         });
       }
 

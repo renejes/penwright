@@ -67,7 +67,15 @@ export const editorLib = {
   // Magazine node editors (popups)
   macroEditHint: 'Esc or Cmd+Enter to close',
   macroPickFile: 'Choose file…',
-  macroPathHint: 'A file path, relative to this document',
+  // Names the file the path resolves against. It said "relative to this
+  // document", which is the belief that broke the picker: Typst resolves a path
+  // against the file holding the `image()` call, so for a macro argument that is
+  // the macro's own file, not the chapter being edited.
+  macroPathHint: (file: string): string => `A file path, relative to ${file}`,
+  // The macro only passes the value on, so the base could be a third file.
+  // Saying so beats a confident wrong path.
+  macroPathHintIndirect: (file: string): string =>
+    `A file path. ${file} passes it on, so the base may be a different file — check that it still compiles.`,
   macroDefaultHint: 'Empty = the default from the definition',
   macroDefaultValue: '(default)',
   macroLabelBody: 'Content',

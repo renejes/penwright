@@ -30,6 +30,19 @@ export interface ProjectMacro {
   filePath: string;
   relPath: string;
   line: number;
+  /**
+   * True when this macro's own body contains the `image()` / `read()` /
+   * `bibliography()` call that will consume a path argument.
+   *
+   * Load-bearing for `assetPlaceholder` and for the file picker: Typst resolves
+   * a path relative to the file where that CALL is written, so when the answer
+   * is yes, `filePath` is provably the right base. When it is no, the macro only
+   * passes the value on and the real base may be a third file — the form says so
+   * rather than writing a confident wrong path. Optional because a payload built
+   * before this existed (or by a caller that cannot scan the body) must still
+   * type-check; absent means "not established", not "no".
+   */
+  resolvesPathsHere?: boolean;
 }
 
 export interface ProjectMacroResults {
@@ -63,6 +76,37 @@ export const BODY_PARAM = /^(body|content|inhalt|text|koerper|körper|children)$
 export const PATH_PARAM = /^(path|pfad|src|datei|file|bild|image|img|foto|photo)([A-Z0-9_-].*)?$/i;
 
 /**
+ * The placeholder path for a `path` parameter — reached from the DEFINING file.
+ *
+ * Typst resolves a path relative to the file where the `image()` call is
+ * literally written, NOT relative to the file the call is written into. Proven
+ * against the bundled 0.15.1: with `#let bildnachweis(b) = image(b)` in
+ * `macros.typ` and the call in `chapters/c2.typ`, the value `"assets/x.png"`
+ * compiles and `"../assets/x.png"` dies with
+ *
+ *     error: path "../assets/x.png" would escape the project root
+ *       ┌─ macros.typ:1:32          ← the error points at the DEFINITION
+ *
+ * so a placeholder computed from the call site is a broken document, not a
+ * cosmetic slip. Assets live at `<projectDir>/assets/` (one rule, see
+ * `shared/assetPlacement.ts`), so the climb out of the definition's own folder
+ * is all this needs.
+ *
+ * String arithmetic on a POSIX `relPath`, deliberately not `node:path` — this
+ * module is dependency-free because it also runs in the renderer bundle.
+ * A root-level `macros.typ` yields exactly the previous literal, which is what
+ * keeps all 22 path macros in the corpus byte-identical.
+ */
+export function assetPlaceholder(relPath: string, asset = 'assets/bild.jpg'): string {
+  // The MCP hands `buildMacroCall` a macro with `filePath` stripped off; if a
+  // caller ever drops `relPath` too, a thrown `.split` would take a tool answer
+  // down with it. Falling back to the root-level form is the old behaviour.
+  if (!relPath) return asset;
+  const depth = relPath.split('/').filter(s => s && s !== '.').length - 1;
+  return depth > 0 ? '../'.repeat(depth) + asset : asset;
+}
+
+/**
  * The Typst call to insert for a macro — the shape its own signature asks for.
  *
  * Named parameters are omitted: they have defaults, and emitting them all would
@@ -84,7 +128,13 @@ export function buildMacroCall(
     if (p.name === macro.bodyParam) continue;
     if (p.defaultValue === null) {
       const v = values[p.name];
-      args.push(v !== undefined ? v : p.isPath ? '"assets/bild.jpg"' : `"${p.name}"`);
+      args.push(
+        v !== undefined
+          ? v
+          : p.isPath
+            ? `"${assetPlaceholder(macro.relPath)}"`
+            : `"${p.name}"`,
+      );
     } else if (values[p.name] !== undefined) {
       args.push(`${p.name}: ${values[p.name]}`);
     }

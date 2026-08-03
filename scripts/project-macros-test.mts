@@ -306,6 +306,175 @@ console.log('\n── Every generated call compiles ──');
   }
 }
 
+// ─── A path argument is reached from the macro's OWN file ───────────────────
+//
+// Typst resolves a path against the file where the `image()` call is written,
+// not against the file the call is written INTO. So a placeholder — and the
+// file picker that replaces it — has to climb out of the macro's folder, not
+// out of the chapter's.
+//
+// This needs its own fixture, and that is the point: all 22 path macros in the
+// corpus are defined at the project root, where the two bases coincide, so the
+// corpus run above stays green either way and can never see this. The compile
+// below is the assertion with teeth; the two string checks around it say WHICH
+// way it broke.
+//
+// Note the compile probe above substitutes `"pw-probe.png"` for every path
+// argument, so it exercises the signature but never the placeholder. Here the
+// generated call is compiled exactly as the user would get it.
+console.log('\n── A path argument resolves against the macro\'s own file ──');
+{
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-macropath-'));
+  const w = (rel: string, body: string | Buffer): void => {
+    const p = path.join(proj, rel);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, body as Parameters<typeof fs.writeFileSync>[1]);
+  };
+
+  // A real 1×1 JPEG, because the placeholder names `assets/bild.jpg` and a PNG
+  // wearing that extension would make the compile fail for the wrong reason.
+  const JPEG_1x1 = Buffer.from(
+    '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof'
+    + 'Hh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAAB'
+    + 'AAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
+    'base64',
+  );
+  w('assets/bild.jpg', JPEG_1x1);
+  // The macro lives one folder DOWN, so definition-relative and chapter-relative
+  // differ. That is the whole fixture.
+  w('sub/macros.typ', '// Bildnachweis\n#let bildnachweis(pfad) = image(pfad, width: 20pt)\n');
+  w('macros.typ', '// Aufmacher\n#let aufmacher(pfad) = image(pfad, width: 20pt)\n');
+  w('chapters/c1.typ', '#import "../sub/macros.typ": *\n');
+  w('main.typ', '#include "chapters/c1.typ"\n');
+
+  const macros = listProjectMacros(proj).macros;
+  const sub = macros.find(m => m.name === 'bildnachweis');
+  const root = macros.find(m => m.name === 'aufmacher');
+
+  check('the subfolder macro is catalogued', !!sub);
+  check('the root macro is catalogued', !!root);
+
+  if (sub && root) {
+    check(
+      'a macro in sub/ gets a placeholder that climbs out of sub/',
+      buildMacroCall(sub).includes('"../assets/bild.jpg"'),
+      buildMacroCall(sub),
+    );
+    // The regression guard for the 22 corpus macros: a root-level definition
+    // must keep the exact literal it had before, byte for byte.
+    check(
+      'a macro at the project root keeps the plain placeholder',
+      buildMacroCall(root) === '#aufmacher("assets/bild.jpg")',
+      buildMacroCall(root),
+    );
+    check(
+      'the scanner sees that both consume the path themselves',
+      sub.resolvesPathsHere === true && root.resolvesPathsHere === true,
+      { sub: sub.resolvesPathsHere, root: root.resolvesPathsHere },
+    );
+
+    const bin = typstBin();
+    if (!bin) {
+      console.log('  ✗ no bundled Typst — this check exists to compile, so that is a failure');
+      fail++;
+    } else {
+      // Written into the CHAPTER, which is where a user inserts it, and compiled
+      // through the root so the #include path is real.
+      fs.appendFileSync(path.join(proj, 'chapters/c1.typ'), `\n${buildMacroCall(sub)}\n`);
+      const out = path.join(proj, 'out.pdf');
+      try {
+        execFileSync(bin, ['compile', '--package-path', path.join(REPO, 'resources', 'typst-packages'),
+          path.join(proj, 'main.typ'), out], { stdio: 'pipe', timeout: 60_000 });
+        check('the generated call compiles from a chapter', true);
+      } catch (err: any) {
+        const msg = String(err.stderr ?? err.message ?? err).split('\n').slice(0, 4).join(' | ');
+        check('the generated call compiles from a chapter', false, msg);
+      }
+    }
+  }
+
+  fs.rmSync(proj, { recursive: true, force: true });
+}
+
+// ─── resolvesPathsHere, in BOTH directions ─────────────────────────────────
+//
+// The flag says whether the macro's own body is where the path gets consumed,
+// which decides whether its file is provably the right base. Asserting only the
+// true side is worthless — `return true` would satisfy it — and the false side
+// is the one the flag exists for.
+//
+// Its own project, so these definitions cannot disturb the compile probe above.
+console.log('\n── resolvesPathsHere: consumed here, or passed on? ──');
+{
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-consumes-'));
+  const w = (rel: string, body: string): void => {
+    const p = path.join(proj, rel);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, body);
+  };
+
+  w('sub/deep.typ', [
+    '// Tief',
+    '#let tief(pfad) = image(pfad, width: 20pt)',
+    '// Mit Bindestrich im Namen',
+    '#let hero-image(pfad) = image(pfad, width: 20pt)',
+    '',
+  ].join('\n'));
+
+  w('macros.typ', [
+    '#import "sub/deep.typ": *',
+    '',
+    '// Konsumiert selbst',
+    '#let direkt(pfad) = image(pfad, width: 20pt)',
+    '',
+    '// Reicht nur weiter — die Basis ist sub/deep.typ, nicht diese Datei',
+    '#let weiter(pfad) = tief(pfad)',
+    '',
+    '// Reicht weiter an ein Makro, dessen NAME auf image endet',
+    '#let bindestrich(pfad) = hero-image(pfad)',
+    '',
+    '// Konsumiert selbst, aber im Markup-Rumpf mit #set in Spalte 0',
+    '#let mit-set(pfad) = [',
+    '#set text(size: 8pt)',
+    '#image(pfad, width: 20pt)',
+    ']',
+    '',
+    '// Konsumiert eine Tabelle, kein Bild',
+    '#let daten(datei) = table(columns: 2, ..csv(datei).flatten())',
+    '',
+  ].join('\n'));
+
+  // The LAST #let of a file, followed by ordinary chapter prose that happens to
+  // contain an image() of its own. Nothing may leak across the boundary.
+  w('chapters/c1.typ', [
+    '// Nur eine Box, der Pfad wird nirgends konsumiert',
+    '#let bildbox(pfad, titel) = block[#titel]',
+    '',
+    '#figure(image("../assets/bild.jpg"), caption: [Fliesstext, nicht Makrorumpf])',
+    '',
+  ].join('\n'));
+
+  const by = (n: string) => listProjectMacros(proj).macros.find(m => m.name === n);
+  const CASES: [string, boolean, string][] = [
+    ['direkt', true, 'ruft image() im eigenen Rumpf'],
+    ['mit-set', true, 'image() steht hinter einem #set in Spalte 0 im [..]-Rumpf'],
+    ['daten', true, 'csv() loest genauso relativ zur definierenden Datei auf'],
+    ['weiter', false, 'reicht an ein Makro in sub/deep.typ weiter'],
+    ['bindestrich', false, 'hero-image( darf nicht als image( zaehlen'],
+    ['bildbox', false, 'das image() darunter ist Kapitelprosa, nicht der Rumpf'],
+  ];
+  for (const [name, want, why] of CASES) {
+    const m = by(name);
+    check(
+      `${name}: resolvesPathsHere === ${want} — ${why}`,
+      !!m && m.resolvesPathsHere === want,
+      m ? { got: m.resolvesPathsHere } : 'macro not found',
+    );
+  }
+
+  fs.rmSync(proj, { recursive: true, force: true });
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n──────────\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

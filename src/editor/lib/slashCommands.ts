@@ -6,6 +6,7 @@ import { insertArticleHeaderWithEditor, insertMarginNoteWithEditor } from './typ
 import { t } from '../../shared/i18n/store.svelte';
 import { getProjectMacros } from './projectMacroStore';
 import { buildMacroCall, macroSignature } from '../../shared/macroCall';
+import { attachFloating, type FloatingHandle } from './popupAnchor';
 
 /** Logical grouping for the toolbar "Insert" dropdown (the slash menu ignores it). */
 export type InsertGroup = 'text' | 'blocks' | 'refs' | 'project';
@@ -334,6 +335,8 @@ class SlashPopup {
   private selected = 0;
   private items: SlashItem[] = [];
   private commandFn: ((props: unknown) => void) | null = null;
+  private floating: FloatingHandle | null = null;
+  private anchor: (() => DOMRect | null) | null = null;
 
   constructor(props: Record<string, unknown>) {
     this.el = document.createElement('div');
@@ -367,6 +370,10 @@ class SlashPopup {
   }
 
   destroy() {
+    // Before the element goes: the tracker holds document-level listeners and
+    // would keep placing a detached node for the rest of the session.
+    this.floating?.stop();
+    this.floating = null;
     this.el.remove();
   }
 
@@ -392,12 +399,27 @@ class SlashPopup {
     }
   }
 
+  /**
+   * Anchored to the caret, and clamped — a `/` typed near the bottom of the
+   * window used to open the menu below the viewport, on a page that cannot
+   * scroll to reach it.
+   *
+   * No `cap`: `.slash-menu` already caps itself at `max-height: 320px` in CSS,
+   * and an inline cap computed from the viewport would RAISE that to ~748 px,
+   * making the menu taller than it has ever been. Runs after `render()`, so
+   * what gets measured is the filtered list the user is looking at.
+   *
+   * The tracker is created ONCE and re-aimed. Rebuilding it per keystroke would
+   * add and remove document listeners on every character typed.
+   */
   private position(clientRect: (() => DOMRect | null) | null) {
     if (!clientRect) return;
-    const rect = clientRect();
-    if (!rect) return;
-    this.el.style.left = `${rect.left}px`;
-    this.el.style.top = `${rect.bottom + 4}px`;
+    this.anchor = clientRect;
+    if (!this.floating) {
+      this.floating = attachFloating(this.el, () => this.anchor?.() ?? null, {});
+    } else {
+      this.floating.update();
+    }
   }
 
   private render() {

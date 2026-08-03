@@ -105,7 +105,7 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // exports still branch on `config` alone).
 // 0.38.0: every raw block gets a human name (shared/rawBlockDescription.ts),
 // and a bare `#v(…)` renders as a gap instead of a code box.
-export const MCP_SETUP_VERSION = '0.38.0';
+export const MCP_SETUP_VERSION = '0.39.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Claude

@@ -1,6 +1,7 @@
 import { Extension, type Editor } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
+import { attachFloating, type FloatingHandle } from './popupAnchor';
 
 export interface CitationEntry {
   citekey: string;
@@ -119,6 +120,8 @@ class CitationPopup {
   private selected = 0;
   private items: CitationEntry[] = [];
   private commandFn: ((props: unknown) => void) | null = null;
+  private floating: FloatingHandle | null = null;
+  private anchor: (() => DOMRect | null) | null = null;
 
   constructor(props: Record<string, unknown>) {
     this.el = document.createElement('div');
@@ -152,6 +155,10 @@ class CitationPopup {
   }
 
   destroy() {
+    // Before the element goes: the tracker holds document-level listeners and
+    // would keep placing a detached node for the rest of the session.
+    this.floating?.stop();
+    this.floating = null;
     this.el.remove();
   }
 
@@ -177,12 +184,19 @@ class CitationPopup {
     }
   }
 
+  /**
+   * Same rules as the slash menu — see `slashCommands.ts`. Caret-anchored,
+   * clamped, no `cap` (`.citation-menu` caps itself at 320 px in CSS), and the
+   * tracker is created once rather than per keystroke.
+   */
   private position(clientRect: (() => DOMRect | null) | null) {
     if (!clientRect) return;
-    const rect = clientRect();
-    if (!rect) return;
-    this.el.style.left = `${rect.left}px`;
-    this.el.style.top = `${rect.bottom + 4}px`;
+    this.anchor = clientRect;
+    if (!this.floating) {
+      this.floating = attachFloating(this.el, () => this.anchor?.() ?? null, {});
+    } else {
+      this.floating.update();
+    }
   }
 
   private render() {

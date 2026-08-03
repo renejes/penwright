@@ -19,6 +19,7 @@ import { generateStyleTypst } from '../shared/styleParser';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleTypes';
 import { TYPST_SKILL, PENWRIGHT_SKILL, RESEARCH_SKILL, WRITING_STYLE_SKILL, DESIGN_SKILL } from '../shared/skillTemplates';
 import { appState } from './appState';
+import { isPathWithin } from './pathSecurity';
 import { addBreadcrumb } from './crashReporter';
 import { getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
@@ -541,10 +542,24 @@ function insertImageIntoDocument(srcAbs: string, data?: Buffer): void {
  * picked asset lands in exactly the same place with exactly the same dedup and
  * the same file-relative path as one inserted any other way (P1: one placement
  * rule, `shared/assetPlacement.ts`).
+ *
+ * `targetFile` is the file the returned path must be relative to, and for a
+ * MACRO ARGUMENT that is the macro's defining file — NOT the open chapter.
+ * Typst resolves a path against the file where the `image()` call is written,
+ * so with `#let bildnachweis(b) = image(b)` in `macros.typ` and the call in
+ * `chapters/c2.typ`, `"assets/x.png"` compiles and `"../assets/x.png"` fails
+ * with `path "../assets/x.png" would escape the project root` — pointing at
+ * `macros.typ`. Defaulting to `currentFilePath` was therefore not a near miss
+ * but a document that stops building.
  */
 export async function pickAssetPath(targetFile?: string | null): Promise<{ src: string } | null> {
   const projectDir = assetProjectDir();
-  const forFile = targetFile ?? appState.currentFilePath;
+  // The parameter now carries a value chosen in the renderer, where it used to
+  // be dead (`{}` at every call site). Anything that reaches `assetPathFrom`
+  // shapes a path written into the document, so it is checked before use rather
+  // than trusted; a base outside the project falls back to the old behaviour.
+  const requested = targetFile && isPathWithin(targetFile, projectDir) ? targetFile : null;
+  const forFile = requested ?? appState.currentFilePath;
   if (!projectDir || !forFile) return null;
   const dict = resolveDict(getLocale()).mainDialogs;
   const result = await dialog.showOpenDialog({

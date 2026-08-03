@@ -106,11 +106,8 @@ body {
   opacity: 1;
 }
 
-.command-hub-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-}
+/* `.command-hub-backdrop` removed: CommandHub.svelte was retired in Session 11
+   and nothing has built this element since. */
 
 .command-hub-dropdown {
   position: absolute;
@@ -803,6 +800,7 @@ body {
   background: none;
   padding: 0;
   margin: 0.25em 0;
+}
 
 /* Belt and braces with the render path: the gap carries its own measurement, so
    the label chip above it said the same thing twice — measured at 52 px where a
@@ -1104,11 +1102,12 @@ body {
 }
 
 /* ─── Footnote Popup Editor ────────────────── */
-.footnote-popup-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-}
+/* The full-screen backdrop is gone, and deliberately not replaced. `position:
+   fixed; inset: 0` makes itself the wheel target, and its scroll chain is
+   body/html — both `overflow: hidden` per index.html. Measured with real wheel
+   events: `.editor-container` scrolled 480 px without it and 0 px with it, so
+   for as long as any popup was open the document could not be scrolled at all.
+   Outside clicks now go through `popupAnchor.closeOnOutside`. */
 
 .footnote-popup {
   position: fixed;
@@ -1118,7 +1117,12 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
+  /* Vertically scrollable, because `clampPopup` caps the height to the viewport
+     and the page behind it cannot scroll (`html, body { overflow: hidden }`).
+     With plain `hidden` the cap only moved the problem: a 7-field form was cut
+     off with nothing to reach the rest by. Horizontal stays hidden so the
+     rounded corners still clip. */
+  overflow: hidden auto;
 }
 
 .footnote-popup-label {
@@ -1413,11 +1417,8 @@ body {
 }
 
 /* ─── Quick Settings Dropdown ───────────────── */
-.quick-settings-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-}
+/* `.quick-settings-backdrop` removed with the gear popover it belonged to
+   (QuickSettings.svelte, retired in the i18n session). */
 
 .quick-settings-dropdown {
   position: fixed;
@@ -1801,11 +1802,7 @@ body {
 }
 
 /* ─── Table Settings Dropdown ─────────────── */
-.table-settings-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-}
+/* Removed with the footnote backdrop above, for the same measured reason. */
 
 .table-settings-dropdown {
   z-index: 9999;
@@ -1815,6 +1812,9 @@ body {
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   padding: 8px;
+  /* The placement caps the height against the viewport; without a scroller that
+     cap would only hide the buttons past it, on a page that cannot scroll. */
+  overflow: hidden auto;
 }
 
 .table-settings-header {
@@ -2329,7 +2329,11 @@ body {
 }
 .pw-macro-card-empty { opacity: 0.45; font-style: italic; }
 
-.pw-macro-popup-wide { min-width: 340px; max-width: 460px; }
+/* 340px is what this ALWAYS rendered: `min-width: 340px` clamped the inherited
+   `width: 300px` up, and `max-width: 460px` could never bind. Stated as the one
+   value it is, so the rule says what happens — widening it further is a design
+   decision, not a side effect of removing a rule that never applied. */
+.pw-macro-popup-wide { width: 340px; }
 .pw-macro-popup-code {
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 0.82rem;

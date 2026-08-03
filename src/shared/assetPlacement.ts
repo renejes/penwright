@@ -22,11 +22,26 @@
  *   2. Same name AND same bytes → reuse the file already there. Importing the
  *      same picture twice does not produce two copies.
  *   3. Same name, different bytes → `photo-2.png`. Never an overwrite.
- *   4. The path written into the document is relative to the FILE that will
- *      contain it, because that is how Typst resolves `image("…")`. A
- *      project-relative path inside `chapters/c1.typ` sends Typst looking for
+ *   4. The path written into the document is relative to the file that holds
+ *      the `image("…")` CALL, because that is the file Typst resolves against.
+ *      A project-relative path inside `chapters/c1.typ` sends Typst looking for
  *      `chapters/assets/…` and stops the whole document compiling — the bug
  *      `c744ce5` fixed on the MCP side and that the app never had a rule for.
+ *
+ *      "The file that holds the call" is not always the file being edited, and
+ *      reading rule 4 as "the open file" cost a second document. Two cases:
+ *
+ *        - an image NODE, or a design-element snippet: the `image()` lands in
+ *          the target file, so the base is that file. `assetPathFrom(openFile,…)`
+ *        - a MACRO ARGUMENT: the value travels to an `image()` inside the
+ *          macro, so the base is the macro's defining file. Measured against
+ *          0.15.1 — `#let bildnachweis(b) = image(b)` in `macros.typ`, called
+ *          from `chapters/c2.typ`: `"assets/x.png"` compiles, `"../assets/x.png"`
+ *          dies with `would escape the project root`, and the error points at
+ *          `macros.typ`. `assetPathFrom(macro.filePath, …)`
+ *
+ *      A macro that only passes the value further on resolves against a THIRD
+ *      file; `ProjectMacro.resolvesPathsHere` says which case applies.
  */
 
 import * as fs from 'fs';

@@ -12,6 +12,7 @@ import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { selectedRect } from '@tiptap/pm/tables';
 import { shiftTableColumn } from '../../shared/tableParams';
+import { attachFloating, closeOnOutside, type FloatingHandle } from './popupAnchor';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
@@ -143,13 +144,16 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
           gear.title = t().editorLib.tableSettingsTitle;
 
           let dropdownEl: HTMLElement | null = null;
-          let backdropEl: HTMLElement | null = null;
+          let floating: FloatingHandle | null = null;
+          let unbindOutside: (() => void) | null = null;
 
           function closeDropdown() {
+            floating?.stop();
+            floating = null;
+            unbindOutside?.();
+            unbindOutside = null;
             dropdownEl?.remove();
-            backdropEl?.remove();
             dropdownEl = null;
-            backdropEl = null;
             openDropdownCleanups.delete(closeDropdown);
           }
 
@@ -160,23 +164,11 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             const rows = tableNode.childCount;
             const cols = tableNode.child(0)?.childCount ?? 0;
 
-            // Backdrop (fixed, full viewport)
-            backdropEl = document.createElement('div');
-            backdropEl.className = 'table-settings-backdrop';
-            backdropEl.addEventListener('mousedown', (e) => {
-              e.preventDefault();
-              closeDropdown();
-            });
-            document.body.appendChild(backdropEl);
-
-            // Dropdown (fixed-positioned near the gear icon)
+            // Dropdown (fixed-positioned near the gear icon). Placed by
+            // `attachFloating` once its buttons exist and it can be measured.
             dropdownEl = document.createElement('div');
             dropdownEl.className = 'table-settings-dropdown';
-
-            const gearRect = gear.getBoundingClientRect();
             dropdownEl.style.position = 'fixed';
-            dropdownEl.style.left = `${gearRect.left}px`;
-            dropdownEl.style.bottom = `${window.innerHeight - gearRect.top + 4}px`;
 
             const dimsText = (c: number, r: number) =>
               t().editorLib.tableDims
@@ -242,6 +234,21 @@ function buildTableDecorations(doc: PmNode, tiptapEditor: Editor): DecorationSet
             dropdownEl.appendChild(deleteBtn);
 
             document.body.appendChild(dropdownEl);
+            // `prefer: 'above'` keeps the design decision this menu was written
+            // with — it opens upward out of the gear so it does not cover the
+            // table it edits — while gaining the fallback the hardcoded
+            // `bottom:` could not have: a gear near the top of the window now
+            // drops below instead of running off the screen. `cap` because this
+            // menu has no max-height of its own and carries seven buttons.
+            floating = attachFloating(
+              dropdownEl,
+              () => (gear.isConnected ? gear.getBoundingClientRect() : null),
+              { prefer: 'above', cap: true, observe: gear },
+            );
+            // Replaces the full-screen backdrop: it blocked the wheel outright
+            // (measured 480 px → 0 px of editor scroll) for as long as the menu
+            // was open.
+            unbindOutside = closeOnOutside(() => [dropdownEl, gear], closeDropdown);
             openDropdownCleanups.add(closeDropdown);
           }
 

@@ -127,7 +127,7 @@ export const ArticleHeader = Node.create({
       render();
 
       const pos = () => { const p = typeof getPos === 'function' ? getPos() : undefined; return typeof p === 'number' ? p : undefined; };
-      const destroy = attachFieldPopup(dom, () => ({
+      const popup = attachFieldPopup(dom, () => ({
         fields: [
           { key: 'kicker', label: t().editorLib.macroLabelKicker },
           { key: 'title', label: t().editorLib.macroLabelTitle },
@@ -155,7 +155,7 @@ export const ArticleHeader = Node.create({
           render();
           return true;
         },
-        destroy,
+        destroy: popup.destroy,
       };
     };
   },
@@ -241,7 +241,7 @@ export const MarginNote = Node.create({
       render();
 
       const pos = () => { const p = typeof getPos === 'function' ? getPos() : undefined; return typeof p === 'number' ? p : undefined; };
-      const destroy = attachFieldPopup(dom, () => ({
+      const popup = attachFieldPopup(dom, () => ({
         fields: [{ key: 'body', label: t().editorLib.macroLabelNote, rows: 3 }],
         read: (key) => String(current.attrs[key] ?? ''),
         write: (key, value) => {
@@ -264,7 +264,7 @@ export const MarginNote = Node.create({
           render();
           return true;
         },
-        destroy,
+        destroy: popup.destroy,
       };
     };
   },

@@ -66,7 +66,9 @@ export const editorLib: EditorLibMessages = {
   // Magazin-Node-Editoren (Popups)
   macroEditHint: 'Esc oder Cmd+Enter zum Schließen',
   macroPickFile: 'Datei wählen…',
-  macroPathHint: 'Ein Dateipfad, relativ zu diesem Dokument',
+  macroPathHint: (file: string): string => `Ein Dateipfad, relativ zu ${file}`,
+  macroPathHintIndirect: (file: string): string =>
+    `Ein Dateipfad. ${file} reicht ihn nur weiter, die Basis kann also eine andere Datei sein — bitte prüfen, ob es noch kompiliert.`,
   macroDefaultHint: 'Leer = der Vorgabewert aus der Definition',
   macroDefaultValue: '(Vorgabe)',
   macroLabelBody: 'Inhalt',

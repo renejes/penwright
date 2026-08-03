@@ -30,7 +30,14 @@ function labelledFields(macro: ProjectMacro, content: string): (MacroFormField &
     ...f,
     label: f.isBody ? (macro.bodyParam ?? m.macroLabelBody) : f.paramName,
     rows: f.isBody ? 4 : undefined,
-    hint: f.isPath ? m.macroPathHint : (!f.present && !f.isBody ? m.macroDefaultHint : undefined),
+    // `=== false` on purpose: `undefined` means the scanner did not establish it
+    // (an older payload, a caller that cannot read the body), and that is not the
+    // same claim as "this macro passes the path on".
+    hint: f.isPath
+      ? (macro.resolvesPathsHere === false
+          ? m.macroPathHintIndirect(macro.relPath)
+          : m.macroPathHint(macro.relPath))
+      : (!f.present && !f.isBody ? m.macroDefaultHint : undefined),
   }));
 }
 
@@ -133,14 +140,22 @@ export const TypstRawBlock = Node.create({
        * request/response, because a form field needs the string. The existing
        * image path is fire-and-forget (it inserts a node), so it cannot serve
        * this. Both route through the same `placeAssetFromPath`.
+       *
+       * `basedOn` is the file the path must be relative to, and it is NOT this
+       * chapter. Typst resolves a path against the file holding the `image()`
+       * call, so for a macro argument that is the macro's DEFINING file. Passing
+       * the open chapter wrote `../assets/…` into a call whose `image()` lives in
+       * `macros.typ`, and the document stopped compiling outright:
+       * `path "../assets/x.png" would escape the project root`. Measured against
+       * the bundled 0.15.1, not reasoned about.
        */
-      const pickAssetPath = async (): Promise<string | null> => {
+      const pickAssetPath = async (basedOn: string | null): Promise<string | null> => {
         const api = (window as unknown as {
           electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
         }).electronAPI;
         if (!api) return null;
         try {
-          const res = await api.invoke('project:pickAsset', {}) as { src?: string } | null;
+          const res = await api.invoke('project:pickAsset', { targetFile: basedOn }) as { src?: string } | null;
           return res?.src ?? null;
         } catch {
           return null;
@@ -177,6 +192,14 @@ export const TypstRawBlock = Node.create({
         toggle.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
+          // The toggle sits INSIDE the anchor and stops propagation, so neither
+          // the card's own click handler nor the outside-click listener sees it
+          // — an open popup would survive the card it belongs to and go on
+          // editing a block the user is now reading as source. Closed here
+          // because this is the deliberate switch; a card that merely blinks out
+          // while an unfinished expression is typed must NOT close (see the
+          // anchor-box guard in `popupAnchor.attachFloating`).
+          cardPopup.close();
           showRaw = true;
           render();
         });
@@ -211,7 +234,7 @@ export const TypstRawBlock = Node.create({
 
       // One popup for the card's lifetime; it asks for its fields on each open,
       // so it always reflects the CURRENT content rather than a stale snapshot.
-      const destroyPopup = attachFieldPopup(card, () => {
+      const cardPopup = attachFieldPopup(card, () => {
         const macro = matchedMacro();
         const content = liveContent();
         const fields = macro ? labelledFields(macro, content) : [];
@@ -224,7 +247,9 @@ export const TypstRawBlock = Node.create({
             rows: f.rows,
             code: f.kind === 'expr',
             hint: f.hint,
-            action: f.isPath ? { label: t().editorLib.macroPickFile, run: pickAssetPath } : undefined,
+            action: f.isPath
+              ? { label: t().editorLib.macroPickFile, run: () => pickAssetPath(macro?.filePath ?? null) }
+              : undefined,
           })),
           read: (key) => readMacroField(liveContent(), key),
           write: (key, value) => {
@@ -329,7 +354,7 @@ export const TypstRawBlock = Node.create({
         spacerEl.title = t().editorLib.spacerTooltip;
       };
 
-      const destroySpacerPopup = attachFieldPopup(spacerEl, () => ({
+      const spacerPopup = attachFieldPopup(spacerEl, () => ({
         title: t().editorLib.rawKindSpacing(bareSpacer(liveContent()) ?? ''),
         fields: [{ key: 'amount', label: t().editorLib.spacerAmountLabel, code: true, hint: t().editorLib.spacerAmountHint }],
         read: () => bareSpacer(liveContent()) ?? '',
@@ -440,10 +465,10 @@ export const TypstRawBlock = Node.create({
         },
         destroy() {
           window.removeEventListener(PROJECT_MACROS_EVENT, onMacros);
-          destroyPopup();
+          cardPopup.destroy();
           // The spacer has its own popup and its own click listener; dropping
           // the handle would leave both alive after the node is gone.
-          destroySpacerPopup();
+          spacerPopup.destroy();
         },
       };
     };
