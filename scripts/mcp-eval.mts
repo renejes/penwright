@@ -13,9 +13,10 @@
  * one number that has to decide something.
  *
  * Design notes that matter for believing the result:
- *   - `--strict-mcp-config` with a config naming only Penwright. The Meta-MCP
- *     proxy in ~/.claude.json carries other servers' tools, and those would
- *     change what "picking the right tool" even means.
+ *   - `--strict-mcp-config` with a config naming only Penwright. A host
+ *     config that also lists other servers would mix their tools into the
+ *     choice set, and those would change what "picking the right tool" even
+ *     means.
  *   - Each task runs in a fresh copy of the real sample project, in tmpdir —
  *     so no CLAUDE.md is discovered. Running in the repo would hand the model
  *     a document describing all sixty-three tools, which is precisely the help

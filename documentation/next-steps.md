@@ -2,7 +2,7 @@
 
 > **Stand:** 2026-08-03 (nach Session 48) · App **0.12.0** · `MCP_SETUP_VERSION` **0.41.0** · gebündeltes Typst **0.15.1** · MCP **66 Tools**
 >
-> **Was hier drinsteht:** ausschließlich noch offene Arbeit. Das *was und warum* der Veröffentlichung — Lizenz, Modell, Preis, Kanäle, Abbruchkriterien — steht in **[release-strategy.md](release-strategy.md)** und ist entschieden; diese Datei ist die technische Seite davon. Der aktuelle Codestand: [handover.md](handover.md) + [CLAUDE.md](../CLAUDE.md). Historie: [project_status.md](project_status.md).
+> **Was hier drinsteht:** ausschließlich noch offene Arbeit. Das *was und warum* der Veröffentlichung steht in **[done/release-strategy.md](done/release-strategy.md)** (Historie; das Preismodell darin gilt nicht mehr — die App ist kostenlos für alle). Der aktuelle Codestand: [project_status.md](project_status.md) + [CLAUDE.md](../CLAUDE.md). Session-Historie: [handover.md](handover.md).
 
 ---
 
@@ -12,11 +12,11 @@
 
 Was jetzt oben liegt, ist überwiegend **nicht mehr Code**.
 
-### 1. Der Startbahn-Block aus [release-strategy.md](release-strategy.md) §10 ⭐
+### 1. Der Startbahn-Block aus [release-strategy.md](done/release-strategy.md) §10 ⭐
 
 Nicht-technisch, aber blockierend. Dort gepflegt, hier nur verlinkt, damit es nicht zweimal gepflegt wird:
 
-- [ ] Preis final entscheiden (Polar steht auf €59, Empfehlung €290)
+- [x] ~~Preis final entscheiden~~ — entfallen: die App ist kostenlos für alle, inklusive Unternehmen (siehe [release-strategy.md](done/release-strategy.md) Banner)
 - [ ] `penwright.online` registrieren + DPMA/EUIPO-Recherche
 - [ ] Die Lizenzwahl anwaltlich gegenlesen lassen — **PolyForm Strict 1.0.0 unverändert**, keine Zusätze mehr (release-strategy §3 hat die beiden geplanten Rider verworfen: Strict tut das ab Werk und ist von Lizenzanwälten geschrieben)
 - [x] ~~`CONTRIBUTING.md`~~ — in `9542ec1` angelegt (keine Code-PRs, damit das Copyright ungeteilt bleibt)
@@ -63,7 +63,7 @@ Unverändert offen, und weiterhin am besten mit einer Bestandsaufnahme statt mit
 - [x] **Typst 0.15.1** gezogen **und** provisioniert (`scripts/fetch-typst.mjs`, `TYPST_VERSION` als einzige Wahrheit). Vorher lieferte jeder Nicht-arm64-Mac-Build **gar keinen** Compiler aus.
 - [x] **`typst-syntax` bewertet, nicht gebaut.** Verlustfreier CST, 214 KB als WASM, einziger Blocker die eigene CSP. Verdikt: der Modus-Stack war die billige Hälfte mit fast demselben Effekt. Zahlen im Anhang des alten Handovers.
 - [x] **Editor ohne Typst-Kenntnisse** (Sessions 47–48): Baustein-Katalog aus den `#let`s des Projekts, Karten mit Formular, editierbare Tabellen, Namen für alle Raw-Blöcke — von René im laufenden Programm bestätigt.
-- [x] **Lizenzumbau** (`9542ec1`): keine Testphase, keine Sperre, kein Feature-Gate. Siehe [release-strategy.md](release-strategy.md) §9.
+- [x] **Lizenzumbau** (`9542ec1`): keine Testphase, keine Sperre, kein Feature-Gate. Siehe [release-strategy.md](done/release-strategy.md) §9.
 - [x] **MCP-Umbau + Parität** (Blöcke 1–4) inkl. adversarialem Nach-Audit. [app-mcp-parity.md](app-mcp-parity.md).
 - [x] **„Können wir die 66 MCP-Tools reduzieren?"** — gemessen und verworfen. 15 Autorenaufgaben, **0 Fehlgriffe**, $1,36. [mcp-eval-results.md](eval-transcripts/mcp-eval-results.md).
 - [x] **Web-Export „Editorial Web Pack"** — Phasen 0/A/B/C/D/E, seit v0.10.0/v0.11.0 ausgeliefert. (Der Branch `feat/web-export` existiert noch, ist aber vollständig in `main` enthalten — `git log main..feat/web-export` ist leer. Die Notiz „nicht gemergt" stand seit v0.10.0 falsch in den Dokumenten.)
@@ -78,7 +78,7 @@ Unverändert offen, und weiterhin am besten mit einer Bestandsaufnahme statt mit
 
 Referenzmaterial, kein Arbeitsplan: Security-Befunde niedriger Priorität, teilweise Implementiertes, Build- und Distributionsnotizen, Handbuch-Hosting.
 
-> ⚠️ **§3.3 (Firebase Hosting) und der alte Release-Sprint sind überholt.** Vertrieb und Kanäle entscheidet [release-strategy.md](release-strategy.md) §5/§6: Binaries frei herunterladbar, macOS + Linux zum Start, Windows verschoben, kein Auto-Updater. Die Build-Kommandos in §3.5 gelten weiter.
+> ⚠️ **§3.3 (Firebase Hosting) und der alte Release-Sprint sind überholt.** Vertrieb und Kanäle entscheidet [release-strategy.md](done/release-strategy.md) §5/§6: Binaries frei herunterladbar, macOS + Linux zum Start, Windows verschoben, kein Auto-Updater. Die Build-Kommandos in §3.5 gelten weiter.
 
 
 ---

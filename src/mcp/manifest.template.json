@@ -12,7 +12,7 @@
   },
   "homepage": "https://penwright.online",
   "support": "https://penwright.online/support",
-  "license": "Proprietary",
+  "license": "SEE LICENSE IN LICENSE.md",
   "keywords": [
     "typst",
     "writing",
@@ -28,22 +28,12 @@
       "darwin"
     ]
   },
-  "user_config": {
-    "license_key": {
-      "type": "string",
-      "title": "Penwright License Key",
-      "description": "Your Penwright licence key (starts with pw_LIC_), if you have one. Optional — the server runs fully without it; a key only records that this is a commercially licensed install. See https://penwright.online.",
-      "sensitive": true,
-      "required": false
-    }
-  },
   "server": {
     "type": "binary",
     "entry_point": "server/bin/penwright-mcp",
     "mcp_config": {
       "command": "${__dirname}/server/bin/penwright-mcp",
       "env": {
-        "PENWRIGHT_LICENSE_KEY": "${user_config.license_key}",
         "TYPST_BIN": "${__dirname}/server/typst/typst",
         "TYPST_PACKAGE_PATH": "${__dirname}/server/typst-packages",
         "TYPST_FONT_PATH": "${__dirname}/server/fonts"

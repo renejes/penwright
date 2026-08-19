@@ -49,9 +49,6 @@ import {
   clearSelectionPin,
   getMcpSetupVersion,
   saveMcpSetupVersion,
-  getMcpTarget,
-  setMcpTarget,
-  setUsageContext,
   type PanelState,
   type BackupConfig,
   type ProjectPreferences,
@@ -85,6 +82,7 @@ import {
   styleTypDir,
   STYLE_TYP_BASENAME,
 } from '../shared/styleWrite';
+import { adoptEasyWritingProject, isEasyWritingProject } from '../shared/easyWriting';
 import { getCompiler } from './fileManager';
 import {
   checkClaudeDesktopInstalled,
@@ -92,17 +90,15 @@ import {
   openClaudeDesktop,
   isMcpSetupSupported,
   MCP_SETUP_VERSION,
-  buildMcpEnv,
 } from './mcpSetup';
 import {
-  ensureMcpTarget,
-  probeMetaMcp,
-  getMetaConfigPath,
+  registerMcpHost,
+  getCursorConfigPath,
   getClaudeCodeConfigPath,
-  type McpTarget,
+  isCursorRegistered,
+  isClaudeCodeRegistered,
+  type McpHost,
 } from './mcpRegistration';
-import { activateLicense, validateLicense, deactivateLicense, getEntitlement } from './licenseManager';
-import { getLicenseData } from './persistenceManager';
 import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
 import { findSourceForCitation } from './citationSources';
 import {
@@ -117,9 +113,6 @@ import {
 import { listProjectLabels } from './projectLabels';
 import { listProjectMacros } from './projectMacros';
 import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
-
-/** Direct Polar checkout for the Penwright license (one-time, €59). */
-const PENWRIGHT_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_u6Fn7z0pPvGUX6pWvPJE4U9bWSBg80fiNdJw12vbJzm';
 
 // ─── Selection-pin design snapshot (helpers) ─────────────────────
 // Used when pinning a selection ("Design with AI") to capture the
@@ -655,7 +648,7 @@ export function setupIPC(): void {
       return 'editor';
     }
 
-    if (filePath.match(/\.(bib|txt|md|yaml|yml|toml|json|csv|tex)$/i)) {
+    if (filePath.match(/\.(bib|txt|md|mdx|yaml|yml|toml|json|csv|tex)$/i)) {
       appState.mainWindow?.webContents.send('penwright', {
         type: 'openTextFile',
         path: filePath,
@@ -697,6 +690,9 @@ export function setupIPC(): void {
     });
     if (!result.canceled && result.filePaths[0]) {
       appState.projectDir = result.filePaths[0];
+      if (isEasyWritingProject(appState.projectDir)) {
+        adoptEasyWritingProject(appState.projectDir);
+      }
       publishSession();
       const typFiles = fs.readdirSync(appState.projectDir).filter(f => f.endsWith('.typ'));
       if (typFiles.length > 0) {
@@ -727,6 +723,12 @@ export function setupIPC(): void {
       throw new Error('Access denied: path is outside the project directory.');
     }
     await fs.promises.writeFile(filePath, content, 'utf-8');
+    // An Easy Writing chapter edited as text is the manuscript: refresh the
+    // Typst derivation so the preview matches, without the user reopening.
+    if (appState.projectDir && /\.mdx$/i.test(filePath) && isEasyWritingProject(appState.projectDir)) {
+      adoptEasyWritingProject(appState.projectDir);
+      getCompiler()?.compilePdf();
+    }
     appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
   });
 
@@ -879,84 +881,21 @@ export function setupIPC(): void {
     return { ok: true };
   });
 
-  // ─── MCP Registration target (Meta-MCP vs Claude Code) ───
-  // Where this app registers ITSELF as an MCP server. Exactly one of the two
-  // hosts is active; see mcpRegistration.ts.
-  ipcMain.handle('mcp:getConnectionStatus', async () => {
-    const target = getMcpTarget();
-    const metaReachable = await probeMetaMcp();
-    const defaultTarget: McpTarget = metaReachable ? 'meta' : 'claude';
-    const { access } = buildMcpEnv();
-    return {
-      target,                                  // null until the user/default decides
-      effectiveTarget: target ?? defaultTarget,
-      defaultTarget,
-      metaReachable,
-      access,                                  // 'personal' | 'commercial' — informational only
-      supported: true,                         // Meta-MCP + Claude Code work on all platforms
-      metaConfigPath: getMetaConfigPath(),
-      claudeConfigPath: getClaudeCodeConfigPath(),
-    };
-  });
-  ipcMain.handle('mcp:setTarget', async (_event, target: string) => {
-    if (target !== 'meta' && target !== 'claude') {
-      throw new Error(`Invalid MCP target: ${target}`);
+  // ─── MCP Registration (Cursor + optional Claude Code) ───
+  // Cursor is registered on every boot. The dialog can also add Claude Code.
+  ipcMain.handle('mcp:getConnectionStatus', () => ({
+    cursorRegistered: isCursorRegistered(),
+    claudeRegistered: isClaudeCodeRegistered(),
+    cursorConfigPath: getCursorConfigPath(),
+    claudeConfigPath: getClaudeCodeConfigPath(),
+    supported: true,
+  }));
+  ipcMain.handle('mcp:registerHost', async (_event, host: string) => {
+    if (host !== 'cursor' && host !== 'claude') {
+      throw new Error(`Invalid MCP host: ${host}`);
     }
-    setMcpTarget(target);
-    addBreadcrumb('mcp', `setTarget ${target}`);
-    return await ensureMcpTarget(target);
-  });
-
-  // ─── License Handlers ──────────────────────────
-  ipcMain.handle('license:activate', async (_event, key: string) => {
-    try {
-      return await activateLicense(key);
-    } catch (err) {
-      const msg = String(err);
-      let userMessage = 'Activation failed. Please check your license key.';
-      if (msg.includes('ResourceNotFound') || msg.includes('Not found')) {
-        userMessage = 'Invalid license key. Please check and try again.';
-      } else if (msg.includes('activation limit') || msg.includes('LimitExceeded')) {
-        userMessage = 'Device limit reached. Deactivate another device first or contact support.';
-      } else if (msg.includes('fetch') || msg.includes('ENOTFOUND')) {
-        userMessage = 'No internet connection. Please check your network and try again.';
-      }
-      return { status: 'none', tier: null, key: null, error: userMessage };
-    }
-  });
-
-  ipcMain.handle('license:validate', async () => {
-    return await validateLicense();
-  });
-
-  ipcMain.handle('license:deactivate', async () => {
-    await deactivateLicense();
-    return { status: 'none', tier: null, key: null };
-  });
-
-  ipcMain.handle('license:getStatus', () => {
-    const data = getLicenseData();
-    return {
-      status: data.licenseStatus || 'none',
-      tier: data.licenseTier,
-      key: data.licenseKey,
-    };
-  });
-
-  // Local licence state (personal / commercial) — the single source of truth
-  // for the status-bar label and the dismissible notice. It gates NOTHING:
-  // the app is complete and free for personal use, forever.
-  ipcMain.handle('license:getEntitlement', () => getEntitlement());
-
-  // The one-time "how do you use Penwright?" answer. Changeable any time from
-  // the licence dialog; `null` re-opens the question on next launch.
-  ipcMain.handle('license:setUsage', (_event, usage: string) => {
-    setUsageContext(usage === 'personal' || usage === 'commercial' ? usage : null);
-    return getEntitlement();
-  });
-
-  ipcMain.handle('license:openCheckout', () => {
-    shell.openExternal(PENWRIGHT_CHECKOUT_URL);
+    addBreadcrumb('mcp', `registerHost ${host}`);
+    return await registerMcpHost(host as McpHost);
   });
 
   // ─── Project Backups & Info ────────────────────

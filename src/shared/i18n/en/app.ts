@@ -40,15 +40,8 @@ export const app = {
   unsaved: 'Unsaved',
   saved: (time: string) => `Saved ${time}`,
 
-  // License badge + language toggle
+  // Language toggle
   switchLanguage: 'Switch language (English / German)',
-  licenseTitle: 'License',
-  licensed: 'Licensed',
-  /** Status-bar label for free personal use. Not a downgrade — the full app. */
-  personal: 'Personal use',
-  /** Status-bar label: declared commercial, no licence yet. Never blocking. */
-  licenseDue: 'Licence due',
-  buyNow: 'Buy licence',
 
   // Shown when a save overwrote a concurrent change to the same file. The
   // other version was kept as a snapshot, so this is a hint, not an error.

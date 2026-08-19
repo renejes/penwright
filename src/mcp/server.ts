@@ -13,8 +13,8 @@
  *   node dist/mcp/server.js --file /path/to/main.typ
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { McpServer } from '@modelcontextprotocol/server';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -64,7 +64,7 @@ import {
 import { safeApply, fsIO, type VerifyOutcome } from '../shared/safeApply.js';
 import { writeFileAtomic } from '../shared/fileWrite.js';
 import { listBackups, loadBackup, readBackupFile, isManagedStore } from '../shared/backupStore.js';
-import { scaffoldProject, planGitignore } from '../shared/projectScaffold.js';
+import { scaffoldProject, planGitignore, ensureSkills } from '../shared/projectScaffold.js';
 import {
   planAddChapter,
   planRemoveChapter,
@@ -105,6 +105,14 @@ import { buildMacroCall } from '../shared/macroCall.js';
 import { searchProject, replaceInProject } from '../main/projectSearch.js';
 import { findSourceForCitation } from '../main/citationSources.js';
 import { markdownToTypst } from '../shared/markdownImporter.js';
+import {
+  adoptEasyWritingProject,
+  isEasyWritingProject,
+  isEasyWritingManuscriptFile,
+  isEasyWritingTypesetChapter,
+  manuscriptWriteMessage,
+  typesetChapterWriteMessage,
+} from '../shared/easyWriting.js';
 import { serializeDocx, type RenderedSnippet } from '../shared/docxSerializer.js';
 import { deserializeTypst } from '../editor/lib/deserializer.js';
 import simpleGit from 'simple-git';
@@ -277,18 +285,11 @@ function deepMergeStyle(base: ProjectStyle, patch: unknown): ProjectStyle {
 interface ServerState {
   projectDir: string;
   currentFile: string | null;
-  /**
-   * The commercial licence key, if the host passed one. Recorded so a future
-   * feature can say "licensed", never checked to decide whether to start —
-   * the server runs for everyone. See documentation/release-strategy.md §9.
-   */
-  licenseKey: string | null;
 }
 
 const state: ServerState = {
   projectDir: '',
   currentFile: null,
-  licenseKey: null,
 };
 
 // ─── Parse CLI args ──────────────────────────────────
@@ -334,8 +335,6 @@ function parseArgs(): void {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--project' && args[i + 1]) {
       state.projectDir = path.resolve(args[++i]);
-    } else if (args[i] === '--license-key' && args[i + 1]) {
-      state.licenseKey = args[++i];
     } else if (args[i] === '--file' && args[i + 1]) {
       const filePath = path.resolve(args[++i]);
       state.currentFile = filePath;
@@ -343,11 +342,6 @@ function parseArgs(): void {
         state.projectDir = path.dirname(filePath);
       }
     }
-  }
-
-  // License key from env var (recorded, never checked — see ServerState).
-  if (!state.licenseKey && process.env.PENWRIGHT_LICENSE_KEY) {
-    state.licenseKey = process.env.PENWRIGHT_LICENSE_KEY;
   }
 
   // Fallback: env var
@@ -371,9 +365,13 @@ function parseArgs(): void {
   // pointed every file tool at a stranger's files.
   if (!state.projectDir) {
     const cwd = process.cwd();
-    if (findRootFileIn(cwd) || fs.existsSync(path.join(cwd, '.penwright'))) {
+    if (findRootFileIn(cwd) || fs.existsSync(path.join(cwd, '.penwright')) || isEasyWritingProject(cwd)) {
       state.projectDir = cwd;
     }
+  }
+
+  if (state.projectDir && isEasyWritingProject(state.projectDir)) {
+    adoptEasyWritingProject(state.projectDir);
   }
 
   if (state.projectDir && !state.currentFile) {
@@ -489,6 +487,14 @@ function guardWrite(abs: string, opts: { restoring?: boolean } = {}): string {
   if (!opts.restoring && inProject && base.toLowerCase() === STYLE_TYP_BASENAME
       && isHandwrittenStyle(styleTypOnDisk())) {
     throw new Error(handwrittenStyleMessage(path.relative(root!, resolved)));
+  }
+
+  if (!opts.restoring && inProject && root && isEasyWritingManuscriptFile(root, resolved)) {
+    throw new Error(manuscriptWriteMessage(path.relative(root, resolved).split(path.sep).join('/')));
+  }
+
+  if (!opts.restoring && inProject && root && isEasyWritingTypesetChapter(root, resolved)) {
+    throw new Error(typesetChapterWriteMessage(path.relative(root, resolved).split(path.sep).join('/')));
   }
 
   if (inProject && !isTemp && !isState) {
@@ -768,7 +774,7 @@ function resolveInsideProject(userPath: string): string {
  * is that an export writes an ARTEFACT, and an artefact never has a source
  * extension.
  */
-const SOURCE_EXTENSIONS = new Set(['.typ', '.bib', '.md', '.json', '.toml', '.yaml', '.yml', '.csl']);
+const SOURCE_EXTENSIONS = new Set(['.typ', '.bib', '.md', '.mdx', '.json', '.toml', '.yaml', '.yml', '.csl']);
 
 function resolveExportTarget(outputPath: string, expected: string): string {
   const abs = resolveInsideProject(outputPath);
@@ -836,6 +842,8 @@ Every write is snapshotted: penwright_list_edits, penwright_undo_last_edit. That
 Watch for two notes on results: a file open with unsaved changes (what you read is not what they see) and a document that was already failing to compile before you touched it (do not assume the next failure is yours).
 
 Web/HTML export has no tool. Tell the user: File ▸ Export to Web (HTML).
+
+Easy Writing folders (project.yaml + .mdx) keep the .mdx as the manuscript. Style with the design tools; do not rewrite .mdx or flatten [@citekey].
 
 The project's own conventions are prompts: penwright-conventions, typst-reference, design-conventions, writing-style, research-workflow.`;
 
@@ -1048,9 +1056,9 @@ const TOOL_META: Record<string, ToolMeta> = {
  * description, optional schema, handler), routed to `registerTool` and given
  * its metadata from `TOOL_META`.
  *
- * Typed as `typeof server.tool` so the zod-schema inference that gives every
- * handler its typed argument object survives. The callback is always the last
- * argument, which is what makes the variadic wrap safe.
+ * The overloads keep the zod-schema inference that gives every handler its
+ * typed argument object. The callback is always the last argument, which is
+ * what makes the variadic wrap safe.
  *
  * The handler wrap is where the notes the server owes the agent are attached —
  * in ONE place. See `withContestedNotes`.
@@ -1058,6 +1066,19 @@ const TOOL_META: Record<string, ToolMeta> = {
  * Deliberately no `outputSchema`: declaring one obliges every single return to
  * carry `structuredContent`, and these tools answer in prose.
  */
+type ZodRawShape = { [k: string]: z.ZodType };
+type InferArgs<S extends ZodRawShape> = z.infer<z.ZodObject<S>>;
+type ToolResult = unknown | Promise<unknown>;
+interface ToolRegister {
+  (name: string, description: string, handler: () => ToolResult): unknown;
+  <S extends ZodRawShape>(
+    name: string,
+    description: string,
+    schema: S,
+    handler: (args: InferArgs<S>) => ToolResult,
+  ): unknown;
+}
+
 const tool = ((...args: any[]) => {
   const fullName: string = typeof args[0] === 'string' ? args[0] : '';
   const shortName = fullName.replace(/^penwright_/, '');
@@ -1105,7 +1126,7 @@ const tool = ((...args: any[]) => {
     {
       title: meta.title,
       description,
-      ...(schema ? { inputSchema: schema } : {}),
+      ...(schema ? { inputSchema: z.object(schema) } : {}),
       annotations: {
         title: meta.title,
         readOnlyHint: meta.readOnly === true,
@@ -1117,7 +1138,7 @@ const tool = ((...args: any[]) => {
     },
     wrapped,
   );
-}) as typeof server.tool;
+}) as ToolRegister;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ─── Prompts: Project Skills ─────────────────────────
@@ -1208,9 +1229,9 @@ for (const doc of [
 }
 
 for (const prompt of SKILL_PROMPTS) {
-  server.prompt(
+  server.registerPrompt(
     prompt.name,
-    prompt.description,
+    { description: prompt.description },
     () => {
       const skillPath = path.join(state.projectDir, '.claude', 'skills', prompt.skillDir, 'SKILL.md');
       let content: string;
@@ -1228,7 +1249,7 @@ for (const prompt of SKILL_PROMPTS) {
 
 tool(
   'penwright_set_project',
-  'Sets the active project directory. Call this first to tell Penwright which Typst project to work with. Automatically detects the main .typ file (main.typ, document.typ, or first .typ found).',
+  'Sets the active project directory. Call this first to tell Penwright which Typst or Easy Writing (project.yaml + .mdx) project to work with. Automatically detects the main .typ file (main.typ, document.typ, or first .typ found); Easy Writing folders are typeset from the MDX without rewriting it.',
   { projectDir: z.string().describe('Absolute path to the Typst project directory') },
   async ({ projectDir }) => {
     const absDir = path.resolve(projectDir);
@@ -1238,6 +1259,17 @@ tool(
     state.projectDir = absDir;
     state.currentFile = null;
     explicitProject = true;
+
+    if (isEasyWritingProject(absDir)) {
+      adoptEasyWritingProject(absDir);
+      ensureSkills(absDir, [
+        { slug: 'typst', content: TYPST_SKILL },
+        { slug: 'penwright', content: PENWRIGHT_SKILL },
+        { slug: 'research', content: RESEARCH_SKILL },
+        { slug: 'writing-style', content: WRITING_STYLE_SKILL },
+        { slug: 'design', content: DESIGN_SKILL },
+      ]);
+    }
 
     // Auto-detect main .typ file
     state.currentFile = findRootFileIn(absDir);
@@ -1618,7 +1650,7 @@ tool(
       const current = parseSettings(content);
       const merged = { ...current };
       for (const [key, value] of Object.entries(settings)) {
-        if (key in merged) {
+        if (key in merged && typeof value === 'string') {
           (merged as Record<string, string>)[key] = value;
         }
       }
@@ -1642,7 +1674,7 @@ tool(
 
 tool(
   'penwright_list_files',
-  'Returns the project file tree. Shows all .typ, .bib, .md, .yaml, .json, .pdf and image files.',
+  'Returns the project file tree. Shows all .typ, .bib, .md, .mdx, .yaml, .json, .pdf and image files.',
   async () => {
     try {
       const tree = listDir(state.projectDir, 0);
@@ -1656,7 +1688,7 @@ tool(
 );
 
 const IGNORED_DIRS = new Set(['.git', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
-const ALLOWED_EXTS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.csv', '.json', '.tex']);
+const ALLOWED_EXTS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.mdx', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.csv', '.json', '.tex']);
 
 function listDir(dir: string, depth: number): string {
   if (depth > 5) return '';
@@ -2155,7 +2187,7 @@ tool(
     afterText: z.string().describe('Anchor text. Element is inserted on a new line after this match. Pass empty string to insert at the document end.'),
     occurrence: z.number().int().min(1).optional().default(1).describe('Which 1-based occurrence of `afterText` to target if it appears multiple times.'),
     file: z.string().optional().describe('Project-relative file to insert into. Omit for the file the user has open — pass it explicitly when acting on a pinned selection or on a chapter they are not looking at.'),
-    params: z.record(z.string()).optional().describe('Element-specific values. e.g. { title: "Welcome", subtitle: "..." } for the Hero element. See penwright_list_design_elements for each element\'s param list.'),
+    params: z.record(z.string(), z.string()).optional().describe('Element-specific values. e.g. { title: "Welcome", subtitle: "..." } for the Hero element. See penwright_list_design_elements for each element\'s param list.'),
   },
   async ({ elementId, afterText, occurrence, file, params }) => {
     try {
@@ -2187,6 +2219,16 @@ tool(
         touchedDocumentInCall = true;
       } else {
         ({ content, filePath } = readCurrentDocument());
+      }
+
+      if (state.projectDir && isEasyWritingTypesetChapter(state.projectDir, filePath)) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${typesetChapterWriteMessage(path.relative(state.projectDir, filePath).split(path.sep).join('/'))}`,
+          }],
+          isError: true,
+        };
       }
 
       let insertAt: number;
@@ -4126,7 +4168,7 @@ tool(
   'Convert Markdown to Typst and write to a project file. Provide inline `markdown` OR a `srcPath` (.md file). Errors if destPath exists unless `overwrite: true`.',
   {
     markdown: z.string().optional().describe('Inline Markdown text. Mutually exclusive with srcPath.'),
-    srcPath: z.string().optional().describe('Path to a .md / .markdown / .txt file to import. May be inside or outside the project (read-only). Mutually exclusive with markdown.'),
+    srcPath: z.string().optional().describe('Path to a .md / .mdx / .markdown / .txt file to import. May be inside or outside the project (read-only). Mutually exclusive with markdown.'),
     destPath: z.string().describe('Project-relative path for the new .typ file (e.g. "chapters/06-related.typ")'),
     overwrite: z.boolean().optional().describe('Overwrite destPath if it already exists. Default: false.'),
   },
@@ -4280,12 +4322,8 @@ tool(
 
 // ─── Start Server ────────────────────────────────────
 //
-// There is deliberately NO access check here. Penwright is free and complete
-// for personal, academic and hobby use, and the MCP layer is ungated for
-// everyone: it drives no purchases, it is the product's best demo, and it is
-// its most support-intensive surface — a paywall there was the model backwards.
-// `PENWRIGHT_LICENSE_KEY` is recorded (see state.licenseKey) but never checked.
-// See documentation/release-strategy.md §9.
+// There is deliberately NO access check here. Penwright is free for everyone,
+// including commercial use, and the MCP layer starts unconditionally.
 
 async function main() {
   parseArgs();

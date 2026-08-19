@@ -23,7 +23,6 @@ import { sidebar } from './sidebar';
 import { pickers } from './pickers';
 import { app } from './app';
 import { startScreen } from './startScreen';
-import { license } from './license';
 import { about } from './about';
 import { editor } from './editor';
 import { editorLib } from './editorLib';
@@ -50,7 +49,6 @@ export const de: typeof en = {
   pickers,
   app,
   startScreen,
-  license,
   about,
   editor,
   editorLib,

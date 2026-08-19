@@ -3,14 +3,12 @@ import type { McpConnectionMessages } from '../en/mcpConnection';
 /** MCP-Verbindung — wo Penwright seinen MCP-Server registriert. */
 export const mcpConnection: McpConnectionMessages = {
   title: 'MCP-Verbindung',
-  intro: 'Penwright ist ein MCP-Server. Wähle, wo er sich registriert — es ist immer nur genau eine Verbindung aktiv.',
-  probing: 'Meta-MCP wird geprüft…',
+  intro: 'Penwright ist ein MCP-Server. Verbinde ihn mit dem Editor, in dem du arbeitest — Cursor wird beim Start automatisch eingetragen.',
+  probing: 'MCP-Hosts werden geprüft…',
 
-  meta: {
-    label: 'Meta-MCP',
-    desc: 'Beim lokalen Meta-MCP-Proxy registrieren (localhost:3663). Alle deine MCP-Server an einem Ort.',
-    running: 'Läuft',
-    notRunning: 'Läuft nicht',
+  cursor: {
+    label: 'Cursor',
+    desc: 'In ~/.cursor/mcp.json eintragen, damit die Penwright-Tools in jedem Cursor-Workspace auf diesem Rechner verfügbar sind.',
   },
   claude: {
     label: 'Claude Code',
@@ -18,28 +16,27 @@ export const mcpConnection: McpConnectionMessages = {
   },
 
   recommended: 'Empfohlen',
-  current: 'Aktuell aktiv',
-  apply: 'Übernehmen',
-  applying: 'Wird übernommen…',
+  current: 'Verbunden',
+  connect: 'Verbinden',
+  connecting: 'Wird verbunden…',
   close: 'Schließen',
   freeForEveryone:
     'Der MCP-Server ist für alle freigeschaltet — alle 66 Tools, ohne Schlüssel, ohne Zeitlimit.',
 
   done: {
-    metaTitle: 'Über Meta-MCP verbunden',
-    metaBody: 'Penwright ist beim Meta-MCP-Proxy registriert und aus Claude Code entfernt.',
+    cursorTitle: 'Mit Cursor verbunden',
+    cursorBody: 'Penwright steht in ~/.cursor/mcp.json. Lade das Cursor-Fenster neu (oder schalte den Server unter Settings → Tools & MCP einmal aus und wieder ein), falls die Tools noch nicht erscheinen.',
     claudeTitle: 'Mit Claude Code verbunden',
-    claudeBody: 'Penwright ist bei Claude Code (User-Scope) registriert und aus Meta-MCP entfernt.',
+    claudeBody: 'Penwright ist bei Claude Code (User-Scope) registriert.',
     viaCli: 'Über die claude-CLI registriert.',
-    viaFile: 'Eintrag direkt in ~/.claude.json geschrieben.',
+    viaFile: 'Eintrag direkt in die Konfigurationsdatei geschrieben.',
   },
 
   error: {
-    metaNotRunning: 'Meta-MCP läuft nicht. Starte die Meta-MCP-App und versuche es erneut — oder wähle stattdessen Claude Code.',
     generic: 'Verbindung konnte nicht übernommen werden:',
   },
 
   details: 'Details',
-  metaConfigLabel: 'Meta-MCP-Konfiguration:',
+  cursorConfigLabel: 'Cursor-Konfiguration:',
   claudeConfigLabel: 'Claude-Code-Konfiguration:',
 };

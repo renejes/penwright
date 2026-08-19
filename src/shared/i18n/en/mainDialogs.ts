@@ -123,10 +123,5 @@ export const mainDialogs = {
     `This project's design lives in a hand-written ${file} that Penwright did not generate. ` +
     `Nothing was changed — regenerating it would replace the whole design system, including any ` +
     `macros the document calls. Rename ${file} first if you want to manage the design here.`,
-
-  // ─── License status messages (shown in the license UI) ───────────────
-  licenseRevoked: 'Your license has been revoked or has expired.',
-  licenseOfflineMode: (days: number) => `Offline mode (${days} days remaining)`,
-  licenseOfflineExpired: 'Offline grace period expired. Please connect to the internet to re-validate.',
 };
 export type MainDialogsMessages = typeof mainDialogs;

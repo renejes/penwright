@@ -14,6 +14,7 @@ import { writeActiveProject } from '../shared/sessionState';
 import { resolveDesignRoot } from '../shared/styleWrite';
 import { noteDiskContent } from '../shared/fileWrite';
 import { scaffoldProject, ensureStyleFiles, ensureSkills } from '../shared/projectScaffold';
+import { adoptEasyWritingProject, isEasyWritingProject } from '../shared/easyWriting';
 import { placeAsset, placeAssetFromPath, assetPathFrom, isInsideProject } from '../shared/assetPlacement';
 import { generateStyleTypst } from '../shared/styleParser';
 import { DEFAULT_PROJECT_STYLE, sanitizeProjectStyle } from '../shared/styleTypes';
@@ -109,7 +110,7 @@ export interface FileEntry {
 }
 
 const IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
-const ALLOWED_EXTENSIONS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.doc', '.csv', '.json', '.tex']);
+const ALLOWED_EXTENSIONS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.mdx', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.doc', '.csv', '.json', '.tex']);
 
 export function readDirTree(dir: string, depth = 0): FileEntry[] {
   if (depth > 5) return [];
@@ -195,9 +196,10 @@ export async function handleCreateProject(templateId: string, projectName: strin
 }
 
 // ─── Open Project ────────────────────────────────────
-// Project = folder with at least one .typ file. The folder is the project's
-// identity; everything else is derived. If a project is currently open,
-// we tear it down cleanly first.
+// Project = a folder. Typst projects have a .typ root; Easy Writing copies
+// have project.yaml + .mdx and are adopted into a derived Typst tree without
+// rewriting the manuscript. If a project is currently open, we tear it down
+// cleanly first.
 
 function findEntryFile(dir: string): string | null {
   // Prefer main.typ, then any .typ in the project root
@@ -264,6 +266,15 @@ export async function openProject(projectDir?: string): Promise<string | null> {
   if (appState.projectDir) {
     const closed = await closeProjectInteractive();
     if (!closed) return null;
+  }
+
+  // Easy Writing MDX copy: read the manuscript first, then derive Typst.
+  // Must not wait on a compile — a broken typeset must not block the open.
+  if (isEasyWritingProject(projectDir)) {
+    const adopted = adoptEasyWritingProject(projectDir);
+    for (const w of adopted.warnings) console.warn('[penwright]', w);
+    ensureSkills(projectDir, SKILL_FILES);
+    addBreadcrumb('project', `adopted Easy Writing MDX (${adopted.typesetFiles.length} chapters)`);
   }
 
   appState.projectDir = projectDir;

@@ -15,6 +15,9 @@ export const TypstCitation = Node.create({
     return {
       citekey: { default: '' },
       label: { default: '' },
+      // Typst `@key[p. 12]` locator. Must round-trip or the supplement
+      // becomes visible prose (`[p. 12]`) and drops out of the citation.
+      supplement: { default: '' },
     };
   },
 
@@ -26,6 +29,7 @@ export const TypstCitation = Node.create({
           return {
             citekey: (dom as HTMLElement).getAttribute('data-citekey') ?? '',
             label: (dom as HTMLElement).getAttribute('data-label') ?? '',
+            supplement: (dom as HTMLElement).getAttribute('data-supplement') ?? '',
           };
         },
       },
@@ -39,6 +43,7 @@ export const TypstCitation = Node.create({
         'data-citation': '',
         'data-citekey': node.attrs.citekey,
         'data-label': node.attrs.label,
+        'data-supplement': node.attrs.supplement ?? '',
         class: 'typst-citation',
       },
       node.attrs.label || `@${node.attrs.citekey}`,

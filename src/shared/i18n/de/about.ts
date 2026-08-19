@@ -2,8 +2,6 @@ import type { AboutMessages } from '../en/about';
 export const about: AboutMessages = {
   // AboutDialog
   aboutTagline: 'Ein WYSIWYG-Editor für Typst-Dokumente.',
-  aboutLicensed: 'Lizenziert',
-  aboutUnlicensed: 'Nicht lizenziert',
   aboutVersion: (v: string) => `Version ${v}`,
   aboutVersionLoading: 'Version …',
   aboutSpecPlatform: 'Plattform',
@@ -17,7 +15,7 @@ export const about: AboutMessages = {
   aboutCopyDiagnostics: 'Diagnose kopieren',
   aboutCopied: 'Kopiert',
   aboutCopyFailed: 'Kopieren fehlgeschlagen',
-  aboutCopyrightSuffix: 'René Jesser · MIT',
+  aboutCopyrightSuffix: 'René Jesser',
 
   // AcknowledgmentsDialog
   ackTitle: 'Open-Source-Lizenzen',

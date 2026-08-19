@@ -2,9 +2,9 @@
 
 Copyright © 2026 René Jesser. All rights reserved except as expressly granted below.
 
-Penwright is **source-available software, not open source.** It is free for
-personal, academic and any other non-commercial use. **Commercial use requires a
-paid licence.**
+Penwright is **source-available software, not open source.** You may **use the
+application for any purpose, including commercially.** You may **not**
+distribute it, and you may **not** reuse its source code in another project.
 
 ---
 
@@ -14,37 +14,25 @@ paid licence.**
 legal text to answer the common questions. Where the summary and the terms below
 disagree, the terms below win.
 
-### Free, forever, with no key and no time limit
+### Free for everyone, including companies
 
-If you use Penwright for **personal, academic, hobby or any other
-non-commercial purpose**, you may use the complete application — every feature,
-including the whole MCP / AI integration — at no cost, for as long as you like.
-Nothing is locked, nothing expires, and you never have to register.
-
-This explicitly includes universities, schools, public research bodies,
-charities, public health and safety bodies, environmental organisations and
-government institutions (see *Noncommercial Organizations* in [§3](#3-licence)).
-
-### A licence is required for commercial use
-
-Using Penwright **in the course of a business** — producing documents for
-clients, internal company reports, anything with an anticipated commercial
-application — requires a paid commercial licence, whatever the size of the
-business. See [§5](#5-commercial-use).
-
-The application does not enforce this. It asks you once how you use it, and
-takes your answer. **The honesty of commercial users is the entire mechanism.**
+You may run Penwright — every feature, including the whole MCP / AI
+integration — at no cost, for as long as you like, **whether you use it
+privately or in a business.** Nothing is locked, nothing expires, and you never
+have to register or buy a key.
 
 ### You may read the source and build it for yourself
 
 The source is public so it can be **inspected, audited and understood**, and
 [§4](#4-additional-permission--building-from-source) explicitly permits you to
-build it and run the result yourself.
+build it and run the result yourself, including for commercial work.
 
-What you may **not** do is give it to anyone else, or reuse its code: the
-licence in §3 grants everything **except distributing the software and making
-changes or new works based on it.** Those two exceptions are the whole
-restriction, and they are why this is not open source.
+What you may **not** do is give the software to anyone else, or reuse its code:
+the licence in §3 grants everything **except distributing the software and
+making changes or new works based on it.** Those two exceptions are the whole
+restriction, and they are why this is not open source. Copying Penwright's
+source into another product, a fork you ship, or a competing editor is not
+licensed.
 
 ---
 
@@ -103,9 +91,11 @@ Its core grant, quoted here for orientation only — the file itself governs:
 > copyright in it **for any permitted purpose, other than distributing the
 > software or making changes or new works based on the software.**
 
-Permitted purposes are **any noncommercial purpose**, personal use, and use by
-charitable, educational, public research, public safety or health,
-environmental, and government organisations.
+PolyForm Strict's own permitted purposes are **any noncommercial purpose**,
+personal use, and use by charitable, educational, public research, public
+safety or health, environmental, and government organisations. Commercial use
+of the application is granted separately, as an additional permission, in
+[§5](#5-additional-permission--use-for-any-purpose).
 
 ### Why the licence is in a separate file
 
@@ -119,8 +109,9 @@ licensor says separately in **this** file, makes that condition unambiguously
 satisfied: the PolyForm licence is used exactly as published, and nothing in
 this document alters it.
 
-[§4](#4-additional-permission--building-from-source) grants an **additional
-permission** on top of it. An additional permission is not a change to the
+[§4](#4-additional-permission--building-from-source) and
+[§5](#5-additional-permission--use-for-any-purpose) grant **additional
+permissions** on top of it. An additional permission is not a change to the
 licence — it is the copyright holder of *the software* granting more than the
 licence requires, the same pattern as GNU GPL v3 §7 "additional permissions" or
 the Classpath Exception. It cannot mislead anyone about what PolyForm Strict
@@ -132,8 +123,8 @@ less.
 ## 4. Additional permission — building from source
 
 The licensor grants you, **in addition** to §3, permission to compile, build and
-package the software from source, and to run the result, **for a permitted
-purpose as defined in §3 and for your own use only.**
+package the software from source, and to run the result, **for your own use
+only, for any purpose including commercial.**
 
 This permission does not entitle you to distribute the result, or any part of
 it, to anyone else, and it does not permit changes or new works beyond those
@@ -149,16 +140,17 @@ technically required to build and run the software.
 
 ---
 
-## 5. Commercial use
+## 5. Additional permission — use for any purpose
 
-Commercial use requires a separate paid licence from the licensor. Terms,
-pricing and purchasing: **<https://penwright.online>**.
+The licensor grants you, **in addition** to §3, permission to **use** the
+software — including running the application as distributed — **for any
+purpose, including commercial purposes.**
 
-A commercial licence is granted per seat and includes twelve months of updates;
-the last version covered by the licence continues to work offline indefinitely.
+This permission does not entitle you to distribute the software, or to make
+changes or new works based on it, other than as already granted in §4.
 
-The commercial licence is a **separate agreement** and is not contained in this
-file. Until such an agreement is in place, commercial use is not licensed.
+There is no paid commercial licence and no registration. Companies may use
+Penwright in the course of a business under this section.
 
 ---
 
@@ -197,7 +189,7 @@ states under German law, and it applies in any case:
    such liability is mandatory.
 
 2. **Free use is a gift in the legal sense.** Where the software is provided
-   free of charge under §3 and §4, the licensor's liability for defects of
+   free of charge under §3, §4 and §5, the licensor's liability for defects of
    quality and title, and for damages, is limited to intent and gross negligence
    (*Vorsatz und grobe Fahrlässigkeit*), in line with §§ 521, 523, 524 BGB.
 

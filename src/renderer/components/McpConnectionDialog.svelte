@@ -1,12 +1,11 @@
 <script lang="ts">
   /**
-   * MCP Connection dialog — pick where Penwright registers its own MCP server:
-   * the local Meta-MCP proxy (localhost:3663) or Claude Code (user scope).
-   * Exactly one is ever active; applying one removes the app from the other.
+   * MCP Connection dialog — register Penwright's MCP server with Cursor
+   * (default, written on every app launch) and/or Claude Code.
    *
-   * Opens on first run (until a choice is made) and from Help → "MCP Connection…".
-   * Dismissing without an explicit Apply persists the previewed default so the
-   * first-run prompt doesn't keep re-appearing.
+   * Opens from Help → "MCP Connection…". Cursor is already registered at boot;
+   * this dialog is for confirming that, reconnecting after a config wipe, or
+   * adding Claude Code. Claude Desktop has its own wizard.
    */
 
   import { onMount } from 'svelte';
@@ -14,40 +13,39 @@
 
   let { onClose }: { onClose: () => void } = $props();
 
-  type Target = 'meta' | 'claude';
-  type Step = 'loading' | 'choose' | 'applying' | 'done' | 'error';
+  type Host = 'cursor' | 'claude';
+  type Step = 'loading' | 'choose' | 'connecting' | 'done' | 'error';
 
-  /** Licence state, informational only — the server starts for everyone. */
-  type Access = 'personal' | 'commercial';
   interface ConnectionStatus {
-    target: Target | null;
-    effectiveTarget: Target;
-    defaultTarget: Target;
-    metaReachable: boolean;
-    access: Access;
-    supported: boolean;
-    metaConfigPath: string;
+    cursorRegistered: boolean;
+    claudeRegistered: boolean;
+    cursorConfigPath: string;
     claudeConfigPath: string;
+    supported: boolean;
   }
-  interface SideResult { registered: boolean; unregistered: boolean; method: 'cli' | 'file' | null; error: string | null; }
-  interface EnsureResult { target: Target; ok: boolean; meta: SideResult; claude: SideResult; access: Access; }
+  interface HostResult {
+    registered: boolean;
+    method: 'cli' | 'file' | null;
+    error: string | null;
+  }
 
   let step = $state<Step>('loading');
   let status = $state<ConnectionStatus | null>(null);
-  let selected = $state<Target>('claude');
-  let result = $state<EnsureResult | null>(null);
+  let lastHost = $state<Host>('cursor');
+  let lastResult = $state<HostResult | null>(null);
   let errorMsg = $state('');
-  let applied = $state(false);
 
   const api = (window as unknown as {
     electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
   }).electronAPI;
 
+  async function refreshStatus(): Promise<void> {
+    status = await api.invoke('mcp:getConnectionStatus') as ConnectionStatus;
+  }
+
   onMount(async () => {
     try {
-      const s = await api.invoke('mcp:getConnectionStatus') as ConnectionStatus;
-      status = s;
-      selected = s.effectiveTarget;
+      await refreshStatus();
       step = 'choose';
     } catch (err) {
       errorMsg = String((err as Error).message ?? err);
@@ -55,22 +53,18 @@
     }
   });
 
-  async function apply() {
-    step = 'applying';
+  async function connect(host: Host) {
+    step = 'connecting';
     errorMsg = '';
+    lastHost = host;
     try {
-      const res = await api.invoke('mcp:setTarget', selected) as EnsureResult;
-      result = res;
-      applied = true;
-      if (res.ok) {
-        if (status) status.target = selected;
+      const res = await api.invoke('mcp:registerHost', host) as HostResult;
+      lastResult = res;
+      if (res.registered) {
+        await refreshStatus();
         step = 'done';
       } else {
-        if (selected === 'meta' && res.meta.error === 'meta-not-running') {
-          errorMsg = t().mcpConnection.error.metaNotRunning;
-        } else {
-          errorMsg = (selected === 'meta' ? res.meta.error : res.claude.error) ?? 'unknown error';
-        }
+        errorMsg = res.error ?? 'unknown error';
         step = 'error';
       }
     } catch (err) {
@@ -79,22 +73,13 @@
     }
   }
 
-  function close() {
-    // First-run dismiss without an explicit choice → persist the previewed
-    // default so we stop offering the prompt every launch. Fire-and-forget.
-    if (!applied && status && status.target == null) {
-      api.invoke('mcp:setTarget', selected).catch(() => { /* ignore */ });
-    }
-    onClose();
-  }
-
   function backToChoose() {
     step = 'choose';
     errorMsg = '';
   }
 </script>
 
-<div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mcp-conn-title" tabindex="-1">
     {#if step === 'loading'}
       <div class="centered-loader big">
@@ -110,68 +95,67 @@
       <p>{t().mcpConnection.intro}</p>
 
       <div class="cards">
-        <button
-          class="card"
-          class:active={selected === 'meta'}
-          type="button"
-          onclick={() => (selected = 'meta')}
-        >
+        <div class="card">
           <div class="card-head">
-            <span class="radio" class:on={selected === 'meta'}></span>
-            <span class="card-title">{t().mcpConnection.meta.label}</span>
-            <span class="badge" class:green={status.metaReachable} class:gray={!status.metaReachable}>
-              {status.metaReachable ? t().mcpConnection.meta.running : t().mcpConnection.meta.notRunning}
-            </span>
+            <span class="card-title">{t().mcpConnection.cursor.label}</span>
+            <span class="tag rec">{t().mcpConnection.recommended}</span>
+            {#if status.cursorRegistered}
+              <span class="tag cur">{t().mcpConnection.current}</span>
+            {/if}
           </div>
-          <p class="card-desc">{t().mcpConnection.meta.desc}</p>
-          <div class="tags">
-            {#if status.defaultTarget === 'meta'}<span class="tag rec">{t().mcpConnection.recommended}</span>{/if}
-            {#if status.target === 'meta'}<span class="tag cur">{t().mcpConnection.current}</span>{/if}
-          </div>
-        </button>
+          <p class="card-desc">{t().mcpConnection.cursor.desc}</p>
+          <button class="btn btn-primary" type="button" onclick={() => connect('cursor')}>
+            {t().mcpConnection.connect}
+          </button>
+        </div>
 
-        <button
-          class="card"
-          class:active={selected === 'claude'}
-          type="button"
-          onclick={() => (selected = 'claude')}
-        >
+        <div class="card">
           <div class="card-head">
-            <span class="radio" class:on={selected === 'claude'}></span>
             <span class="card-title">{t().mcpConnection.claude.label}</span>
+            {#if status.claudeRegistered}
+              <span class="tag cur">{t().mcpConnection.current}</span>
+            {/if}
           </div>
           <p class="card-desc">{t().mcpConnection.claude.desc}</p>
-          <div class="tags">
-            {#if status.defaultTarget === 'claude'}<span class="tag rec">{t().mcpConnection.recommended}</span>{/if}
-            {#if status.target === 'claude'}<span class="tag cur">{t().mcpConnection.current}</span>{/if}
-          </div>
-        </button>
+          <button class="btn btn-primary" type="button" onclick={() => connect('claude')}>
+            {t().mcpConnection.connect}
+          </button>
+        </div>
       </div>
 
       <div class="note green">{t().mcpConnection.freeForEveryone}</div>
 
+      {#if status}
+        <details class="paths">
+          <summary>{t().mcpConnection.details}</summary>
+          <ul>
+            <li>{t().mcpConnection.cursorConfigLabel} <code>{status.cursorConfigPath}</code></li>
+            <li>{t().mcpConnection.claudeConfigLabel} <code>{status.claudeConfigPath}</code></li>
+          </ul>
+        </details>
+      {/if}
+
       <div class="actions">
-        <button class="btn btn-secondary" onclick={close}>{t().mcpConnection.close}</button>
-        <button class="btn btn-primary" onclick={apply}>{t().mcpConnection.apply}</button>
+        <button class="btn btn-secondary" onclick={onClose}>{t().mcpConnection.close}</button>
       </div>
 
-    {:else if step === 'applying'}
+    {:else if step === 'connecting'}
       <div class="centered-loader big">
         <div class="spinner big"></div>
-        <p class="hint">{t().mcpConnection.applying}</p>
+        <p class="hint">{t().mcpConnection.connecting}</p>
       </div>
 
-    {:else if step === 'done' && result}
+    {:else if step === 'done' && lastResult}
       <div class="icon-circle green">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <h2 id="mcp-conn-title">
-        {result.target === 'meta' ? t().mcpConnection.done.metaTitle : t().mcpConnection.done.claudeTitle}
+        {lastHost === 'cursor' ? t().mcpConnection.done.cursorTitle : t().mcpConnection.done.claudeTitle}
       </h2>
-      <p>{result.target === 'meta' ? t().mcpConnection.done.metaBody : t().mcpConnection.done.claudeBody}</p>
-      {#if result.target === 'claude' && result.claude.method}
+      <p>{lastHost === 'cursor' ? t().mcpConnection.done.cursorBody : t().mcpConnection.done.claudeBody}</p>
+      {#if lastHost === 'claude' && lastResult.method}
         <p class="hint">
-          {result.claude.method === 'cli' ? t().mcpConnection.done.viaCli : t().mcpConnection.done.viaFile}
+          {lastResult.method === 'cli' ? t().mcpConnection.done.viaCli : t().mcpConnection.done.viaFile}
         </p>
       {/if}
       <div class="note green">{t().mcpConnection.freeForEveryone}</div>
@@ -179,13 +163,13 @@
         <details class="paths">
           <summary>{t().mcpConnection.details}</summary>
           <ul>
-            <li>{t().mcpConnection.metaConfigLabel} <code>{status.metaConfigPath}</code></li>
+            <li>{t().mcpConnection.cursorConfigLabel} <code>{status.cursorConfigPath}</code></li>
             <li>{t().mcpConnection.claudeConfigLabel} <code>{status.claudeConfigPath}</code></li>
           </ul>
         </details>
       {/if}
       <div class="actions">
-        <button class="btn btn-secondary" onclick={backToChoose}>{t().mcpConnection.apply}…</button>
+        <button class="btn btn-secondary" onclick={backToChoose}>{t().mcpConnection.connect}…</button>
         <button class="btn btn-primary" onclick={onClose}>{t().mcpConnection.close}</button>
       </div>
 
@@ -196,8 +180,8 @@
       <h2 id="mcp-conn-title">{t().mcpConnection.error.generic}</h2>
       <pre class="error">{errorMsg}</pre>
       <div class="actions">
-        <button class="btn btn-secondary" onclick={close}>{t().mcpConnection.close}</button>
-        <button class="btn btn-primary" onclick={backToChoose}>{t().mcpConnection.apply}…</button>
+        <button class="btn btn-secondary" onclick={onClose}>{t().mcpConnection.close}</button>
+        <button class="btn btn-primary" onclick={backToChoose}>{t().mcpConnection.connect}…</button>
       </div>
     {/if}
   </div>
@@ -246,36 +230,15 @@
     border-radius: 12px;
     padding: 14px;
     background: #fff;
-    cursor: pointer;
     font-family: inherit;
-    transition: border-color 0.12s, background 0.12s;
-    display: flex; flex-direction: column; gap: 6px;
+    display: flex; flex-direction: column; gap: 8px;
   }
-  .card:hover { border-color: #c7d2fe; }
-  .card.active { border-color: #4f46e5; background: #f5f5ff; }
 
-  .card-head { display: flex; align-items: center; gap: 10px; }
+  .card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .card-title { font-size: 15px; font-weight: 600; color: #1a1a1a; flex: 1; }
-
-  .radio {
-    width: 16px; height: 16px; border-radius: 50%;
-    border: 2px solid #cbd5e1; flex-shrink: 0; position: relative;
-  }
-  .radio.on { border-color: #4f46e5; }
-  .radio.on::after {
-    content: ''; position: absolute; inset: 2px;
-    border-radius: 50%; background: #4f46e5;
-  }
 
   .card-desc { font-size: 13px; color: #6b7280; line-height: 1.5; margin: 0; }
 
-  .badge {
-    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
-  }
-  .badge.green { background: #ecfdf5; color: #059669; }
-  .badge.gray  { background: #f3f4f6; color: #9ca3af; }
-
-  .tags { display: flex; gap: 6px; }
   .tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
   .tag.rec { background: #eef2ff; color: #4f46e5; }
   .tag.cur { background: #ecfdf5; color: #059669; }
@@ -283,15 +246,17 @@
   .note {
     border-radius: 10px; padding: 12px; font-size: 13px; line-height: 1.5;
   }
-  .note.amber { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
   .note.green { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
 
   .actions { display: flex; gap: 10px; margin-top: 6px; }
   .btn {
-    flex: 1; height: 42px; border: none; border-radius: 10px;
+    height: 42px; border: none; border-radius: 10px;
     font-size: 14px; font-family: inherit; font-weight: 500; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 16px;
   }
+  .card .btn { align-self: flex-start; height: 36px; font-size: 13px; }
+  .actions .btn { flex: 1; }
   .btn-primary { background: #4f46e5; color: #fff; }
   .btn-primary:hover { background: #4338ca; }
   .btn-secondary { background: #f3f4f6; color: #374151; }

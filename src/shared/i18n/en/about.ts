@@ -2,8 +2,6 @@
 export const about = {
   // AboutDialog
   aboutTagline: 'A WYSIWYG editor for Typst documents.',
-  aboutLicensed: 'Licensed',
-  aboutUnlicensed: 'Unlicensed',
   aboutVersion: (v: string) => `Version ${v}`,
   aboutVersionLoading: 'Version …',
   aboutSpecPlatform: 'Platform',
@@ -17,7 +15,7 @@ export const about = {
   aboutCopyDiagnostics: 'Copy diagnostics',
   aboutCopied: 'Copied',
   aboutCopyFailed: 'Copy failed',
-  aboutCopyrightSuffix: 'René Jesser · MIT',
+  aboutCopyrightSuffix: 'René Jesser',
 
   // AcknowledgmentsDialog
   ackTitle: 'Open Source Licenses',

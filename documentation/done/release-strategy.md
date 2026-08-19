@@ -1,13 +1,19 @@
 # Release-Strategie — Lizenz, Modell, Vertrieb
 
-> **Stand:** 2026-08-03 · **App-Version:** 0.12.0 (pre-release) · **Status:** entschieden, Umbau läuft
+> **Stand:** 2026-08-19 · **App-Version:** 0.12.0 (pre-release) · **Status:** kommerzielles Modell aufgegeben
 >
-> Diese Datei hält fest, **als was** Penwright veröffentlicht wird und **warum**. Sie ist die
-> Entscheidungsgrundlage — die technische Umsetzung steht in [next-steps.md](next-steps.md),
-> die Architektur in [../CLAUDE.md](../CLAUDE.md).
+> **Aktuell:** Penwright ist **kostenlos für alle**, inklusive Unternehmen. Die App darf genutzt werden; der Quelltext darf **nicht** in fremde Projekte übernommen oder weitergegeben werden (PolyForm Strict + zusätzliche Erlaubnis für Nutzung und Eigenbau, siehe [`LICENSE.md`](../LICENSE.md)). Polar, Kaufdialoge und die Frage „privat oder geschäftlich“ sind entfernt.
 >
-> Die vollständige Marktrecherche (8 Stränge, Zahlen-Audit, adversariale Kritik) liegt der
-> Entscheidung zugrunde; die belastbaren Zahlen sind unten in §7 zusammengefasst.
+> Der Rest dieser Datei dokumentiert die **frühere** Entscheidung („Der Lesesaal": kostenlos privat, kostenpflichtig kommerziell) und die Marktrecherche dahinter. Sie bleibt als Begründung, warum der Quelltext source-available und nicht MIT ist. Preise, Polar und Feature-Gates gelten nicht mehr.
+
+> **App-Version (historisch):** 0.12.0 (pre-release)
+
+Diese Datei hält fest, **als was** Penwright veröffentlicht wird und **warum**. Sie ist die
+Entscheidungsgrundlage — die technische Umsetzung steht in [next-steps.md](next-steps.md),
+die Architektur in [../CLAUDE.md](../CLAUDE.md).
+
+Die vollständige Marktrecherche (8 Stränge, Zahlen-Audit, adversariale Kritik) liegt der
+Entscheidung zugrunde; die belastbaren Zahlen sind unten in §7 zusammengefasst.
 
 ---
 

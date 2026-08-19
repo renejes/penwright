@@ -289,7 +289,7 @@ export function handleMessage(message: ExtensionMessage): void {
     window.dispatchEvent(new CustomEvent('penwright:show-mcp-wizard'));
   }
 
-  // Help menu → "MCP-Verbindung…" — the Meta-MCP vs Claude Code selector.
+  // Help menu → "MCP-Verbindung…" — Cursor / Claude Code registration.
   if (msg.type === 'showMcpConnection') {
     window.dispatchEvent(new CustomEvent('penwright:show-mcp-connection'));
   }

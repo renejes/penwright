@@ -29,7 +29,8 @@
 
   function getLanguage(ext: string): LanguageSupport | null {
     switch (ext) {
-      case 'md': return markdown();
+      case 'md':
+      case 'mdx': return markdown();
       case 'json': return json();
       case 'yaml':
       case 'yml': return yaml();

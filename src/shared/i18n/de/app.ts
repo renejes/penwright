@@ -40,15 +40,8 @@ export const app: AppMessages = {
   unsaved: 'Nicht gespeichert',
   saved: (time: string) => `Gespeichert ${time}`,
 
-  // License badge + language toggle
+  // Sprachumschalter
   switchLanguage: 'Sprache wechseln (Englisch / Deutsch)',
-  licenseTitle: 'Lizenz',
-  licensed: 'Lizenziert',
-  /** Statusleiste bei kostenloser Privatnutzung. Keine Einschraenkung. */
-  personal: 'Private Nutzung',
-  /** Statusleiste: kommerziell erklaert, noch keine Lizenz. Blockiert nie. */
-  licenseDue: 'Lizenz offen',
-  buyNow: 'Lizenz kaufen',
 
   // Hinweis, wenn ein Speichern eine gleichzeitige Aenderung ueberschrieben
   // hat. Die andere Fassung liegt als Snapshot vor — also Hinweis, kein Fehler.

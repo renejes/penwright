@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **66 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Claude Desktop, Codex, Cowork u.a.
+> **66 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Cursor, Claude Desktop, Claude Code, Codex u.a.
 
 ---
 
@@ -25,27 +25,24 @@ Penwright MCP Server (Standalone-Binary, Bun-compiled)
 
 ## Setup
 
-**Der normale Weg ist der Auto-Discovery-Wizard in der App** — du musst nichts von Hand bauen oder konfigurieren.
+**Der normale Weg ist Auto-Registration in Cursor** — du musst nichts von Hand bauen oder konfigurieren.
 
-### Empfohlen: Auto-Setup ueber die App
+### Empfohlen: Cursor (automatisch)
 
-1. Penwright oeffnen → **Hilfe → Mit Claude Desktop verbinden** (MCP-Setup-Wizard, `McpSetupWizard.svelte`). Voraussetzung: Claude Desktop ist installiert. **Eine Lizenz ist nicht noetig** — der MCP-Server ist fuer alle freigeschaltet (s. „Lizenz" unten).
+Beim Start schreibt Penwright sich in **`~/.cursor/mcp.json`** (global, jeder Workspace auf diesem Rechner). Server-Definition: Standalone-Binary + `TYPST_BIN` / `TYPST_PACKAGE_PATH` / `TYPST_FONT_PATH`. Falls die Tools in Cursor nicht erscheinen: Fenster neu laden oder unter Settings → Tools & MCP den Server einmal aus- und wieder einschalten. **Hilfe → MCP-Verbindung…** bestätigt oder schreibt den Eintrag erneut.
+
+### Claude Desktop (Wizard in der App)
+
+1. Penwright oeffnen → **Hilfe → Mit Claude Desktop verbinden** (MCP-Setup-Wizard, `McpSetupWizard.svelte`). Voraussetzung: Claude Desktop ist installiert.
 2. Der Wizard kopiert die **Bun-kompilierte Standalone-Binary** (`penwright-mcp`, ~64 MB) aus dem App-Bundle (`Contents/Resources/mcp/bin/`) nach `~/Library/Application Support/Penwright/mcp-server/` und traegt einen `penwright`-Eintrag (Schluessel `MCP_SERVER_KEY`) in `~/Library/Application Support/Claude/claude_desktop_config.json` ein — **idempotent**, andere `mcpServers` bleiben erhalten, mit timestamped Backup.
-3. In den Eintrag schreibt der Wizard die noetigen Env-Variablen:
-   - `PENWRIGHT_LICENSE_KEY` — der Lizenz-Key, falls eine kommerzielle Lizenz aktiv ist. Rein informativ: der Server notiert ihn, prueft ihn aber nicht (s. „Lizenz").
-   - `TYPST_BIN` / `TYPST_PACKAGE_PATH` / `TYPST_FONT_PATH` — zeigen auf die gebuendelte Typst-Binary, die `@preview/*`-Packages und die OFL-Fonts im App-Bundle, **damit der Server auch auf einer Maschine ohne System-Typst kompiliert/exportiert**.
+3. In den Eintrag schreibt der Wizard die Env-Variablen `TYPST_BIN` / `TYPST_PACKAGE_PATH` / `TYPST_FONT_PATH` — sie zeigen auf die gebuendelte Typst-Binary, die `@preview/*`-Packages und die OFL-Fonts im App-Bundle, **damit der Server auch auf einer Maschine ohne System-Typst kompiliert/exportiert**.
 4. Claude Desktop neu starten. Die Penwright-Tools erscheinen im MCP-Menue.
 
 Die Binary ist **von der laufenden App entkoppelt** — Claude Desktop kann sie unabhaengig spawnen, Reihenfolge egal, und Penwright zu beenden killt den MCP-Child nicht. (Plattformen: **macOS getestet**, Windows verdrahtet aber ungetestet; Linux n/a — kein Claude Desktop.) Aendert sich Binary oder Config-Schema, wird `MCP_SETUP_VERSION` (in `mcpSetup.ts`) erhoeht und der Wizard re-triggert.
 
-### Alternativ: Meta-MCP oder Claude Code (Startauswahl, `mcpRegistration.ts`)
+### Claude Code (optional, `mcpRegistration.ts`)
 
-Statt (oder zusaetzlich zu) Claude Desktop kann Penwright sich auch bei **genau einem** von zwei weiteren Hosts registrieren — gewaehlt ueber **Hilfe → „MCP-Verbindung…"** (Dialog `McpConnectionDialog.svelte`, beim Erststart automatisch) oder den CLI-Flag `--mcp-target=meta|claude`:
-
-- **Meta-MCP** — lokaler Aggregator-Proxy auf `http://localhost:3663`. Registrierung per `POST /register` (Hot-Reload, dedupliziert per `name`); Deregistrierung durch Editieren der beobachteten `…/com.metamcp.desktop/config.json` (es gibt keinen HTTP-Unregister).
-- **Claude Code** — User-Scope (global): `claude mcp add --scope user penwright --env … -- <bin>`, mit Fallback auf ein direktes `~/.claude.json`-Edit, falls die `claude`-CLI nicht im PATH liegt.
-
-Es ist **immer nur genau eine** dieser beiden Registrierungen aktiv (kein Doppel-Eintrag). Beim Start wird der gewaehlte Zustand idempotent hergestellt: Ziel registrieren, anderes Ziel deregistrieren. Server-Definition (Binary + Env, inkl. der oben genannten Typst-Pfade) ist identisch zum Claude-Desktop-Eintrag. Der **Claude-Desktop-Wizard** oben bleibt davon unberuehrt (eigener Host, koexistiert).
+Ueber **Hilfe → „MCP-Verbindung…"** kann Penwright sich zusaetzlich bei Claude Code registrieren: `claude mcp add --scope user penwright --env … -- <bin>`, mit Fallback auf ein direktes `~/.claude.json`-Edit. Cursor und Claude Code duerfen gleichzeitig aktiv sein. Meta-MCP ist entfernt; ein Alt-Eintrag in dessen Config wird beim Start einmal entfernt.
 
 ### Manuell (Power-User / Dev)
 
@@ -57,16 +54,15 @@ npm run build:mcp          # -> dist/mcp/server.mjs           (esbuild, braucht 
 npm run build:mcp-binary   # -> dist/mcp/bin/penwright-mcp-<triple>   (bun build --compile)
 ```
 
-`~/Library/Application Support/Claude/claude_desktop_config.json`:
+`~/Library/Application Support/Claude/claude_desktop_config.json` (or `~/.cursor/mcp.json` for Cursor):
 
 ```json
 {
   "mcpServers": {
-    "Penwright": {
+    "penwright": {
       "command": "node",
       "args": ["/ABSOLUTE/PATH/TO/vswrite-desktop/dist/mcp/server.mjs"],
       "env": {
-        "PENWRIGHT_LICENSE_KEY": "pw_LIC…",
         "TYPST_BIN": "/opt/homebrew/bin/typst"
       }
     }
@@ -86,7 +82,7 @@ Die Gliederung unten ist die des Servers selbst (`TOOL_META` in `src/mcp/server.
 
 | Tool | Beschreibung |
 |------|-------------|
-| `penwright_set_project` | Setzt das aktive Projektverzeichnis (`projectDir`) und erkennt die Haupt-`.typ` automatisch (main.typ / document.typ / erste gefundene). Meist **nicht noetig** — Projekt und offene Datei kommen aus dem Zustandskanal der App; nur aufrufen, wenn ein *anderer* Ordner gemeint ist. |
+| `penwright_set_project` | Setzt das aktive Projektverzeichnis (`projectDir`) und erkennt die Haupt-`.typ` automatisch (main.typ / document.typ / erste gefundene). Ein Easy-Writing-Ordner (`project.yaml` + `.mdx`) wird daraus gesetzt, ohne das Manuskript umzuschreiben. Meist **nicht noetig** — Projekt und offene Datei kommen aus dem Zustandskanal der App; nur aufrufen, wenn ein *anderer* Ordner gemeint ist. |
 | `penwright_get_document` | Aktuelles Dokument: `content`, `filePath`, `projectDir`, `wordCount`. |
 | `penwright_open_file` | Eine `.typ` als aktuelles Dokument oeffnen (absoluter oder projekt-relativer Pfad). |
 | `penwright_list_files` | Projekt-Dateibaum (`.typ`, `.bib`, `.md`, `.yaml`/`.yml`, `.toml`, `.txt`, `.json`, `.csv`, `.tex`, `.pdf`, `.docx`, Bilder), max. 5 Ebenen tief. `.git`, `node_modules`, `dist`, `build` u.a. fliegen raus, `.claude/` bleibt drin. |
@@ -98,7 +94,7 @@ Die Gliederung unten ist die des Servers selbst (`TOOL_META` in `src/mcp/server.
 |------|-------------|
 | `penwright_update_document` | Ersetzt den Inhalt des aktuellen Dokuments und speichert. Erst `penwright_get_document` lesen, aendern, den **kompletten** neuen Inhalt zurueckschicken. |
 | `penwright_write_file` | Beliebige Projektdatei komplett ersetzen (Parent-Dirs werden angelegt). Fuer die Datei, die der Nutzer gerade ansieht, ist `penwright_update_document` die, die seinen Editor mitzieht. Die Vorversion wird gesnapshottet — `penwright_undo_last_edit` holt sie zurueck. |
-| `penwright_import_markdown` | Markdown → Typst, geschrieben nach `destPath` im Projekt. Quelle: inline `markdown` **oder** `srcPath` (`.md`/`.markdown`/`.txt`, darf ausserhalb des Projekts liegen — wird nur gelesen). Fehler, wenn `destPath` existiert, ausser `overwrite: true`. |
+| `penwright_import_markdown` | Markdown/MDX → Typst, geschrieben nach `destPath` im Projekt. Quelle: inline `markdown` **oder** `srcPath` (`.md`/`.mdx`/`.markdown`/`.txt`, darf ausserhalb des Projekts liegen — wird nur gelesen). Fehler, wenn `destPath` existiert, ausser `overwrite: true`. Ein Easy-Writing-*Ordner* wird nicht so flatten: `penwright_set_project` auf den Ordner mit `project.yaml`. |
 | `penwright_add_image` | Bild nach `assets/` importieren (Content-Hash-Dedup), Typst-Snippet bauen (mit `caption` daraus ein `#figure(...)`, mit `caption + label` ein referenzierbares Figure-Target) und optional per `file` + `afterText` in einem Zug einfuegen. |
 
 ### Pruefen & sehen (2)
@@ -564,16 +560,7 @@ winget install --id Typst.Typst
 
 ## Lizenz
 
-**Der MCP Server ist ungesperrt. Er startet fuer alle** — alle 66 Tools, ohne Key, ohne Zeitlimit, egal ob Penwright privat oder kommerziell genutzt wird. Es gibt **keinen** `validateAccess()`-Check mehr und keine Testphase.
-
-- **Lizenz aktiv** → `buildMcpEnv()` schreibt `env.PENWRIGHT_LICENSE_KEY` (derselbe `pw_LIC…`-Key wie die App). Der Server **notiert** ihn (`state.licenseKey`), **prueft ihn aber nie**, um zu entscheiden, ob er startet.
-- **Keine Lizenz** → kein Credential, und der Server startet trotzdem vollstaendig.
-
-Das gilt fuer **alle In-App-Registrierungswege** (Claude-Desktop-Wizard, Meta-MCP, Claude Code).
-
-> **Warum ungesperrt:** Die MCP-Schicht treibt keine Kaeufe (niemand kauft eine Desktop-App, um einen MCP-Server zu bekommen), sie ist das beste Demo-Objekt des Produkts, und sie ist die supportintensivste Oberflaeche darin. Eine Stunde E-Mail-Debugging frisst die Marge von zehn Lizenzen. Ein Gate ausgerechnet dort war das Modell falsch herum. Vollstaendige Begruendung: [release-strategy.md](release-strategy.md) §9.
->
-> Penwright selbst ist fuer private, akademische und Hobby-Nutzung kostenlos; kommerzielle Nutzung braucht eine Lizenz. Die Unterscheidung liegt bei **wer**, nicht bei **was** — und wird nirgends technisch erzwungen.
+**Der MCP Server ist ungesperrt. Er startet fuer alle** — alle 66 Tools, ohne Key, ohne Zeitlimit. Penwright selbst ist kostenlos fuer alle, inklusive Unternehmen; der Quelltext darf nicht in fremde Projekte uebernommen werden. Siehe [LICENSE.md](../LICENSE.md).
 
 ---
 

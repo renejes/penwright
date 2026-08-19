@@ -21,22 +21,8 @@ export let uiState = $state({
   welcomeTypstInstalled: true,
   welcomePlatform: '',
   currentSettings: null as DocumentSettings | null,
-  showLicense: false,
   showAbout: false,
   showHandbook: false,
-  licenseStatus: 'none' as string,
-  licenseTier: null as string | null,
-  licenseKey: null as string | null,
-  licenseMessage: '',
-  // Local licence state. Penwright is free and complete for personal use —
-  // 'personal' is NOT a degraded mode and nothing is ever gated on this.
-  licenseAccess: 'personal' as 'personal' | 'commercial',
-  // What the user declared at first launch; null means "not asked yet", which
-  // is what opens the UsageDialog.
-  usageContext: null as 'personal' | 'commercial' | null,
-  // Declared commercial but no licence → the dismissible notice. Never blocks.
-  licenseDue: false,
-  licenseNoticeDismissed: false,
   exporting: false,
   exportFormat: '' as string,
 });

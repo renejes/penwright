@@ -123,9 +123,4 @@ export const mainDialogs: MainDialogsMessages = {
     `Das Design dieses Projekts liegt in einer handgeschriebenen ${file}, die Penwright nicht erzeugt hat. ` +
     `Es wurde nichts geändert — eine Neugenerierung würde das gesamte Designsystem ersetzen, inklusive aller ` +
     `Makros, die das Dokument aufruft. Benenne ${file} um, wenn du das Design hier verwalten willst.`,
-
-  // ─── License status messages (shown in the license UI) ───────────────
-  licenseRevoked: 'Deine Lizenz wurde widerrufen oder ist abgelaufen.',
-  licenseOfflineMode: (days: number) => `Offline-Modus (noch ${days} Tage)`,
-  licenseOfflineExpired: 'Offline-Kulanzzeitraum abgelaufen. Bitte verbinde dich mit dem Internet, um neu zu validieren.',
 };

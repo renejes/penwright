@@ -55,7 +55,7 @@ To stop working on a project without quitting the app, use **File -> Close Proje
 | bar  |  WYSIWYG Editor               |   (live PDF)          |
 |      |                               |                       |
 +------+-------------------------------+-----------------------+
-| [Project][Preview]  Chapter Look ▾  1,247 words · …  DE  Personal |
+| [Project][Preview]  Chapter Look ▾  1,247 words · …  DE |
 +--------------------------------------------------------------+
 ```
 The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in the top bar; clicking one shows that panel, clicking the active one collapses the sidebar. The **＋ button** on the left of the toolbar opens the insert menu (see [Inserting content](#inserting-content---button--and-)). The **status bar centre** is the contextual **Look** control (Chapter Look / Global-Look / Look — see [the Look model](#design--the-look-model)). There is no separate "Design" tab — design lives in `style.typ` and the status bar.
@@ -464,11 +464,18 @@ The editor and the PDF preview zoom independently, from 50 % to 200 % in 10 % st
 
 ## Import & Export
 
+### Easy Writing MDX project
+- **File → Open Project…** and pick the folder Easy Writing exported (not a single flattened file).
+- Penwright recognises `project.yaml`, loads `chapters` in that order (or `index.mdx` for a blog), and typesets from the `.mdx`.
+- The manuscript stays 1:1: `[@citekey]` / `[@citekey, p. 12]` are not flattened into `(Author, Year)`, Pandoc footnotes `[^id]` keep their wording, `<Figure … />` keeps caption and alt, the `.bib` is left alone.
+- Layout and typography live in the Design panel / AI design tools (`style.typ`). They must not rewrite the `.mdx`.
+- **File → Import Markdown…** is the older single-file path (writes a new `.typ`). Do not use it on an Easy Writing folder copy.
+
 ### Markdown import
 - **File -> Import Markdown…**
-- Converts: headings, bold/italic, links, images, lists, code blocks, blockquotes
+- Converts: headings, bold/italic, links, images, lists, code blocks, blockquotes, Pandoc citations, footnotes, GFM tables, `<Figure />`
 - YAML frontmatter is skipped
-- Produces a new `.typ` file with a default preamble
+- Produces a new `.typ` file (no default look preamble — the project's `style.typ` applies)
 
 ### Zotero integration
 - **File -> Link Zotero Library…**
@@ -711,7 +718,6 @@ For rolling back AI edits, see the [Versions & Auto-Backup](#versions--auto-back
   - **Word count + reading time** for the active document (e.g. *1,247 words · 5 min read*) — recalculated live as you type, at 200 words per minute. Code blocks and raw Typst blocks are excluded so the count stays meaningful.
   - **Save state**: "Unsaved" (orange) or "Saved 14:35"
   - **Filename** of the active tab
-  - **License status** badge (Personal use / Licence due / Licensed) — click it to open the License dialog
 - Warning on close with unsaved changes
 - **Crash recovery:** auto-backups are written to `<project>/.penwright/backups/<timestamp>/` (interval configurable, default 30 s). If the app crashes and the latest backup is newer than the saved file on disk, Penwright offers to restore it when you reopen the project. See [Versions & Auto-Backup](#versions--auto-backup) for details.
 
@@ -728,7 +734,6 @@ Penwright stores two kinds of state separately — **app preferences** that are 
 - Onboarding flag (Welcome screen tick "Don't show again")
 - Zotero `.bib` path
 - Auto-Backup configuration (interval, max number of backups, max AI-snapshots)
-- License key (encrypted in the OS keychain)
 
 **Per-project** (inside the project folder):
 - Version history (`.git/`)
@@ -742,40 +747,9 @@ The app **always starts on the Start Screen** — there is no auto-reopen. This 
 
 ## License
 
-**Penwright is free for personal, academic and hobby use — every feature, forever, including the full MCP / AI integration.** No key, no account, no time limit. **Commercial use requires a licence.**
+**Penwright is free for everyone, including companies — every feature, forever, including the full MCP / AI integration.** No key, no account, no time limit.
 
-There is **no trial, no expiry and nothing that ever locks.** The distinction is *who* is using Penwright, not *what* they may use — and the app cannot detect that, so it asks.
-
-### The one question, once
-
-On first launch Penwright asks how you use it:
-
-- **Privately, for study or research** → free forever. Nothing else to do, and you will never see the question or a notice again.
-- **At work, commercially** → a licence is due. Everything stays unlocked in the meantime; you get a slim, dismissible notice, never a wall.
-
-You can change the answer any time in the License dialog.
-
-### License status in the status bar
-
-The bottom-right of the status bar shows:
-- **Personal use** — free use, nothing pending
-- **Licence due** — you said you use Penwright commercially and no key is active yet
-- **Licensed** — a valid commercial key is active
-
-**Click the status** to open the License dialog, which is also where you switch between private and commercial use.
-
-### Buying & activating
-
-1. **Buy** — the **"Buy licence"** button (in the notice or the License dialog) opens the **Polar checkout**. After payment you receive your `pw_LIC…` key by e-mail.
-2. **Activate** — open the License dialog, paste the key, confirm. It is validated against **Polar** and stored locally, encrypted in the system keychain.
-
-### Offline use
-
-Penwright works fully offline in every case. For a commercial licence a **7-day grace period** applies — after 7 days without an online re-validation the badge falls back to *Personal use* until you reconnect. **That costs you nothing**: the app is complete either way.
-
-### Security
-
-License data is encrypted via Electron's `safeStorage` and stored in the system keychain (macOS), DPAPI (Windows) or libsecret (Linux). The MCP server does **not** check it — it runs for everyone.
+The source is public so it can be inspected and built for your own use. You may **not** distribute the application or reuse its source code in another project. Details: the `LICENSE.md` shipped with the app (PolyForm Strict plus additional permissions for running and building).
 
 ---
 
@@ -787,18 +761,23 @@ Accessible via:
 
 The dialog shows:
 - App version and logo
-- Current license status (Licensed / Unlicensed)
 - System info: platform + architecture, Electron / Chromium / Node versions
 - Links: User Guide, Website, Report Issue
-- **Copy Diagnostics** — copies version + platform + Electron stack + license tier to the clipboard. Handy when you file an issue.
+- **Copy Diagnostics** — copies version + platform + Electron stack to the clipboard. Handy when you file an issue.
 
 ---
 
 ## MCP Server — AI integration with Claude Desktop & Co.
 
-Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Claude Desktop**, **Codex Desktop** or **Clawdbot** work on your Typst documents directly.
+Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Cursor**, **Claude Desktop**, **Claude Code** or **Codex Desktop** work on your Typst documents directly.
 
-> **Note:** the MCP server is **unlocked for everyone** — all 66 tools, no key, no time limit. It is never gated, whether you use Penwright privately or commercially. See [License](#license).
+> **Note:** the MCP server is **unlocked for everyone** — all 66 tools, no key, no time limit. See [License](#license).
+
+### Setup: Cursor (default)
+
+On every launch Penwright writes itself into **`~/.cursor/mcp.json`** (global, every workspace on this machine). Reload the Cursor window, or toggle the server in **Settings → Tools & MCP**, if the tools do not appear yet.
+
+You can confirm or re-register from **Help → MCP Connection…**.
 
 ### What can the MCP server do?
 
@@ -826,7 +805,6 @@ Over MCP (66 tools) the AI can:
 
 Penwright offers to connect Claude Desktop automatically — no JSON editing required. Requirements:
 
-- Nothing licence-related — the MCP server starts for everyone (see [License](#license))
 - **Claude Desktop installed** at `/Applications/Claude.app` or `~/Applications/Claude.app` (macOS), or in the usual `%LOCALAPPDATA%` location (Windows)
 
 **Flow:**
@@ -836,12 +814,11 @@ Penwright offers to connect Claude Desktop automatically — no JSON editing req
 3. Behind the scenes:
    - The server binary is copied from the .app bundle to `~/Library/Application Support/Penwright/mcp-server/penwright-mcp`
    - `~/Library/Application Support/Claude/claude_desktop_config.json` gets a `Penwright` entry — any pre-existing MCP servers are preserved untouched, and a timestamped backup of your old config is written first
-   - Your license key is written as an environment variable (`PENWRIGHT_LICENSE_KEY`) into the entry
 4. **Restart Claude Desktop** — the Penwright tools appear automatically
 
 **Standalone:** the MCP server runs as an independent process, **decoupled from the Penwright app**. You can quit Penwright, keep using Claude, open Penwright again later — the launch order is irrelevant.
 
-**Idempotent:** running setup again is safe — no duplicate entry. If you activate a new license later, re-run the wizard from the Help menu so the new key lands in the config.
+**Idempotent:** running setup again is safe — no duplicate entry.
 
 ### Setup: manual (Linux, or power users)
 
@@ -865,8 +842,9 @@ npm run build:mcp   # → dist/mcp/server.mjs
 
 **Step 2:** open the configuration file:
 
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Cursor:** `~/.cursor/mcp.json`
+- **Claude Desktop macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Claude Desktop Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 **Step 3:** register Penwright as an MCP server. With the standalone binary (recommended):
 
@@ -874,8 +852,7 @@ npm run build:mcp   # → dist/mcp/server.mjs
 {
   "mcpServers": {
     "Penwright": {
-      "command": "/PATH/TO/vswrite-desktop/dist/mcp/bin/penwright-mcp",
-      "env": { "PENWRIGHT_LICENSE_KEY": "pw_LIC_xxx..." }
+      "command": "/PATH/TO/vswrite-desktop/dist/mcp/bin/penwright-mcp"
     }
   }
 }
@@ -888,8 +865,7 @@ Or via Node + `.mjs`:
   "mcpServers": {
     "Penwright": {
       "command": "node",
-      "args": ["/PATH/TO/vswrite-desktop/dist/mcp/server.mjs"],
-      "env": { "PENWRIGHT_LICENSE_KEY": "pw_LIC_xxx..." }
+      "args": ["/PATH/TO/vswrite-desktop/dist/mcp/server.mjs"]
     }
   }
 }
@@ -923,7 +899,7 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 
 **Project & files (5)**
 
-- `penwright_set_project` — Set the active project directory; auto-detects `main.typ` / `document.typ`. Call first.
+- `penwright_set_project` — Set the active project directory; auto-detects `main.typ` / `document.typ`. Easy Writing folders (`project.yaml` + `.mdx`) are typeset from the manuscript without rewriting it. Call first.
 - `penwright_list_files` — Return the project file tree (`.typ`, `.bib`, `.md`, `.yaml`, `.json`, `.pdf`, images).
 - `penwright_read_file` — Read a file from the project; text content as string, binaries as Base64.
 - `penwright_write_file` — Write content to a project file; creates parent directories as needed.
@@ -1022,7 +998,7 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 
 **Import & assets (2)**
 
-- `penwright_import_markdown` — Convert Markdown to Typst and write into a project file; inline markdown or `srcPath` to an `.md` file.
+- `penwright_import_markdown` — Convert Markdown/MDX to Typst and write into a project file; inline markdown or `srcPath` to a `.md` / `.mdx` file. An Easy Writing folder is opened via `penwright_set_project`, not flattened here.
 - `penwright_add_image` — Import an image into `assets/` (content-hash dedup), build the Typst snippet (with optional caption + label → `#figure(…)`), and optionally insert it at an anchor.
 
 **Git low-level (3) — for syncing with a remote**
@@ -1109,4 +1085,4 @@ New releases are announced via the **Penwright newsletter**; download the latest
 - **Bugs / feature requests:** [github.com/renejes/vswrite-desktop/issues](https://github.com/renejes/vswrite-desktop/issues) — or via the app menu **Help -> Report Issue**
 - **Website:** [penwright.online](https://penwright.online)
 
-When reporting a bug, it helps a lot to click **"Copy Diagnostics"** in the About dialog and paste the output into the issue — that way the reader immediately sees version, platform and license tier.
+When reporting a bug, it helps a lot to click **"Copy Diagnostics"** in the About dialog and paste the output into the issue — that way the reader immediately sees version and platform.

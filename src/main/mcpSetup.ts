@@ -22,7 +22,6 @@ import { app, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getEntitlement, type Access } from './licenseManager';
 import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath';
 
 /**
@@ -117,13 +116,15 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // in guardWrite — write_file and update_document replaced one outright. The
 // undo path carries an explicit `restoring` exemption, or that same refusal
 // would close the only way back once another route had already done damage.
-export const MCP_SETUP_VERSION = '0.41.0';
+// 0.42.0: MCP SDK v2 (`@modelcontextprotocol/server`), Meta-MCP removed,
+// Cursor is the default host (`~/.cursor/mcp.json`), licence key env gone.
+export const MCP_SETUP_VERSION = '0.42.0';
 
 /**
- * Key/name this app registers itself under in every MCP host — Claude
- * Desktop's `mcpServers` map, Claude Code's `~/.claude.json`, and Meta-MCP's
- * server list all use this exact name. Deduplication on the host side keys on
- * it, so it MUST stay stable.
+ * Key/name this app registers itself under in every MCP host — Cursor's
+ * `~/.cursor/mcp.json`, Claude Desktop's `mcpServers` map, and Claude Code's
+ * `~/.claude.json` all use this exact name. Deduplication on the host side
+ * keys on it, so it MUST stay stable.
  */
 export const MCP_SERVER_KEY = 'penwright';
 
@@ -269,8 +270,8 @@ function copyExecutable(src: string, dst: string): void {
 /**
  * Copy the bundled MCP binary out to the stable user-writable location and
  * return that path. Shared by the Claude-Desktop wizard (`setupMcpServer`) and
- * the Meta-MCP / Claude-Code registration engine (`mcpRegistration.ts`) so all
- * three hosts point at the exact same runnable binary.
+ * the Cursor / Claude-Code registration engine (`mcpRegistration.ts`) so all
+ * hosts point at the exact same runnable binary.
  *
  * Rewrites on every call so updating Penwright upgrades the sidecar in
  * lockstep. In dev, if the bundle output hasn't been built yet but a prior
@@ -296,26 +297,14 @@ export function ensureInstalledBinary(): string {
 /**
  * Build the environment block every MCP host gets for the Penwright server.
  *
- * The MCP server is NEVER gated — it starts for everyone, licensed or not.
- * That is deliberate: it drives no purchases (nobody buys a desktop app to
- * obtain an MCP server), it is the product's best demo, and it is its most
- * support-intensive surface. Gating it put the paywall in exactly the wrong
- * place. See documentation/release-strategy.md §9.
- *
- *   - PENWRIGHT_LICENSE_KEY → present when a `pw_LIC…` key is active. Purely
- *     informational: the server records it, it does not check it to start.
  *   - TYPST_BIN / TYPST_PACKAGE_PATH / TYPST_FONT_PATH → the bundled Typst
  *     toolchain so the decoupled server compiles/exports on a machine with no
  *     system Typst. All three point into the current .app's Resources.
  *
- * Never throws. `access` is reported for display only.
+ * Never throws.
  */
-export function buildMcpEnv(): { env: Record<string, string>; access: Access } {
-  const ent = getEntitlement();
+export function buildMcpEnv(): { env: Record<string, string> } {
   const env: Record<string, string> = {};
-  if (ent.key) {
-    env['PENWRIGHT_LICENSE_KEY'] = ent.key;
-  }
   const typstBin = getTypstPath();
   if (typstBin && path.isAbsolute(typstBin)) env['TYPST_BIN'] = typstBin;
   const pkgPath = getTypstPackagePath();
@@ -335,7 +324,7 @@ export function buildMcpEnv(): { env: Record<string, string>; access: Access } {
     const docsPath = path.join(path.dirname(pkgPath), 'docs');
     if (fs.existsSync(docsPath)) env['PENWRIGHT_DOCS'] = docsPath;
   }
-  return { env, access: ent.access };
+  return { env };
 }
 
 /**
@@ -353,9 +342,8 @@ export async function setupMcpServer(): Promise<SetupResult> {
     throw new Error('MCP setup is only supported on macOS and Windows.');
   }
 
-  // The MCP server runs for everyone — there is nothing to refuse here. The
-  // env carries the Typst toolchain (and the licence key, if any) so Claude
-  // Desktop can spawn it independently of whether Penwright is running.
+  // The env carries the Typst toolchain so Claude Desktop can spawn the
+  // server independently of whether Penwright is running.
   const mcpEnv = buildMcpEnv();
 
   // Copy into a stable, user-writable location. We rewrite on every run
@@ -396,12 +384,10 @@ export async function setupMcpServer(): Promise<SetupResult> {
 
   const preservedServers = Object.keys(servers).filter(k => k !== MCP_SERVER_KEY);
 
-  // Standalone-binary config: no Node required. The license key goes in
-  // an env var rather than `args` so it doesn't show up in `ps` output
-  // and isn't displayed alongside the command path. The config file
-  // itself sits in the user-only-readable Library directory.
+  // Standalone-binary config: no Node required. The config file sits in
+  // the user-only-readable Library directory.
   //
-  // We also pass `TYPST_BIN`, `TYPST_PACKAGE_PATH` and `TYPST_FONT_PATH` so the
+  // We pass `TYPST_BIN`, `TYPST_PACKAGE_PATH` and `TYPST_FONT_PATH` so the
   // MCP server's `typst compile` calls work on a machine with NO system Typst:
   //   - TYPST_BIN     → the bundled Typst binary (compile / export / verify).
   //   - TYPST_PACKAGE_PATH → bundled @preview/* packages (cetz, fletcher, …).

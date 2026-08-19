@@ -17,8 +17,6 @@
   import PdfFileViewer from './components/PdfFileViewer.svelte';
   import NewProjectDialog from './components/NewProjectDialog.svelte';
   import SavePresetDialog from './components/SavePresetDialog.svelte';
-  import LicenseDialog from './components/LicenseDialog.svelte';
-  import UsageDialog from './components/UsageDialog.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
   import HandbookViewer from './components/HandbookViewer.svelte';
   import ExportDialog from './components/ExportDialog.svelte';
@@ -243,8 +241,7 @@
   // MCP setup wizard — auto-shown on first launch (or after MCP_SETUP_VERSION
   // bumps); also opens via Help → "Mit Claude Desktop verbinden…".
   let showMcpWizard = $state(false);
-  // MCP connection picker (Meta-MCP vs Claude Code). Auto-shown on first run
-  // until a target is chosen; also opens via Help → "MCP Connection…".
+  // MCP connection dialog (Cursor / Claude Code). Opens via Help → "MCP Connection…".
   let showMcpConnection = $state(false);
   // First-run onboarding tour (shown once, tracked via `onboardingSeen`).
   let showOnboarding = $state(false);
@@ -343,34 +340,6 @@
         }
       });
 
-      // Validate the commercial licence on startup, then resolve the local
-      // state. Nothing here gates anything — the app is complete and free for
-      // personal use; this only labels the status bar and decides whether the
-      // dismissible notice and the first-run usage question appear.
-      // Validate first so the stored status is fresh before getEntitlement reads it.
-      electronAPI.invoke('license:validate').then((result) => {
-        if (result && typeof result === 'object') {
-          const r = result as { status: string; tier: string | null; key: string | null; message?: string };
-          uiState.licenseStatus = r.status;
-          uiState.licenseTier = r.tier;
-          uiState.licenseKey = r.key;
-          uiState.licenseMessage = r.message || '';
-        }
-      }).finally(() => {
-        electronAPI.invoke('license:getEntitlement').then((ent) => {
-          if (ent && typeof ent === 'object') {
-            const e = ent as {
-              access: 'personal' | 'commercial';
-              usage: 'personal' | 'commercial' | null;
-              licenseDue: boolean;
-            };
-            uiState.licenseAccess = e.access;
-            uiState.usageContext = e.usage;
-            uiState.licenseDue = e.licenseDue;
-          }
-        });
-      });
-
       // First-run onboarding tour, then the MCP setup probe. On the very first
       // launch only the onboarding shows; the MCP wizard is reachable from its
       // own step + the Help menu and only auto-pops on later launches, so two
@@ -380,19 +349,11 @@
         if (!seenAtBoot) {
           setTimeout(() => { if (!pendingCrash) showOnboarding = true; }, 700);
         }
-        // MCP probes — delayed 2s so they never compete with the crash dialog
-        // or the onboarding for attention. The connection picker (Meta-MCP vs
-        // Claude Code) takes first-run priority; the Claude-Desktop wizard only
-        // pops if the picker isn't showing, so two MCP modals never stack.
+        // Claude-Desktop wizard — delayed 2s so it never competes with the
+        // crash dialog or the onboarding. Cursor is registered silently at
+        // boot; this wizard is only for Claude Desktop.
         setTimeout(async () => {
           if (pendingCrash || !seenAtBoot || showOnboarding) return;
-          try {
-            const cs = await electronAPI.invoke('mcp:getConnectionStatus') as { target: string | null; supported: boolean };
-            if (cs?.target == null && cs?.supported) {
-              showMcpConnection = true;
-              return; // don't also pop the Claude-Desktop wizard
-            }
-          } catch { /* ignore */ }
           try {
             const status = await electronAPI.invoke('mcp:getSetupStatus') as { needsSetup: boolean; supported: boolean };
             if (status?.needsSetup && status?.supported && !showOnboarding) {
@@ -456,14 +417,6 @@
     overwrittenFile = detail?.file ? detail.file.split('/').pop() ?? detail.file : '';
   }
 
-  // Opens the Polar checkout (used by the trial banner). Top-level so the
-  // template can reach it — the onMount-scoped `electronAPI` const cannot.
-  function openCheckout() {
-    (window as unknown as { electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } })
-      .electronAPI?.invoke('license:openCheckout');
-  }
-
-  // ─── Add Comment ────────────────────────────────
   // Anchor the comment to the current selection (preferred) or the word
   // under the cursor (fallback). Computes a source-offset hint by walking
   // the document up to the selection, which the backend uses as a starting
@@ -1111,24 +1064,6 @@
   <!-- Titlebar drag region (macOS hiddenInset) -->
   <div class="titlebar-drag-region"></div>
 
-  <!-- Licence notice: slim, dismissible, and shown ONLY to someone who said
-       they use Penwright commercially and has no licence. Personal users
-       never see it. It never blocks anything. -->
-  {#if uiState.licenseDue && !uiState.licenseNoticeDismissed}
-    <div class="trial-banner">
-      <span>{t().license.noticeText}</span>
-      <button class="trial-buy" onclick={openCheckout}>
-        {t().license.noticeBuy}
-      </button>
-      <button
-        class="trial-dismiss"
-        onclick={() => (uiState.licenseNoticeDismissed = true)}
-      >
-        {t().license.noticeDismiss}
-      </button>
-    </div>
-  {/if}
-
   {#if overwrittenFile !== null}
     <div class="conflict-banner" role="status">
       <span>{t().app.overwroteExternalChange(overwrittenFile)}</span>
@@ -1336,14 +1271,6 @@
     {#if savePresetState.show}
       <SavePresetDialog onClose={() => { savePresetState.show = false; }} />
     {/if}
-    {#if uiState.usageContext === null}
-      <UsageDialog />
-    {/if}
-    {#if uiState.showLicense}
-      <LicenseDialog
-        onClose={() => { uiState.showLicense = false; }}
-      />
-    {/if}
     {#if uiState.showAbout}
       <AboutDialog
         onClose={() => { uiState.showAbout = false; }}
@@ -1495,21 +1422,6 @@
         aria-label={t().app.switchLanguage}
       >
         {i18nState.locale === 'de' ? 'DE' : 'EN'}
-      </button>
-      <button
-        class="status-toggle"
-        class:licensed={uiState.licenseAccess === 'commercial'}
-        class:expired={uiState.licenseDue}
-        onclick={() => (uiState.showLicense = true)}
-        title={t().app.licenseTitle}
-      >
-        {#if uiState.licenseAccess === 'commercial'}
-          {t().app.licensed}
-        {:else if uiState.licenseDue}
-          {t().app.licenseDue}
-        {:else}
-          {t().app.personal}
-        {/if}
       </button>
     </div>
   </div>
@@ -1887,15 +1799,6 @@
     50% { opacity: 0.5; }
   }
 
-  .status-toggle.licensed {
-    color: #2e7d32;
-  }
-
-  .status-toggle.expired {
-    color: #c0392b;
-    font-weight: 600;
-  }
-
   /* ─── Conflict banner: a concurrent change was overwritten ─── */
   .conflict-banner {
     flex-shrink: 0;
@@ -1921,54 +1824,6 @@
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
-  }
-
-  /* ─── Licence notice (slim, dismissible, never blocking) ─── */
-  .trial-banner {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    height: 30px;
-    padding: 0 16px;
-    background: #f9f3ef;
-    border-bottom: 1px solid #ecddd4;
-    font-size: 12.5px;
-    color: #7a5c4e;
-    -webkit-app-region: no-drag;
-  }
-
-  .trial-buy {
-    padding: 4px 12px;
-    border: none;
-    border-radius: 6px;
-    background: #a8503a;
-    color: #fff;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-    font-weight: 600;
-    transition: background 0.15s;
-  }
-
-  .trial-buy:hover {
-    background: #934636;
-  }
-
-  .trial-dismiss {
-    padding: 4px 10px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: #a08b7e;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-  }
-
-  .trial-dismiss:hover {
-    color: #7a5c4e;
   }
 
   /* ─── Editor Zoom Indicator + Popover ─── */

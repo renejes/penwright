@@ -1504,7 +1504,10 @@ function parseInline(text: string): TipTapNode[] {
         result.push({ type: 'text', text: seg.content, marks: [{ type: 'code' }] });
         break;
       case 'citation':
-        result.push({ type: 'citation', attrs: { citekey: seg.content, label: seg.content } });
+        result.push({
+          type: 'citation',
+          attrs: { citekey: seg.content, label: seg.content, supplement: seg.args ?? '' },
+        });
         break;
       case 'reference':
         result.push({
@@ -1744,12 +1747,23 @@ function splitInlineConstructs(text: string): InlineSegment[] {
             segments.push({ type: 'text', content: text.slice(textStart, i) });
           }
           const name = refMatch[1].replace(/[.:]+$/, '');
+          let consumed = 1 + name.length;
+          let supplement: string | undefined;
+          // Adjacent `[…]` is a Typst citation supplement (`@key[p. 12]`),
+          // not a content block. A space before `[` is not a supplement.
+          if (!isReferenceLabel(name) && text[i + consumed] === '[') {
+            const br = extractBracketContent(text, i + consumed);
+            if (br) {
+              supplement = br.content;
+              consumed = br.end - i;
+            }
+          }
           if (isReferenceLabel(name)) {
             segments.push({ type: 'reference', content: name });
           } else {
-            segments.push({ type: 'citation', content: name });
+            segments.push({ type: 'citation', content: name, args: supplement });
           }
-          i += 1 + name.length;
+          i += consumed;
           textStart = i;
           matched = true;
         }

@@ -14,8 +14,8 @@ import { setupGitIPC } from './gitManager';
 import { openFile, saveFile, saveFileAs, closeProjectInteractive, stopFileWatcher, disposeCompiler, publishSession } from './fileManager';
 import { openProject } from './projectManager';
 import { releaseLock } from '../shared/lockFile';
-import { getWindowBounds, saveWindowBounds, getLocale, getMcpTarget, setMcpTarget } from './persistenceManager';
-import { ensureMcpTarget, probeMetaMcp } from './mcpRegistration';
+import { getWindowBounds, saveWindowBounds, getLocale } from './persistenceManager';
+import { ensureMcpHosts } from './mcpRegistration';
 import { resolveDict } from '../shared/i18n';
 import { handleExportPdf, handleExportDocx, handleExportWeb, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
@@ -164,27 +164,14 @@ function createWindow(): void {
 // ─── MCP registration on boot ─────────────────────────
 
 /**
- * Re-establish the chosen MCP registration target every launch, idempotently.
- *
- *   - `--mcp-target=meta|claude` CLI flag overrides + persists the choice.
- *   - A persisted target is re-applied (register it, deregister the other).
- *   - With no choice yet, a sensible default is applied (Meta-MCP if reachable,
- *     else Claude Code) WITHOUT persisting — leaving `null` so the connection
- *     dialog still offers the explicit choice on first run.
- *
- * Fire-and-forget: never blocks startup, never throws into the lifecycle.
+ * Register this app's MCP server with Cursor (and refresh Claude Code if it
+ * already has an entry). Strips a leftover Meta-MCP entry. Fire-and-forget:
+ * never blocks startup, never throws into the lifecycle.
  */
 async function initMcpRegistration(): Promise<void> {
   try {
-    const flag = process.argv.find((a) => a.startsWith('--mcp-target='));
-    if (flag) {
-      const value = flag.slice('--mcp-target='.length);
-      if (value === 'meta' || value === 'claude') setMcpTarget(value);
-    }
-    const persisted = getMcpTarget();
-    const effective = persisted ?? ((await probeMetaMcp()) ? 'meta' : 'claude');
-    const res = await ensureMcpTarget(effective);
-    addBreadcrumb('mcp', `boot ensure ${effective}: ok=${res.ok}${res.meta.error ? ` meta=${res.meta.error}` : ''}`);
+    const res = await ensureMcpHosts();
+    addBreadcrumb('mcp', `boot ensure cursor=${res.cursor.registered} claude=${res.claude.registered} ok=${res.ok}`);
   } catch (err) {
     console.warn('[penwright] MCP registration init failed:', err);
   }
@@ -243,8 +230,8 @@ app.whenReady().then(() => {
   setupGitIPC();
   addBreadcrumb('lifecycle', 'window created');
 
-  // Register this app's MCP server with the chosen host (Meta-MCP or Claude
-  // Code), idempotently. Runs in the background so it never delays the UI.
+  // Register this app's MCP server with Cursor (and Claude Code if already
+  // present), idempotently. Runs in the background so it never delays the UI.
   void initMcpRegistration();
 
   // Open project from command-line arg if a .typ file path was passed

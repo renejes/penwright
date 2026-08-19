@@ -544,7 +544,9 @@ function serializeInlineNode(node: TipTapNode): string {
   }
 
   if (node.type === 'citation') {
-    return `@${node.attrs?.citekey ?? ''}`;
+    const key = node.attrs?.citekey ?? '';
+    const supplement = node.attrs?.supplement;
+    return supplement ? `@${key}[${supplement}]` : `@${key}`;
   }
 
   if (node.type === 'reference') {

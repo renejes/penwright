@@ -9,80 +9,119 @@ from academic theses to design-grade magazines, brochures and reports.
 
 ![version](https://img.shields.io/badge/version-0.12.0-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
-![Windows](https://img.shields.io/badge/Windows-planned-777777)
+![Windows](https://img.shields.io/badge/Windows-scaffolded-777777)
 ![license](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-3fa45b)
 
 </div>
 
 ---
 
-Penwright lets you write **and design** Typst documents without leaving a rich WYSIWYG
-editor — and without installing Typst (the CLI is bundled). Every project is
-self-contained: its version history, auto-backups, comments and design tokens all live
-inside the project folder, so copying or moving the folder takes the whole state along.
+Penwright lets you **write and design** Typst documents in a rich WYSIWYG editor —
+without installing Typst (the CLI is bundled). Every project is self-contained: version
+history, auto-backups, comments and design tokens live inside the folder, so copying it
+takes the whole state along.
+
+The app is **free for everyone, including companies.** You may run it. You may not reuse
+this repository’s source in another project. Details below.
 
 > **A note on names.** The product is **Penwright**; this repository is still named
 > `vswrite-desktop` (its original name) to keep clones, remotes and paths stable.
 
-## ✨ Features
+## Write in Easy Writing, typeset in Penwright
+
+[Easy Writing](https://github.com/renejes/easy-writing) is a separate, MIT-licensed
+desktop app: a folder is the project, the `.mdx` on disk is the manuscript. Citations,
+footnotes, figures, chapters — no layout studio, no live PDF.
+
+That split is the intended workflow:
+
+1. **Write** in [Easy Writing](https://github.com/renejes/easy-writing) — sentences,
+   `[@citekey]`, footnotes, figures.
+2. **Export → MDX** and copy the project folder (`project.yaml`, chapters, `assets/`,
+   optional `references.bib`).
+3. **Open that folder** in Penwright (**File → Open Project…**). Penwright recognises
+   `project.yaml` and typesets from the `.mdx`.
+4. **Style** here: themes, palettes, layout, print export. The manuscript is not rewritten
+   — `[@key]` stays `[@key]`, the `.bib` is left alone, wording changes go back to Easy
+   Writing.
+
+Penwright also opens ordinary Typst projects (templates, an existing `.typ` tree, the
+bundled sample). **File → Import Markdown…** is the older one-file path and writes a new
+`.typ`; do not use it on an Easy Writing folder.
+
+## Features
 
 **Writing**
-- WYSIWYG editor (TipTap / ProseMirror) with ~19 custom Typst node types — headings,
-  math, figures, tables, citations, cross-references, footnotes, callouts
-- Live PDF preview (pdf.js) that stays smooth on 100+ pages — single page **or a 2-up
-  double-page spread** view
-- Comments & annotations, project-wide find/replace, citation backlinks, a draggable
-  outline, inline source-PDF preview on citation hover
+- WYSIWYG editor (TipTap / ProseMirror) with custom Typst nodes — headings, math, figures,
+  tables, citations, cross-references, footnotes, magazine building blocks
+- Live PDF preview (pdf.js), single page or 2-up spread, that stays usable on 100+ pages
+- Comments, project-wide find/replace, citation backlinks, a draggable outline, source-PDF
+  preview on citation hover
 - Bilingual UI (English + German), switchable at runtime
 
 **Versions & safety**
-- Git-backed *Versions* with plain-language UI — Save Version / History / Restore
-  (no stage/commit/branch vocabulary)
+- Git-backed *Versions* in plain language — Save Version / History / Restore
 - Timed per-project auto-backups + crash recovery, plus an AI-edit undo stack
 - Local crash reporting (plaintext, no external telemetry)
 
-**Design — the "Look" model**
-- Visual design editor: themes, palettes, layouts, fonts, **23 parametric design
-  elements**, and per-chapter section styles
-- Every design change is a *safe experiment* — it is compiled to verify **before** it is
-  applied, and rolled back if it would break the document
-- **Print-ready export** ("For print"): bleed, crop marks, inner/outer margins with a
-  binding gutter, and a dpi pre-flight — magazine- and brochure-grade PDFs
-- Bundled OFL fonts + 24 Typst packages, so design output works fully offline
+**Design**
+- Themes, palettes, layouts, bundled OFL fonts, parametric design elements, per-chapter
+  section styles
+- Every design change is compiled **before** it is kept, and rolled back if it would break
+  the document
+- Print-ready PDF: bleed, crop marks, inner/outer margins, dpi pre-flight
+- Fully offline: Typst CLI, 24 Typst packages and the fonts ship in the app
 
-**Export & interop**
-- **PDF** (exactly what the preview shows) and journal-grade **DOCX** (real Word styles,
-  live multilevel numbering, figures, math, tables, cross-refs, footnotes)
-- Markdown import · Zotero `.bib` integration with live auto-sync
-- **MCP server** with 58 typed tools — an AI agent (Claude Desktop / Claude Code /
-  Meta-MCP) can drive the full editor and design workflows
+**Export & AI**
+- PDF (what the preview shows), journal-grade DOCX, and HTML / magazine mini-site
+- Markdown import · Zotero `.bib` with live auto-sync
+- MCP server (66 tools). On launch Penwright registers itself with **Cursor**
+  (`~/.cursor/mcp.json`); Claude Desktop and Claude Code are optional. The same tools, no
+  key, no time limit.
 
-## 🧱 Tech stack
+## Tech stack
 
 Electron 41 · electron-vite 5 · Svelte 5 (runes) · TipTap / ProseMirror 3 · pdf.js ·
-simple-git · a bundled Typst CLI (no user install needed)
+simple-git · bundled Typst 0.15.1
 
-## 🚀 Development
+## Development
 
 ```bash
 npm install
 npm run dev            # dev server + hot reload
-npm run build          # build main + preload + renderer
+npm test               # typecheck + editor / corpus / MCP gates (~2 min)
+npm run build          # main + preload + renderer
 npm run package:mac    # notarized DMG (needs Apple Developer credentials)
 ```
 
-> From a VS Code / Cursor terminal the dev/build scripts prefix `unset ELECTRON_RUN_AS_NODE`
-> (already wired into the npm scripts). There are no test or lint scripts configured yet.
+From a VS Code / Cursor terminal the scripts prefix `unset ELECTRON_RUN_AS_NODE`
+(already in the npm scripts).
 
-## 📦 Status
+The in-app User Guide is `documentation/handbook.md` (English) and
+`documentation/handbuch.md` (German).
 
-Pre-release (**0.11.0** — web-export design fidelity: embedded fonts, style inference for hand-written projects, per-chapter looks + frontmatter, single-page ↔ mini-site control). macOS / Apple Silicon is built, signed and **notarized**;
-Windows is scaffolded as a fast-follow. Updates ship via newsletter + manual download
-(no auto-updater). The app starts at a Start Screen and never auto-reopens a project.
+## Status
 
-## 📄 License
+Pre-release **0.12.0**. macOS / Apple Silicon is built, signed and notarized. Windows is
+scaffolded (unverified on a real device). The app starts at a Start Screen and never
+auto-reopens a project.
+
+## License
 
 **Source-available, not Open Source.** [PolyForm Strict 1.0.0](LICENSE-PolyForm-Strict-1.0.0.md)
-© René Jesser — see [`LICENSE.md`](LICENSE.md). Private, academic and hobby use of the app is
-free and permanent; commercial use needs a licence. Bundled third-party Typst packages and fonts
-keep their own licenses — see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+plus additional permissions in [`LICENSE.md`](LICENSE.md). © René Jesser.
+
+| You may | You may not |
+|---|---|
+| **Run the app** for any purpose, including commercially — no key, no fee, no “personal vs business” question | **Distribute** Penwright (the app or this source) to anyone else |
+| **Read** the source, audit it, and **build it for your own use** | **Reuse this code** in another project, product, or competing editor |
+| Use every feature, including the MCP / AI integration | Ship a fork, or copy modules out of this repo into yours |
+
+The legal text is [`LICENSE.md`](LICENSE.md). Where this table and those terms disagree,
+the terms win.
+
+Bundled Typst packages and fonts keep their own licenses — see
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+
+Bug reports, documents that break the round-trip, and wording fixes are welcome.
+**Code pull requests are not accepted** — see [`CONTRIBUTING.md`](CONTRIBUTING.md).

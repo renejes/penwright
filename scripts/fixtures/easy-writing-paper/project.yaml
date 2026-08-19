@@ -1,0 +1,9 @@
+schema: 1
+type: paper
+title: Schlaf und Vigilanz
+lang: de
+chapters:
+  - chapters/01-abstract.mdx
+citation:
+  bibliography: references.bib
+  csl: apa

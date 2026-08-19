@@ -1323,6 +1323,22 @@ console.log('\n── Test L: adversarial-review fixes (escaped brackets + neste
   const link = markdownToTypst('See [docs](https://x.dev/a\\b) here.');
   check('markdown import: a link URL keeps its backslash', link.includes('a\\b'), { got: link });
 
+  // Easy Writing dialect: citations stay keys, footnotes inline, figures keep captions.
+  const dialect = markdownToTypst([
+    'Schlaf reduziert die **Reaktionszeit** nicht linear.[^1] Meta-Analysen zeigen',
+    'einen robusten Effekt auf Vigilanz [@lim2010sleep] und spezifisch auf Seite 12',
+    '[@lim2010sleep, p. 12].',
+    '',
+    '[^1]: Operationalisiert über die Psychomotor Vigilance Task.',
+  ].join('\n'));
+  check('markdown import: pandoc citation stays @key', dialect.includes('@lim2010sleep') && !/\(Lim/.test(dialect), { got: dialect });
+  check('markdown import: locator becomes Typst supplement', dialect.includes('@lim2010sleep[p. 12]'), { got: dialect });
+  check('markdown import: footnote inlines the definition', dialect.includes('#footnote[Operationalisiert über die Psychomotor Vigilance Task.]'), { got: dialect });
+  check('markdown import: footnote def is not emitted as prose', !/\[\^1\]:/.test(dialect), { got: dialect });
+
+  const citeRt = serializeTypst(deserializeTypst('See @lim2010sleep[p. 12].') as any);
+  check('citation supplement round-trips', citeRt.includes('@lim2010sleep[p. 12]'), { got: citeRt });
+
   // Every image param of every design element, including the ones a conditional
   // block pre-renders before the placeholder loop runs.
   let offenders: string[] = [];

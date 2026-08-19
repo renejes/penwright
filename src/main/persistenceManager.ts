@@ -2,7 +2,7 @@
  * Persistence Manager — electron-store based state persistence.
  *
  * Saves and restores: window bounds, panel state, recent projects,
- * last project path, onboarding flag, Zotero path, license, backup config.
+ * last project path, onboarding flag, Zotero path, backup config.
  *
  * Auto-backups live INSIDE each project at <projectDir>/.penwright/backups/<timestamp>/
  * so that projects are self-contained and travel with their history.
@@ -11,7 +11,7 @@
 import Store from 'electron-store';
 import * as path from 'path';
 import * as fs from 'fs';
-import { app, safeStorage } from 'electron';
+import { app } from 'electron';
 import {
   type ProjectStyle,
   DEFAULT_PROJECT_STYLE,
@@ -42,14 +42,6 @@ export interface PanelState {
   previewWidth: number;
 }
 
-export interface LicenseData {
-  licenseKey: string | null;
-  activationId: string | null;
-  licenseTier: 'basic' | 'pro' | null;
-  licenseStatus: 'active' | 'expired' | null;
-  lastValidation: number;
-}
-
 export interface BackupConfig {
   /** Seconds between automatic backup snapshots. */
   intervalSec: number;
@@ -64,26 +56,10 @@ interface StoreSchema {
   panelState: PanelState;
   recentProjects: RecentProject[];
   onboardingSeen: boolean;
-  /**
-   * What the user says they use Penwright for. `null` until they answer once,
-   * at first launch. Personal/academic/hobby use is free forever; commercial
-   * use needs a licence. Nothing is ever gated on this — it decides only
-   * whether the (dismissible) licence notice is shown at all.
-   */
-  usageContext: 'personal' | 'commercial' | null;
   zoteroBibPath: string | null;
-  /** Encrypted (OS keychain) base64 blob containing the full LicenseData payload. */
-  licenseBlob: string | null;
   backupConfig: BackupConfig;
   /** Last MCP_SETUP_VERSION the user ran the Claude-Desktop setup for. */
   mcpSetupVersion: string | null;
-  /**
-   * Which host this app registers its MCP server with: 'meta' (Meta-MCP proxy)
-   * or 'claude' (Claude Code, user scope). `null` = not yet chosen; the app
-   * applies a sensible default (Meta-MCP if reachable, else Claude Code) and
-   * the connection dialog auto-offers the choice until the user decides.
-   */
-  mcpTarget: 'meta' | 'claude' | null;
   /** UI language ('de' | 'en'); null until the user picks one (then OS-resolved). */
   locale: 'de' | 'en' | null;
   /** Preview recompile behaviour: 'auto' (debounced while typing) or 'manual' (Refresh button only). */
@@ -113,12 +89,9 @@ const store = new Store<StoreSchema>({
     },
     recentProjects: [],
       onboardingSeen: false,
-    usageContext: null,
     zoteroBibPath: null,
-    licenseBlob: null,
     backupConfig: DEFAULT_BACKUP_CONFIG,
     mcpSetupVersion: null,
-    mcpTarget: null,
     locale: null,
     previewMode: 'auto',
   },
@@ -217,26 +190,6 @@ export function setPreviewMode(mode: string): void {
   store.set('previewMode', mode === 'manual' ? 'manual' : 'auto');
 }
 
-// ─── Usage context ───────────────────────────────
-// Penwright is free for personal, academic and hobby use, and needs a paid
-// licence for commercial use. The app cannot detect which one applies, so it
-// asks once at first launch and remembers the answer here.
-//
-// This is NOT a gate. Nothing is ever locked, whatever the answer. It decides
-// only whether the dismissible "commercial use needs a licence" notice appears.
-
-export type UsageContext = 'personal' | 'commercial' | null;
-
-/** What the user declared. `null` means they have not been asked yet. */
-export function getUsageContext(): UsageContext {
-  const u = store.get('usageContext');
-  return u === 'personal' || u === 'commercial' ? u : null;
-}
-
-export function setUsageContext(usage: UsageContext): void {
-  store.set('usageContext', usage === 'personal' || usage === 'commercial' ? usage : null);
-}
-
 // ─── MCP Setup Version ──────────────────────────
 
 export function getMcpSetupVersion(): string | null {
@@ -247,19 +200,6 @@ export function saveMcpSetupVersion(version: string | null): void {
   store.set('mcpSetupVersion', version);
 }
 
-// ─── MCP Registration Target ────────────────────
-// Which host this app registers its MCP server with. `null` until the user
-// (or the smart default) decides; see mcpRegistration.ts.
-
-export function getMcpTarget(): 'meta' | 'claude' | null {
-  const t = store.get('mcpTarget');
-  return t === 'meta' || t === 'claude' ? t : null;
-}
-
-export function setMcpTarget(target: 'meta' | 'claude'): void {
-  store.set('mcpTarget', target === 'claude' ? 'claude' : 'meta');
-}
-
 // ─── Zotero ──────────────────────────────────────
 
 // NOTE: the stored path is currently write-only — the Zotero watcher lives
@@ -267,49 +207,6 @@ export function setMcpTarget(target: 'meta' | 'claude'): void {
 // restart"; the unread getter + its IPC channel were removed in the cleanup.
 export function saveZoteroBibPath(bibPath: string | null): void {
   store.set('zoteroBibPath', bibPath);
-}
-
-// ─── License ────────────────────────────────────
-
-const EMPTY_LICENSE: LicenseData = {
-  licenseKey: null,
-  activationId: null,
-  licenseTier: null,
-  licenseStatus: null,
-  lastValidation: 0,
-};
-
-export function getLicenseData(): LicenseData {
-  const blob = store.get('licenseBlob');
-  if (!blob) return { ...EMPTY_LICENSE };
-  try {
-    if (!safeStorage.isEncryptionAvailable()) return { ...EMPTY_LICENSE };
-    const decrypted = safeStorage.decryptString(Buffer.from(blob, 'base64'));
-    const parsed = JSON.parse(decrypted) as LicenseData;
-    if (typeof parsed !== 'object' || parsed === null) return { ...EMPTY_LICENSE };
-    return {
-      licenseKey: typeof parsed.licenseKey === 'string' ? parsed.licenseKey : null,
-      activationId: typeof parsed.activationId === 'string' ? parsed.activationId : null,
-      licenseTier: parsed.licenseTier === 'pro' || parsed.licenseTier === 'basic' ? parsed.licenseTier : null,
-      licenseStatus: parsed.licenseStatus === 'active' || parsed.licenseStatus === 'expired' ? parsed.licenseStatus : null,
-      lastValidation: typeof parsed.lastValidation === 'number' ? parsed.lastValidation : 0,
-    };
-  } catch {
-    return { ...EMPTY_LICENSE };
-  }
-}
-
-export function saveLicenseData(data: LicenseData): void {
-  if (!safeStorage.isEncryptionAvailable()) {
-    console.warn('[penwright] safeStorage unavailable — license cannot be persisted securely.');
-    return;
-  }
-  const encrypted = safeStorage.encryptString(JSON.stringify(data));
-  store.set('licenseBlob', encrypted.toString('base64'));
-}
-
-export function clearLicenseData(): void {
-  store.set('licenseBlob', null);
 }
 
 // ─── Backup Config ──────────────────────────────

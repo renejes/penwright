@@ -1,23 +1,19 @@
 /**
- * MCP Registration — registers THIS app's MCP server with exactly one of two
- * hosts, idempotently.
+ * MCP Registration — registers THIS app's MCP server with Cursor (and,
+ * optionally, Claude Code).
  *
- *   (A) Meta-MCP   — a local MCP-aggregator proxy on http://localhost:3663.
- *                    Register over HTTP (POST /register, hot-reload); the proxy
- *                    dedupes on `name` and assigns its own id. There is no HTTP
- *                    unregister, so removal edits Meta-MCP's watched config.json.
- *   (B) Claude Code — the CLI agent. Register at user scope (global) via
- *                    `claude mcp add --scope user …`, falling back to editing
- *                    `~/.claude.json` directly when the `claude` CLI isn't on a
- *                    GUI app's (stripped) PATH.
+ * Cursor is the default host: every launch writes/refreshes
+ * `~/.cursor/mcp.json` so the same standalone binary + Typst env the
+ * Claude-Desktop wizard uses is available in Cursor without hand-editing JSON.
  *
- * Invariant: only ONE registration is active at a time. `ensureMcpTarget`
- * registers the chosen host and removes the app's entry from the other, so
- * re-running it every launch converges to a clean, duplicate-free state.
+ * Claude Code is opt-in from Help → MCP Connection (or refreshed on boot if
+ * an entry is already present). Claude Desktop stays on its own wizard.
  *
- * The server definition (command / args / env) is identical to what the
- * Claude-Desktop wizard writes — the same standalone binary and the same Typst
- * env block — built via `buildServerDefinition()`.
+ * Meta-MCP is gone. A leftover `penwright` entry in its config is stripped
+ * once on boot so an old install does not keep a dead aggregator pointing at us.
+ *
+ * The server definition (command / args / env) is identical across hosts —
+ * built via `buildServerDefinition()`.
  */
 
 import * as fs from 'fs';
@@ -26,9 +22,7 @@ import * as os from 'os';
 import { execFileSync } from 'child_process';
 import { ensureInstalledBinary, buildMcpEnv, MCP_SERVER_KEY } from './mcpSetup';
 
-// ─── Types ──────────────────────────────────────────
-
-export type McpTarget = 'meta' | 'claude';
+export type McpHost = 'cursor' | 'claude';
 
 /** The app's MCP server, as every host needs to spawn it (stdio transport). */
 export interface ServerDefinition {
@@ -39,42 +33,23 @@ export interface ServerDefinition {
   env: Record<string, string>;
 }
 
-/** Per-side outcome of a register/unregister pass. */
-export interface SideResult {
-  reachable?: boolean;
+/** Per-host outcome of a register pass. */
+export interface HostResult {
   registered: boolean;
-  unregistered: boolean;
-  /** How the Claude-Code side was written ('cli' or 'file'); null otherwise. */
   method: 'cli' | 'file' | null;
-  /** Machine-readable error code or message; null on success. */
   error: string | null;
 }
 
 export interface EnsureResult {
-  target: McpTarget;
-  /** True when the chosen target is now the sole active registration. */
   ok: boolean;
-  meta: SideResult;
-  claude: SideResult;
-  /**
-   * Licence state of the registered server, for display only. The server
-   * always starts — 'personal' is not a degraded mode.
-   */
-  access: 'personal' | 'commercial';
+  cursor: HostResult;
+  claude: HostResult;
 }
 
-const META_BASE = 'http://localhost:3663';
-const PROBE_TIMEOUT_MS = 1200;
-const HTTP_TIMEOUT_MS = 4000;
 const CLI_TIMEOUT_MS = 8000;
 
-function emptySide(): SideResult {
-  return { registered: false, unregistered: false, method: null, error: null };
-}
-
-/** Does the server env carry a commercial licence key? Display only. */
-function envAccess(env: Record<string, string>): 'personal' | 'commercial' {
-  return 'PENWRIGHT_LICENSE_KEY' in env ? 'commercial' : 'personal';
+function emptyHost(): HostResult {
+  return { registered: false, method: null, error: null };
 }
 
 // ─── Server definition ──────────────────────────────
@@ -92,8 +67,21 @@ export function buildServerDefinition(): ServerDefinition {
 
 // ─── Config paths ───────────────────────────────────
 
-/** Meta-MCP's watched config file (used for the file-based unregister). */
-export function getMetaConfigPath(): string {
+/** Cursor's global MCP config (every workspace on this machine). */
+export function getCursorConfigPath(): string {
+  return path.join(os.homedir(), '.cursor', 'mcp.json');
+}
+
+/** Claude Code's user-scope (global) config file. */
+export function getClaudeCodeConfigPath(): string {
+  return path.join(os.homedir(), '.claude.json');
+}
+
+/**
+ * Meta-MCP's watched config — only used to strip a leftover entry after the
+ * host was removed. Not a registration target.
+ */
+function getLegacyMetaConfigPath(): string {
   const home = os.homedir();
   const appId = 'com.metamcp.desktop';
   if (process.platform === 'darwin') {
@@ -103,14 +91,8 @@ export function getMetaConfigPath(): string {
     const base = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
     return path.join(base, appId, 'config.json');
   }
-  // Linux / other: XDG config home.
   const xdg = process.env.XDG_CONFIG_HOME || path.join(home, '.config');
   return path.join(xdg, appId, 'config.json');
-}
-
-/** Claude Code's user-scope (global) config file. */
-export function getClaudeCodeConfigPath(): string {
-  return path.join(os.homedir(), '.claude.json');
 }
 
 // ─── Shared non-destructive JSON file helpers ───────
@@ -153,81 +135,52 @@ function writeJson(filePath: string, obj: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), 'utf-8');
 }
 
-// ─── Meta-MCP (A) ───────────────────────────────────
+function hostEntry(def: ServerDefinition): Record<string, unknown> {
+  const entry: Record<string, unknown> = { command: def.command };
+  if (def.args.length) entry['args'] = def.args;
+  if (Object.keys(def.env).length) entry['env'] = def.env;
+  return entry;
+}
 
-/** GET http://localhost:3663/ — a 200 means the proxy is running. */
-export async function probeMetaMcp(timeoutMs = PROBE_TIMEOUT_MS): Promise<boolean> {
+/** Merge `mcpServers.<name>` into a JSON object file, preserving everything else. */
+function writeMcpServersEntry(filePath: string, def: ServerDefinition): void {
+  const read = readJsonObject(filePath);
+  const obj = read?.obj ?? {};
+
+  if (obj['mcpServers'] !== undefined && (typeof obj['mcpServers'] !== 'object' || Array.isArray(obj['mcpServers']))) {
+    throw new Error(`\`mcpServers\` in ${filePath} must be an object — refusing to overwrite.`);
+  }
+  const servers = (obj['mcpServers'] as Record<string, unknown> | undefined) ?? {};
+  obj['mcpServers'] = servers;
+  servers[def.name] = hostEntry(def);
+
+  if (read) backupConfig(filePath, read.raw);
+  writeJson(filePath, obj);
+}
+
+function hasMcpServersEntry(filePath: string, name: string): boolean {
   try {
-    const res = await fetch(`${META_BASE}/`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    return res.ok;
+    const read = readJsonObject(filePath);
+    if (!read) return false;
+    const servers = read.obj['mcpServers'];
+    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) return false;
+    return name in (servers as Record<string, unknown>);
   } catch {
     return false;
   }
 }
 
-/** POST /register — Meta-MCP dedupes on `name` and assigns its own id. */
-async function registerWithMeta(def: ServerDefinition): Promise<void> {
-  const body = {
-    name: def.name,
-    transport: def.transport,
-    command: def.command,
-    args: def.args,
-    env: def.env,
-    active: true,
-  };
-  const res = await fetch(`${META_BASE}/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    throw new Error(`Meta-MCP /register returned HTTP ${res.status}`);
-  }
+// ─── Cursor ─────────────────────────────────────────
+
+export function registerWithCursor(def: ServerDefinition): void {
+  writeMcpServersEntry(getCursorConfigPath(), def);
 }
 
-/**
- * Remove the app's entry from Meta-MCP's config.json (no HTTP unregister
- * exists). Touches ONLY our own `name`; `profiles` / `active_profile` and every
- * other server stay byte-for-byte intact. Handles `servers` as either an array
- * (the documented shape) or an object map, defensively.
- */
-export function unregisterFromMeta(name = MCP_SERVER_KEY): { removed: number } {
-  const filePath = getMetaConfigPath();
-  const read = readJsonObject(filePath);
-  if (!read) return { removed: 0 };
-  const { raw, obj } = read;
-
-  const servers = obj['servers'];
-  let removed = 0;
-
-  if (Array.isArray(servers)) {
-    const kept = servers.filter((s) => !(s && typeof s === 'object' && (s as Record<string, unknown>)['name'] === name));
-    removed = servers.length - kept.length;
-    if (removed > 0) obj['servers'] = kept;
-  } else if (servers && typeof servers === 'object') {
-    const map = servers as Record<string, unknown>;
-    for (const key of Object.keys(map)) {
-      const entry = map[key];
-      const entryName = entry && typeof entry === 'object' ? (entry as Record<string, unknown>)['name'] : undefined;
-      if (key === name || entryName === name) {
-        delete map[key];
-        removed++;
-      }
-    }
-  }
-
-  if (removed > 0) {
-    backupConfig(filePath, raw);
-    writeJson(filePath, obj);
-  }
-  return { removed };
+export function isCursorRegistered(name = MCP_SERVER_KEY): boolean {
+  return hasMcpServersEntry(getCursorConfigPath(), name);
 }
 
-// ─── Claude Code (B) ────────────────────────────────
+// ─── Claude Code ────────────────────────────────────
 
 const CLAUDE_CLI_LOCATIONS = (() => {
   const home = os.homedir();
@@ -267,43 +220,6 @@ function resolveClaudeCli(): string | null {
   return null;
 }
 
-/** Set `mcpServers.<name>` in ~/.claude.json, preserving everything else. */
-function writeClaudeCodeConfig(def: ServerDefinition): void {
-  const filePath = getClaudeCodeConfigPath();
-  const read = readJsonObject(filePath);
-  const obj = read?.obj ?? {};
-
-  if (obj['mcpServers'] !== undefined && (typeof obj['mcpServers'] !== 'object' || Array.isArray(obj['mcpServers']))) {
-    throw new Error('`mcpServers` in ~/.claude.json must be an object — refusing to overwrite.');
-  }
-  const servers = (obj['mcpServers'] as Record<string, unknown> | undefined) ?? {};
-  obj['mcpServers'] = servers;
-
-  const entry: Record<string, unknown> = { command: def.command };
-  if (def.args.length) entry['args'] = def.args;
-  if (Object.keys(def.env).length) entry['env'] = def.env;
-  servers[def.name] = entry;
-
-  if (read) backupConfig(filePath, read.raw);
-  writeJson(filePath, obj);
-}
-
-/** Remove `mcpServers.<name>` from ~/.claude.json. Idempotent. */
-function removeFromClaudeCodeConfig(name = MCP_SERVER_KEY): { removed: number } {
-  const filePath = getClaudeCodeConfigPath();
-  const read = readJsonObject(filePath);
-  if (!read) return { removed: 0 };
-  const { raw, obj } = read;
-  const servers = obj['mcpServers'];
-  if (!servers || typeof servers !== 'object' || Array.isArray(servers)) return { removed: 0 };
-  const map = servers as Record<string, unknown>;
-  if (!(name in map)) return { removed: 0 };
-  delete map[name];
-  backupConfig(filePath, raw);
-  writeJson(filePath, obj);
-  return { removed: 1 };
-}
-
 /**
  * Register at Claude Code (user scope). Prefers the CLI (remove-then-add so it's
  * idempotent and picks up any definition change); falls back to a direct
@@ -313,7 +229,6 @@ function registerWithClaudeCode(def: ServerDefinition): 'cli' | 'file' {
   const cli = resolveClaudeCli();
   if (cli) {
     try {
-      // Remove any stale entry first — `claude mcp add` errors on a duplicate.
       try {
         execFileSync(cli, ['mcp', 'remove', def.name, '--scope', 'user'], { timeout: CLI_TIMEOUT_MS, stdio: 'ignore' });
       } catch { /* not present — fine */ }
@@ -326,83 +241,123 @@ function registerWithClaudeCode(def: ServerDefinition): 'cli' | 'file' {
       console.warn('[penwright] `claude mcp add` failed, editing ~/.claude.json instead:', err);
     }
   }
-  writeClaudeCodeConfig(def);
+  writeMcpServersEntry(getClaudeCodeConfigPath(), def);
   return 'file';
+}
+
+export function isClaudeCodeRegistered(name = MCP_SERVER_KEY): boolean {
+  return hasMcpServersEntry(getClaudeCodeConfigPath(), name);
+}
+
+// ─── Legacy Meta-MCP cleanup ────────────────────────
+
+/**
+ * Remove a leftover `penwright` entry from Meta-MCP's config.json, if the file
+ * still exists. Touches ONLY our own `name`. Idempotent; missing file is a no-op.
+ */
+export function cleanupLegacyMetaEntry(name = MCP_SERVER_KEY): { removed: number } {
+  const filePath = getLegacyMetaConfigPath();
+  const read = readJsonObject(filePath);
+  if (!read) return { removed: 0 };
+  const { raw, obj } = read;
+
+  const servers = obj['servers'];
+  let removed = 0;
+
+  if (Array.isArray(servers)) {
+    const kept = servers.filter((s) => !(s && typeof s === 'object' && (s as Record<string, unknown>)['name'] === name));
+    removed = servers.length - kept.length;
+    if (removed > 0) obj['servers'] = kept;
+  } else if (servers && typeof servers === 'object') {
+    const map = servers as Record<string, unknown>;
+    for (const key of Object.keys(map)) {
+      const entry = map[key];
+      const entryName = entry && typeof entry === 'object' ? (entry as Record<string, unknown>)['name'] : undefined;
+      if (key === name || entryName === name) {
+        delete map[key];
+        removed++;
+      }
+    }
+  }
+
+  if (removed > 0) {
+    backupConfig(filePath, raw);
+    writeJson(filePath, obj);
+  }
+  return { removed };
 }
 
 // ─── Orchestration ──────────────────────────────────
 
 /**
- * Make `target` the SOLE active registration, idempotently.
- *
- * Order matters: we register the chosen host FIRST and only then remove the
- * other, so a failed switch never leaves the app with zero working hosts.
- *
- *   target='meta'   → POST to Meta-MCP, then remove from Claude Code.
- *                     If Meta-MCP isn't running we report it and leave Claude
- *                     Code untouched (never silently register there).
- *   target='claude' → register at Claude Code, then remove from Meta-MCP.
+ * Register with Cursor (always) and refresh Claude Code if it already has us.
+ * Also strips a leftover Meta-MCP entry. Idempotent; never blocks startup.
  */
-export async function ensureMcpTarget(target: McpTarget): Promise<EnsureResult> {
+export async function ensureMcpHosts(): Promise<EnsureResult> {
   const result: EnsureResult = {
-    target,
     ok: false,
-    meta: emptySide(),
-    claude: emptySide(),
-    access: 'personal',
+    cursor: emptyHost(),
+    claude: emptyHost(),
   };
 
   let def: ServerDefinition;
   try {
     def = buildServerDefinition();
-    result.access = envAccess(def.env);
   } catch (err) {
     const msg = String((err as Error).message ?? err);
-    result.meta.error = msg;
+    result.cursor.error = msg;
     result.claude.error = msg;
     return result;
   }
 
-  if (target === 'meta') {
-    result.meta.reachable = await probeMetaMcp();
-    if (!result.meta.reachable) {
-      result.meta.error = 'meta-not-running';
-      return result; // surface to user; leave Claude Code as-is
-    }
-    try {
-      await registerWithMeta(def);
-      result.meta.registered = true;
-    } catch (err) {
-      result.meta.error = String((err as Error).message ?? err);
-      return result;
-    }
-    // Meta-MCP is now the active host → drop the Claude Code entry.
-    try {
-      const removed = removeFromClaudeCodeConfig(def.name);
-      result.claude.unregistered = removed.removed > 0;
-      result.claude.method = 'file';
-    } catch (err) {
-      result.claude.error = String((err as Error).message ?? err); // non-fatal
-    }
-    result.ok = true;
-    return result;
+  try {
+    registerWithCursor(def);
+    result.cursor.registered = true;
+    result.cursor.method = 'file';
+  } catch (err) {
+    result.cursor.error = String((err as Error).message ?? err);
   }
 
-  // target === 'claude'
-  try {
-    result.claude.method = registerWithClaudeCode(def);
-    result.claude.registered = true;
-  } catch (err) {
-    result.claude.error = String((err as Error).message ?? err);
-    return result;
+  if (isClaudeCodeRegistered(def.name)) {
+    try {
+      result.claude.method = registerWithClaudeCode(def);
+      result.claude.registered = true;
+    } catch (err) {
+      result.claude.error = String((err as Error).message ?? err);
+    }
   }
-  // Claude Code is now the active host → drop the Meta-MCP entry.
+
   try {
-    const removed = unregisterFromMeta(def.name);
-    result.meta.unregistered = removed.removed > 0;
+    cleanupLegacyMetaEntry(def.name);
   } catch (err) {
-    result.meta.error = String((err as Error).message ?? err); // non-fatal
+    console.warn('[penwright] Meta-MCP leftover cleanup failed:', err);
   }
-  result.ok = true;
+
+  result.ok = result.cursor.registered;
   return result;
+}
+
+/** Register (or refresh) a single host from the connection dialog. */
+export async function registerMcpHost(host: McpHost): Promise<HostResult> {
+  const out = emptyHost();
+  let def: ServerDefinition;
+  try {
+    def = buildServerDefinition();
+  } catch (err) {
+    out.error = String((err as Error).message ?? err);
+    return out;
+  }
+
+  try {
+    if (host === 'cursor') {
+      registerWithCursor(def);
+      out.method = 'file';
+    } else {
+      out.method = registerWithClaudeCode(def);
+    }
+    out.registered = true;
+  } catch (err) {
+    out.error = String((err as Error).message ?? err);
+  }
+  return out;
 }

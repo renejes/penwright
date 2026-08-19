@@ -97,7 +97,8 @@ Penwright says no to a lot, on purpose. A "no" is not a judgement of the idea.
 This is the part that deserves an honest explanation rather than a rule.
 
 Penwright is **source-available, not open source** (see [`LICENSE.md`](LICENSE.md)).
-It is free for personal, academic and hobby use, and commercial use is paid.
+It is free for everyone, including companies. You may run the application; you
+may not distribute it or reuse its source in another project.
 That model only stays possible while **one person holds the copyright to the
 entire codebase.**
 
@@ -152,9 +153,11 @@ the project directory.
 
 You are welcome to build and run Penwright from source for your own use — that
 is a large part of why the source is public, and [`LICENSE.md`](LICENSE.md) §4
-grants it explicitly. What you may not do is pass it on or reuse the code: the
-licence grants everything for a non-commercial purpose **except distributing
-the software and making changes or new works based on it** ([`LICENSE.md`](LICENSE.md) §3).
+grants it explicitly, including for commercial work. What you may not do is
+pass it on or reuse the code: the licence grants everything **except
+distributing the software and making changes or new works based on it**
+([`LICENSE.md`](LICENSE.md) §3). Commercial use of the *application* is an
+additional permission in §5.
 
 ```bash
 npm install

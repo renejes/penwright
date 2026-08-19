@@ -37,12 +37,6 @@
     }
   });
 
-  function tierLabel(): string {
-    return uiState.licenseStatus === 'active'
-      ? t().about.aboutLicensed
-      : t().about.aboutUnlicensed;
-  }
-
   function platformLabel(p: string): string {
     switch (p) {
       case 'darwin': return 'macOS';
@@ -62,7 +56,6 @@
       `Penwright ${info.version}`,
       `Platform: ${platformLabel(info.platform)} (${info.arch})`,
       `Electron ${info.electron} / Chromium ${info.chrome} / Node ${info.node}`,
-      `License: ${tierLabel()}`,
     ].join('\n');
     try {
       await navigator.clipboard.writeText(text);
@@ -91,9 +84,6 @@
       <div class="app-meta">
         <h1>Penwright</h1>
         <div class="version">{info ? t().about.aboutVersion(info.version) : t().about.aboutVersionLoading}</div>
-        <div class="tier-badge" class:active={uiState.licenseStatus === 'active'}>
-          {tierLabel()}
-        </div>
       </div>
     </div>
 
@@ -223,24 +213,6 @@
     font-size: 13px;
     color: #888;
     font-family: 'SF Mono', 'Menlo', monospace;
-  }
-
-  .tier-badge {
-    align-self: flex-start;
-    margin-top: 4px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    background: #f0f0f0;
-    color: #777;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .tier-badge.active {
-    background: #e8f5e9;
-    color: #2e7d32;
   }
 
   .tagline {

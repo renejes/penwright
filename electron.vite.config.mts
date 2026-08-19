@@ -4,7 +4,7 @@ import path from 'path';
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['electron-store', '@polar-sh/sdk'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })],
     build: {
       outDir: 'dist/main',
     },

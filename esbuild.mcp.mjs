@@ -8,9 +8,8 @@ await esbuild.build({
   format: 'esm',
   outfile: 'dist/mcp/server.mjs',
   external: [
-    '@modelcontextprotocol/sdk',
+    '@modelcontextprotocol/server',
     'zod',
-    'zod-to-json-schema',
   ],
   banner: {
     js: 'import { createRequire } from "module";\nconst require = createRequire(import.meta.url);',

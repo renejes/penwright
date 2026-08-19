@@ -99,13 +99,6 @@ const INVOKE_CHANNELS = [
   'persist:getPreviewMode',
   'persist:setPreviewMode',
   'preview:compile',
-  'license:activate',
-  'license:validate',
-  'license:deactivate',
-  'license:getStatus',
-  'license:getEntitlement',
-  'license:setUsage',
-  'license:openCheckout',
   'crash:report',
   'crash:getLatest',
   'crash:markShown',
@@ -119,7 +112,7 @@ const INVOKE_CHANNELS = [
   'mcp:getSetupStatus',
   'mcp:skipSetup',
   'mcp:getConnectionStatus',
-  'mcp:setTarget',
+  'mcp:registerHost',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {
