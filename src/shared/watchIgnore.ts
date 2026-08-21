@@ -55,6 +55,8 @@ export function isIgnoredWatchPath(watchRoot: string, p: string): boolean {
   // guarded write. The renderer polls it, so a watcher event adds nothing but
   // would put a filesystem event on the app's critical path for each one.
   if (rel === '.penwright/agent-activity.json') return true;
+  if (rel === '.penwright/cursor-agent' || rel.startsWith('.penwright/cursor-agent/')) return true;
+  if (rel === '.penwright/chat-in' || rel.startsWith('.penwright/chat-in/')) return true;
 
   return false;
 }

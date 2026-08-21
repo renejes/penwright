@@ -30,6 +30,7 @@ import { about } from './about';
 import { editor } from './editor';
 import { editorLib } from './editorLib';
 import { history } from './history';
+import { chat } from './chat';
 
 export const en = {
   common,
@@ -56,4 +57,5 @@ export const en = {
   editor,
   editorLib,
   history,
+  chat,
 };

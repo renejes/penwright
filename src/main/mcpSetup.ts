@@ -118,7 +118,8 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // would close the only way back once another route had already done damage.
 // 0.42.0: MCP SDK v2 (`@modelcontextprotocol/server`), Meta-MCP removed,
 // Cursor is the default host (`~/.cursor/mcp.json`), licence key env gone.
-export const MCP_SETUP_VERSION = '0.42.0';
+// 0.43.0: in-app Cursor chat; get_selection pin comes from "Insert into Chat".
+export const MCP_SETUP_VERSION = '0.43.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Cursor's

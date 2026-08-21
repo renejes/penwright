@@ -28,6 +28,7 @@ export const menu: MenuMessages = {
   view: 'Ansicht',
   toggleSidebar: 'Seitenleiste umschalten',
   togglePreview: 'Vorschau umschalten',
+  toggleChat: 'Chat umschalten',
   editorZoom: 'Editor-Zoom',
   previewZoom: 'Vorschau-Zoom',
   zoomIn: 'Vergrößern',
@@ -38,7 +39,7 @@ export const menu: MenuMessages = {
   zoomWindowOut: 'Fenster verkleinern',
 
   document: 'Dokument',
-  documentSettings: 'Dokument-Einstellungen…',
+  documentSettings: 'Einstellungen…',
   mergeDocument: 'Dokument zusammenführen',
   splitDocument: 'In Kapitel aufteilen',
   openAsTypst: 'Als Typst-Quelltext öffnen',

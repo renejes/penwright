@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **66 Tools** fuer externe AI-Agents | Unabhaengig von der Electron-App | Cursor, Claude Desktop, Claude Code, Codex u.a.
+> **66 Tools** fuer externe AI-Agents **und** den In-App-Chat | Unabhaengig von der Electron-App | Cursor (IDE oder Chat in Penwright), Claude Desktop, Claude Code, Codex u.a.
 
 ---
 

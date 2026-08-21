@@ -5,6 +5,9 @@
 
 import type { Editor } from '@tiptap/core';
 import type { DocumentSettings } from '../editor/lib/messages';
+import { formatTokenCount } from '../shared/chatModels';
+import { mergeStreamText, upsertToolChip } from '../shared/chatStream';
+import type { ChatAnchor, ChatAttachment, ChatMode, ChatSessionsSnapshot, ChatStatus, ChatStreamEvent, ChatTurn } from '../shared/chatTypes';
 
 // ─── Editor State ───────────────────────────────
 export let editorRef: { current: Editor | null } = $state({ current: null });
@@ -31,9 +34,12 @@ export let uiState = $state({
 export let panelState = $state({
   showSidebar: true,
   showPreview: false,
+  showChat: false,
   sidebarTab: 'files' as 'files' | 'outline' | 'includes' | 'git' | 'comments' | 'design',
   sidebarWidth: 220,
   previewWidth: 400,
+  chatWidth: 360,
+  chatHeight: 280,
 });
 
 // ─── Document Zoom ──────────────────────────────
@@ -81,6 +87,91 @@ export let previewState = $state({
   // First heading of the active chapter — the preview scrolls to it on switch.
   scrollTarget: '',
 });
+
+// ─── In-app chat ────────────────────────────────
+export let chatUi = $state({
+  turns: [] as ChatTurn[],
+  streaming: false,
+  pendingAnchors: [] as ChatAnchor[],
+  pendingFiles: [] as { file: string; label: string }[],
+  pendingAttachments: [] as ChatAttachment[],
+  draft: '',
+  mode: 'agent' as ChatMode,
+  status: null as ChatStatus | null,
+  lastError: '',
+  usageLine: '',
+  lastActivityAt: 0,
+  sessions: { activeId: null, open: [], all: [] } as ChatSessionsSnapshot,
+});
+
+export function applyChatEvent(event: ChatStreamEvent): void {
+  if (event.kind !== 'done' && event.kind !== 'error') {
+    chatUi.lastActivityAt = Date.now();
+  }
+  const last = [...chatUi.turns].reverse().find(t => t.role === 'assistant');
+  switch (event.kind) {
+    case 'assistant':
+      // Snapshot from the host (stream or wait()) — already merged there.
+      // Merging again doubled every token: "Ich les lesee zuerst zuerst".
+      if (last) last.text = event.text;
+      break;
+    case 'assistant-delta':
+      if (last) last.text = mergeStreamText(last.text, event.text);
+      break;
+    case 'thinking':
+      if (last) last.thinking = mergeStreamText(last.thinking ?? '', event.text);
+      break;
+    case 'tool':
+      if (last) {
+        last.tools = upsertToolChip(last.tools ?? [], {
+          id: event.id,
+          name: event.name,
+          status: event.status,
+          detail: event.detail,
+        });
+      }
+      break;
+    case 'heartbeat':
+      break;
+    case 'usage': {
+      const total = formatTokenCount(event.totalTokens ?? 0);
+      if (total) chatUi.usageLine = total;
+      else {
+        const bits: string[] = [];
+        if (event.inputTokens) bits.push(`${event.inputTokens}↓`);
+        if (event.outputTokens) bits.push(`${event.outputTokens}↑`);
+        if (bits.length) chatUi.usageLine = bits.join(' ');
+      }
+      break;
+    }
+    case 'done':
+      chatUi.streaming = false;
+      if (event.error) chatUi.lastError = event.error;
+      break;
+    case 'error':
+      chatUi.streaming = false;
+      chatUi.lastError = event.message;
+      break;
+    default: {
+      const _never: never = event;
+      void _never;
+      break;
+    }
+  }
+}
+
+export function resetChatUi(): void {
+  chatUi.turns = [];
+  chatUi.streaming = false;
+  chatUi.pendingAnchors = [];
+  chatUi.pendingFiles = [];
+  chatUi.pendingAttachments = [];
+  chatUi.draft = '';
+  chatUi.lastError = '';
+  chatUi.usageLine = '';
+  chatUi.lastActivityAt = 0;
+  chatUi.sessions = { activeId: null, open: [], all: [] };
+}
 
 // ─── Tab / File State ───────────────────────────
 export interface EditorTab {
@@ -178,6 +269,7 @@ export function switchToTab(index: number) {
 export let resizeBase = {
   sidebarWidth: 0,
   previewWidth: 0,
+  chatHeight: 0,
 };
 
 export function startSidebarResize() {
@@ -192,4 +284,11 @@ export function startPreviewResize() {
 }
 export function onPreviewResize(delta: number) {
   panelState.previewWidth = Math.max(200, Math.min(800, resizeBase.previewWidth - delta));
+}
+
+export function startChatResize() {
+  resizeBase.chatHeight = panelState.chatHeight;
+}
+export function onChatResize(delta: number) {
+  panelState.chatHeight = Math.max(160, Math.min(560, resizeBase.chatHeight - delta));
 }

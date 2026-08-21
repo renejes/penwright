@@ -23,8 +23,10 @@ export const app = {
   // Status bar
   toggleSidebar: 'Toggle project sidebar',
   togglePreview: 'Toggle preview panel',
+  toggleChat: 'Toggle chat',
   statusProject: 'Project',
   statusPreview: 'Preview',
+  statusChat: 'Chat',
   wordsLabel: (n: number): string => (n === 1 ? 'word' : 'words'),
   minRead: (m: number) => `${m} min read`,
   readingTimeTitle: 'Word count · estimated reading time at 200 wpm',

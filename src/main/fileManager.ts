@@ -432,6 +432,7 @@ export function closeProject(): void {
   // offers to undo a change made in the previous one, and pressing it writes
   // into a project the user has closed.
   import('./ipcHandlers').then(({ clearDesignUndo }) => clearDesignUndo());
+  import('./cursorAgentHost').then(({ disposeChatAgent }) => { void disposeChatAgent(); });
   if (closingProjectDir) clearSession(closingProjectDir);
   writeActiveProject(null);
 
@@ -637,7 +638,8 @@ function setupFileWatcher(): void {
     }
 
     // "Design after writing": if the externally-changed file is the one with a
-    // pinned selection, Claude has likely applied the design. Clear the pin and
+    // pinned selection, the in-app agent (or another MCP host) has likely
+    // applied the design. Clear the pin and
     // tell the renderer to toast + refresh the Design hub card.
     try {
       if (appState.projectDir) {

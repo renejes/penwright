@@ -1,6 +1,6 @@
-/** Document Settings dialog + the global interface-language selector. */
+/** Settings dialog + the global interface-language selector. */
 export const settings = {
-  title: 'Document Settings',
+  title: 'Settings',
   intro:
     'Typography, layout and design now live in the <strong>Design</strong> tab in the sidebar. Only document-specific settings that are not design tokens stay here.',
   interfaceSection: 'Interface',

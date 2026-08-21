@@ -23,7 +23,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 function signOne(binary, identity, entitlements) {
   const args = ['--force', '--sign', identity, '--options', 'runtime', '--timestamp'];
@@ -43,6 +43,36 @@ function binariesIn(dir, prefix) {
   return readdirSync(dir)
     .filter((f) => f.startsWith(prefix))
     .map((f) => join(dir, f));
+}
+
+function walkFiles(dir, acc = []) {
+  if (!existsSync(dir)) return acc;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return acc;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) walkFiles(full, acc);
+    else acc.push(full);
+  }
+  return acc;
+}
+
+/**
+ * Native helpers from `@cursor/sdk-*` (cursorsandbox, ripgrep, tree-sitter).
+ * They live under `app.asar.unpacked/node_modules/@cursor/` because asar
+ * cannot execute them. Unsigned, they fail Gatekeeper after notarization.
+ */
+function cursorNativeBinaries(unpackedRoot) {
+  const root = join(unpackedRoot, 'node_modules', '@cursor');
+  const names = new Set(['cursorsandbox', 'cursorsandbox.exe', 'rg', 'rg.exe']);
+  return walkFiles(root).filter((f) => {
+    const base = basename(f);
+    return names.has(base) || base.endsWith('.node');
+  });
 }
 
 export default async function afterPack(context) {
@@ -66,13 +96,19 @@ export default async function afterPack(context) {
 
   const mcpBinaries = binariesIn(join(resources, 'mcp', 'bin'), 'penwright-mcp-');
   const typstBinaries = binariesIn(join(resources, 'bin'), 'typst-');
+  const cursorBinaries = cursorNativeBinaries(join(resources, 'app.asar.unpacked'));
 
-  if (mcpBinaries.length === 0 && typstBinaries.length === 0) {
-    console.warn('[afterPack-sign] no MCP / Typst binaries found under Resources — nothing to sign.');
+  if (mcpBinaries.length === 0 && typstBinaries.length === 0 && cursorBinaries.length === 0) {
+    console.warn('[afterPack-sign] no MCP / Typst / Cursor-SDK binaries found under Resources — nothing to sign.');
     return;
   }
 
   console.log(`[afterPack-sign] identity: ${identity}`);
   for (const bin of mcpBinaries) signOne(bin, identity, mcpEnt);
   for (const bin of typstBinaries) signOne(bin, identity, undefined);
+  for (const bin of cursorBinaries) {
+    const base = basename(bin);
+    const needsEnt = base.startsWith('cursorsandbox') || base.endsWith('.node');
+    signOne(bin, identity, needsEnt ? mcpEnt : undefined);
+  }
 }

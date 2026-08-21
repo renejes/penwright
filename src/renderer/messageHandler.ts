@@ -29,6 +29,8 @@ import {
   resetPdfZoom,
   isUpdatingFromExtension,
   openTab,
+  applyChatEvent,
+  resetChatUi,
 } from './appState.svelte';
 
 /**
@@ -173,6 +175,7 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'togglePanel') {
     if (msg.panel === 'sidebar') panelState.showSidebar = !panelState.showSidebar;
     if (msg.panel === 'preview') panelState.showPreview = !panelState.showPreview;
+    if (msg.panel === 'chat') panelState.showChat = !panelState.showChat;
   }
 
   // Open the About dialog from the native menu
@@ -187,16 +190,20 @@ export function handleMessage(message: ExtensionMessage): void {
   if (msg.type === 'showProjectSearch') {
     uiState.showProjectSearch = true;
   }
+  if (msg.type === 'chatEvent') {
+    const event = (msg as { event?: import('../shared/chatTypes').ChatStreamEvent }).event;
+    if (event) applyChatEvent(event);
+  }
   if (msg.type === 'addComment') {
     window.dispatchEvent(new CustomEvent('penwright:add-comment'));
   }
-  // Native context-menu → "✨ Design with AI": pin the selection + open
-  // the Design tab. App.svelte owns the capture via this window event.
-  if (msg.type === 'designSelection') {
-    window.dispatchEvent(new CustomEvent('penwright:design-selection'));
+  // Native context-menu → "Insert into Chat": capture the selection as a
+  // composer chip. App.svelte owns the capture via this window event.
+  if (msg.type === 'insertIntoChat') {
+    window.dispatchEvent(new CustomEvent('penwright:insert-into-chat'));
   }
-  // The watcher detected an external change to the pinned file → Claude
-  // applied the design. The DesignPanel hub card toasts + clears its pin view.
+  // The watcher detected an external change to the pinned file → the agent
+  // applied the design. The pin is cleared on disk; chips stay until send.
   if (msg.type === 'selectionApplied') {
     window.dispatchEvent(new CustomEvent('penwright:selection-applied'));
   }
@@ -273,6 +280,7 @@ export function handleMessage(message: ExtensionMessage): void {
       try { editorRef.current.commands.setContent(''); } catch {}
     }
     window.dispatchEvent(new CustomEvent('penwright:project-closed'));
+    resetChatUi();
   }
 
   // Renderer-side hooks for the zoom menu items.

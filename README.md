@@ -2,7 +2,7 @@
 
 <img src="documentation/penwright-logo.svg" alt="Penwright" width="340">
 
-**Typst, visually written.**
+**Write. Design. Typeset.**
 
 A standalone desktop app for WYSIWYG editing of [Typst](https://typst.app) documents —
 from academic theses to design-grade magazines, brochures and reports.
@@ -16,38 +16,43 @@ from academic theses to design-grade magazines, brochures and reports.
 
 ---
 
-Penwright lets you **write and design** Typst documents in a rich WYSIWYG editor —
-without installing Typst (the CLI is bundled). Every project is self-contained: version
-history, auto-backups, comments and design tokens live inside the folder, so copying it
-takes the whole state along.
+Penwright is for **writing and design** in one place: a rich WYSIWYG editor, a live PDF,
+themes and print export — without installing Typst (the CLI is bundled). Every project is
+a folder. Version history, auto-backups, comments, design tokens and in-app chats live
+inside it, so copying the folder takes the whole state along.
 
 The app is **free for everyone, including companies.** You may run it. You may not reuse
 this repository’s source in another project. Details below.
 
-> **A note on names.** The product is **Penwright**; this repository is still named
-> `vswrite-desktop` (its original name) to keep clones, remotes and paths stable.
+## Three apps, one desk — or each on its own
 
-## Write in Easy Writing, typeset in Penwright
+Penwright is part of a small suite. The pieces **fit together** and **each works alone**.
 
-[Easy Writing](https://github.com/renejes/easy-writing) is a separate, MIT-licensed
-desktop app: a folder is the project, the `.mdx` on disk is the manuscript. Citations,
-footnotes, figures, chapters — no layout studio, no live PDF.
+| App | Job |
+|---|---|
+| **[Research Overview Platform](https://github.com/renejes/research-overview-platform)** | Transparent AI research: sources you can check, citations, a writing pack. It does not write the article. |
+| **[Easy Writing](https://github.com/renejes/easy-writing)** | The manuscript. A folder is the project; you write Markdown/MDX with `[@citekey]` and footnotes. No layout studio. |
+| **Penwright** (this repo) | Typesetting and design. Open a Typst project or an Easy Writing folder and shape the page. |
 
-That split is the intended workflow:
-
-1. **Write** in [Easy Writing](https://github.com/renejes/easy-writing) — sentences,
-   `[@citekey]`, footnotes, figures.
-2. **Export → MDX** and copy the project folder (`project.yaml`, chapters, `assets/`,
-   optional `references.bib`).
-3. **Open that folder** in Penwright (**File → Open Project…**). Penwright recognises
-   `project.yaml` and typesets from the `.mdx`.
-4. **Style** here: themes, palettes, layout, print export. The manuscript is not rewritten
-   — `[@key]` stays `[@key]`, the `.bib` is left alone, wording changes go back to Easy
-   Writing.
+Used together: research → write in Easy Writing → open that folder here. Penwright does
+**not** rewrite the manuscript — `[@key]` stays `[@key]`, the `.bib` is left alone.
+Wording changes go back to Easy Writing.
 
 Penwright also opens ordinary Typst projects (templates, an existing `.typ` tree, the
 bundled sample). **File → Import Markdown…** is the older one-file path and writes a new
 `.typ`; do not use it on an Easy Writing folder.
+
+## Chat in the app
+
+With a [Cursor](https://cursor.com) account you can chat **inside Penwright**
+(**View → Toggle Chat**, `Cmd+J`). The agent works in the open project — drafts, design,
+“make this a magazine” — through the same 66 MCP tools Cursor IDE and Claude Desktop use.
+Several chats per project, tabs and history, stored in `.penwright/cursor-agent/` so they
+travel with the folder.
+
+Penwright stays free. Usage is billed to your Cursor plan. Without signing in, the editor,
+preview and export still work. Cursor IDE and Claude remain optional under
+**Help → MCP Connection…**.
 
 ## Features
 
@@ -75,20 +80,20 @@ bundled sample). **File → Import Markdown…** is the older one-file path and 
 **Export & AI**
 - PDF (what the preview shows), journal-grade DOCX, and HTML / magazine mini-site
 - Markdown import · Zotero `.bib` with live auto-sync
-- MCP server (66 tools). On launch Penwright registers itself with **Cursor**
-  (`~/.cursor/mcp.json`); Claude Desktop and Claude Code are optional. The same tools, no
-  key, no time limit.
+- **In-app chat** (Cursor account) plus MCP server (66 tools). On launch Penwright also
+  registers itself with **Cursor IDE** (`~/.cursor/mcp.json`); Claude Desktop and Claude
+  Code are optional. Same tools, no Penwright key, no time limit.
 
 ## Tech stack
 
 Electron 41 · electron-vite 5 · Svelte 5 (runes) · TipTap / ProseMirror 3 · pdf.js ·
-simple-git · bundled Typst 0.15.1
+simple-git · bundled Typst 0.15.1 · `@cursor/sdk` (in-app agent)
 
 ## Development
 
 ```bash
 npm install
-npm run dev            # dev server + hot reload
+npm run dev            # prefix already unsets ELECTRON_RUN_AS_NODE
 npm test               # typecheck + editor / corpus / MCP gates (~2 min)
 npm run build          # main + preload + renderer
 npm run package:mac    # notarized DMG (needs Apple Developer credentials)
@@ -115,7 +120,7 @@ plus additional permissions in [`LICENSE.md`](LICENSE.md). © René Jesser.
 |---|---|
 | **Run the app** for any purpose, including commercially — no key, no fee, no “personal vs business” question | **Distribute** Penwright (the app or this source) to anyone else |
 | **Read** the source, audit it, and **build it for your own use** | **Reuse this code** in another project, product, or competing editor |
-| Use every feature, including the MCP / AI integration | Ship a fork, or copy modules out of this repo into yours |
+| Use every feature, including the MCP / in-app chat | Ship a fork, or copy modules out of this repo into yours |
 
 The legal text is [`LICENSE.md`](LICENSE.md). Where this table and those terms disagree,
 the terms win.

@@ -118,6 +118,7 @@ export const editor = {
   shortcutCodeBlock: 'Code Block',
   shortcutToggleSidebar: 'Toggle Sidebar',
   shortcutTogglePreview: 'Toggle Preview',
+  shortcutToggleChat: 'Toggle Chat',
   shortcutEditorZoom: 'Editor Zoom In / Out / Reset',
   shortcutPreviewZoom: 'Preview Zoom In / Out / Reset',
   shortcutUndo: 'Undo',

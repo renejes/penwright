@@ -1231,9 +1231,9 @@ Phrases like "make the whole document feel like a magazine", "give this an acade
 
 ### Level 2 — a specific spot (the pinned selection)
 
-Phrases like "design **this**", "make the selection a pull-quote", "set **this region** in two columns", "pull **this sentence** out as a margin note". The user pinned the passage in Penwright (right-click → "✨ Design with AI"), so:
+Phrases like "design **this**", "make the selection a pull-quote", "set **this region** in two columns", "pull **this sentence** out as a margin note". The user marked the passage in Penwright (right-click → "Insert into Chat"), so:
 
-1. **Always call \`penwright_get_selection\` first.** It returns the pinned \`anchorText\` + \`occurrence\` (the exact spot, no offset math) **and** a \`context\` snapshot of the current look (theme / palette / fonts / layout / sectionStyle / usedElements). If it says nothing is pinned, ask the user to pin a passage — or treat it as a Level-1 request.
+1. **Always call \`penwright_get_selection\` first.** It returns the pinned \`anchorText\` + \`occurrence\` (the exact spot, no offset math) **and** a \`context\` snapshot of the current look (theme / palette / fonts / layout / sectionStyle / usedElements). If it says nothing is pinned, the user may still have described the change in the chat — treat that as a Level-1 request, or ask them to mark the passage.
 2. **Act on the spot**, two ways:
    - A library element fits → \`penwright_insert_design_element({ elementId, afterText: <anchorText>, occurrence, params })\`.
    - Nothing fits → write **localized Typst** directly at the anchor. You're not limited to the snippet library. Examples:

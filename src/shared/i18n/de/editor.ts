@@ -118,6 +118,7 @@ export const editor: EditorMessages = {
   shortcutCodeBlock: 'Codeblock',
   shortcutToggleSidebar: 'Seitenleiste ein-/ausblenden',
   shortcutTogglePreview: 'Vorschau ein-/ausblenden',
+  shortcutToggleChat: 'Chat ein-/ausblenden',
   shortcutEditorZoom: 'Editor: Vergrößern / Verkleinern / Zurücksetzen',
   shortcutPreviewZoom: 'Vorschau: Vergrößern / Verkleinern / Zurücksetzen',
   shortcutUndo: 'Rückgängig',

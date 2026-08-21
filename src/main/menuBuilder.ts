@@ -30,6 +30,12 @@ export function buildMenu(state: AppState): void {
             submenu: [
               { label: m.about(app.name), click: showAbout },
               { type: 'separator' as const },
+              {
+                label: m.documentSettings,
+                accelerator: 'CmdOrCtrl+,',
+                click: () => send('requestSettings'),
+              },
+              { type: 'separator' as const },
               { role: 'hide' as const },
               { role: 'hideOthers' as const },
               { role: 'unhide' as const },
@@ -167,6 +173,11 @@ export function buildMenu(state: AppState): void {
           accelerator: 'CmdOrCtrl+Shift+P',
           click: () => send('togglePanel', { panel: 'preview' }),
         },
+        {
+          label: m.toggleChat,
+          accelerator: 'CmdOrCtrl+J',
+          click: () => send('togglePanel', { panel: 'chat' }),
+        },
         { type: 'separator' },
         {
           label: m.editorZoom,
@@ -284,10 +295,6 @@ export function buildMenu(state: AppState): void {
         {
           label: m.mcpConnection,
           click: () => send('showMcpConnection'),
-        },
-        {
-          label: m.connectClaude,
-          click: () => send('showMcpSetupWizard'),
         },
         { type: 'separator' as const },
         {

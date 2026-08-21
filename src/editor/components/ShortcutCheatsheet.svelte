@@ -67,6 +67,7 @@
       entries: [
         { action: t().editor.shortcutToggleSidebar, shortcut: `${mod}+${alt}+B` },
         { action: t().editor.shortcutTogglePreview, shortcut: `${mod}+Shift+P` },
+        { action: t().editor.shortcutToggleChat, shortcut: `${mod}+J` },
       ],
     },
     {

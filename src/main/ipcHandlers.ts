@@ -113,10 +113,27 @@ import {
 import { listProjectLabels } from './projectLabels';
 import { listProjectMacros } from './projectMacros';
 import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
+import {
+  cancelChat,
+  closeChatTab,
+  deleteChatSession,
+  getChatHistory,
+  getChatSessions,
+  getChatStatus,
+  listChatModels,
+  loginChat,
+  logoutChat,
+  newChatSession,
+  pickChatFiles,
+  sendChat,
+  setChatModel,
+  switchChatSession,
+} from './cursorAgentHost';
+import type { ChatAnchor, ChatSendRequest } from '../shared/chatTypes';
 
 // ─── Selection-pin design snapshot (helpers) ─────────────────────
-// Used when pinning a selection ("Design with AI") to capture the
-// document's current look so Claude designs the spot in harmony.
+// Used when pinning a selection ("In Chat einfügen") to capture the
+// document's current look so the agent designs the spot in harmony.
 
 /**
  * Best-effort match of the current style against a built-in theme. Compares
@@ -157,6 +174,41 @@ function scanUsedDesignSignals(content: string): string[] {
     { tag: 'hero',          re: /size:\s*2\.8em,\s*weight:\s*"bold",\s*fill:\s*style-colors\.primary/ },
   ];
   return signals.filter(s => s.re.test(content)).map(s => s.tag);
+}
+
+function pinAnchorFromInput(input: SelectionAnchorInput | ChatAnchor): { ok: true } | { ok: false; error: string } {
+  if (!appState.projectDir) return { ok: false, error: 'No project open.' };
+  const projectDir = appState.projectDir;
+  const abs = path.resolve(projectDir, input.file);
+  if (!isPathWithin(abs, projectDir)) return { ok: false, error: 'File outside project.' };
+
+  let content = '';
+  if (appState.currentFilePath && path.resolve(appState.currentFilePath) === abs) {
+    content = appState.currentContent ?? '';
+  } else {
+    try { content = fs.readFileSync(abs, 'utf-8'); } catch { content = ''; }
+  }
+
+  const style = getProjectStyle(projectDir);
+  const pin: SelectionPin = {
+    version: SELECTION_PIN_VERSION,
+    pinnedAt: Date.now(),
+    file: input.file.replace(/\\/g, '/'),
+    selectionText: input.selectionText,
+    anchorText: input.anchorText,
+    occurrence: input.occurrence,
+    nodeType: input.nodeType,
+    context: {
+      theme: matchThemeId(style),
+      palette: { ...style.colors },
+      fonts: { body: style.fonts.body, heading: style.fonts.heading, code: style.fonts.code },
+      layout: { paper: style.layout.paper, orientation: style.layout.orientation, columns: style.layout.columns },
+      sectionStyle: getSectionStyleId(content),
+      usedElements: scanUsedDesignSignals(content),
+    },
+  };
+  saveSelectionPin(projectDir, pin);
+  return { ok: true };
 }
 
 /**
@@ -857,6 +909,40 @@ export function setupIPC(): void {
     return { ok: true };
   });
 
+  // ─── In-app Cursor chat ───
+  ipcMain.handle('chat:status', () => getChatStatus());
+  ipcMain.handle('chat:login', () => loginChat());
+  ipcMain.handle('chat:logout', () => logoutChat());
+  ipcMain.handle('chat:setModel', (_event, payload: string | { modelId?: string; params?: { id: string; value: string }[] }) => {
+    if (typeof payload === 'string') return setChatModel(payload);
+    return setChatModel(String(payload?.modelId ?? ''), payload?.params);
+  });
+  ipcMain.handle('chat:models', () => listChatModels());
+  ipcMain.handle('chat:history', () => getChatHistory());
+  ipcMain.handle('chat:sessions', () => getChatSessions());
+  ipcMain.handle('chat:new', () => newChatSession());
+  ipcMain.handle('chat:switch', (_event, id: unknown) => switchChatSession(String(id ?? '')));
+  ipcMain.handle('chat:closeTab', (_event, id: unknown) => closeChatTab(String(id ?? '')));
+  ipcMain.handle('chat:delete', (_event, id: unknown) => deleteChatSession(String(id ?? '')));
+  ipcMain.handle('chat:cancel', () => cancelChat());
+  ipcMain.handle('chat:pickFiles', () => pickChatFiles());
+  ipcMain.handle('chat:send', async (_event, payload: ChatSendRequest) => {
+    if (payload?.liveContent && appState.currentFilePath) {
+      appState.currentContent = payload.liveContent;
+      appState.isDirty = true;
+    }
+    if (appState.isDirty) await saveFile();
+    const anchors = payload?.anchors ?? [];
+    if (anchors.length > 0) pinAnchorFromInput(anchors[anchors.length - 1]);
+    return sendChat({
+      text: payload?.text ?? '',
+      mode: payload?.mode,
+      anchors,
+      files: payload?.files ?? [],
+      attachments: payload?.attachments ?? [],
+    });
+  });
+
   // ─── MCP Setup (Claude Desktop integration) ───
   ipcMain.handle('mcp:checkClaudeDesktop', () => checkClaudeDesktopInstalled());
   ipcMain.handle('mcp:setup', async () => {
@@ -1324,40 +1410,7 @@ export function setupIPC(): void {
   // `.penwright/selection.json`, which the MCP `penwright_get_selection` reads.
 
   ipcMain.handle('selection:pin', (_event, input: SelectionAnchorInput) => {
-    if (!appState.projectDir) return { ok: false as const, error: 'No project open.' };
-    const projectDir = appState.projectDir;
-    const abs = path.resolve(projectDir, input.file);
-    if (!isPathWithin(abs, projectDir)) return { ok: false as const, error: 'File outside project.' };
-
-    // Prefer the live editor buffer if the pinned file is the open one;
-    // otherwise read from disk (best-effort — only used for the snapshot).
-    let content = '';
-    if (appState.currentFilePath && path.resolve(appState.currentFilePath) === abs) {
-      content = appState.currentContent ?? '';
-    } else {
-      try { content = fs.readFileSync(abs, 'utf-8'); } catch { content = ''; }
-    }
-
-    const style = getProjectStyle(projectDir);
-    const pin: SelectionPin = {
-      version: SELECTION_PIN_VERSION,
-      pinnedAt: Date.now(),
-      file: input.file.replace(/\\/g, '/'),
-      selectionText: input.selectionText,
-      anchorText: input.anchorText,
-      occurrence: input.occurrence,
-      nodeType: input.nodeType,
-      context: {
-        theme: matchThemeId(style),
-        palette: { ...style.colors },
-        fonts: { body: style.fonts.body, heading: style.fonts.heading, code: style.fonts.code },
-        layout: { paper: style.layout.paper, orientation: style.layout.orientation, columns: style.layout.columns },
-        sectionStyle: getSectionStyleId(content),
-        usedElements: scanUsedDesignSignals(content),
-      },
-    };
-    saveSelectionPin(projectDir, pin);
-    return { ok: true as const, pin };
+    return pinAnchorFromInput(input);
   });
 
   ipcMain.handle('selection:get', () => {

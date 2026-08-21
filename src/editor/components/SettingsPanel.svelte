@@ -1,19 +1,15 @@
 <script lang="ts">
   /**
-   * Document Settings — the trimmed dialog after the Design-Editor
-   * consolidation (Session 22). Style tokens (colors, fonts, scale, layout,
-   * headings, custom Typst code) all live in the Design sidebar tab now.
+   * Settings — interface language, Cursor account, and (when a project is
+   * open) document language / bibliography / preview.
    *
-   * What stays here:
-   *   - Language: drives Typst hyphenation and Electron spell-check
-   *   - Bibliography style: passes through to `#bibliography(style: …)`
-   *
-   * Both are document-content concerns, not project-wide design tokens,
-   * so they belong inline in `main.typ` and not in `style.typ`.
+   * Typography, layout and design live in the Design sidebar tab.
    */
 
   import type { DocumentSettings } from '../lib/messages';
   import { t, i18nState, setLocale } from '@shared/i18n/store.svelte';
+  import type { ChatStatus } from '../../shared/chatTypes';
+  import { onMount } from 'svelte';
 
   let {
     settings,
@@ -21,12 +17,14 @@
     onClose,
     previewMode = 'auto',
     onPreviewModeChange,
+    hasProject = true,
   }: {
     settings: DocumentSettings;
     onSave: (s: DocumentSettings) => void;
     onClose: () => void;
     previewMode?: 'auto' | 'manual';
     onPreviewModeChange?: (mode: 'auto' | 'manual') => void;
+    hasProject?: boolean;
   } = $props();
 
   function onPreviewModeSelect(e: Event) {
@@ -40,6 +38,10 @@
   });
   $effect(() => {
     local = { ...settings };
+  });
+
+  onMount(() => {
+    void loadCursor();
   });
 
   // App / interface language. Global (not part of the per-document settings) —
@@ -86,13 +88,48 @@
   ]);
 
   function handleSave() {
-    // Spread to detach from the Svelte 5 $state proxy — postMessage's
-    // structured clone otherwise complains.
-    onSave({ ...local });
+    if (hasProject) onSave({ ...local });
+    else onClose();
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onClose();
+  }
+
+  const api = (window as unknown as {
+    electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+  }).electronAPI;
+
+  let cursorStatus = $state<ChatStatus | null>(null);
+  let cursorBusy = $state(false);
+  let cursorError = $state('');
+
+  async function loadCursor(): Promise<void> {
+    if (!api) return;
+    try {
+      cursorStatus = await api.invoke('chat:status') as ChatStatus;
+    } catch {
+      cursorStatus = null;
+    }
+  }
+
+  async function cursorLogin(): Promise<void> {
+    if (!api) return;
+    cursorBusy = true;
+    cursorError = '';
+    try {
+      const res = await api.invoke('chat:login') as { ok: boolean; error?: string };
+      if (!res?.ok) cursorError = res?.error || t().chat.loginFailed;
+      await loadCursor();
+    } finally {
+      cursorBusy = false;
+    }
+  }
+
+  async function cursorLogout(): Promise<void> {
+    if (!api) return;
+    await api.invoke('chat:logout');
+    await loadCursor();
   }
 </script>
 
@@ -112,7 +149,7 @@
         <label class="settings-field">
           <span>{t().settings.interfaceLanguage}</span>
           <select value={i18nState.locale} onchange={onUiLanguageChange}>
-            {#each uiLanguages as l}
+            {#each uiLanguages as l (l.value)}
               <option value={l.value}>{l.label}</option>
             {/each}
           </select>
@@ -120,6 +157,26 @@
         <p class="settings-hint">{t().settings.interfaceLanguageHint}</p>
       </div>
 
+      <div class="settings-section">
+        <h3>{t().chat.cursorSection}</h3>
+        {#if cursorStatus?.loggedIn && cursorStatus.expired}
+          <p class="settings-hint">{t().chat.expired}</p>
+          <button type="button" class="settings-btn settings-btn-primary" onclick={() => void cursorLogin()} disabled={cursorBusy}>{t().chat.signIn}</button>
+        {:else if cursorStatus?.loggedIn}
+          <p class="settings-hint">
+            {cursorStatus.email ? t().chat.signedInAs(cursorStatus.email) : t().chat.signedIn}
+          </p>
+          <p class="settings-hint">{t().chat.cursorChatHint}</p>
+          <button type="button" class="settings-btn settings-btn-secondary" onclick={() => void cursorLogout()}>{t().chat.signOut}</button>
+        {:else}
+          <p class="settings-hint">{t().chat.signInBody}</p>
+          <button type="button" class="settings-btn settings-btn-primary" onclick={() => void cursorLogin()} disabled={cursorBusy}>{t().chat.signIn}</button>
+          {#if cursorError}<p class="settings-hint">{cursorError}</p>{/if}
+        {/if}
+        <p class="settings-hint">{t().chat.disclaimer}</p>
+      </div>
+
+      {#if hasProject}
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
       <p class="settings-intro">{@html t().settings.intro}</p>
 
@@ -129,7 +186,7 @@
         <label class="settings-field">
           <span>{t().settings.documentLanguage}</span>
           <select bind:value={local.lang}>
-            {#each languages as l}
+            {#each languages as l (l.value)}
               <option value={l.value}>{l.label}</option>
             {/each}
           </select>
@@ -142,12 +199,13 @@
         <label class="settings-field">
           <span>{t().settings.citationStyle}</span>
           <select bind:value={local.bibliographyStyle}>
-            {#each citationStyles as cs}
+            {#each citationStyles as cs (cs.value)}
               <option value={cs.value}>{cs.label}</option>
             {/each}
           </select>
         </label>
       </div>
+      {/if}
 
       <div class="settings-section">
         <h3>{t().settings.previewSection}</h3>

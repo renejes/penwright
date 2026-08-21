@@ -27,12 +27,12 @@ export const onboarding = {
       bullets: [
         '<strong>Direct formatting</strong> — the buttons in the toolbar at the top, just like in Word.',
         '<strong>The Look</strong> — open <code>style.typ</code> for the visual designer (the whole document), or pick a per-chapter Look in the status bar below.',
-        '<strong>Design with AI</strong> — select text, right-click, and the AI designs exactly that spot.',
+        '<strong>Chat</strong> — describe what you need, or select text, right-click <strong>Insert into Chat</strong>, and say what should happen at that spot.',
       ],
     },
     claude: {
-      title: 'Connect to Claude Desktop',
-      body: 'Optional: connect Penwright to Claude Desktop and let the AI help you write and design. You can find the setup assistant anytime under <strong>Help → Connect to Claude Desktop</strong>.',
+      title: 'Optional: Cursor or Claude',
+      body: 'The in-app chat (View → Chat) uses your Cursor account. You can still connect an external MCP host under <strong>Help → MCP Connection</strong> if you prefer Cursor IDE or Claude Desktop.',
     },
     ready: {
       title: 'Ready to get started?',

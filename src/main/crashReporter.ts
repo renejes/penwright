@@ -81,12 +81,17 @@ function formatDateTime(date: Date): string {
 /**
  * Replaces user-identifying parts of paths with `<redacted>` so the report
  * can be safely shared. Catches macOS, Linux, and Windows home dirs.
+ * Also strips Cursor SDK credentials (90-day keys in userData) if a stack
+ * or breadcrumb ever interpolated one.
  */
 function scrubPaths(text: string): string {
   return text
     .replace(/[/\\]Users[/\\][^/\\\s'":]+/g, '/Users/<redacted>')
     .replace(/[/\\]home[/\\][^/\\\s'":]+/g, '/home/<redacted>')
-    .replace(/C:\\Users\\[^\\\s'":]+/gi, 'C:\\Users\\<redacted>');
+    .replace(/C:\\Users\\[^\\\s'":]+/gi, 'C:\\Users\\<redacted>')
+    .replace(/CURSOR_API_KEY[=:\s]+[^\s'"]+/gi, 'CURSOR_API_KEY=<redacted>')
+    .replace(/("apiKey"\s*:\s*")[^"]+"/g, '$1<redacted>"')
+    .replace(/\bkey_[A-Za-z0-9_-]{16,}/g, 'key_<redacted>');
 }
 
 function platformInfo(): string {

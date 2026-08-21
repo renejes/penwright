@@ -31,6 +31,7 @@ export const menu = {
   view: 'View',
   toggleSidebar: 'Toggle Sidebar',
   togglePreview: 'Toggle Preview',
+  toggleChat: 'Toggle Chat',
   editorZoom: 'Editor Zoom',
   previewZoom: 'Preview Zoom',
   zoomIn: 'Zoom In',
@@ -42,7 +43,7 @@ export const menu = {
 
   // Document
   document: 'Document',
-  documentSettings: 'Document Settings…',
+  documentSettings: 'Settings…',
   mergeDocument: 'Merge Document',
   splitDocument: 'Split into Chapters',
   openAsTypst: 'Open as Typst Source',

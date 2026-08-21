@@ -24,8 +24,10 @@ export const app: AppMessages = {
   // Status bar
   toggleSidebar: 'Seitenleiste umschalten',
   togglePreview: 'Vorschau umschalten',
+  toggleChat: 'Chat ein-/ausblenden',
   statusProject: 'Projekt',
   statusPreview: 'Vorschau',
+  statusChat: 'Chat',
   wordsLabel: (n: number) => (n === 1 ? 'Wort' : 'Wörter'),
   minRead: (m: number) => `${m} Min. Lesezeit`,
   readingTimeTitle: 'Wortanzahl · geschätzte Lesezeit bei 200 WpM',

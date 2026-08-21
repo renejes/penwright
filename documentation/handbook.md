@@ -1,16 +1,28 @@
 # Penwright Desktop — User Handbook
 
 > **Version:** 0.12.0 (Pre-Release)
-> **Last updated:** 2026-07-31
+> **Last updated:** 2026-08-21
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
 ---
 
 ## What is Penwright Desktop?
 
-Penwright Desktop is a standalone WYSIWYG editor for Typst documents. Instead of working in markup code, you edit in a visual editor — similar to Google Docs or Notion. At the same time you get the full power of Typst: math formulas, configuration and layout are surfaced as editable code blocks.
+Penwright Desktop is a standalone WYSIWYG editor for **writing and designing** [Typst](https://typst.app) documents. You edit in a visual editor — similar to Google Docs or Notion — while Typst still does the typesetting: math, layout, magazines, theses, brochures. Typst itself is bundled; you do not install a compiler.
 
-Typical use cases: academic theses, books, longer documents with multi-chapter structure, bibliography and math typesetting — everything you would otherwise reach for LaTeX or Word.
+Typical use: academic theses, books, reports, design-grade magazines. The same app covers the sentence and the page.
+
+Penwright is one of three apps that **fit together, and each also works on its own:**
+
+| App | What it is for |
+|---|---|
+| **[Research Overview Platform](https://github.com/renejes/research-overview-platform)** | Transparent AI research: sources, provenance, citations. Exports a writing pack — it does not write the article. |
+| **[Easy Writing](https://github.com/renejes/easy-writing)** | The manuscript. A folder is the project; you write Markdown/MDX with `[@citekey]` and footnotes. No layout studio. |
+| **Penwright** (this app) | Typesetting and design. Open a Typst project, or an Easy Writing folder, and shape the page. |
+
+Open any of them alone. Used together: research → write in Easy Writing → open that folder here and design. Penwright does **not** rewrite the manuscript (`[@key]` stays `[@key]`). Wording changes belong back in Easy Writing.
+
+**AI in the app.** With a [Cursor](https://cursor.com) account you can chat **inside Penwright** (View → Chat). The agent edits the open project through the same MCP tools Cursor IDE and Claude Desktop use. Penwright stays free; usage is billed to your Cursor plan. Without a Cursor account the editor, preview and export still work.
 
 ---
 
@@ -51,14 +63,14 @@ To stop working on a project without quitting the app, use **File -> Close Proje
 | Project Comments]            |                              |  nav tabs + toolbar
 +------+-------------------------------+-----------------------+
 |      |  [main.typ] [refs.bib]        |                       |
-| Side-|                               |   Preview Panel       |
-| bar  |  WYSIWYG Editor               |   (live PDF)          |
-|      |                               |                       |
+| Side-|  WYSIWYG Editor               |   Preview Panel       |
+| bar  |  ------------------------------|   (live PDF, full     |
+|      |  Chat (optional, editor-wide) |    height)            |
 +------+-------------------------------+-----------------------+
 | [Project][Preview]  Chapter Look ▾  1,247 words · …  DE |
 +--------------------------------------------------------------+
 ```
-The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in the top bar; clicking one shows that panel, clicking the active one collapses the sidebar. The **＋ button** on the left of the toolbar opens the insert menu (see [Inserting content](#inserting-content---button--and-)). The **status bar centre** is the contextual **Look** control (Chapter Look / Global-Look / Look — see [the Look model](#design--the-look-model)). There is no separate "Design" tab — design lives in `style.typ` and the status bar.
+The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in the top bar; clicking one shows that panel, clicking the active one collapses the sidebar. The **＋ button** on the left of the toolbar opens the insert menu (see [Inserting content](#inserting-content---button--and-)). The **status bar centre** is the contextual **Look** control (Chapter Look / Global-Look / Look — see [the Look model](#design--the-look-model)). There is no separate "Design" tab — design lives in `style.typ` and the status bar. **Chat** sits under the editor (same width as the page); the PDF preview keeps the full window height. See [In-app Chat](#in-app-chat).
 
 **Interface language (English / German):** Penwright picks your OS language on first launch. Switch it anytime with the small **DE/EN toggle** at the right of the status bar, or under **Document → Document Settings → Interface**. (This is the *app* language — separate from a document's text language, which is `#set text(lang: …)`.)
 
@@ -68,6 +80,7 @@ The **navigation tabs** (Files / Outline / Chapters / Project / Comments) sit in
 |-------|----------|-------------------|
 | Sidebar (left) | `Cmd+Alt+B` | **Project** |
 | Preview (right) | `Cmd+Shift+P` | **Preview** |
+| Chat (under the editor) | `Cmd+J` | — (or **View → Toggle Chat**) |
 
 All panels are resizable by dragging their edges.
 
@@ -98,7 +111,7 @@ All project-level and document-level actions live in the **native menu bar** (to
 
 - **File** — New Project (`Cmd+N`), Open Project (`Cmd+O`), Close Project (`Cmd+Shift+W`), **Save Project as Preset…**, Save (`Cmd+S`), Save As (`Cmd+Shift+S`), Export PDF / DOCX, **Export to Web (HTML)**, Import Markdown, Link Zotero Library, Open Sources Folder, Add Citation Manually
 - **Edit** — Undo / Redo / Cut / Copy / Paste / Select All, Find & Replace (`Cmd+F`), **Find in Project…** (`Cmd+Shift+F`), **Add Comment** (`Cmd+Alt+M`), **Insert Reference…** (`Cmd+Alt+L`), Undo AI Edit
-- **View** — Toggle Sidebar (`Cmd+Alt+B`), Toggle Preview (`Cmd+Shift+P`), plus standard window/zoom roles
+- **View** — Toggle Sidebar (`Cmd+Alt+B`), Toggle Preview (`Cmd+Shift+P`), **Toggle Chat** (`Cmd+J`), plus standard window/zoom roles
 - **Document** — Document Settings (**interface language** + document language + bibliography style; the document's Look lives in `style.typ`), Merge Document, Split into Chapters, Open as Typst Source, Ensure Bibliography
 - **Help** — Show Introduction, User Guide, Keyboard Shortcuts (`Cmd+/`), Report Issue, **MCP Connection…**, **Connect to Claude Desktop…**, **Open Crash Reports** (opens `<userData>/crash-reports/` in Finder); About on Windows / Linux
 
@@ -282,7 +295,7 @@ This tab replaces the old Git panel and uses writer-friendly vocabulary instead 
 - Resolved comments are hidden by default; the "Show resolved" checkbox brings them back
 - Full workflow: see the **[Comments & Notes](#comments--notes)** section below
 
-> **Note:** there is no longer a "Design" sidebar tab. Design now lives **where it applies** — open `style.typ` for the whole-document Look, use the status-bar control for a chapter's Look, and right-click → "Design with AI" for a single spot. See [the Look model](#design--the-look-model).
+> **Note:** there is no longer a "Design" sidebar tab. Design now lives **where it applies** — open `style.typ` for the whole-document Look, use the status-bar control for a chapter's Look, and **View → Chat** (or right-click → "Insert into Chat") for a single spot. See [the Look model](#design--the-look-model).
 
 ---
 
@@ -566,7 +579,7 @@ Penwright decouples writing from design. You design **where it applies** — thr
 
 - **Whole document → open `style.typ`.** Double-clicking `style.typ` in the Files tree (or the **✦ Look** control in the centre of the status bar) opens the **visual Look designer** — not the raw generated code. Themes, palette, fonts, scale, layout, headings, elements, custom code. Every project has a `style.typ`.
 - **One chapter → the status bar.** While editing a chapter, the centre of the status bar shows **Chapter Look ▾** — pick a magazine rubric (Feature / Interview / Essay / …). The **✎** button opens a full editor for that look (accent + primary colour, body/heading font, base size, leading, columns, H1–H3), with **"Apply to all chapters with this look"** vs **"Only this chapter"** (forks a chapter-unique variant). Page format, margins and running heads always stay document-wide.
-- **One spot → Design with AI.** Select a passage, right-click **✨ Design with AI** — a small popover appears at the selection (copy a starter prompt / open Claude). Claude reads it via `penwright_get_selection` and designs that exact spot.
+- **One spot → Chat.** Select a passage, right-click **Insert into Chat**, then describe what should happen there. Or just type in the chat with nothing marked — the agent picks the tools. The chat uses your Cursor account (Settings → Cursor).
 
 **Safe by design:** every design change — yours in the app, and the AI's over MCP — is compiled *before* it's committed. If a change wouldn't compile, it's rolled back and your last working look stays on screen; the document is never left broken. The Look designer has an **↩ Undo** for the last design change.
 
@@ -739,6 +752,7 @@ Penwright stores two kinds of state separately — **app preferences** that are 
 - Version history (`.git/`)
 - Auto-backups (`.penwright/backups/`)
 - AI-edit snapshots (`.penwright/ai-snapshots/`)
+- In-app chat threads (`.penwright/cursor-agent/`)
 - Claude Code skills (`.claude/skills/`)
 
 The app **always starts on the Start Screen** — there is no auto-reopen. This is deliberate so that opening Penwright never surprises you with a project you didn't intend to work on.
@@ -767,11 +781,56 @@ The dialog shows:
 
 ---
 
+## In-app Chat
+
+The chat lives **in Penwright**, under the editor. You talk; the agent edits the open project. You do not need Cursor IDE or Claude Desktop for that — they remain optional (see [MCP Server](#mcp-server--ai-integration-with-claude-desktop--co)).
+
+Penwright does not sell tokens. The chat uses **your Cursor account**. Without signing in, the rest of the app is unchanged.
+
+### Sign in
+
+1. Open **Document → Document Settings…** (or **Penwright → Settings** / `Cmd+,`) and the **Cursor** section — or the Sign-in button in an empty chat.
+2. Sign in in the browser. Penwright stores a key (about 90 days). Signing in to the Cursor IDE is a different login; you need this one once.
+3. Pick the model, Fast, and thinking effort in the chat dropdown (next to Agent / Plan). That choice is remembered on this machine.
+
+Usage goes to your Cursor plan. Penwright stays free.
+
+### Open the chat
+
+- **View → Toggle Chat** (`Cmd+J`)
+- A project must be open — the agent works inside that folder and cannot create folders on its own.
+
+The panel is only as wide as the editor. The PDF preview stays full height.
+
+### Write a message
+
+- **Enter** sends, **Shift+Enter** a new line.
+- **+** next to the composer attaches files (images, PDFs, `.typ`, …) from disk. Mentions with **@** point at a chapter or file in the project.
+- Right-click a selection → **Insert into Chat** to pin that passage, then say what should happen *there*.
+- **Agent** acts on the project (the usual mode). **Plan** thinks first.
+- While a reply is running, **Stop** cancels it. Only one reply runs at a time.
+
+The editor refreshes when files on disk change — the same watcher as for Cursor IDE or Claude. Design changes still go through compile-then-keep; a failed look is rolled back. AI edits land on the same undo stack as every other agent (**History & Restore → AI changes**).
+
+### Several chats in one project
+
+Each project can have many conversations:
+
+- **+** in the chat header starts a new empty chat (and a new tab).
+- **Clock** opens the history of every chat in this project. × deletes one.
+- **Tabs** at the bottom switch between the chats you have open (up to seven). Closing a tab hides it; the conversation stays in history.
+
+The title is the first message you sent. Chats live in `<project>/.penwright/cursor-agent/` — they travel with the folder, not with the machine. Copy the project, copy the chats.
+
+Stop a running reply before switching or starting another chat.
+
+---
+
 ## MCP Server — AI integration with Claude Desktop & Co.
 
-Penwright ships a built-in MCP server (Model Context Protocol) that lets external AI applications like **Cursor**, **Claude Desktop**, **Claude Code** or **Codex Desktop** work on your Typst documents directly.
+Penwright ships a built-in MCP server (Model Context Protocol). The **in-app chat** uses it automatically. The same server also lets **Cursor IDE**, **Claude Desktop**, **Claude Code** or **Codex Desktop** work on your Typst documents if you prefer those apps.
 
-> **Note:** the MCP server is **unlocked for everyone** — all 66 tools, no key, no time limit. See [License](#license).
+> **Note:** the MCP server is **unlocked for everyone** — all 66 tools, no key, no time limit. See [License](#license). The in-app chat additionally needs a Cursor account (that is Cursor's billing, not a Penwright lock).
 
 ### Setup: Cursor (default)
 
@@ -1035,6 +1094,7 @@ The MCP server also exposes five **prompts** backed by the deployed `.claude/ski
 | Insert Reference | `Cmd+Alt+L` |
 | Toggle sidebar | `Cmd+Alt+B` |
 | Toggle preview | `Cmd+Shift+P` |
+| Toggle chat | `Cmd+J` |
 | Undo | `Cmd+Z` |
 | Redo | `Cmd+Shift+Z` |
 | Bold | `Cmd+B` |

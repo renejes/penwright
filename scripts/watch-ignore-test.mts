@@ -42,6 +42,8 @@ const MUST_IGNORE = [
   'node_modules/pkg/index.js',
   '.penwright/backups/2026-01-01/main.typ',
   '.penwright/ai-snapshots/s.json',
+  '.penwright/cursor-agent/chats.json',
+  '.penwright/chat-in/note.txt',
   '.DS_Store',
   '.penwright-preview.pdf',
   '.penwright-export-temp.typ',

@@ -40,6 +40,9 @@ export interface PanelState {
   sidebarTab: string;
   sidebarWidth: number;
   previewWidth: number;
+  showChat: boolean;
+  chatWidth: number;
+  chatHeight: number;
 }
 
 export interface BackupConfig {
@@ -64,6 +67,10 @@ interface StoreSchema {
   locale: 'de' | 'en' | null;
   /** Preview recompile behaviour: 'auto' (debounced while typing) or 'manual' (Refresh button only). */
   previewMode: 'auto' | 'manual';
+  /** Cursor model id for the in-app chat; null until the user picks one. */
+  chatModelId: string | null;
+  /** Variant / thinking params for the selected Cursor model. */
+  chatModelParams: { id: string; value: string }[] | null;
 }
 
 const DEFAULT_BACKUP_CONFIG: BackupConfig = {
@@ -86,6 +93,9 @@ const store = new Store<StoreSchema>({
       sidebarTab: 'files',
       sidebarWidth: 220,
       previewWidth: 400,
+      showChat: false,
+      chatWidth: 360,
+      chatHeight: 280,
     },
     recentProjects: [],
       onboardingSeen: false,
@@ -94,6 +104,8 @@ const store = new Store<StoreSchema>({
     mcpSetupVersion: null,
     locale: null,
     previewMode: 'auto',
+    chatModelId: null,
+    chatModelParams: null,
   },
 });
 
@@ -112,7 +124,19 @@ export function saveWindowBounds(bounds: WindowBounds): void {
 // ─── Panel State ─────────────────────────────────
 
 export function getPanelState(): PanelState {
-  return store.get('panelState');
+  const stored = store.get('panelState');
+  return {
+    showSidebar: stored.showSidebar,
+    showPreview: stored.showPreview,
+    sidebarTab: stored.sidebarTab,
+    sidebarWidth: stored.sidebarWidth,
+    previewWidth: stored.previewWidth,
+    showChat: typeof stored.showChat === 'boolean' ? stored.showChat : false,
+    chatWidth: typeof stored.chatWidth === 'number' ? stored.chatWidth : 360,
+    chatHeight: typeof (stored as { chatHeight?: number }).chatHeight === 'number'
+      ? (stored as { chatHeight: number }).chatHeight
+      : 280,
+  };
 }
 
 export function savePanelState(state: PanelState): void {
@@ -188,6 +212,36 @@ export function getPreviewMode(): 'auto' | 'manual' {
 
 export function setPreviewMode(mode: string): void {
   store.set('previewMode', mode === 'manual' ? 'manual' : 'auto');
+}
+
+// ─── In-app chat model (Cursor SDK) ──────────────────
+// Global per device, not project-local — the Cursor account is device-wide.
+
+export function getChatModelId(): string | null {
+  const id = store.get('chatModelId');
+  return typeof id === 'string' && id.trim() ? id.trim() : null;
+}
+
+export function setChatModelId(modelId: string | null): void {
+  store.set('chatModelId', modelId && modelId.trim() ? modelId.trim() : null);
+}
+
+export function getChatModelParams(): { id: string; value: string }[] {
+  const raw = store.get('chatModelParams');
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((p): p is { id: string; value: string } =>
+      !!p && typeof p === 'object' && typeof p.id === 'string' && typeof p.value === 'string',
+    )
+    .slice(0, 16);
+}
+
+export function setChatModelParams(params: { id: string; value: string }[] | null): void {
+  if (!params || params.length === 0) {
+    store.set('chatModelParams', null);
+    return;
+  }
+  store.set('chatModelParams', params.slice(0, 16));
 }
 
 // ─── MCP Setup Version ──────────────────────────
@@ -541,8 +595,8 @@ export function saveProjectStyle(projectDir: string, style: unknown): ProjectSty
 
 // ─── Selection Pin ("Design after writing") ─────────────────────
 // `.penwright/selection.json` holds a single pinned passage + a snapshot of
-// the current look, written when the user right-clicks a selection →
-// "Design with AI". The MCP server reads it via `penwright_get_selection`.
+// the current look, written when the user sends a chat turn with a marked
+// passage ("In Chat einfügen"). The MCP server reads it via `penwright_get_selection`.
 // Mirrors the stylePath / saveProjectStyle pattern above; lives under
 // `.penwright/` so it's already git-ignored.
 

@@ -133,13 +133,12 @@ function createWindow(): void {
       menuItems.push({ type: 'separator' });
     }
 
-    // "Design after writing" — pin the selection and hand it to Claude.
-    // Only meaningful when there's a selection; the renderer captures the
-    // anchor + design snapshot and flips the sidebar to the Design tab.
+    // Marked text → composer chip. Pin is written on send, not here.
     if (params.selectionText && params.selectionText.trim().length > 0) {
+      const insertLabel = resolveDict(getLocale()).chat.insertIntoChat;
       menuItems.push({
-        label: '✨ Design with AI',
-        click: () => appState.mainWindow?.webContents.send('penwright', { type: 'designSelection' }),
+        label: insertLabel,
+        click: () => appState.mainWindow?.webContents.send('penwright', { type: 'insertIntoChat' }),
       });
       menuItems.push({ type: 'separator' });
     }

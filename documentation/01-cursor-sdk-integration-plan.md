@@ -1,7 +1,7 @@
 # Cursor-SDK — In-App-Chat in Penwright
 
-**Status:** Research abgeschlossen. **Nicht gebaut.** Wartet auf Spike + Go-Ahead.
-**Stand:** 2026-08-20 · SDK `@cursor/sdk` **1.0.28** (public beta) · Penwright **0.12.0** · MCP **66 Tools** · `MCP_SETUP_VERSION` **0.42.0**
+**Status:** Gebaut und im Dev-Lauf bestätigt (Host, IPC, ChatPanel, Settings → Cursor, „In Chat einfügen“, Chatverwaltung: Tabs / History / +). Phase 3 (Usage-Bilder, Lizenzen, packaged Spike / Native-Binaries im Notar-Build) offen.
+**Stand:** 2026-08-21 · SDK `@cursor/sdk` (public beta) · Penwright **0.12.0** · MCP **66 Tools** · `MCP_SETUP_VERSION` **0.43.0**
 **Quellen:** [Cursor TypeScript SDK](https://cursor.com/docs/sdk/typescript), [Auth](https://cursor.com/docs/sdk/typescript.md#cursorauth), [MCP im SDK](https://cursor.com/docs/sdk/typescript.md#mcp-servers), [Cookbook](https://github.com/cursor/cookbook), Forum (Electron-Sandbox, ToS), Code: `mcpRegistration.ts`, `mcpSetup.ts`, `sessionState.ts`, `server.ts`.
 
 ---

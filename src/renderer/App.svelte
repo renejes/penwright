@@ -27,7 +27,7 @@
   import McpConnectionDialog from './components/McpConnectionDialog.svelte';
   import OnboardingWizard from './components/OnboardingWizard.svelte';
   import LookStatus from './components/LookStatus.svelte';
-  import DesignAiPopover from './components/DesignAiPopover.svelte';
+  import ChatPanel from './components/ChatPanel.svelte';
   import SectionLookEditor from './components/SectionLookEditor.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
@@ -65,6 +65,9 @@
     onSidebarResize,
     startPreviewResize,
     onPreviewResize,
+    startChatResize,
+    onChatResize,
+    chatUi,
   } from './appState.svelte';
   import { handleMessage } from './messageHandler';
   import { setCommentMarks, type CommentMark } from '../editor/lib/commentDecorations';
@@ -142,9 +145,12 @@
     const snapshot = {
       showSidebar: panelState.showSidebar,
       showPreview: panelState.showPreview,
+      showChat: panelState.showChat,
       sidebarTab: panelState.sidebarTab,
       sidebarWidth: panelState.sidebarWidth,
       previewWidth: panelState.previewWidth,
+      chatWidth: panelState.chatWidth,
+      chatHeight: panelState.chatHeight,
     };
     clearTimeout(panelSaveTimer);
     panelSaveTimer = setTimeout(() => {
@@ -245,8 +251,6 @@
   let showMcpConnection = $state(false);
   // First-run onboarding tour (shown once, tracked via `onboardingSeen`).
   let showOnboarding = $state(false);
-  // Design-with-AI handoff popover, positioned at the pinned selection.
-  let designAiPopover = $state<{ x: number; y: number } | null>(null);
   // Chapter-look editor modal (opened by the "✎" in the status bar).
   let editChapterLook = $state<{ chapterPath: string; styleId: string } | null>(null);
 
@@ -297,7 +301,7 @@
     window.addEventListener('keydown', handleGlobalKeydown);
     window.addEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
     window.addEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
-    window.addEventListener('penwright:design-selection', pinSelectionForDesign as EventListener);
+    window.addEventListener('penwright:insert-into-chat', captureSelectionForChat as EventListener);
     window.addEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
     window.addEventListener('penwright:citation-hover', handleCitationHover as EventListener);
     window.addEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
@@ -334,33 +338,23 @@
           const s = stored as Record<string, unknown>;
           if (typeof s.showSidebar === 'boolean') panelState.showSidebar = s.showSidebar;
           if (typeof s.showPreview === 'boolean') panelState.showPreview = s.showPreview;
+          if (typeof s.showChat === 'boolean') panelState.showChat = s.showChat;
           if (typeof s.sidebarTab === 'string') panelState.sidebarTab = s.sidebarTab as typeof panelState.sidebarTab;
           if (typeof s.sidebarWidth === 'number') panelState.sidebarWidth = s.sidebarWidth;
           if (typeof s.previewWidth === 'number') panelState.previewWidth = s.previewWidth;
+          if (typeof s.chatWidth === 'number') panelState.chatWidth = s.chatWidth;
+          if (typeof s.chatHeight === 'number') panelState.chatHeight = s.chatHeight;
         }
       });
 
-      // First-run onboarding tour, then the MCP setup probe. On the very first
-      // launch only the onboarding shows; the MCP wizard is reachable from its
-      // own step + the Help menu and only auto-pops on later launches, so two
-      // modals never stack at boot.
+      // First-run onboarding tour. The Claude-Desktop MCP wizard is no longer
+      // auto-shown — in-app chat is the offered path; Help → MCP Connection
+      // still reaches the wizard.
       electronAPI.invoke('persist:isOnboardingSeen').then((seenVal) => {
         const seenAtBoot = !!seenVal;
         if (!seenAtBoot) {
           setTimeout(() => { if (!pendingCrash) showOnboarding = true; }, 700);
         }
-        // Claude-Desktop wizard — delayed 2s so it never competes with the
-        // crash dialog or the onboarding. Cursor is registered silently at
-        // boot; this wizard is only for Claude Desktop.
-        setTimeout(async () => {
-          if (pendingCrash || !seenAtBoot || showOnboarding) return;
-          try {
-            const status = await electronAPI.invoke('mcp:getSetupStatus') as { needsSetup: boolean; supported: boolean };
-            if (status?.needsSetup && status?.supported && !showOnboarding) {
-              showMcpWizard = true;
-            }
-          } catch { /* ignore */ }
-        }, 2000);
       }).catch(() => { /* ignore */ });
     }
 
@@ -504,29 +498,23 @@
     window.dispatchEvent(new CustomEvent('penwright:comment-created', { detail: created }));
   }
 
-  // ─── Design after writing ───────────────────────
-  // Pin the current selection (text + fuzzy anchor + node type) to
-  // `.penwright/selection.json` via `selection:pin`; the main process attaches
-  // the design snapshot. Then flip the sidebar to the Design tab, whose hub
-  // card shows the pin + the Claude handoff. Modeled on
-  // `addCommentFromSelection()` for the selection→anchor capture.
-  async function pinSelectionForDesign() {
+  // ─── Insert into Chat ──────────────────────────
+  // Capture the selection as a composer chip (anchorText + occurrence). The
+  // pin is written on send so penwright_get_selection sees the same spot.
+  async function captureSelectionForChat() {
     const editor = editorRef.current;
     if (!editor || !tabState.currentFile) {
       alert(t().app.openFileFirst);
       return;
     }
     const { state } = editor;
-    const { from, to } = state.selection;
+    const { from } = state.selection;
     const selectionText = selectionOrWord(editor);
     if (!selectionText) {
-      alert(t().app.selectTextToDesign);
+      alert(t().chat.selectTextToInsert);
       return;
     }
 
-    // Anchor = first 200 chars of the selection (whitespace-exact), which the
-    // anchor-based MCP tools consume. Occurrence = 1 + how many identical
-    // anchors precede the selection in the rendered text (best-effort dedupe).
     const anchorText = selectionText.length > 200 ? selectionText.slice(0, 200) : selectionText;
     const prefix = state.doc.textBetween(0, from, ' ', ' ');
     let occurrence = 1;
@@ -538,44 +526,20 @@
     }
     const nodeType = state.selection.$from.parent.type.name;
 
-    // Screen position of the selection end — anchors the handoff popover there.
-    let popoverPos = { x: window.innerWidth / 2 - 150, y: 120 };
-    try {
-      const coords = editor.view.coordsAtPos(to);
-      popoverPos = { x: coords.left, y: coords.bottom + 8 };
-    } catch { /* fall back to a sensible default */ }
-
-    const api = (window as unknown as {
-      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
-    }).electronAPI;
-
     const projectDir = await fetchProjectDir();
     if (!projectDir) {
       alert(t().app.noProjectOpen);
       return;
     }
 
-    const result = await api.invoke('selection:pin', {
+    chatUi.pendingAnchors.push({
       file: toProjectRelPath(tabState.currentFile, projectDir),
       selectionText,
       anchorText,
       occurrence,
       nodeType,
-    }) as { ok: boolean; error?: string };
-
-    if (!result?.ok) {
-      alert(t().app.pinFailed + (result?.error ? `\n${result.error}` : ''));
-      return;
-    }
-
-    // Show the handoff popover at the selection (reads the pin we just wrote).
-    // Null first: if it's already open (no backdrop — the editor stays
-    // interactive), a plain re-assign would keep the mounted instance and its
-    // stale onMount-loaded pin. The remount re-reads the fresh pin.
-    designAiPopover = null;
-    requestAnimationFrame(() => {
-      designAiPopover = popoverPos;
     });
+    panelState.showChat = true;
   }
 
   // Backlinks trigger: OutlinePanel hover-button or citation right-click
@@ -919,6 +883,10 @@
       e.preventDefault();
       panelState.showPreview = !panelState.showPreview;
     }
+    if (mod && !e.shiftKey && !e.altKey && (e.key === 'j' || e.key === 'J')) {
+      e.preventDefault();
+      panelState.showChat = !panelState.showChat;
+    }
     if (mod && e.altKey && (e.key === 'l' || e.key === 'L')) {
       e.preventDefault();
       handleOpenReferencePicker();
@@ -1041,7 +1009,7 @@
     window.removeEventListener('keydown', handleGlobalKeydown);
     window.removeEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
     window.removeEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
-    window.removeEventListener('penwright:design-selection', pinSelectionForDesign as EventListener);
+    window.removeEventListener('penwright:insert-into-chat', captureSelectionForChat as EventListener);
     window.removeEventListener('penwright:find-backlinks', handleFindBacklinks as EventListener);
     window.removeEventListener('penwright:citation-hover', handleCitationHover as EventListener);
     window.removeEventListener('penwright:open-reference-picker', handleOpenReferencePicker as EventListener);
@@ -1102,20 +1070,8 @@
       <ProjectSearchPanel onClose={() => (uiState.showProjectSearch = false)} />
     {/if}
 
-    <!-- Start Screen (when no file is open) -->
-    {#if !hasFileOpen}
-      <StartScreen
-        onNewProject={handleStartNewProject}
-        onOpenProject={handleStartOpenProject}
-        onOpenSample={handleStartOpenSample}
-        onOpenRecent={handleStartOpenRecent}
-      />
-    {/if}
-
-    <!-- Main content area with panels (always in DOM so TipTap editor element is available at onMount) -->
-    <div class="app-body" class:hidden={!hasFileOpen}>
-      <!-- Sidebar -->
-      {#if panelState.showSidebar}
+    <div class="workspace">
+      {#if hasFileOpen && panelState.showSidebar}
         <div class="panel-sidebar" style="width: {panelState.sidebarWidth}px">
           <div class="sidebar-body">
             {#if panelState.sidebarTab === 'files'}
@@ -1140,84 +1096,100 @@
         />
       {/if}
 
-      <!-- Editor with Tab Bar -->
-      <div class="panel-editor">
-        <!-- Tab Bar -->
-        {#if tabState.openTabs.length > 0}
-          <div class="tab-bar" role="tablist" aria-label={t().app.openFilesAria}>
-            {#each tabState.openTabs as tab, i}
-              <div
-                class="editor-tab"
-                class:active={i === tabState.activeTabIndex}
-                onclick={() => switchToTab(i)}
-                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchToTab(i); } }}
-                title={tab.path}
-                role="tab"
-                tabindex="0"
-                aria-selected={i === tabState.activeTabIndex}
-                aria-label={tabName(tab)}
-              >
-                <span class="tab-label">{tabName(tab)}</span>
-                <span
-                  class="tab-close"
-                  onclick={(e) => { e.stopPropagation(); closeTab(i); }}
-                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); closeTab(i); } }}
-                  title={t().common.close}
-                  role="button"
-                  tabindex="0"
-                  aria-label={t().app.closeTabAria(tabName(tab))}
-                >
-                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                </span>
-              </div>
-            {/each}
-          </div>
+      <div class="workspace-center">
+        {#if !hasFileOpen}
+          <StartScreen
+            onNewProject={handleStartNewProject}
+            onOpenProject={handleStartOpenProject}
+            onOpenSample={handleStartOpenSample}
+            onOpenRecent={handleStartOpenRecent}
+          />
         {/if}
 
-        <!-- Active content -->
-        {#if pdfViewerFile}
-          <PdfFileViewer
-            filePath={pdfViewerFile}
-            onClose={() => {
-              if (tabState.activeTabIndex >= 0) closeTab(tabState.activeTabIndex);
-            }}
-          />
-        {:else if textViewerFile}
-          <TextFileViewer
-            filePath={textViewerFile}
-            onClose={() => {
-              if (tabState.activeTabIndex >= 0) closeTab(tabState.activeTabIndex);
-            }}
-          />
-        {:else if designViewerFile}
-          <!-- style.typ → the visual Look designer (whole-document Look). -->
-          <div class="design-main-view">
-            <DesignPanel mainView />
+        <!-- Always in DOM so TipTap's editor element is available at onMount. -->
+        <div class="panel-editor" class:hidden={!hasFileOpen}>
+          {#if tabState.openTabs.length > 0}
+            <div class="tab-bar" role="tablist" aria-label={t().app.openFilesAria}>
+              {#each tabState.openTabs as tab, i}
+                <div
+                  class="editor-tab"
+                  class:active={i === tabState.activeTabIndex}
+                  onclick={() => switchToTab(i)}
+                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchToTab(i); } }}
+                  title={tab.path}
+                  role="tab"
+                  tabindex="0"
+                  aria-selected={i === tabState.activeTabIndex}
+                  aria-label={tabName(tab)}
+                >
+                  <span class="tab-label">{tabName(tab)}</span>
+                  <span
+                    class="tab-close"
+                    onclick={(e) => { e.stopPropagation(); closeTab(i); }}
+                    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); closeTab(i); } }}
+                    title={t().common.close}
+                    role="button"
+                    tabindex="0"
+                    aria-label={t().app.closeTabAria(tabName(tab))}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          {#if pdfViewerFile}
+            <PdfFileViewer
+              filePath={pdfViewerFile}
+              onClose={() => {
+                if (tabState.activeTabIndex >= 0) closeTab(tabState.activeTabIndex);
+              }}
+            />
+          {:else if textViewerFile}
+            <TextFileViewer
+              filePath={textViewerFile}
+              onClose={() => {
+                if (tabState.activeTabIndex >= 0) closeTab(tabState.activeTabIndex);
+              }}
+            />
+          {:else if designViewerFile}
+            <div class="design-main-view">
+              <DesignPanel mainView />
+            </div>
+          {/if}
+          <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile || !!designViewerFile} style="--editor-zoom: {zoomState.editor}">
+            <div class="editor" bind:this={editorElement}></div>
           </div>
-        {/if}
-        <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile || !!designViewerFile} style="--editor-zoom: {zoomState.editor}">
-          <div class="editor" bind:this={editorElement}></div>
+        </div>
+
+        <div
+          class="panel-chat"
+          class:collapsed={!panelState.showChat}
+          style="height: {panelState.showChat ? panelState.chatHeight : 0}px"
+        >
+          {#if panelState.showChat}
+            <ResizeHandle
+              orientation="horizontal"
+              onResize={(delta) => {
+                if (resizeBase.chatHeight === 0) startChatResize();
+                onChatResize(delta);
+              }}
+            />
+          {/if}
+          <ChatPanel
+            hasProject={hasFileOpen}
+            onOpenSettings={() => ipc.send({ type: 'requestSettings' })}
+            liveContent={() => {
+              const editor = editorRef.current;
+              if (!editor) return undefined;
+              return serializeTypstCached(editor.state.doc);
+            }}
+          />
         </div>
       </div>
 
-      <!-- Context Menu -->
-      {#if contextMenu.path}
-        <div class="context-overlay" role="presentation" onclick={closeContextMenu}>
-          <div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px">
-            <button class="context-item" onclick={() => { handleFileOpenInNewTab(contextMenu.path); closeContextMenu(); }}>
-              Open in New Tab
-            </button>
-            {#if contextMenu.path.endsWith('.typ')}
-              <button class="context-item" onclick={() => { openTab(contextMenu.path, 'rawtyp'); closeContextMenu(); }}>
-                Open as Text
-              </button>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
-      <!-- Preview -->
-      {#if panelState.showPreview}
+      {#if hasFileOpen && panelState.showPreview}
         <ResizeHandle
           orientation="vertical"
           onResize={(delta) => {
@@ -1237,15 +1209,31 @@
           />
         </div>
       {/if}
+
+      {#if contextMenu.path}
+        <div class="context-overlay" role="presentation" onclick={closeContextMenu}>
+          <div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px">
+            <button class="context-item" onclick={() => { handleFileOpenInNewTab(contextMenu.path); closeContextMenu(); }}>
+              Open in New Tab
+            </button>
+            {#if contextMenu.path.endsWith('.typ')}
+              <button class="context-item" onclick={() => { openTab(contextMenu.path, 'rawtyp'); closeContextMenu(); }}>
+                Open as Text
+              </button>
+            {/if}
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- Modals (always available, also from Start Screen) -->
     {#if uiState.showShortcuts}
       <ShortcutCheatsheet onClose={() => (uiState.showShortcuts = false)} />
     {/if}
-    {#if uiState.showSettings && uiState.currentSettings}
+    {#if uiState.showSettings}
       <SettingsPanel
-        settings={uiState.currentSettings}
+        settings={uiState.currentSettings ?? { lang: '', bibliographyStyle: '' }}
+        hasProject={hasFileOpen}
         onSave={saveSettings}
         previewMode={previewState.mode}
         onPreviewModeChange={handlePreviewModeChange}
@@ -1295,9 +1283,6 @@
     {#if showOnboarding}
       <OnboardingWizard onClose={() => (showOnboarding = false)} />
     {/if}
-    {#if designAiPopover}
-      <DesignAiPopover x={designAiPopover.x} y={designAiPopover.y} onClose={() => (designAiPopover = null)} />
-    {/if}
     {#if editChapterLook}
       <SectionLookEditor chapterPath={editChapterLook.chapterPath} styleId={editChapterLook.styleId} onClose={() => (editChapterLook = null)} />
     {/if}
@@ -1346,6 +1331,16 @@
         aria-pressed={panelState.showPreview}
       >
         {t().app.statusPreview}
+      </button>
+      <button
+        class="status-toggle"
+        class:active={panelState.showChat}
+        onclick={() => (panelState.showChat = !panelState.showChat)}
+        title="Cmd+J"
+        aria-label={t().app.toggleChat}
+        aria-pressed={panelState.showChat}
+      >
+        {t().app.statusChat}
       </button>
     </div>
     {#if hasFileOpen}
@@ -1505,15 +1500,45 @@
   }
 
   /* ─── Main Content Area ─── */
-  .app-body {
+  .workspace {
     flex: 1;
     display: flex;
+    flex-direction: row;
     overflow: hidden;
-    background: #ffffff;
+    min-height: 0;
   }
 
-  .app-body.hidden {
-    display: none;
+  .workspace-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .workspace-center :global(.start-screen) {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .panel-chat {
+    flex-shrink: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #f0f0f0;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .panel-chat.collapsed {
+    border-top: none;
+  }
+
+  .panel-chat :global(.chat-panel) {
+    flex: 1;
+    min-height: 0;
   }
 
   /* ─── Sidebar ─── */
@@ -1540,6 +1565,10 @@
     display: flex;
     flex-direction: column;
     background: #ffffff;
+  }
+
+  .panel-editor.hidden {
+    display: none;
   }
 
   .panel-editor :global(.editor-container) {
@@ -1700,6 +1729,15 @@
     flex-shrink: 0;
     overflow: hidden;
     border-left: 1px solid #f0f0f0;
+    align-self: stretch;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-preview :global(.preview) {
+    flex: 1;
+    min-height: 0;
   }
 
   /* ─── Status Bar ─── */

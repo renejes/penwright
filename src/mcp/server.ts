@@ -1992,20 +1992,20 @@ tool(
 );
 
 // ─── Tool: penwright_get_selection ─────────────────────
-// Reads the pinned selection the user handed off via Penwright's
-// "✨ Design with AI". Returns the passage + a snapshot of the current
-// look so Claude can design that exact spot in harmony with the document.
+// Reads the passage the user marked via Penwright's "Insert into Chat".
+// Returns the passage + a snapshot of the current look so the agent can
+// design that exact spot in harmony with the document.
 
 tool(
   'penwright_get_selection',
-  'Return the passage the user pinned in Penwright ("Design with AI"), with a snapshot of the current look. Call it when they ask you to design "this" or "here" — the anchorText + occurrence it returns go straight into the anchor-based tools. Says so plainly when nothing is pinned.',
+  'Return the passage the user marked in Penwright ("Insert into Chat"), with a snapshot of the current look. Call it when they ask you to design "this" or "here" — the anchorText + occurrence it returns go straight into the anchor-based tools. Says so plainly when nothing is marked. A chat turn with no mark is still a full request: design the whole document instead.',
   async () => {
     if (!state.projectDir) {
       return { content: [{ type: 'text' as const, text: 'Error: No project set. Use penwright_set_project first.' }], isError: true };
     }
     const file = selectionJsonPath(state.projectDir);
     if (!fs.existsSync(file)) {
-      return { content: [{ type: 'text' as const, text: 'No selection pinned. Ask the user to select a passage in Penwright and right-click → "✨ Design with AI" — or design the whole document instead (penwright_get_style, then apply_style / apply_palette / apply_layout / generate_layout; no selection needed).' }] };
+      return { content: [{ type: 'text' as const, text: 'No selection pinned. The user can mark a passage in Penwright and right-click → "Insert into Chat" — or design the whole document instead (penwright_get_style, then apply_style / apply_palette / apply_layout / generate_layout; no selection needed).' }] };
     }
     try {
       const pin = JSON.parse(fs.readFileSync(file, 'utf-8'));

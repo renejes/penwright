@@ -28,12 +28,12 @@ export const onboarding: OnboardingMessages = {
       bullets: [
         '<strong>Direkte Formatierung</strong> — die Buttons oben in der Leiste, wie in Word.',
         '<strong>Der Look</strong> — öffne <code>style.typ</code> für den visuellen Designer (ganzes Dokument), oder wähle unten in der Statusleiste einen Kapitel-Look.',
-        '<strong>Design with AI</strong> — Text markieren, Rechtsklick, und die KI gestaltet genau diese Stelle.',
+        '<strong>Chat</strong> — beschreib, was du brauchst, oder markiere Text, Rechtsklick <strong>In Chat einfügen</strong>, und sag, was an dieser Stelle passieren soll.',
       ],
     },
     claude: {
-      title: 'Mit Claude Desktop verbinden',
-      body: 'Optional: Verbinde Penwright mit Claude Desktop und lass die KI beim Schreiben und Gestalten helfen. Den Assistenten dafür findest du jederzeit unter <strong>Hilfe → Mit Claude Desktop verbinden</strong>.',
+      title: 'Optional: Cursor oder Claude',
+      body: 'Der Chat in der App (Ansicht → Chat) nutzt dein Cursor-Konto. Einen externen MCP-Host verbindest du weiterhin unter <strong>Hilfe → MCP-Verbindung</strong>, wenn du Cursor IDE oder Claude Desktop bevorzugst.',
     },
     ready: {
       title: 'Bereit loszulegen?',

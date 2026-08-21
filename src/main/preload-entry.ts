@@ -113,6 +113,20 @@ const INVOKE_CHANNELS = [
   'mcp:skipSetup',
   'mcp:getConnectionStatus',
   'mcp:registerHost',
+  'chat:status',
+  'chat:login',
+  'chat:logout',
+  'chat:setModel',
+  'chat:send',
+  'chat:cancel',
+  'chat:history',
+  'chat:models',
+  'chat:pickFiles',
+  'chat:sessions',
+  'chat:new',
+  'chat:switch',
+  'chat:closeTab',
+  'chat:delete',
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {

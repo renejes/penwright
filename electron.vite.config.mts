@@ -7,6 +7,9 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })],
     build: {
       outDir: 'dist/main',
+      rollupOptions: {
+        external: ['@cursor/sdk'],
+      },
     },
   },
   preload: {

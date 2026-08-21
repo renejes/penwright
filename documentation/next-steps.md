@@ -1,6 +1,6 @@
 # Penwright Desktop — Next Steps bis zum Release
 
-> **Stand:** 2026-08-03 (nach Session 48) · App **0.12.0** · `MCP_SETUP_VERSION` **0.41.0** · gebündeltes Typst **0.15.1** · MCP **66 Tools**
+> **Stand:** 2026-08-21 · App **0.12.0** · `MCP_SETUP_VERSION` **0.43.0** · gebündeltes Typst **0.15.1** · MCP **66 Tools**
 >
 > **Was hier drinsteht:** ausschließlich noch offene Arbeit. Das *was und warum* der Veröffentlichung steht in **[done/release-strategy.md](done/release-strategy.md)** (Historie; das Preismodell darin gilt nicht mehr — die App ist kostenlos für alle). Der aktuelle Codestand: [project_status.md](project_status.md) + [CLAUDE.md](../CLAUDE.md). Session-Historie: [handover.md](handover.md).
 
@@ -36,7 +36,8 @@ Nicht-technisch, aber blockierend. Dort gepflegt, hier nur verlinkt, damit es ni
 ### 3. Finales QA
 
 - [ ] **Reale 100-Seiten-Thesis** plus Design-Fälle (Broschüre, CV, Magazin-Doppelseite).
-- [ ] **Design-with-AI E2E** manuell mit Claude Desktop.
+- [ ] **In-App-Chat E2E** mit Cursor-Konto (Tabs, History, Design-Änderung, Stopp).
+- [ ] **Packaged Spike** für `@cursor/sdk` Native-Binaries unter Notarisierung ([01-cursor-sdk-integration-plan.md](01-cursor-sdk-integration-plan.md) Phase 3).
 - [ ] Die im Handover §5 gelisteten **ungeprüften Ecken**: Document-Settings, Kapitel hinzufügen, Bild-Drag-and-Drop, Verlaufs-Hub, Attached Lists.
 
 ### 4. Schutzarbeit, die noch offen ist
@@ -69,6 +70,7 @@ Unverändert offen, und weiterhin am besten mit einer Bestandsaufnahme statt mit
 - [x] **Web-Export „Editorial Web Pack"** — Phasen 0/A/B/C/D/E, seit v0.10.0/v0.11.0 ausgeliefert. (Der Branch `feat/web-export` existiert noch, ist aber vollständig in `main` enthalten — `git log main..feat/web-export` ist leer. Die Notiz „nicht gemergt" stand seit v0.10.0 falsch in den Dokumenten.)
 - [x] **Print-Export** (Beschnitt, Schnittmarken, Bundzuwachs, dpi-Preflight) + 2-up-Vorschau + `spread-image`. [print-export-plan.md](done/print-export-plan.md).
 - [x] **Erste DOM-Testsuite** (`scripts/popup-dom-test.mts`, Gate-Glied `test:dom`) — schließt die Schicht, in der die schwerste Regression der Session 48 saß.
+- [x] **In-App-Chat** über `@cursor/sdk` (2026-08-21): Host im Main-Prozess, ChatPanel, Cursor-Login, Allowlist, projektlokale Tabs/History. [01-cursor-sdk-integration-plan.md](01-cursor-sdk-integration-plan.md). Packaged Spike bleibt offen (Punkt 3).
 
 **Was bewusst asymmetrisch bleibt** (App ↔ KI) steht in [CLAUDE.md](../CLAUDE.md) → „App ↔ MCP parity" und ist **keine** offene Arbeit: engere Export-Sandbox der KI · einseitiger Zustandskanal · echte Fremd-Locks bleiben harte Ablehnung · kein Compile-Verify vor gewöhnlichen Textänderungen · zwei Undo-Systeme · Web-Export ohne MCP-Tool.
 
