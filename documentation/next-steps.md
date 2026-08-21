@@ -1,6 +1,6 @@
 # Penwright Desktop — Next Steps bis zum Release
 
-> **Stand:** 2026-08-21 · App **0.12.0** · `MCP_SETUP_VERSION` **0.43.0** · gebündeltes Typst **0.15.1** · MCP **66 Tools**
+> **Stand:** 2026-08-21 · App **0.13.0** · `MCP_SETUP_VERSION` **0.43.0** · gebündeltes Typst **0.15.1** · MCP **66 Tools**
 >
 > **Was hier drinsteht:** ausschließlich noch offene Arbeit. Das *was und warum* der Veröffentlichung steht in **[done/release-strategy.md](done/release-strategy.md)** (Historie; das Preismodell darin gilt nicht mehr — die App ist kostenlos für alle). Der aktuelle Codestand: [project_status.md](project_status.md) + [CLAUDE.md](../CLAUDE.md). Session-Historie: [handover.md](handover.md).
 

@@ -1,6 +1,6 @@
 # Penwright — aktueller Stand
 
-> **Stand:** 2026-08-21 · App **0.12.0** · `MCP_SETUP_VERSION` **0.43.0** · Typst **0.15.1** · MCP **66 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent)
+> **Stand:** 2026-08-21 · App **0.13.0** · `MCP_SETUP_VERSION` **0.43.0** · Typst **0.15.1** · MCP **66 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent)
 >
 > Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf und verworfene Pläne: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md). In-App-Chat-Plan: [01-cursor-sdk-integration-plan.md](01-cursor-sdk-integration-plan.md).
 
