@@ -46,6 +46,8 @@ export const editor = {
   toolbarSmallCapsAria: 'Small caps',
   toolbarFootnote: 'Footnote',
   toolbarFootnoteAria: 'Insert footnote',
+  toolbarMarginNote: 'Margin note',
+  toolbarMarginNoteAria: 'Insert margin note',
   toolbarComment: 'Add comment',
   toolbarCommentAria: 'Add comment to selection',
   toolbarAlignLeft: 'Align Left (Cmd+Shift+L)',

@@ -4,6 +4,11 @@
   --border-color: #f0f0f0;
   --toolbar-bg: #ffffff;
   --accent: #4f7df9;
+  /* Same stack as `.penwright-app` / index.html. Popups mount on `document.body`
+     and fields are `<textarea>`s — both skip ProseMirror inheritance, so this
+     variable is the only way the box and the flow stay one face. The PDF is
+     still the typeset truth; do not leak style.json fonts in here. */
+  --pw-manuscript-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
 }
 
 * {
@@ -15,7 +20,7 @@
 body {
   background: var(--bg-color);
   color: var(--text-color);
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--pw-manuscript-font);
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
 }
@@ -59,6 +64,15 @@ body {
   line-height: 1.4;
   flex-shrink: 0;
   transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar-icon {
+  display: block;
+  width: 15px;
+  height: 15px;
 }
 
 .toolbar button:hover,
@@ -456,6 +470,7 @@ body {
   outline: none;
   min-height: 100%;
   counter-reset: footnote;
+  font-family: var(--pw-manuscript-font);
 }
 
 .ProseMirror > * + * {
@@ -466,35 +481,18 @@ body {
   margin-bottom: 0;
 }
 
-.ProseMirror h1 {
-  font-size: 2em;
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6 {
+  font-size: 1em;
   font-weight: 700;
   margin-top: 1.4em;
   margin-bottom: 0.4em;
-  line-height: 1.2;
-}
-
-.ProseMirror h2 {
-  font-size: 1.5em;
-  font-weight: 600;
-  margin-top: 1.2em;
-  margin-bottom: 0.3em;
-  line-height: 1.3;
-}
-
-.ProseMirror h3 {
-  font-size: 1.25em;
-  font-weight: 600;
-  margin-top: 1em;
-  margin-bottom: 0.2em;
-  line-height: 1.3;
-}
-
-.ProseMirror h4 {
-  font-size: 1.1em;
-  font-weight: 600;
-  margin-top: 0.8em;
-  margin-bottom: 0.2em;
+  line-height: 1.35;
+  color: var(--text-color);
 }
 
 .ProseMirror h1:first-child,
@@ -513,11 +511,10 @@ body {
 }
 
 .ProseMirror blockquote {
-  border-left: 3px solid var(--border-color);
+  border-left: 1px solid var(--text-color);
   padding-left: 1em;
   margin-left: 0;
   margin-right: 0;
-  color: rgba(128, 128, 128, 0.85);
   font-style: italic;
 }
 
@@ -616,16 +613,17 @@ body {
   left: 0;
   right: 0;
   z-index: 9999;
-  background: var(--toolbar-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  background: var(--bg-color);
+  border: 1px solid #dddddd;
+  border-radius: 0;
+  box-shadow: none;
   padding: 10px 12px;
   margin-top: 4px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   max-width: 360px;
+  font-family: var(--pw-manuscript-font);
 }
 
 .typst-image-dialog-row {
@@ -651,32 +649,32 @@ body {
 
 .typst-image-dialog-preset {
   padding: 3px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border: 1px solid #dddddd;
+  border-radius: 0;
   background: transparent;
   color: var(--text-color);
   cursor: pointer;
   font-size: 11px;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  transition: background 0.1s, border-color 0.1s;
 }
 
 .typst-image-dialog-preset:hover {
-  background: rgba(128, 128, 128, 0.1);
+  background: var(--text-color);
+  color: var(--bg-color);
 }
 
 .typst-image-dialog-preset.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  background: var(--text-color);
+  color: var(--bg-color);
+  border-color: var(--text-color);
 }
 
 .typst-image-dialog-input {
   flex: 1;
   min-width: 0;
   padding: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border: 1px solid #dddddd;
+  border-radius: 0;
   background: var(--bg-color);
   color: var(--text-color);
   font-size: 12px;
@@ -685,7 +683,7 @@ body {
 }
 
 .typst-image-dialog-input:focus {
-  border-color: var(--accent);
+  border-color: var(--text-color);
 }
 
 .typst-image-dialog-input::placeholder {
@@ -693,31 +691,37 @@ body {
   font-family: inherit;
 }
 
-/* ─── Typst Raw Block ─────────────────────────── */
+/* ─── Typst Raw Block ───────────────────────────
+   A named card, not a code wall. The label (describeRawBlock) is the honest
+   claim: page setup, include, design call. Colour-coding by kind used to
+   impersonate meaning the PDF does not share. */
 .typst-raw-block {
   position: relative;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: rgba(128, 128, 128, 0.06);
+  border: 1px solid #dddddd;
+  background: var(--bg-color);
   overflow: hidden;
 }
 
 .typst-raw-block.ProseMirror-selectednode {
-  outline: 2px solid var(--accent);
+  outline: 1px solid var(--text-color);
   outline-offset: -1px;
 }
 
 .typst-raw-label {
   padding: 4px 10px;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 0.72em;
-  font-weight: 600;
-  color: rgba(128, 128, 128, 0.65);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: rgba(128, 128, 128, 0.06);
-  border-bottom: 1px solid var(--border-color);
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.85em;
+  font-weight: 400;
+  color: #666666;
+  border-bottom: 1px solid #dddddd;
   user-select: none;
+}
+
+.typst-raw-block.pw-is-source:not(.pw-has-macro-card):not(.pw-is-spacer) .typst-raw-label::after {
+  content: " · Typst";
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .typst-raw-textarea {
@@ -744,10 +748,10 @@ body {
   width: 100%;
   padding: 3px 10px;
   border: none;
-  border-top: 1px solid var(--border-color);
-  background: rgba(128, 128, 128, 0.06);
-  color: rgba(128, 128, 128, 0.6);
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  border-top: 1px solid #dddddd;
+  background: transparent;
+  color: #666666;
+  font-family: inherit;
   font-size: 0.72em;
   font-weight: 600;
   text-align: right;
@@ -756,37 +760,13 @@ body {
 }
 
 .typst-raw-done:hover {
-  background: rgba(128, 128, 128, 0.12);
+  background: #f5f5f5;
   color: var(--text-color);
 }
 
-/* Block type accent colors */
-.typst-raw-math .typst-raw-label {
-  color: rgba(130, 80, 180, 0.8);
-}
-
-.typst-raw-config .typst-raw-label {
-  color: rgba(50, 130, 180, 0.8);
-}
-
-.typst-raw-code .typst-raw-label {
-  color: rgba(180, 120, 50, 0.8);
-}
-
-.typst-raw-comment .typst-raw-label {
-  color: rgba(100, 160, 80, 0.8);
-}
-
-/* A block that carries PROSE the reader will see, as opposed to spacing, rules
-   and page setup. The two want opposite things: one is to be read and edited,
-   the other to be left alone — so the one worth reading says so. */
-.typst-raw-text .typst-raw-label {
-  color: rgba(190, 90, 60, 0.85);
-}
-.typst-raw-text {
-  border-left: 2px solid rgba(190, 90, 60, 0.35);
-}
+/* Prose trapped in a raw block is still prose — body face, not a code wall. */
 .typst-raw-text .typst-raw-textarea {
+  font-family: inherit;
   color: var(--text-color);
 }
 
@@ -811,7 +791,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.6em;
-  cursor: pointer;
+  cursor: text;
   padding: 0.15em 0;
   opacity: 0.35;
   transition: opacity 0.12s ease;
@@ -826,11 +806,11 @@ body {
 
 .pw-spacer-value {
   flex: none;
-  font-size: 0.68rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  width: auto;
+  min-width: 4em;
+  font-size: 0.75rem;
   white-space: nowrap;
-  user-select: none;
+  text-align: center;
 }
 
 /* ─── Citations ────────────────────────────── */
@@ -1113,39 +1093,40 @@ body {
   position: fixed;
   z-index: 9999;
   width: 300px;
-  background: var(--toolbar-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  background: var(--bg-color);
+  border: 1px solid #dddddd;
+  border-radius: 0;
+  /* Same surface as the manuscript card it belongs to — a drop shadow and a
+     coloured heading made this a second UI floating over the flow. */
+  box-shadow: none;
+  font-family: var(--pw-manuscript-font);
   /* Vertically scrollable, because `clampPopup` caps the height to the viewport
      and the page behind it cannot scroll (`html, body { overflow: hidden }`).
      With plain `hidden` the cap only moved the problem: a 7-field form was cut
-     off with nothing to reach the rest by. Horizontal stays hidden so the
-     rounded corners still clip. */
+     off with nothing to reach the rest by. */
   overflow: hidden auto;
 }
 
 .footnote-popup-label {
-  padding: 6px 12px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(130, 80, 180, 0.8);
-  background: rgba(128, 128, 128, 0.06);
-  border-bottom: 1px solid var(--border-color);
+  padding: 8px 12px 6px;
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.85em;
+  font-weight: 400;
+  color: #666666;
+  background: transparent;
+  border-bottom: 1px solid #dddddd;
   user-select: none;
 }
 
 .footnote-popup-textarea {
   display: block;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   color: var(--text-color);
-  font-family: inherit;
-  font-size: 13px;
+  font-family: var(--pw-manuscript-font);
+  font-size: 1em;
   line-height: 1.5;
   resize: none;
   outline: none;
@@ -1153,19 +1134,20 @@ body {
 }
 
 .footnote-popup-textarea:focus {
-  background: rgba(128, 128, 128, 0.03);
+  background: #f5f5f5;
 }
 
 .footnote-popup-textarea::placeholder {
-  color: rgba(128, 128, 128, 0.4);
+  color: #666666;
 }
 
 .footnote-popup-hint {
   padding: 4px 12px;
-  font-size: 10px;
-  color: rgba(128, 128, 128, 0.5);
-  background: rgba(128, 128, 128, 0.06);
-  border-top: 1px solid var(--border-color);
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.72em;
+  color: #666666;
+  background: transparent;
+  border-top: 1px solid #dddddd;
   text-align: right;
   user-select: none;
 }
@@ -1807,22 +1789,23 @@ body {
 .table-settings-dropdown {
   z-index: 9999;
   min-width: 180px;
-  background: var(--toolbar-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  background: var(--bg-color);
+  border: 1px solid #dddddd;
+  border-radius: 0;
+  box-shadow: none;
   padding: 8px;
+  font-family: var(--pw-manuscript-font);
   /* The placement caps the height against the viewport; without a scroller that
      cap would only hide the buttons past it, on a page that cannot scroll. */
   overflow: hidden auto;
 }
 
 .table-settings-header {
-  font-size: 11px;
+  font-size: 0.72em;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgba(128, 128, 128, 0.65);
+  color: #666666;
   padding: 2px 4px 4px;
   user-select: none;
 }
@@ -1842,26 +1825,29 @@ body {
 
 .table-settings-actions button {
   padding: 5px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border: 1px solid #dddddd;
+  border-radius: 0;
   background: transparent;
   color: var(--text-color);
   cursor: pointer;
   font-size: 11px;
+  font-family: inherit;
   text-align: center;
   white-space: nowrap;
 }
 
 .table-settings-actions button:hover {
-  background: rgba(128, 128, 128, 0.15);
+  background: var(--text-color);
+  color: var(--bg-color);
 }
 
 .table-settings-actions button.danger {
-  color: #f48771;
+  color: var(--text-color);
 }
 
 .table-settings-actions button.danger:hover {
-  background: rgba(255, 0, 0, 0.1);
+  background: var(--text-color);
+  color: var(--bg-color);
 }
 
 .table-settings-divider {
@@ -1874,18 +1860,19 @@ body {
   display: block;
   width: 100%;
   padding: 5px 8px;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  border: 1px solid #dddddd;
+  border-radius: 0;
   background: transparent;
-  color: #f48771;
+  color: var(--text-color);
   cursor: pointer;
   font-size: 11px;
+  font-family: inherit;
   text-align: center;
 }
 
 .table-settings-delete:hover {
-  background: rgba(255, 0, 0, 0.1);
-  border-color: rgba(255, 0, 0, 0.2);
+  background: var(--text-color);
+  color: var(--bg-color);
 }
 
 /* --- Welcome Screen --- */
@@ -2073,218 +2060,313 @@ body {
   background: rgba(255, 184, 28, 0.6);
 }
 
-/* ─── Magazine AST nodes (Phase C keystone) ──────────────────
- * The hand-written magazine macros (opener / lead / pull / frage / notiz /
- * bildtafel / randnotiz / interlude + #columns) are now real nodes. Content
- * nodes are edited inline (the body is a content hole); atoms show their attrs.
- * A warm terracotta accent (the Penwright brand) evokes the editorial look in
- * the editor; the EXPORT styling comes from styleToCss / the project style.
- */
-:root {
-  --pw-mag-accent: #a8503a;
-  --pw-mag-muted: #8a8174;
+/* ─── Magazine AST nodes ───────────────────────────────────────
+ * Editor = manuscript. Four verbs, so a box is never just "a box":
+ *   write  (.pw-is-write)  — labelled prose; type in it. No frame.
+ *   form   (.pw-has-form)  — frame; extra fields live IN the card.
+ *   source (.pw-is-source) — Typst in a box; edit the code.
+ *   rule   (.pw-is-rule)   — a named divider, not a card.
+ * Colour, drop-cap, paper and measure live in the PDF. Export CSS is styleToCss. */
+.pw-node {
+  position: relative;
+  margin: 0.8em 0;
+  padding: 0.55em 0.75em;
+  border: 1px solid #dddddd;
+  background: var(--bg-color);
 }
 
-.pw-node { position: relative; }
+.pw-node.ProseMirror-selectednode {
+  outline: 1px solid var(--text-color);
+  outline-offset: -1px;
+}
 
-/* articleHeader (← opener) — atom: styled, read-only display of the fields. */
+/* Fallback when a node has no node-view yet (clipboard HTML). */
+.pw-node[data-kind]::before {
+  content: attr(data-kind);
+  display: block;
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.85em;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #666666;
+  margin: 0 0 0.45em;
+  user-select: none;
+  pointer-events: none;
+}
+
+.pw-node:has(.pw-kind)::before {
+  display: none;
+}
+
+.pw-kind {
+  display: block;
+  width: 100%;
+  margin: 0 0 0.45em;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.85em;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #666666;
+  text-align: left;
+  line-height: 1.3;
+  user-select: none;
+  cursor: default;
+}
+
+.pw-attr {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--pw-manuscript-font);
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  resize: none;
+  outline: none;
+  overflow: hidden;
+}
+.pw-attr::placeholder {
+  color: #999999;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.pw-attr-code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.88em;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.pw-node.pw-is-write {
+  border: none;
+  padding: 0.35em 0;
+  background: transparent;
+}
+
+.pw-node.pw-is-write .pw-kind {
+  margin-bottom: 0.2em;
+}
+
+.pw-node.pw-has-form {
+  cursor: default;
+}
+
+.pw-node.pw-is-rule {
+  border: none;
+  padding: 0.5em 0;
+  background: transparent;
+}
+
+/* articleHeader (← opener) — atom: fields, not a typeset title page. */
 .pw-opener {
-  margin: 0.4em 0 1.6em;
-  padding: 0.2em 0 0.8em;
-  border-bottom: 1px solid var(--border-color);
+  margin: 0.4em 0 1.2em;
 }
 .pw-opener-kicker {
-  font-weight: 700;
-  font-size: 0.78em;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--pw-mag-accent);
-  margin-bottom: 0.5em;
+  font-weight: 400;
+  font-size: 0.9em;
+  color: #666666;
+  margin-bottom: 0.35em;
 }
 .pw-opener-title {
-  font-size: 1.9em;
-  font-weight: 600;
-  line-height: 1.12;
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.35;
   color: var(--text-color);
 }
 .pw-opener-standfirst {
   font-style: italic;
-  font-size: 1.2em;
-  line-height: 1.35;
-  color: var(--pw-mag-muted);
-  margin-top: 0.5em;
+  font-size: 1em;
+  line-height: 1.45;
+  color: var(--text-color);
+  margin-top: 0.35em;
 }
 .pw-opener-byline {
-  font-size: 0.82em;
-  letter-spacing: 0.05em;
-  color: var(--pw-mag-muted);
-  margin-top: 0.6em;
+  font-size: 0.85em;
+  color: #666666;
+  margin-top: 0.4em;
 }
 
-/* dropCap (← lead) — content: editable prose with a dropped first letter. */
+/* dropCap (← lead) — labelled prose. The dropped letter is PDF-only. */
 .pw-dropcap { margin: 0.6em 0; }
-.pw-dropcap::first-letter {
-  float: left;
-  font-size: 3em;
-  line-height: 0.78;
-  font-weight: 700;
-  color: var(--pw-mag-accent);
-  padding: 0.04em 0.08em 0 0;
-}
 
-/* question (← frage) — content: editable, bold accent. */
+/* question (← frage) — editable, structurally bold. */
 .pw-question {
   font-weight: 700;
-  color: var(--pw-mag-accent);
-  margin: 0.9em 0 0.2em;
+  color: var(--text-color);
+  margin: 0.6em 0;
 }
 
-/* pullQuote (← pull) — content: large centered italic quote + attribution. */
+/* pullQuote (← pull) — quote as a labelled block, not a centered display. */
 .pw-pull {
-  margin: 1.4em 0;
-  padding: 0.2em 1em;
-  text-align: center;
+  margin: 0.8em 0;
   font-style: italic;
-  font-size: 1.35em;
-  line-height: 1.3;
-  color: var(--pw-mag-accent);
-  border: none;
+  color: var(--text-color);
 }
-.pw-pull[data-who]::after {
-  content: "— " attr(data-who);
-  display: block;
-  margin-top: 0.5em;
+.pw-pull-who {
+  margin-top: 0.4em;
   font-style: normal;
-  font-size: 0.6em;
-  letter-spacing: 0.06em;
-  color: var(--pw-mag-muted);
-  user-select: none;
+  font-size: 0.85em;
+  color: #666666;
 }
 
-/* callout (← notiz) — content: framed note box, optional title. */
+/* callout (← notiz) — framed note; title is a field in the card. */
 .pw-callout {
-  margin: 1.2em 0;
-  padding: 0.8em 1em;
-  border: 1px solid color-mix(in srgb, var(--pw-mag-muted) 40%, transparent);
-  border-radius: 4px;
+  margin: 0.8em 0;
 }
-.pw-callout[data-title]::before {
-  content: attr(data-title);
-  display: block;
-  font-weight: 700;
-  font-size: 0.74em;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--pw-mag-accent);
+.pw-callout-title {
+  font-weight: 400;
+  font-size: 0.9em;
+  color: #666666;
   margin-bottom: 0.4em;
-  user-select: none;
 }
-.pw-callout > p:last-child { margin-bottom: 0; }
+.pw-callout .pw-node-body > p:last-child { margin-bottom: 0; }
 
-/* figurePanel (← bildtafel) — content: image + framed note side by side. */
+/* figurePanel (← bildtafel) — image + note as two columns of structure. */
 .pw-figure-panel {
   display: grid;
   grid-template-columns: 1.45fr 1fr;
   gap: 1em;
   align-items: start;
-  margin: 1.3em 0;
+  margin: 0.8em 0;
+}
+.pw-figure-panel .pw-kind,
+.pw-figure-panel[data-kind]::before {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
 }
 .pw-fp-img { width: 100%; height: auto; display: block; }
+.pw-fp-pick {
+  display: inline-block;
+  margin: 0.4em 0 0;
+  padding: 0.2em 0.7em;
+  border: 1px solid #dddddd;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.75rem;
+  color: inherit;
+  cursor: pointer;
+}
+.pw-fp-pick:hover {
+  background: var(--text-color);
+  color: var(--bg-color);
+}
 .pw-fp-caption {
-  font-size: 0.8em;
+  font-size: 0.85em;
   font-style: italic;
-  color: var(--pw-mag-muted);
+  color: #666666;
   margin-top: 0.4em;
 }
-.pw-fp-note {
-  border: 1px solid color-mix(in srgb, var(--pw-mag-muted) 35%, transparent);
-  padding: 0.7em 0.9em;
-  font-size: 0.9em;
+.pw-fp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-width: 0;
 }
-.pw-fp-note[data-title]::before {
-  content: attr(data-title);
-  display: block;
-  font-weight: 700;
-  font-size: 0.72em;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--pw-mag-accent);
-  margin-bottom: 0.4em;
-  user-select: none;
+.pw-fp-note-title {
+  font-weight: 400;
+  font-size: 0.9em;
+  color: #666666;
+}
+.pw-fp-note {
+  border: 1px solid #dddddd;
+  padding: 0.55em 0.7em;
+  font-size: 0.95em;
 }
 
-/* marginNote (← randnotiz) — inline atom: a small accent-marked side note. */
+/* marginNote (← randnotiz) — inline, muted; the margin itself is PDF-only. */
 .pw-margin-note {
   display: inline;
-  font-size: 0.82em;
-  color: var(--pw-mag-muted);
-  border-bottom: 1px dotted var(--pw-mag-accent);
-  cursor: default;
+  font-size: 0.88em;
+  color: #666666;
+  border-bottom: 1px dotted currentColor;
+  cursor: pointer;
 }
 .pw-margin-note-marker {
-  color: var(--pw-mag-accent);
+  color: inherit;
   font-size: 0.85em;
   vertical-align: super;
   margin: 0 0.1em;
 }
 
-/* interlude (← interlude()) — atom: a quiet centered divider. */
+/* interlude (← interlude()) — named divider, hairline. */
 .pw-interlude {
-  margin: 1.4em 0;
+  margin: 0.8em 0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
 }
 .pw-interlude-line {
-  width: 1.4em;
+  width: 100%;
   border: none;
-  border-top: 1px solid var(--pw-mag-accent);
+  border-top: 1px solid var(--text-color);
+  margin: 0;
 }
 
-/* columns (← #columns) — content: editable single-column flow in the editor
- * (true multicol is applied in PDF/HTML export); a left rule marks the span. */
+/* columns — single-column flow here; true multicol is PDF/HTML export. */
 .pw-columns {
-  margin: 1.2em 0;
-  padding: 0.4em 0 0.4em 0.9em;
-  border-left: 3px solid color-mix(in srgb, var(--pw-mag-accent) 50%, transparent);
+  margin: 0.8em 0;
 }
-.pw-columns::before {
-  content: "⌗ " attr(data-cols) " Spalten";
-  display: block;
-  font-size: 0.66em;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--pw-mag-muted);
-  margin-bottom: 0.4em;
-  user-select: none;
+.pw-columns-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  margin-bottom: 0.45em;
+}
+.pw-columns-bar .pw-kind {
+  width: auto;
+  margin: 0;
+  flex: none;
+}
+.pw-columns-cols {
+  width: 3.5em;
+  flex: none;
+}
+.pw-columns-gutter {
+  flex: 1;
+  min-width: 4em;
 }
 
 /* Magazine node editor popups (articleHeader / marginNote field editors). */
 .pw-macro-popup { min-width: 280px; max-width: 360px; }
+.pw-macro-popup .footnote-popup-textarea {
+  min-height: 0;
+}
 .pw-macro-popup-field-label {
   display: block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--pw-mag-muted);
-  margin: 0.5em 0 0.2em;
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.85em;
+  font-weight: 400;
+  color: #666666;
+  margin: 0.5em 12px 0.2em;
 }
-.pw-opener-empty { color: var(--pw-mag-muted); font-style: italic; font-weight: 400; }
+.pw-opener-empty { color: #666666; font-style: italic; font-weight: 400; }
 
 /* ─── Building-block card (a raw block that is one project-macro call) ──────
    The point of Stufe 2: a block the project defines itself reads as a labelled
    card with its values, not as a wall of Typst. `</>` is the escape hatch. */
-.typst-raw-block.pw-has-macro-card { cursor: pointer; }
+.typst-raw-block.pw-has-macro-card { padding: 0.55em 0.75em; }
 .typst-raw-block.pw-has-macro-card .typst-raw-label { display: none; }
 
 .pw-macro-card {
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.28));
-  border-left: 3px solid var(--vscode-textLink-foreground, #4a9eff);
-  border-radius: 4px;
-  padding: 0.55em 0.75em;
-  background: var(--vscode-editor-background, transparent);
+  border: none;
+  padding: 0;
+  background: transparent;
 }
-.pw-macro-card:hover { border-color: var(--vscode-textLink-foreground, #4a9eff); }
+.pw-macro-card:hover { border-color: transparent; }
 
 .pw-macro-card-head {
   display: flex;
@@ -2294,10 +2376,10 @@ body {
   margin-bottom: 0.35em;
 }
 .pw-macro-card-name {
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--vscode-textLink-foreground, #4a9eff);
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.85em;
+  font-weight: 400;
+  color: #666666;
 }
 .pw-macro-card-toggle {
   border: none;
@@ -2308,24 +2390,33 @@ body {
   opacity: 0.55;
   color: inherit;
   padding: 0.1em 0.35em;
-  border-radius: 3px;
+  border-radius: 0;
 }
-.pw-macro-card-toggle:hover { opacity: 1; background: rgba(128, 128, 128, 0.15); }
+.pw-macro-card-toggle:hover { opacity: 1; background: var(--text-color); color: var(--bg-color); }
 .pw-macro-back { display: block; margin-top: 0.35em; }
 
-.pw-macro-card-rows { display: grid; grid-template-columns: auto 1fr; gap: 0.15em 0.8em; }
+.pw-macro-card-rows { display: flex; flex-direction: column; gap: 0.5em; }
+.pw-macro-card-row {
+  display: grid;
+  grid-template-columns: 7em 1fr;
+  gap: 0.15em 0.8em;
+  align-items: start;
+}
 .pw-macro-card-key {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-family: var(--pw-manuscript-font);
+  font-size: 0.85em;
   opacity: 0.6;
   white-space: nowrap;
+  padding-top: 0.15em;
 }
 .pw-macro-card-value {
-  font-size: 0.86rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 1em;
+}
+.pw-macro-card-row .pw-fp-pick { grid-column: 2; justify-self: start; }
+.pw-macro-card-hint {
+  grid-column: 2;
+  font-size: 0.68rem;
+  opacity: 0.5;
 }
 .pw-macro-card-empty { opacity: 0.45; font-style: italic; }
 
@@ -2341,17 +2432,21 @@ body {
 .pw-macro-popup-field-hint {
   font-size: 0.68rem;
   opacity: 0.5;
-  margin: 0.15em 0 0.1em;
+  margin: 0.15em 12px 0.1em;
 }
 .pw-macro-popup-action {
   display: inline-block;
-  margin: 0.3em 0 0.1em;
+  margin: 0.3em 12px 0.1em;
   padding: 0.25em 0.7em;
   font-size: 0.75rem;
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
-  border-radius: 3px;
-  background: var(--vscode-button-secondaryBackground, transparent);
+  font-family: inherit;
+  border: 1px solid #dddddd;
+  border-radius: 0;
+  background: transparent;
   color: inherit;
   cursor: pointer;
 }
-.pw-macro-popup-action:hover { background: rgba(128, 128, 128, 0.18); }
+.pw-macro-popup-action:hover {
+  background: var(--text-color);
+  color: var(--bg-color);
+}

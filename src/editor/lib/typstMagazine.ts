@@ -16,16 +16,182 @@
 //     figurePanel / columns        nodes — `atom:false` + a `content` expression.
 //
 // renderHTML here is for the EDITOR + clipboard only (neutral `data-pw` wrappers,
-// no collision with built-ins, styled by editor CSS). The *semantic* export HTML
-// is produced by src/shared/htmlSerializer.ts; the Typst round-trip by
-// src/editor/lib/serializer.ts. parseHTML restores attrs for in-editor paste.
+// no collision with built-ins, styled by editor CSS as a manuscript: a kind chip
+// names the block; colour and page geometry stay in the PDF). The *semantic*
+// export HTML is produced by src/shared/htmlSerializer.ts; the Typst round-trip
+// by src/editor/lib/serializer.ts. parseHTML restores attrs for in-editor paste.
 
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
+import type { Node as PmNode } from '@tiptap/pm/model';
 import { t } from '../../shared/i18n/store.svelte';
 import { attachFieldPopup } from './fieldPopup';
+import { resolveImageSrc } from './typstImage';
+import { getProjectMacros } from './projectMacroStore';
 
 /** Shared parse rule: match our neutral wrapper for node `name`. */
 const pwTag = (name: string) => `div[data-pw="${name}"]`;
+
+/**
+ * Kind chip on a magazine node. The editor is a manuscript, not the PDF: a
+ * name says what the block is, the project style does not leak in as colour.
+ * Slash titles are the same words the insert menu already uses.
+ */
+function kindAttr(
+  key:
+    | 'slashOpenerTitle'
+    | 'slashDropCapTitle'
+    | 'slashPullQuoteTitle'
+    | 'slashQuestionTitle'
+    | 'slashCalloutTitle'
+    | 'slashFigurePanelTitle'
+    | 'slashInterludeTitle',
+): string {
+  return t().editorLib[key];
+}
+
+function posOf(getPos: () => number | undefined): number | undefined {
+  const p = typeof getPos === 'function' ? getPos() : undefined;
+  return typeof p === 'number' ? p : undefined;
+}
+
+function patchAttrs(
+  editor: Editor,
+  getPos: () => number | undefined,
+  patch: Record<string, unknown>,
+): void {
+  const at = posOf(getPos);
+  if (at === undefined) return;
+  const live = editor.view.state.doc.nodeAt(at);
+  if (!live) return;
+  editor.view.dispatch(
+    editor.view.state.tr.setNodeMarkup(at, undefined, { ...live.attrs, ...patch }),
+  );
+}
+
+function makeKind(text: string, asButton: boolean, hint: string): HTMLElement {
+  const el = document.createElement(asButton ? 'button' : 'div');
+  if (asButton) (el as HTMLButtonElement).type = 'button';
+  el.className = 'pw-kind';
+  el.textContent = text;
+  el.title = hint;
+  return el;
+}
+
+async function pickPathRelativeTo(basedOn: string | null): Promise<string | null> {
+  const api = (window as unknown as {
+    electronAPI?: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+  }).electronAPI;
+  if (!api) return null;
+  try {
+    const res = await api.invoke('project:pickAsset', { targetFile: basedOn }) as { src?: string } | null;
+    return res?.src ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function bildtafelMacro() {
+  return getProjectMacros().find((m) => m.name === 'bildtafel') ?? null;
+}
+
+function attrField(opts: {
+  className: string;
+  placeholder: string;
+  value: string;
+  rows?: number;
+  code?: boolean;
+  onInput: (value: string) => void;
+}): HTMLTextAreaElement {
+  const ta = document.createElement('textarea');
+  ta.className = `pw-attr ${opts.className}${opts.code ? ' pw-attr-code' : ''}`;
+  ta.rows = opts.rows ?? 1;
+  ta.placeholder = opts.placeholder;
+  ta.value = opts.value;
+  ta.spellcheck = !opts.code;
+  const grow = (): void => {
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.max(ta.scrollHeight, 18)}px`;
+  };
+  ta.addEventListener('input', () => {
+    opts.onInput(ta.value);
+    grow();
+  });
+  queueMicrotask(grow);
+  return ta;
+}
+
+function syncAttr(el: HTMLTextAreaElement, value: string): void {
+  if (document.activeElement === el) return;
+  if (el.value === value) return;
+  el.value = value;
+  el.style.height = 'auto';
+  el.style.height = `${Math.max(el.scrollHeight, 18)}px`;
+}
+
+/**
+ * Content-bearing magazine node: a kind bar names the block, the body is a
+ * ProseMirror content hole. Extra attrs (who, title, path) are fields IN the
+ * card — a popup would only repeat them in another font.
+ */
+function contentNodeView(opts: {
+  name: string;
+  className: string;
+  kind: (node: PmNode) => string;
+  bodyClass?: string;
+  framed?: boolean;
+  setup?: (args: {
+    dom: HTMLElement;
+    contentDOM: HTMLElement;
+    editor: Editor;
+    getPos: () => number | undefined;
+  }) => { update: (node: PmNode) => void };
+}): (ctx: { node: PmNode; getPos: () => number | undefined; editor: Editor }) => {
+  dom: HTMLElement;
+  contentDOM: HTMLElement;
+  stopEvent: (event: Event) => boolean;
+  ignoreMutation: (m: { target: globalThis.Node }) => boolean;
+  update: (node: PmNode) => boolean;
+  destroy: () => void;
+} {
+  return ({ node, getPos, editor }) => {
+    let current = node;
+    const framed = opts.framed ?? false;
+    const lib = t().editorLib;
+    const dom = document.createElement('div');
+    dom.className = `pw-node ${opts.className} ${framed ? 'pw-has-form' : 'pw-is-write'}`;
+    dom.setAttribute('data-pw', opts.name);
+    const kindEl = makeKind(opts.kind(current), false, framed ? '' : lib.kindHintWrite);
+    const contentDOM = document.createElement('div');
+    contentDOM.className = opts.bodyClass
+      ? `pw-node-body ${opts.bodyClass}`
+      : 'pw-node-body';
+    dom.append(kindEl, contentDOM);
+    const chrome = opts.setup?.({ dom, contentDOM, editor, getPos });
+    chrome?.update(current);
+
+    const inChrome = (target: EventTarget | null): boolean => {
+      if (!(target instanceof globalThis.Node)) return false;
+      if (kindEl.contains(target)) return true;
+      const el = target instanceof Element ? target : target.parentElement;
+      return !!el?.closest('.pw-attr, .pw-chrome, .pw-fp-pick');
+    };
+
+    return {
+      dom,
+      contentDOM,
+      stopEvent: (event: Event) => inChrome(event.target),
+      ignoreMutation: (m: { target: globalThis.Node }) => !contentDOM.contains(m.target),
+      update(updated: PmNode) {
+        if (updated.type.name !== opts.name) return false;
+        current = updated;
+        kindEl.textContent = opts.kind(current);
+        chrome?.update(current);
+        return true;
+      },
+      destroy: () => undefined,
+    };
+  };
+}
 
 // ─── Shared field-editor popup (atom nodes: articleHeader, marginNote) ───────
 // ─── articleHeader (← opener) — block atom ──────────────────────────────────
@@ -77,7 +243,8 @@ export const ArticleHeader = Node.create({
       'div',
       mergeAttributes({
         'data-pw': 'articleHeader',
-        class: 'pw-node pw-opener',
+        class: 'pw-node pw-opener pw-has-form',
+        'data-kind': kindAttr('slashOpenerTitle'),
         'data-kicker': a.kicker || '',
         'data-title': a.title || '',
         'data-standfirst': a.standfirst || '',
@@ -91,80 +258,70 @@ export const ArticleHeader = Node.create({
   addNodeView() {
     return ({ node, getPos, editor }) => {
       let current = node;
+      const lib = t().editorLib;
       const dom = document.createElement('div');
-      dom.className = 'pw-node pw-opener';
+      dom.className = 'pw-node pw-opener pw-has-form';
       dom.contentEditable = 'false';
       dom.setAttribute('data-pw', 'articleHeader');
-      dom.title = t().editorLib.macroOpenerEditTitle;
 
-      const render = () => {
-        const a = current.attrs as Record<string, string>;
-        dom.innerHTML = '';
-        if (a.kicker) {
-          const k = document.createElement('div');
-          k.className = 'pw-opener-kicker';
-          k.textContent = a.kicker;
-          dom.appendChild(k);
-        }
-        const title = document.createElement('div');
-        title.className = 'pw-opener-title';
-        if (!a.title) title.classList.add('pw-opener-empty');
-        title.textContent = a.title || t().editorLib.macroOpenerEmpty;
-        dom.appendChild(title);
-        if (a.standfirst) {
-          const s = document.createElement('div');
-          s.className = 'pw-opener-standfirst';
-          s.textContent = a.standfirst;
-          dom.appendChild(s);
-        }
-        if (a.byline) {
-          const b = document.createElement('div');
-          b.className = 'pw-opener-byline';
-          b.textContent = a.byline;
-          dom.appendChild(b);
-        }
-      };
-      render();
-
-      const pos = () => { const p = typeof getPos === 'function' ? getPos() : undefined; return typeof p === 'number' ? p : undefined; };
-      const popup = attachFieldPopup(dom, () => ({
-        fields: [
-          { key: 'kicker', label: t().editorLib.macroLabelKicker },
-          { key: 'title', label: t().editorLib.macroLabelTitle },
-          { key: 'standfirst', label: t().editorLib.macroLabelStandfirst, rows: 2 },
-          { key: 'byline', label: t().editorLib.macroLabelByline },
-        ],
-        read: (key) => String(current.attrs[key] ?? ''),
-        write: (key, value) => {
-          const at = pos();
-          if (at === undefined) return;
-          editor.view.dispatch(
-            editor.view.state.tr.setNodeMarkup(at, undefined, { ...current.attrs, [key]: value }),
-          );
-        },
-        title: t().editorLib.macroOpenerEditTitle,
-      }));
+      const kindEl = makeKind(kindAttr('slashOpenerTitle'), false, '');
+      const kicker = attrField({
+        className: 'pw-opener-kicker',
+        placeholder: lib.macroLabelKicker,
+        value: String(node.attrs.kicker ?? ''),
+        onInput: (v) => patchAttrs(editor, getPos, { kicker: v }),
+      });
+      const title = attrField({
+        className: 'pw-opener-title',
+        placeholder: lib.macroLabelTitle,
+        value: String(node.attrs.title ?? ''),
+        rows: 2,
+        onInput: (v) => patchAttrs(editor, getPos, { title: v }),
+      });
+      const standfirst = attrField({
+        className: 'pw-opener-standfirst',
+        placeholder: lib.macroLabelStandfirst,
+        value: String(node.attrs.standfirst ?? ''),
+        rows: 2,
+        onInput: (v) => patchAttrs(editor, getPos, { standfirst: v }),
+      });
+      const byline = attrField({
+        className: 'pw-opener-byline',
+        placeholder: lib.macroLabelByline,
+        value: String(node.attrs.byline ?? ''),
+        onInput: (v) => patchAttrs(editor, getPos, { byline: v }),
+      });
+      const fields = document.createElement('div');
+      fields.className = 'pw-opener-fields';
+      fields.append(kicker, title, standfirst, byline);
+      dom.append(kindEl, fields);
 
       return {
         dom,
         ignoreMutation: () => true,
         stopEvent: () => true,
-        update(updated) {
+        update(updated: PmNode) {
           if (updated.type.name !== 'articleHeader') return false;
           current = updated;
-          render();
+          syncAttr(kicker, String(current.attrs.kicker ?? ''));
+          syncAttr(title, String(current.attrs.title ?? ''));
+          syncAttr(standfirst, String(current.attrs.standfirst ?? ''));
+          syncAttr(byline, String(current.attrs.byline ?? ''));
           return true;
         },
-        destroy: popup.destroy,
+        destroy: () => undefined,
       };
     };
   },
 });
 
-/** Insert an empty article opener and open its editor popup immediately. */
+/** Insert an empty article opener and put the caret in the title field. */
 export function insertArticleHeaderWithEditor(editor: Editor): void {
   editor.chain().focus().insertContent({ type: 'articleHeader', attrs: { title: '' } }).run();
-  openFreshNode(editor, '.pw-opener', (el) => el.querySelector('.pw-opener-empty') !== null);
+  requestAnimationFrame(() => {
+    const el = editor.view.dom.querySelector('.pw-opener .pw-opener-title') as HTMLTextAreaElement | null;
+    el?.focus();
+  });
 }
 
 // ─── interlude (← interlude()) — block atom (a quiet centered divider) ───────
@@ -182,9 +339,31 @@ export const Interlude = Node.create({
   renderHTML() {
     return [
       'div',
-      { 'data-pw': 'interlude', class: 'pw-node pw-interlude' },
+      {
+        'data-pw': 'interlude',
+        class: 'pw-node pw-interlude pw-is-rule',
+        'data-kind': kindAttr('slashInterludeTitle'),
+      },
       ['hr', { class: 'pw-interlude-line' }],
     ];
+  },
+
+  addNodeView() {
+    return () => {
+      const lib = t().editorLib;
+      const dom = document.createElement('div');
+      dom.className = 'pw-node pw-interlude pw-is-rule';
+      dom.contentEditable = 'false';
+      dom.setAttribute('data-pw', 'interlude');
+      const kindEl = makeKind(kindAttr('slashInterludeTitle'), false, lib.kindHintRule);
+      const hr = document.createElement('hr');
+      hr.className = 'pw-interlude-line';
+      dom.append(kindEl, hr);
+      return {
+        dom,
+        ignoreMutation: () => true,
+      };
+    };
   },
 });
 
@@ -297,7 +476,7 @@ function openFreshNode(editor: Editor, selector: string, isEmpty: (el: HTMLEleme
   requestAnimationFrame(tryOpen);
 }
 
-// ─── dropCap (← lead) — content node (editable prose, dropped first letter) ──
+// ─── dropCap (← lead) — content node (editable prose; drop-cap itself is PDF) ─
 export const DropCap = Node.create({
   name: 'dropCap',
   group: 'block',
@@ -309,7 +488,23 @@ export const DropCap = Node.create({
   },
 
   renderHTML() {
-    return ['div', { 'data-pw': 'dropCap', class: 'pw-node pw-dropcap' }, 0];
+    return [
+      'div',
+      {
+        'data-pw': 'dropCap',
+        class: 'pw-node pw-dropcap pw-is-write',
+        'data-kind': kindAttr('slashDropCapTitle'),
+      },
+      0,
+    ];
+  },
+
+  addNodeView() {
+    return contentNodeView({
+      name: 'dropCap',
+      className: 'pw-dropcap',
+      kind: () => kindAttr('slashDropCapTitle'),
+    });
   },
 });
 
@@ -325,7 +520,23 @@ export const Question = Node.create({
   },
 
   renderHTML() {
-    return ['div', { 'data-pw': 'question', class: 'pw-node pw-question' }, 0];
+    return [
+      'div',
+      {
+        'data-pw': 'question',
+        class: 'pw-node pw-question pw-is-write',
+        'data-kind': kindAttr('slashQuestionTitle'),
+      },
+      0,
+    ];
+  },
+
+  addNodeView() {
+    return contentNodeView({
+      name: 'question',
+      className: 'pw-question',
+      kind: () => kindAttr('slashQuestionTitle'),
+    });
   },
 });
 
@@ -353,9 +564,35 @@ export const PullQuote = Node.create({
     const who = (node.attrs.who as string) ?? '';
     return [
       'div',
-      { 'data-pw': 'pullQuote', class: 'pw-node pw-pull', ...(who ? { 'data-who': who } : {}) },
+      {
+        'data-pw': 'pullQuote',
+        class: 'pw-node pw-pull pw-has-form',
+        'data-kind': kindAttr('slashPullQuoteTitle'),
+        ...(who ? { 'data-who': who } : {}),
+      },
       0,
     ];
+  },
+
+  addNodeView() {
+    return contentNodeView({
+      name: 'pullQuote',
+      className: 'pw-pull',
+      framed: true,
+      kind: () => kindAttr('slashPullQuoteTitle'),
+      setup: ({ contentDOM, editor, getPos }) => {
+        const who = attrField({
+          className: 'pw-pull-who',
+          placeholder: t().editorLib.macroLabelWho,
+          value: '',
+          onInput: (v) => patchAttrs(editor, getPos, { who: v }),
+        });
+        contentDOM.after(who);
+        return {
+          update: (node) => syncAttr(who, String(node.attrs.who ?? '')),
+        };
+      },
+    });
   },
 });
 
@@ -383,9 +620,35 @@ export const Callout = Node.create({
     const title = (node.attrs.title as string) ?? '';
     return [
       'div',
-      { 'data-pw': 'callout', class: 'pw-node pw-callout', ...(title ? { 'data-title': title } : {}) },
+      {
+        'data-pw': 'callout',
+        class: 'pw-node pw-callout pw-has-form',
+        'data-kind': kindAttr('slashCalloutTitle'),
+        ...(title ? { 'data-title': title } : {}),
+      },
       0,
     ];
+  },
+
+  addNodeView() {
+    return contentNodeView({
+      name: 'callout',
+      className: 'pw-callout',
+      framed: true,
+      kind: () => kindAttr('slashCalloutTitle'),
+      setup: ({ contentDOM, editor, getPos }) => {
+        const title = attrField({
+          className: 'pw-callout-title',
+          placeholder: t().editorLib.macroLabelTitle,
+          value: '',
+          onInput: (v) => patchAttrs(editor, getPos, { title: v }),
+        });
+        contentDOM.before(title);
+        return {
+          update: (node) => syncAttr(title, String(node.attrs.title ?? '')),
+        };
+      },
+    });
   },
 });
 
@@ -428,7 +691,8 @@ export const FigurePanel = Node.create({
       'div',
       mergeAttributes({
         'data-pw': 'figurePanel',
-        class: 'pw-node pw-figure-panel',
+        class: 'pw-node pw-figure-panel pw-has-form',
+        'data-kind': kindAttr('slashFigurePanelTitle'),
         'data-path': a.path || '',
         'data-caption': a.caption || '',
         'data-title': a.title || '',
@@ -441,6 +705,64 @@ export const FigurePanel = Node.create({
       ],
       ['div', { class: 'pw-fp-note', ...(a.title ? { 'data-title': a.title } : {}) }, 0],
     ];
+  },
+
+  addNodeView() {
+    return contentNodeView({
+      name: 'figurePanel',
+      className: 'pw-figure-panel',
+      bodyClass: 'pw-fp-note',
+      framed: true,
+      kind: () => kindAttr('slashFigurePanelTitle'),
+      setup: ({ contentDOM, editor, getPos }) => {
+        const lib = t().editorLib;
+        const media = document.createElement('div');
+        media.className = 'pw-chrome pw-fp-media';
+        const img = document.createElement('img');
+        img.className = 'pw-fp-img';
+        img.alt = '';
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'pw-fp-pick';
+        pick.textContent = lib.macroPickFile;
+        pick.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const src = await pickPathRelativeTo(bildtafelMacro()?.filePath ?? null);
+          if (src) patchAttrs(editor, getPos, { path: src });
+        });
+        const caption = attrField({
+          className: 'pw-fp-caption',
+          placeholder: lib.macroLabelCaption,
+          value: '',
+          rows: 2,
+          onInput: (v) => patchAttrs(editor, getPos, { caption: v }),
+        });
+        media.append(img, pick, caption);
+
+        const title = attrField({
+          className: 'pw-fp-note-title',
+          placeholder: lib.macroLabelTitle,
+          value: '',
+          onInput: (v) => patchAttrs(editor, getPos, { title: v }),
+        });
+        const noteCol = document.createElement('div');
+        noteCol.className = 'pw-fp-col';
+        contentDOM.before(media);
+        contentDOM.before(noteCol);
+        noteCol.append(title, contentDOM);
+
+        return {
+          update: (node) => {
+            const a = node.attrs as Record<string, string>;
+            img.src = resolveImageSrc(a.path || '');
+            img.hidden = !a.path;
+            syncAttr(caption, a.caption || '');
+            syncAttr(title, a.title || '');
+          },
+        };
+      },
+    });
   },
 });
 
@@ -478,12 +800,55 @@ export const Columns = Node.create({
       'div',
       {
         'data-pw': 'columns',
-        class: 'pw-node pw-columns',
+        class: 'pw-node pw-columns pw-has-form',
+        'data-kind': t().editorLib.kindColumns(cols),
         'data-cols': String(cols),
         ...(gutter ? { 'data-gutter': gutter } : {}),
       },
       0,
     ];
+  },
+
+  addNodeView() {
+    return contentNodeView({
+      name: 'columns',
+      className: 'pw-columns',
+      framed: true,
+      kind: () => t().editorLib.slashColumnsTitle,
+      setup: ({ contentDOM, editor, getPos }) => {
+        const lib = t().editorLib;
+        const bar = document.createElement('div');
+        bar.className = 'pw-chrome pw-columns-bar';
+        const cols = attrField({
+          className: 'pw-columns-cols pw-attr-code',
+          placeholder: lib.macroLabelCols,
+          value: '2',
+          onInput: (v) => {
+            const n = parseInt(v, 10);
+            if (!Number.isFinite(n) || n < 1) return;
+            patchAttrs(editor, getPos, { cols: n });
+          },
+        });
+        const gutter = attrField({
+          className: 'pw-columns-gutter',
+          placeholder: lib.macroLabelGutter,
+          value: '',
+          code: true,
+          onInput: (v) => patchAttrs(editor, getPos, { gutter: v }),
+        });
+        const kind = contentDOM.previousElementSibling;
+        if (kind) {
+          kind.replaceWith(bar);
+          bar.append(kind, cols, gutter);
+        }
+        return {
+          update: (node) => {
+            syncAttr(cols, String(node.attrs.cols ?? 2));
+            syncAttr(gutter, String(node.attrs.gutter ?? ''));
+          },
+        };
+      },
+    });
   },
 });
 

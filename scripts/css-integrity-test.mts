@@ -186,6 +186,7 @@ const CANARIES = [
   '.slash-menu',
   '.table-settings-dropdown',
   '.pw-macro-card',
+  '.pw-kind',
 ];
 
 const files = ['src/editor/style.css'];

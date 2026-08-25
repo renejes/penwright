@@ -28,7 +28,7 @@ function refreshAllImages() {
  * Resolves a relative image path to a full webview URI.
  * Absolute URLs (http/https/data) are returned as-is.
  */
-function resolveImageSrc(src: string): string {
+export function resolveImageSrc(src: string): string {
   if (!src) return '';
   if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
     return src;

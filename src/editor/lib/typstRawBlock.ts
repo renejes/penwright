@@ -1,7 +1,6 @@
 import { Node } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { t } from '../../shared/i18n/store.svelte';
-import { attachFieldPopup, type PopupField } from './fieldPopup';
 import { getProjectMacros, PROJECT_MACROS_EVENT } from './projectMacroStore';
 import { describeRawBlock, bareSpacer } from '../../shared/rawBlockDescription';
 import {
@@ -94,12 +93,13 @@ export const TypstRawBlock = Node.create({
 
       // Container
       const dom = document.createElement('div');
-      dom.classList.add('typst-raw-block', `typst-raw-${node.attrs.blockType}`);
+      dom.classList.add('typst-raw-block', `typst-raw-${node.attrs.blockType}`, 'pw-is-source');
 
       // Label
       const label = document.createElement('div');
       label.classList.add('typst-raw-label');
       label.textContent = getBlockLabel(String(node.attrs.content ?? ''), node.attrs.blockType);
+      label.title = t().editorLib.kindHintSource;
       dom.appendChild(label);
 
       // ─── The building-block card ────────────────────────────────────────
@@ -174,8 +174,10 @@ export const TypstRawBlock = Node.create({
       };
 
       const renderCard = (macro: ProjectMacro): void => {
+        if (card.contains(document.activeElement)) return;
         card.replaceChildren();
         const content = liveContent();
+        const m = t().editorLib;
 
         const head = document.createElement('div');
         head.className = 'pw-macro-card-head';
@@ -187,19 +189,11 @@ export const TypstRawBlock = Node.create({
         const toggle = document.createElement('button');
         toggle.className = 'pw-macro-card-toggle';
         toggle.type = 'button';
-        toggle.textContent = t().editorLib.macroShowCode;
-        toggle.title = t().editorLib.macroShowCodeTooltip;
+        toggle.textContent = m.macroShowCode;
+        toggle.title = m.macroShowCodeTooltip;
         toggle.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          // The toggle sits INSIDE the anchor and stops propagation, so neither
-          // the card's own click handler nor the outside-click listener sees it
-          // — an open popup would survive the card it belongs to and go on
-          // editing a block the user is now reading as source. Closed here
-          // because this is the deliberate switch; a card that merely blinks out
-          // while an unfinished expression is typed must NOT close (see the
-          // anchor-box guard in `popupAnchor.attachFloating`).
-          cardPopup.close();
           showRaw = true;
           render();
         });
@@ -210,16 +204,53 @@ export const TypstRawBlock = Node.create({
         rows.className = 'pw-macro-card-rows';
         const fields = labelledFields(macro, content);
         for (const f of fields) {
-          const value = readMacroField(content, f.key).trim().replace(/\s+/g, ' ');
           const row = document.createElement('div');
           row.className = 'pw-macro-card-row';
           const k = document.createElement('span');
           k.className = 'pw-macro-card-key';
           k.textContent = f.label;
-          const v = document.createElement('span');
-          v.className = value ? 'pw-macro-card-value' : 'pw-macro-card-value pw-macro-card-empty';
-          v.textContent = value || t().editorLib.macroDefaultValue;
-          row.append(k, v);
+          const ta = document.createElement('textarea');
+          ta.className = `pw-attr pw-macro-card-value${f.kind === 'expr' ? ' pw-attr-code' : ''}`;
+          ta.rows = f.rows ?? 1;
+          ta.spellcheck = f.kind !== 'expr';
+          ta.placeholder = f.isBody ? m.macroBodyPlaceholder : m.macroDefaultValue;
+          ta.value = readMacroField(content, f.key);
+          const grow = (): void => {
+            ta.style.height = 'auto';
+            ta.style.height = `${Math.max(ta.scrollHeight, 18)}px`;
+          };
+          ta.addEventListener('input', () => {
+            const before = liveContent();
+            const next = writeMacroField(before, f.key, f.kind, ta.value);
+            if (next === null || next === before) return;
+            writeContent(next);
+            grow();
+          });
+          queueMicrotask(grow);
+          row.append(k, ta);
+          if (f.isPath) {
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'pw-fp-pick';
+            pick.textContent = m.macroPickFile;
+            pick.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const src = await pickAssetPath(macro.filePath);
+              if (src === null) return;
+              const before = liveContent();
+              const next = writeMacroField(before, f.key, f.kind, src);
+              if (next === null || next === before) return;
+              writeContent(next);
+            });
+            row.append(pick);
+          }
+          if (f.hint) {
+            const hint = document.createElement('div');
+            hint.className = 'pw-macro-card-hint';
+            hint.textContent = f.hint;
+            row.append(hint);
+          }
           rows.appendChild(row);
         }
         card.appendChild(rows);
@@ -227,43 +258,10 @@ export const TypstRawBlock = Node.create({
         if (!fields.length) {
           const none = document.createElement('div');
           none.className = 'pw-macro-card-row pw-macro-card-empty';
-          none.textContent = t().editorLib.macroNoFields;
+          none.textContent = m.macroNoFields;
           card.appendChild(none);
         }
       };
-
-      // One popup for the card's lifetime; it asks for its fields on each open,
-      // so it always reflects the CURRENT content rather than a stale snapshot.
-      const cardPopup = attachFieldPopup(card, () => {
-        const macro = matchedMacro();
-        const content = liveContent();
-        const fields = macro ? labelledFields(macro, content) : [];
-        return {
-          title: macro ? (macro.label || `#${macro.name}`) : '',
-          wide: true,
-          fields: fields.map((f): PopupField => ({
-            key: f.key,
-            label: f.label,
-            rows: f.rows,
-            code: f.kind === 'expr',
-            hint: f.hint,
-            action: f.isPath
-              ? { label: t().editorLib.macroPickFile, run: () => pickAssetPath(macro?.filePath ?? null) }
-              : undefined,
-          })),
-          read: (key) => readMacroField(liveContent(), key),
-          write: (key, value) => {
-            const field = fields.find(x => x.key === key);
-            if (!field) return;
-            const before = liveContent();
-            const next = writeMacroField(before, key, field.kind, value);
-            // A refused edit writes NOTHING. Half-applying it would leave a call
-            // the parser can no longer read, and the user with no way back.
-            if (next === null || next === before) return;
-            writeContent(next);
-          },
-        };
-      });
 
       // Editable textarea for raw Typst content
       const textarea = document.createElement('textarea');
@@ -342,36 +340,28 @@ export const TypstRawBlock = Node.create({
       const spacerEl = document.createElement('div');
       spacerEl.className = 'pw-spacer';
       spacerEl.contentEditable = 'false';
+      const spacerRuleA = document.createElement('span');
+      spacerRuleA.className = 'pw-spacer-rule';
+      const spacerRuleB = document.createElement('span');
+      spacerRuleB.className = 'pw-spacer-rule';
+      const spacerAmount = document.createElement('input');
+      spacerAmount.type = 'text';
+      spacerAmount.className = 'pw-attr pw-attr-code pw-spacer-value';
+      spacerAmount.spellcheck = false;
+      spacerAmount.addEventListener('input', () => {
+        const v = spacerAmount.value.trim();
+        if (!v) return;
+        if (bareSpacer(liveContent()) === null) return;
+        writeContent(`#v(${v})`);
+      });
+      spacerEl.append(spacerRuleA, spacerAmount, spacerRuleB);
 
-      const renderSpacer = (amount: string): void => {
-        spacerEl.replaceChildren();
-        const rule = document.createElement('span');
-        rule.className = 'pw-spacer-rule';
-        const value = document.createElement('span');
-        value.className = 'pw-spacer-value';
-        value.textContent = t().editorLib.rawKindSpacing(amount);
-        spacerEl.append(rule.cloneNode(), value, rule);
+      const syncSpacer = (amount: string): void => {
         spacerEl.title = t().editorLib.spacerTooltip;
+        if (document.activeElement === spacerAmount) return;
+        if (spacerAmount.value !== amount) spacerAmount.value = amount;
       };
 
-      const spacerPopup = attachFieldPopup(spacerEl, () => ({
-        title: t().editorLib.rawKindSpacing(bareSpacer(liveContent()) ?? ''),
-        fields: [{ key: 'amount', label: t().editorLib.spacerAmountLabel, code: true, hint: t().editorLib.spacerAmountHint }],
-        read: () => bareSpacer(liveContent()) ?? '',
-        write: (_key, value) => {
-          const v = value.trim();
-          // An empty amount is not a spacer; refuse rather than write `#v()`.
-          if (!v) return;
-          // The block may no longer BE a spacer. ProseMirror reuses a node view
-          // across `reconcileContent`, so an external or AI edit can replace the
-          // block underneath an OPEN popup — and this write regenerates the call
-          // rather than splicing it. Without the check, the next keystroke in a
-          // stale popup overwrote whatever had arrived (an `#import` in the
-          // reproduction) with `#v(2em)`. The card's write refuses the same way.
-          if (bareSpacer(liveContent()) === null) return;
-          writeContent(`#v(${v})`);
-        },
-      }));
       dom.appendChild(spacerEl);
 
       // Back from the code view to the form. Without it `</>` is a one-way
@@ -394,7 +384,7 @@ export const TypstRawBlock = Node.create({
       const render = (): void => {
         const amount = showRaw ? null : bareSpacer(liveContent());
         if (amount !== null) {
-          renderSpacer(amount);
+          syncSpacer(amount);
           spacerEl.style.display = '';
           label.style.display = 'none';
           card.style.display = 'none';
@@ -448,27 +438,28 @@ export const TypstRawBlock = Node.create({
         stopEvent(event: Event) {
           const target = event.target as HTMLElement | null;
           const tag = target?.tagName;
-          return tag === 'TEXTAREA' || tag === 'BUTTON'
+          return tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'INPUT'
             || !!target?.closest('.pw-macro-card, .pw-spacer');
         },
         ignoreMutation: () => true,
         update(updatedNode) {
           if (updatedNode.type.name !== 'typstRawBlock') return false;
           current = updatedNode;
-          dom.className = `typst-raw-block typst-raw-${updatedNode.attrs.blockType}`;
+          dom.className = `typst-raw-block typst-raw-${updatedNode.attrs.blockType} pw-is-source`;
           label.textContent = getBlockLabel(String(updatedNode.attrs.content ?? ''), updatedNode.attrs.blockType);
+          label.title = t().editorLib.kindHintSource;
           // Not while the user is typing in the textarea: replacing its value
           // on our own dispatch would reset the caret to the end on every
           // keystroke. `render()` only writes it back when it differs.
-          if (document.activeElement !== textarea) render();
+          if (
+            document.activeElement !== textarea
+            && !card.contains(document.activeElement)
+            && document.activeElement !== spacerAmount
+          ) render();
           return true;
         },
         destroy() {
           window.removeEventListener(PROJECT_MACROS_EVENT, onMacros);
-          cardPopup.destroy();
-          // The spacer has its own popup and its own click listener; dropping
-          // the handle would leave both alive after the node is gone.
-          spacerPopup.destroy();
         },
       };
     };

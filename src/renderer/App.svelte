@@ -1429,7 +1429,7 @@
     height: 100vh;
     background: #fafafa;
     color: #1a1a1a;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+    font-family: var(--pw-manuscript-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif);
   }
 
   /* macOS: draggable titlebar area */

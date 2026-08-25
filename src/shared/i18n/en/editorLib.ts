@@ -63,6 +63,8 @@ export const editorLib = {
   slashInterludeDesc: 'Quiet centered divider',
   slashColumnsTitle: 'Columns',
   slashColumnsDesc: 'Multi-column section',
+  /** Kind chip on a columns node; count is the only thing the editor can honestly show. */
+  kindColumns: (n: number): string => (n === 1 ? '1 column' : `${n} columns`),
 
   // Magazine node editors (popups)
   macroEditHint: 'Esc or Cmd+Enter to close',
@@ -92,6 +94,19 @@ export const editorLib = {
   macroOpenerEditTitle: 'Edit article opener',
   macroMarginNoteEditTitle: 'Edit margin note',
   macroOpenerEmpty: 'Untitled article — click to edit',
+  macroLabelWho: 'Attribution',
+  macroLabelCaption: 'Caption',
+  macroLabelPath: 'Image',
+  macroLabelCols: 'Columns',
+  macroLabelGutter: 'Gutter',
+  pullEditTitle: 'Edit pull quote',
+  calloutEditTitle: 'Edit note box',
+  figurePanelEditTitle: 'Edit figure panel',
+  columnsEditTitle: 'Edit columns',
+  kindHintForm: 'Click to edit fields',
+  kindHintWrite: 'Type in this block',
+  kindHintSource: 'Typst source — edit the code',
+  kindHintRule: 'A divider. The PDF draws the line.',
 
   // Image dialog
   imageWidthLabel: 'Width',
@@ -132,7 +147,7 @@ export const editorLib = {
 
   // Raw block labels
   /** One human name per raw block — see shared/rawBlockDescription.ts. */
-  spacerTooltip: 'Click to change the spacing',
+  spacerTooltip: 'Type a Typst length to change the gap',
   spacerAmountLabel: 'Amount',
   spacerAmountHint: 'A Typst length, e.g. 0.4em, 12pt, 1cm',
   rawKindInclude: 'chapter included',

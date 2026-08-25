@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { insertFootnoteWithEditor } from '../lib/typstFootnote';
+  import { insertMarginNoteWithEditor } from '../lib/typstMagazine';
   import { getCommands, type SlashItem } from '../lib/slashCommands';
   import { t } from '@shared/i18n/store.svelte';
 
@@ -200,7 +201,9 @@
     aria-label={t().editor.toolbarLinkAria}
     aria-pressed={editor.isActive('link')}
   >
-    &#128279;
+    <svg class="toolbar-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+    </svg>
   </button>
 
   <button
@@ -351,6 +354,14 @@
     aria-label={t().editor.toolbarFootnoteAria}
   >
     <span style="font-size: 0.9em">Fn</span>
+  </button>
+
+  <button
+    onclick={() => insertMarginNoteWithEditor(editor)}
+    title={t().editor.toolbarMarginNote}
+    aria-label={t().editor.toolbarMarginNoteAria}
+  >
+    <span style="font-size: 0.9em">Mn</span>
   </button>
 
   <button

@@ -46,6 +46,8 @@ export const editor: EditorMessages = {
   toolbarSmallCapsAria: 'Kapitälchen',
   toolbarFootnote: 'Fußnote',
   toolbarFootnoteAria: 'Fußnote einfügen',
+  toolbarMarginNote: 'Randnotiz',
+  toolbarMarginNoteAria: 'Randnotiz einfügen',
   toolbarComment: 'Kommentar hinzufügen',
   toolbarCommentAria: 'Kommentar zur Auswahl hinzufügen',
   toolbarAlignLeft: 'Linksbündig (Cmd+Shift+L)',

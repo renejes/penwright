@@ -1,6 +1,6 @@
 {
   "name": "penwright",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Penwright — A WYSIWYG editor for Typst documents",
   "author": "René Jesser",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -73,7 +73,7 @@
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
-    "electron": "^41.0.4",
+    "electron": "^41.10.7",
     "electron-builder": "^26.0.0",
     "electron-vite": "^5.0.0",
     "esbuild": "^0.25.0",

@@ -62,6 +62,7 @@ export const editorLib: EditorLibMessages = {
   slashInterludeDesc: 'Stiller zentrierter Trenner',
   slashColumnsTitle: 'Spalten',
   slashColumnsDesc: 'Mehrspaltiger Abschnitt',
+  kindColumns: (n: number): string => (n === 1 ? '1 Spalte' : `${n} Spalten`),
 
   // Magazin-Node-Editoren (Popups)
   macroEditHint: 'Esc oder Cmd+Enter zum Schließen',
@@ -85,6 +86,19 @@ export const editorLib: EditorLibMessages = {
   macroOpenerEditTitle: 'Artikel-Auftakt bearbeiten',
   macroMarginNoteEditTitle: 'Randnotiz bearbeiten',
   macroOpenerEmpty: 'Artikel ohne Titel — zum Bearbeiten klicken',
+  macroLabelWho: 'Zuschreibung',
+  macroLabelCaption: 'Bildunterschrift',
+  macroLabelPath: 'Bild',
+  macroLabelCols: 'Spalten',
+  macroLabelGutter: 'Spaltabstand',
+  pullEditTitle: 'Pull-Quote bearbeiten',
+  calloutEditTitle: 'Notizkasten bearbeiten',
+  figurePanelEditTitle: 'Bildtafel bearbeiten',
+  columnsEditTitle: 'Spalten bearbeiten',
+  kindHintForm: 'Klicken, um Felder zu bearbeiten',
+  kindHintWrite: 'Hier tippen',
+  kindHintSource: 'Typst-Quelle — den Code bearbeiten',
+  kindHintRule: 'Ein Trenner. Die Linie zeichnet das PDF.',
 
   // Image dialog
   imageWidthLabel: 'Breite',
@@ -124,7 +138,7 @@ export const editorLib: EditorLibMessages = {
   bibliographyUnknownAuthor: 'Unbekannt',
 
   // Raw block labels
-  spacerTooltip: 'Klicken, um den Abstand zu ändern',
+  spacerTooltip: 'Eine Typst-Länge tippen, um den Abstand zu ändern',
   spacerAmountLabel: 'Höhe',
   spacerAmountHint: 'Eine Typst-Länge, z. B. 0.4em, 12pt, 1cm',
   rawKindInclude: 'Kapitel eingebunden',
