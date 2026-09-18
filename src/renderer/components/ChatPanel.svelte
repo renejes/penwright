@@ -14,7 +14,7 @@
     paramValue,
     upsertParam,
   } from '../../shared/chatModels';
-  import { shortToolName } from '../../shared/chatStream';
+  import ChatTranscript from './ChatTranscript.svelte';
   import type {
     ChatAttachment,
     ChatFileRef,
@@ -107,7 +107,11 @@
   }): void {
     if (res.sessions) chatUi.sessions = res.sessions;
     if (Array.isArray(res.turns)) {
-      chatUi.turns = res.turns.map(turn => ({ ...turn, tools: turn.tools?.map(c => ({ ...c })) }));
+      chatUi.turns = res.turns.map(turn => ({
+        ...turn,
+        tools: turn.tools?.map(c => ({ ...c })),
+        log: turn.log?.map(item => ({ ...item })),
+      }));
     }
     chatUi.draft = '';
     chatUi.pendingAnchors = [];
@@ -181,8 +185,13 @@
   $effect(() => {
     void chatUi.turns.length;
     void chatUi.streaming;
-    void chatUi.turns.at(-1)?.thinking;
-    void chatUi.turns.at(-1)?.tools?.length;
+    const last = chatUi.turns.at(-1);
+    void last?.text;
+    void last?.thinking;
+    void last?.tools?.length;
+    void last?.tools?.at(-1)?.status;
+    void last?.log?.length;
+    void last?.log?.at(-1);
     if (!threadEl) return;
     threadEl.scrollTop = threadEl.scrollHeight;
   });
@@ -253,21 +262,6 @@
     return found;
   }
 
-  function renderBody(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\n/g, '<br>');
-  }
-
-  function toolChipLabel(tool: { name: string; detail?: string }): string {
-    const name = shortToolName(tool.name);
-    return tool.detail ? `${name} · ${tool.detail}` : name;
-  }
-
   const canSend = $derived(
     !!(chatUi.draft.trim()
       || chatUi.pendingAttachments.length
@@ -296,7 +290,7 @@
     chatUi.streaming = true;
     chatUi.lastActivityAt = Date.now();
     chatUi.turns.push({ id: `u-${Date.now()}`, role: 'user', text: text || attachments.map(a => a.name).join(', ') });
-    chatUi.turns.push({ id: `a-${Date.now()}`, role: 'assistant', text: '' });
+    chatUi.turns.push({ id: `a-${Date.now()}`, role: 'assistant', text: '', log: [] });
 
     const ticket = ++sendTicket;
     try {
@@ -407,7 +401,7 @@
     sendTicket += 1;
     chatUi.streaming = false;
     const last = chatUi.turns.at(-1);
-    if (last?.role === 'assistant' && !last.text && !last.thinking && !(last.tools && last.tools.length)) {
+    if (last?.role === 'assistant' && !last.text && !last.thinking && !(last.tools && last.tools.length) && !(last.log && last.log.length)) {
       chatUi.turns = chatUi.turns.slice(0, -1);
     }
     try {
@@ -511,7 +505,6 @@
   );
   const modeLabel = $derived(chatUi.mode === 'plan' ? t().chat.modePlan : t().chat.modeAgent);
   const lastAssistant = $derived([...chatUi.turns].reverse().find(t => t.role === 'assistant') ?? null);
-  const runningTool = $derived(lastAssistant?.tools?.find(c => c.status === 'running') ?? null);
   const stalling = $derived(chatUi.streaming && quietSec >= 45);
 </script>
 
@@ -593,39 +586,15 @@
   {:else}
     {#key chatUi.sessions.activeId}
     <div class="chat-thread" bind:this={threadEl}>
-      {#each chatUi.turns as turn (`${chatUi.sessions.activeId ?? ''}:${turn.id}`)}
-        <article class="chat-turn" class:user={turn.role === 'user'} class:assistant={turn.role === 'assistant'}>
-          {#if turn.thinking || (chatUi.streaming && turn.id === lastAssistant?.id)}
-            <details class="chat-thinking" open={chatUi.streaming && turn.id === lastAssistant?.id}>
-              <summary>
-                {t().chat.thinking}
-                {#if chatUi.streaming && turn.id === lastAssistant?.id && elapsedSec > 0}
-                  <span> · {elapsedSec}s</span>
-                {/if}
-              </summary>
-              {#if turn.thinking}<p class="chat-thinking-body">{turn.thinking}</p>{/if}
-            </details>
-          {/if}
-          {#if turn.tools && turn.tools.length}
-            <ul class="chat-tools">
-              {#each turn.tools as tool (tool.id || tool.name)}
-                <li class="chat-tool" data-status={tool.status}>{toolChipLabel(tool)}</li>
-              {/each}
-            </ul>
-          {/if}
-          {#if turn.text}
-            <div class="chat-body">{@html renderBody(turn.text)}</div>
-          {:else if turn.role === 'assistant' && chatUi.streaming && turn.id === lastAssistant?.id}
-            <div class="chat-body chat-busy">
-              {#if runningTool}
-                {t().chat.usingTool(shortToolName(runningTool.name))}
-              {:else}
-                {t().chat.workingElapsed(elapsedSec)}
-              {/if}
-            </div>
-          {/if}
-        </article>
-      {/each}
+      {#if chatUi.turns.length === 0}
+        <p class="chat-empty-hint">{t().chat.emptyHint}</p>
+      {/if}
+      <ChatTranscript
+        turns={chatUi.turns}
+        streaming={chatUi.streaming}
+        {elapsedSec}
+        lastAssistantId={lastAssistant?.id ?? null}
+      />
       {#if stalling}<p class="chat-stall">{t().chat.stallHint}</p>{/if}
       {#if chatUi.lastError}<p class="chat-error">{chatUi.lastError}</p>{/if}
     </div>
@@ -929,28 +898,7 @@
   .chat-empty h3 { font-size: 15px; margin: 0 0 8px; }
   .chat-empty p, .chat-meta { color: #666; line-height: 1.45; margin: 0 0 12px; }
   .chat-thread { display: flex; flex-direction: column; gap: 12px; }
-  .chat-turn { padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid #f0f0f0; }
-  .chat-turn.user { background: #eef4ff; border-color: #d9e4ff; }
-  .chat-body { white-space: normal; line-height: 1.45; overflow-wrap: anywhere; }
-  .chat-body :global(code) { font-size: 12px; background: #f3f3f3; padding: 1px 4px; border-radius: 3px; }
-  .chat-busy { color: #888; font-style: italic; }
-  .chat-tools { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0 0 6px; padding: 0; }
-  .chat-tool {
-    font-size: 11px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: #f0f0f0;
-    color: #555;
-  }
-  .chat-tool[data-status='running'] { background: #eef4ff; color: #4f7df9; }
-  .chat-tool[data-status='error'] { background: #fde8e8; color: #b42318; }
-  .chat-thinking {
-    color: #888;
-    font-size: 11px;
-    margin: 0 0 6px;
-  }
-  .chat-thinking summary { cursor: pointer; }
-  .chat-thinking-body { color: #888; font-size: 12px; margin: 6px 0 8px; white-space: pre-wrap; }
+  .chat-empty-hint { color: #888; line-height: 1.45; margin: 0; font-size: 13px; }
   .chat-stall { color: #9a6700; font-size: 12px; margin: 0; }
   .chat-error { color: #b42318; font-size: 12px; }
   .chat-composer {

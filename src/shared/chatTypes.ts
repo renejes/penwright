@@ -72,12 +72,22 @@ export interface ChatToolChip {
   detail?: string;
 }
 
+/** Chronological inner stream of one assistant turn (tools, thinking, text, compaction). */
+export type ChatLogItem =
+  | { kind: 'text'; text: string }
+  | { kind: 'thinking'; text: string }
+  | { kind: 'tool'; id: string; name: string; status: ChatToolChip['status']; detail?: string }
+  | { kind: 'status'; text: string }
+  | { kind: 'summary'; phase: 'started' | 'completed' };
+
 export interface ChatTurn {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   thinking?: string;
   tools?: ChatToolChip[];
+  /** Ordered activity for Cursor-like grouping. Absent on pre-0.14 transcripts. */
+  log?: ChatLogItem[];
 }
 
 export type ChatStreamEvent =
@@ -85,6 +95,8 @@ export type ChatStreamEvent =
   | { kind: 'assistant'; text: string }
   | { kind: 'thinking'; text: string }
   | { kind: 'tool'; id: string; name: string; status: ChatToolChip['status']; detail?: string }
+  | { kind: 'status'; text: string }
+  | { kind: 'summary'; phase: 'started' | 'completed' }
   | { kind: 'heartbeat' }
   | { kind: 'usage'; inputTokens?: number; outputTokens?: number; totalTokens?: number }
   | { kind: 'done'; status: string; error?: string }

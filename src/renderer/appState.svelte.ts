@@ -6,7 +6,7 @@
 import type { Editor } from '@tiptap/core';
 import type { DocumentSettings } from '../editor/lib/messages';
 import { formatTokenCount } from '../shared/chatModels';
-import { mergeStreamText, upsertToolChip } from '../shared/chatStream';
+import { applyTurnAssistantText, applyTurnStatus, applyTurnSummary, applyTurnThinking, applyTurnTool } from '../shared/chatStream';
 import type { ChatAnchor, ChatAttachment, ChatMode, ChatSessionsSnapshot, ChatStatus, ChatStreamEvent, ChatTurn } from '../shared/chatTypes';
 
 // ─── Editor State ───────────────────────────────
@@ -113,23 +113,29 @@ export function applyChatEvent(event: ChatStreamEvent): void {
     case 'assistant':
       // Snapshot from the host (stream or wait()) — already merged there.
       // Merging again doubled every token: "Ich les lesee zuerst zuerst".
-      if (last) last.text = event.text;
+      if (last) applyTurnAssistantText(last, event.text, 'snapshot');
       break;
     case 'assistant-delta':
-      if (last) last.text = mergeStreamText(last.text, event.text);
+      if (last) applyTurnAssistantText(last, event.text, 'delta');
       break;
     case 'thinking':
-      if (last) last.thinking = mergeStreamText(last.thinking ?? '', event.text);
+      if (last) applyTurnThinking(last, event.text);
       break;
     case 'tool':
       if (last) {
-        last.tools = upsertToolChip(last.tools ?? [], {
+        applyTurnTool(last, {
           id: event.id,
           name: event.name,
           status: event.status,
           detail: event.detail,
         });
       }
+      break;
+    case 'status':
+      if (last) applyTurnStatus(last, event.text);
+      break;
+    case 'summary':
+      if (last) applyTurnSummary(last, event.phase);
       break;
     case 'heartbeat':
       break;

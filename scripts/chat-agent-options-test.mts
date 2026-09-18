@@ -20,7 +20,20 @@ import {
   posixQuote,
   quoteStdioCommand,
 } from '../src/shared/chatAgentOptions.ts';
-import { describeChatTool, mergeStreamText, shortToolName, upsertToolChip } from '../src/shared/chatStream.ts';
+import {
+  activityHeadline,
+  applyTurnStatus,
+  applyTurnSummary,
+  applyTurnThinking,
+  applyTurnTool,
+  describeChatTool,
+  groupChatLog,
+  mergeStreamText,
+  shortToolName,
+  synthesizeChatLog,
+  upsertToolChip,
+} from '../src/shared/chatStream.ts';
+import type { ChatTurn } from '../src/shared/chatTypes.ts';
 import { formatTokenCount, normalizeChatModel } from '../src/shared/chatModels.ts';
 import {
   activateSession,
@@ -179,5 +192,62 @@ assert.equal(index.activeId, null);
 assert.equal(index.chats.length, 0);
 
 assert.deepEqual(pinOpenTab(emptyChatIndex(), 'ghost').openIds, []);
+
+const labels = {
+  thinking: 'Thinking',
+  thinks: 'Thinks',
+  mcpOne: '1 MCP call',
+  mcpMany: (n: number) => `${n} MCP calls`,
+  errorOne: '1 error',
+  errorMany: (n: number) => `${n} errors`,
+  running: (name: string) => `${name} running`,
+  working: 'Working',
+};
+
+const legacy: ChatTurn = {
+  id: 'a1',
+  role: 'assistant',
+  text: 'Done',
+  thinking: 'hmm',
+  tools: [{ id: '1', name: 'mcp:search', status: 'completed' }],
+};
+assert.deepEqual(synthesizeChatLog(legacy).map(i => i.kind), ['thinking', 'tool', 'text']);
+
+const grouped = groupChatLog([
+  { kind: 'thinking', text: 'hmm' },
+  { kind: 'tool', id: '1', name: 'mcp:search_literature', status: 'running' },
+  { kind: 'tool', id: '1', name: 'mcp:search_literature', status: 'completed' },
+  { kind: 'tool', id: '2', name: 'fetch_source', status: 'completed' },
+  { kind: 'text', text: 'Fertig' },
+]);
+assert.deepEqual(grouped.map(g => g.kind), ['activity', 'text']);
+const act = grouped[0];
+assert.equal(act?.kind, 'activity');
+if (act?.kind === 'activity') {
+  assert.equal(act.tools.length, 2);
+  assert.equal(activityHeadline(act, labels), 'Thinking · 2 MCP calls');
+}
+
+const split = groupChatLog([
+  { kind: 'tool', id: '1', name: 'a', status: 'completed' },
+  { kind: 'text', text: 'Zwischenstand' },
+  { kind: 'tool', id: '2', name: 'b', status: 'completed' },
+]);
+assert.deepEqual(split.map(g => g.kind), ['activity', 'text', 'activity']);
+
+const liveTurn: ChatTurn = { id: 'a2', role: 'assistant', text: '', log: [] };
+applyTurnThinking(liveTurn, 'plan');
+applyTurnTool(liveTurn, { id: 'c1', name: 'penwright_get_document', status: 'running' });
+applyTurnTool(liveTurn, { id: 'c1', name: 'penwright_get_document', status: 'completed' });
+applyTurnSummary(liveTurn, 'started');
+applyTurnSummary(liveTurn, 'started');
+applyTurnSummary(liveTurn, 'completed');
+applyTurnStatus(liveTurn, 'Compiling');
+applyTurnStatus(liveTurn, 'Compiling');
+assert.deepEqual(liveTurn.log?.map(i => i.kind), ['thinking', 'tool', 'summary', 'status']);
+const summaryItem = liveTurn.log?.find(i => i.kind === 'summary');
+assert.equal(summaryItem && summaryItem.kind === 'summary' ? summaryItem.phase : '', 'completed');
+const compacted = groupChatLog(liveTurn.log ?? []);
+assert.deepEqual(compacted.map(g => g.kind), ['activity', 'summary', 'activity']);
 
 console.log('chat-agent-options-test: ok');

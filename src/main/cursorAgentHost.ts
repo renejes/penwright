@@ -38,7 +38,7 @@ import {
   quoteStdioCommand,
 } from '../shared/chatAgentOptions';
 import { normalizeChatModel } from '../shared/chatModels';
-import { mergeStreamText, describeChatTool, upsertToolChip } from '../shared/chatStream';
+import { applyTurnAssistantText, applyTurnStatus, applyTurnSummary, applyTurnThinking, applyTurnTool, describeChatTool } from '../shared/chatStream';
 import type {
   ChatAnchor,
   ChatAttachment,
@@ -509,7 +509,7 @@ function recordTool(
   input: { id?: string; name?: string; args?: unknown; status: ChatToolChip['status'] },
 ): void {
   const described = describeChatTool({ id: input.id, name: input.name, args: input.args });
-  turn.tools = upsertToolChip(turn.tools ?? [], {
+  applyTurnTool(turn, {
     id: described.id,
     name: described.name,
     status: input.status,
@@ -555,7 +555,7 @@ function applyInteractionDelta(
       const text = typeof update.text === 'string' ? update.text : '';
       if (!text) return;
       seen.text = true;
-      turn.text = mergeStreamText(turn.text, text);
+      applyTurnAssistantText(turn, text, 'delta');
       emit({ kind: 'assistant-delta', text });
       return;
     }
@@ -563,7 +563,7 @@ function applyInteractionDelta(
       const text = typeof update.text === 'string' ? update.text : '';
       if (!text) return;
       seen.thinking = true;
-      turn.thinking = mergeStreamText(turn.thinking ?? '', text);
+      applyTurnThinking(turn, text);
       emit({ kind: 'thinking', text });
       return;
     }
@@ -578,6 +578,15 @@ function applyInteractionDelta(
       recordTool(turn, { id: fields.id, name: fields.name, args: fields.args, status });
       return;
     }
+    case 'summary-started':
+    case 'summary':
+      applyTurnSummary(turn, 'started');
+      emit({ kind: 'summary', phase: 'started' });
+      return;
+    case 'summary-completed':
+      applyTurnSummary(turn, 'completed');
+      emit({ kind: 'summary', phase: 'completed' });
+      return;
     default:
       return;
   }
@@ -596,14 +605,14 @@ async function pumpRun(
         if (seen.text) continue;
         const chunk = assistantText(msg);
         if (chunk && turn) {
-          turn.text = mergeStreamText(turn.text, chunk);
+          applyTurnAssistantText(turn, chunk, 'delta');
           emit({ kind: 'assistant', text: turn.text });
         }
       } else if (msg.type === 'thinking') {
         if (seen.thinking) continue;
         const chunk = msg.text ?? '';
         if (chunk && turn) {
-          turn.thinking = mergeStreamText(turn.thinking ?? '', chunk);
+          applyTurnThinking(turn, chunk);
           emit({ kind: 'thinking', text: chunk });
         }
       } else if (msg.type === 'tool_call' && turn) {
@@ -615,6 +624,18 @@ async function pumpRun(
           args: fields.args,
           status: fields.status ?? msg.status,
         });
+      } else if (msg.type === 'status' && turn) {
+        const text = msg.message ?? '';
+        if (text) {
+          applyTurnStatus(turn, text);
+          emit({ kind: 'status', text });
+        }
+      } else if (msg.type === 'task' && turn) {
+        const text = msg.text ?? '';
+        if (text) {
+          applyTurnStatus(turn, text);
+          emit({ kind: 'status', text });
+        }
       } else if (msg.type === 'usage') {
         const u = msg.usage as {
           inputTokens?: number;
@@ -632,8 +653,8 @@ async function pumpRun(
       }
     }
     const result = await run.wait();
-    if (turn && typeof result.result === 'string' && result.result.trim()) {
-      turn.text = result.result;
+    if (turn && !turn.text.trim() && typeof result.result === 'string' && result.result.trim()) {
+      applyTurnAssistantText(turn, result.result, 'snapshot');
       emit({ kind: 'assistant', text: result.result });
     }
     if (result.status === 'error') {
@@ -941,7 +962,7 @@ export async function sendChat(input: {
   const userText = `${text}${formatAnchors(input.anchors ?? [])}${formatFiles(files)}`;
 
   const userTurn: ChatTurn = { id: `u-${Date.now()}`, role: 'user', text: userText };
-  const assistantTurn: ChatTurn = { id: `a-${Date.now()}`, role: 'assistant', text: '' };
+  const assistantTurn: ChatTurn = { id: `a-${Date.now()}`, role: 'assistant', text: '', log: [] };
   transcript.push(userTurn, assistantTurn);
   persistTranscript(projectDir);
   if (sessionIndex.activeId) {
