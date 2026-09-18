@@ -1,0 +1,14 @@
+Penwright ist mit einer Developer-ID signiert, aber nicht von Apple notariert.
+
+Beim ersten Start kann macOS warnen, der Entwickler sei unbekannt. Das ist erwartet.
+
+So öffnest du die App:
+1. Penwright in den Ordner Programme ziehen
+2. Rechtsklick auf Penwright → Öffnen
+3. Im Dialog erneut „Öffnen“ wählen
+
+Oder: Systemeinstellungen → Datenschutz & Sicherheit → Trotzdem öffnen.
+
+—
+This build is Developer ID signed, but not notarized by Apple.
+First launch: right-click Penwright → Open, then Open again.

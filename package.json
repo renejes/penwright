@@ -177,8 +177,22 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": true,
+      "notarize": false,
       "identity": "Rene Jesser (3LAHNFWNT3)"
+    },
+    "dmg": {
+      "window": { "width": 540, "height": 420 },
+      "contents": [
+        { "x": 140, "y": 160, "type": "file" },
+        { "x": 400, "y": 160, "type": "link", "path": "/Applications" },
+        {
+          "x": 270,
+          "y": 340,
+          "type": "file",
+          "path": "build/dmg-install.txt",
+          "name": "Installation.txt"
+        }
+      ]
     },
     "win": {
       "icon": "build/icons/icon.png",

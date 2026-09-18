@@ -96,7 +96,7 @@ npm install
 npm run dev            # prefix already unsets ELECTRON_RUN_AS_NODE
 npm test               # typecheck + editor / corpus / MCP gates (~2 min)
 npm run build          # main + preload + renderer
-npm run package:mac    # notarized DMG (needs Apple Developer credentials)
+npm run package:mac    # signed DMG (Developer ID; not notarized)
 ```
 
 From a VS Code / Cursor terminal the scripts prefix `unset ELECTRON_RUN_AS_NODE`
@@ -107,7 +107,7 @@ The in-app User Guide is `documentation/handbook.md` (English) and
 
 ## Status
 
-Pre-release **0.15.0**. macOS / Apple Silicon is built, signed and notarized. Windows is
+Pre-release **0.15.0**. macOS / Apple Silicon is built and Developer-ID signed, not notarized. Windows is
 scaffolded (unverified on a real device). The app starts at a Start Screen and never
 auto-reopens a project.
 
