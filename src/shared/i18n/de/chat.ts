@@ -24,6 +24,9 @@ export const chat: ChatMessages = {
 
   composerPlaceholder: 'Frag etwas…  Mit @ ein Kapitel oder eine Datei nennen',
   send: 'Senden',
+  queueSend: 'Nachreichen',
+  queueNote: 'Kommt im nächsten Schritt dran',
+  composerPlaceholderBusy: 'Nachreichen… wird im nächsten Schritt beachtet',
   cancel: 'Stopp',
   sending: 'Arbeitet…',
   workingElapsed: (s: number): string => (s > 0 ? `Arbeitet · ${s}s` : 'Arbeitet…'),

@@ -70,12 +70,14 @@ assert.equal(server.env.TYPST_BIN, '/tmp/typst');
 assert.equal(server.cwd, '/tmp/penwright-chat-test-project');
 
 assert.ok(opts.tools.includes('mcp'), 'tools must include mcp — otherwise the 66 Penwright tools never reach the agent');
+assert.ok(opts.tools.includes('webSearch'), 'tools must include web search');
+assert.ok(opts.tools.includes('edit'), 'tools must include edit so the agent can change project files');
 for (const name of CHAT_TOOLS) {
   assert.ok(opts.tools.includes(name), `tools missing ${name}`);
 }
 
 const toolNames = opts.tools as readonly string[];
-for (const forbidden of ['shell', 'edit', 'write', 'task'] as const) {
+for (const forbidden of ['shell', 'write', 'task'] as const) {
   assert.ok(!toolNames.includes(forbidden), `tools must not include ${forbidden}`);
 }
 

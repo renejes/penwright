@@ -16,6 +16,7 @@
   } from '../../shared/chatModels';
   import ChatTranscript from './ChatTranscript.svelte';
   import type {
+    ChatAnchor,
     ChatAttachment,
     ChatFileRef,
     ChatModelInfo,
@@ -38,6 +39,9 @@
   } = $props();
 
   let threadEl: HTMLDivElement | undefined = $state();
+  /** Follow new output only while the reader is already at the bottom. */
+  let stickToBottom = true;
+  let scrollingSelf = false;
   let menuRoot: HTMLDivElement | undefined = $state();
   let historyRoot: HTMLDivElement | undefined = $state();
   let loggingIn = $state(false);
@@ -49,6 +53,17 @@
   let projectFiles = $state<ChatFileRef[]>([]);
   let models = $state<ChatModelInfo[]>([]);
   let mentionIndex = $state(0);
+  let queued = $state<QueuedChat[]>([]);
+  let handledEpoch = 0;
+
+  interface QueuedChat {
+    id: string;
+    text: string;
+    label: string;
+    anchors: ChatAnchor[];
+    files: ChatFileRef[];
+    attachments: ChatAttachment[];
+  }
 
   const api = (window as unknown as {
     electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
@@ -107,6 +122,7 @@
   }): void {
     if (res.sessions) chatUi.sessions = res.sessions;
     if (Array.isArray(res.turns)) {
+      stickToBottom = true;
       chatUi.turns = res.turns.map(turn => ({
         ...turn,
         tools: turn.tools?.map(c => ({ ...c })),
@@ -179,8 +195,26 @@
       void refreshHistory();
       void refreshSessions();
     }
+    if (!hasProject) queued = [];
     void refreshFiles();
   });
+
+  $effect(() => {
+    const epoch = chatUi.runEpoch;
+    if (epoch === handledEpoch) return;
+    handledEpoch = epoch;
+    if (untrack(() => chatUi.streaming) || !untrack(() => hasProject)) return;
+    dropEmptyTrailingAssistant();
+    const next = queued[0];
+    if (!next) return;
+    queued = queued.slice(1);
+    void dispatch(next);
+  });
+
+  function onThreadScroll(): void {
+    if (!threadEl || scrollingSelf) return;
+    stickToBottom = threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight <= 48;
+  }
 
   $effect(() => {
     void chatUi.turns.length;
@@ -192,8 +226,11 @@
     void last?.tools?.at(-1)?.status;
     void last?.log?.length;
     void last?.log?.at(-1);
-    if (!threadEl) return;
+    void queued.length;
+    if (!threadEl || !untrack(() => stickToBottom)) return;
+    scrollingSelf = true;
     threadEl.scrollTop = threadEl.scrollHeight;
+    scrollingSelf = false;
   });
 
   $effect(() => {
@@ -269,12 +306,15 @@
       || chatUi.pendingAnchors.length),
   );
 
-  async function send(): Promise<void> {
-    if (!canSend || chatUi.streaming) return;
-    await refreshStatus();
-    if (!chatUi.status?.loggedIn || chatUi.status.expired) return;
-    if (!hasProject) return;
+  function dropEmptyTrailingAssistant(): void {
+    const last = chatUi.turns.at(-1);
+    if (last?.role === 'assistant' && !last.text && !last.thinking && !(last.tools && last.tools.length) && !(last.log && last.log.length)) {
+      chatUi.turns = chatUi.turns.slice(0, -1);
+    }
+  }
 
+  function takeComposer(): QueuedChat | null {
+    if (!canSend) return null;
     const text = chatUi.draft.trim();
     const anchors = chatUi.pendingAnchors.slice();
     const files = [
@@ -282,52 +322,77 @@
       ...mentionsFromDraft().filter(f => !chatUi.pendingFiles.some(p => p.file === f.file)),
     ];
     const attachments = chatUi.pendingAttachments.slice();
+    const label = text || attachments.map(a => a.name).join(', ') || files.map(f => `@${f.label}`).join(' ');
     chatUi.draft = '';
     chatUi.pendingAnchors = [];
     chatUi.pendingFiles = [];
     chatUi.pendingAttachments = [];
-    chatUi.lastError = '';
+    return { id: `q-${Date.now()}`, text, label, anchors, files, attachments };
+  }
+
+  function unqueue(id: string): void {
+    queued = queued.filter(item => item.id !== id);
+  }
+
+  async function dispatch(item: QueuedChat): Promise<void> {
     chatUi.streaming = true;
     chatUi.lastActivityAt = Date.now();
-    chatUi.turns.push({ id: `u-${Date.now()}`, role: 'user', text: text || attachments.map(a => a.name).join(', ') });
+    chatUi.lastError = '';
+    await refreshStatus();
+    if (!chatUi.status?.loggedIn || chatUi.status.expired || !hasProject) {
+      chatUi.streaming = false;
+      chatUi.lastError = chatUi.status?.expired ? t().chat.expired : t().chat.errorPrefix;
+      chatUi.draft = item.text;
+      chatUi.pendingAnchors = item.anchors;
+      chatUi.pendingFiles = item.files;
+      chatUi.pendingAttachments = item.attachments;
+      return;
+    }
+    dropEmptyTrailingAssistant();
+    chatUi.turns.push({ id: `u-${Date.now()}`, role: 'user', text: item.label });
     chatUi.turns.push({ id: `a-${Date.now()}`, role: 'assistant', text: '', log: [] });
 
     const ticket = ++sendTicket;
     try {
       const res = await api.invoke('chat:send', $state.snapshot({
-        text,
+        text: item.text,
         mode: chatUi.mode,
-        anchors,
-        files,
-        attachments,
+        anchors: item.anchors,
+        files: item.files,
+        attachments: item.attachments,
         liveContent: liveContent() ?? '',
       })) as ChatSendResult;
       if (ticket !== sendTicket) return;
       if (!res?.ok) {
-        failSend(text, anchors, files, attachments, res?.error || t().chat.errorPrefix);
+        failSend(item, res?.error || t().chat.errorPrefix);
       } else {
         void refreshSessions();
       }
     } catch (err) {
       if (ticket !== sendTicket) return;
-      failSend(text, anchors, files, attachments, err instanceof Error ? err.message : t().chat.errorPrefix);
+      failSend(item, err instanceof Error ? err.message : t().chat.errorPrefix);
     }
   }
 
-  function failSend(
-    text: string,
-    anchors: typeof chatUi.pendingAnchors,
-    files: typeof chatUi.pendingFiles,
-    attachments: typeof chatUi.pendingAttachments,
-    message: string,
-  ): void {
+  async function send(): Promise<void> {
+    const item = takeComposer();
+    if (!item) return;
+    stickToBottom = true;
+    if (chatUi.streaming) {
+      queued = [...queued, item];
+      return;
+    }
+    await dispatch(item);
+  }
+
+  function failSend(item: QueuedChat, message: string): void {
     chatUi.streaming = false;
     chatUi.lastError = message;
     chatUi.turns = chatUi.turns.slice(0, -2);
-    chatUi.draft = text;
-    chatUi.pendingAnchors = anchors;
-    chatUi.pendingFiles = files;
-    chatUi.pendingAttachments = attachments;
+    chatUi.draft = item.text;
+    chatUi.pendingAnchors = item.anchors;
+    chatUi.pendingFiles = item.files;
+    chatUi.pendingAttachments = item.attachments;
   }
 
   async function newSession(): Promise<void> {
@@ -344,6 +409,7 @@
     };
     chatUi.turns = [];
     chatUi.lastError = '';
+    queued = [];
     chatUi.sessions = {
       activeId: optimistic.id,
       open: [optimistic, ...chatUi.sessions.open.filter(s => s.id !== chatUi.sessions.activeId)].slice(0, 7),
@@ -366,6 +432,7 @@
       return;
     }
     chatUi.turns = [];
+    queued = [];
     try {
       applySessionResult(await api.invoke('chat:switch', id) as Parameters<typeof applySessionResult>[0]);
     } catch (err) {
@@ -378,6 +445,7 @@
       chatUi.lastError = t().chat.busySwitch;
       return;
     }
+    if (id === chatUi.sessions.activeId) queued = [];
     try {
       applySessionResult(await api.invoke('chat:closeTab', id) as Parameters<typeof applySessionResult>[0]);
     } catch (err) {
@@ -390,6 +458,7 @@
       chatUi.lastError = t().chat.busySwitch;
       return;
     }
+    if (id === chatUi.sessions.activeId) queued = [];
     try {
       applySessionResult(await api.invoke('chat:delete', id) as Parameters<typeof applySessionResult>[0]);
     } catch (err) {
@@ -399,15 +468,12 @@
 
   async function cancel(): Promise<void> {
     sendTicket += 1;
-    chatUi.streaming = false;
-    const last = chatUi.turns.at(-1);
-    if (last?.role === 'assistant' && !last.text && !last.thinking && !(last.tools && last.tools.length) && !(last.log && last.log.length)) {
-      chatUi.turns = chatUi.turns.slice(0, -1);
-    }
+    dropEmptyTrailingAssistant();
     try {
       await api.invoke('chat:cancel');
     } catch {
-      /* UI is already unlocked */
+      chatUi.streaming = false;
+      chatUi.runEpoch += 1;
     }
   }
 
@@ -585,8 +651,8 @@
     </div>
   {:else}
     {#key chatUi.sessions.activeId}
-    <div class="chat-thread" bind:this={threadEl}>
-      {#if chatUi.turns.length === 0}
+    <div class="chat-thread" bind:this={threadEl} onscroll={onThreadScroll}>
+      {#if chatUi.turns.length === 0 && queued.length === 0}
         <p class="chat-empty-hint">{t().chat.emptyHint}</p>
       {/if}
       <ChatTranscript
@@ -594,6 +660,8 @@
         streaming={chatUi.streaming}
         {elapsedSec}
         lastAssistantId={lastAssistant?.id ?? null}
+        queued={queued.map(item => ({ id: item.id, label: item.label }))}
+        onUnqueue={unqueue}
       />
       {#if stalling}<p class="chat-stall">{t().chat.stallHint}</p>{/if}
       {#if chatUi.lastError}<p class="chat-error">{chatUi.lastError}</p>{/if}
@@ -642,10 +710,9 @@
       {/if}
       <textarea
         bind:value={chatUi.draft}
-        placeholder={t().chat.composerPlaceholder}
+        placeholder={chatUi.streaming ? t().chat.composerPlaceholderBusy : t().chat.composerPlaceholder}
         rows="3"
         onkeydown={onComposerKey}
-        disabled={chatUi.streaming}
       ></textarea>
         <div class="chat-composer-bar">
         <div class="chat-bar-left">
@@ -725,6 +792,9 @@
         >+</button>
         </div>
         {#if chatUi.streaming}
+          {#if canSend}
+            <button type="button" class="chat-primary" onclick={() => void send()}>{t().chat.queueSend}</button>
+          {/if}
           <button type="button" class="chat-primary" onclick={() => void cancel()}>{t().chat.cancel}</button>
         {:else}
           <button type="button" class="chat-primary" onclick={() => void send()} disabled={!canSend}>{t().chat.send}</button>
@@ -894,7 +964,7 @@
     flex-shrink: 0;
   }
   .chat-tab-close:hover { color: #111; }
-  .chat-empty, .chat-thread { flex: 1; overflow: auto; padding: 16px 14px; }
+  .chat-empty, .chat-thread { flex: 1; min-height: 0; overflow: auto; padding: 16px 14px; }
   .chat-empty h3 { font-size: 15px; margin: 0 0 8px; }
   .chat-empty p, .chat-meta { color: #666; line-height: 1.45; margin: 0 0 12px; }
   .chat-thread { display: flex; flex-direction: column; gap: 12px; }

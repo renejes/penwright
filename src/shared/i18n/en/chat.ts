@@ -23,6 +23,9 @@ export const chat = {
 
   composerPlaceholder: 'Ask anything…  Type @ to mention a chapter or file',
   send: 'Send',
+  queueSend: 'Add to next turn',
+  queueNote: 'Sends on the next turn',
+  composerPlaceholderBusy: 'Add a follow-up… it goes out on the next turn',
   cancel: 'Stop',
   sending: 'Working…',
   workingElapsed: (s: number): string => (s > 0 ? `Working · ${s}s` : 'Working…'),

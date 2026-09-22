@@ -101,6 +101,8 @@ export let chatUi = $state({
   lastError: '',
   usageLine: '',
   lastActivityAt: 0,
+  /** Bumps when a run ends, so a queued follow-up can start the next turn. */
+  runEpoch: 0,
   sessions: { activeId: null, open: [], all: [] } as ChatSessionsSnapshot,
 });
 
@@ -152,10 +154,10 @@ export function applyChatEvent(event: ChatStreamEvent): void {
     }
     case 'done':
       chatUi.streaming = false;
+      chatUi.runEpoch += 1;
       if (event.error) chatUi.lastError = event.error;
       break;
     case 'error':
-      chatUi.streaming = false;
       chatUi.lastError = event.message;
       break;
     default: {
@@ -176,6 +178,7 @@ export function resetChatUi(): void {
   chatUi.lastError = '';
   chatUi.usageLine = '';
   chatUi.lastActivityAt = 0;
+  chatUi.runEpoch = 0;
   chatUi.sessions = { activeId: null, open: [], all: [] };
 }
 

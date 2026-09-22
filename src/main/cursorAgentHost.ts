@@ -3,7 +3,7 @@
  *
  * Renderer never imports `@cursor/sdk`. One agent per open project; close
  * disposes it. Every create / resume carries the tool allowlist from
- * `buildChatAgentOptions` (writes go through MCP, never builtin edit/write).
+ * `buildChatAgentOptions` (MCP, reads, web search, and edit; no shell).
  */
 
 import { app, dialog, shell } from 'electron';
@@ -81,6 +81,8 @@ let agent: SDKAgent | null = null;
 let agentProjectDir: string | null = null;
 let currentRun: Run | null = null;
 let cancelRequested = false;
+/** Covers the gap between sendChat starting and currentRun being assigned. */
+let startingSend = 0;
 let transcript: ChatTurn[] = [];
 let sessionIndex: ChatSessionIndex = emptyChatIndex();
 let indexProjectDir: string | null = null;
@@ -324,7 +326,16 @@ async function createOptsFor(projectDir: string) {
     model: modelSelection(modelId),
     name: 'Penwright',
     ...(apiKey ? { apiKey } : {}),
-    local: { cwd: projectDir, store, settingSources: [] },
+    // No approval UI in the chat panel. autoReview lets the backend allow
+    // tool calls; sandbox off so the Penwright MCP binary (outside the
+    // project folder) and web search can actually run.
+    local: {
+      cwd: projectDir,
+      store,
+      settingSources: [],
+      autoReview: true,
+      sandboxOptions: { enabled: false },
+    },
   };
 }
 
@@ -599,6 +610,7 @@ async function pumpRun(
   seen: { text: boolean; thinking: boolean; tools: boolean },
 ): Promise<void> {
   const turn = transcript.find(t => t.id === assistantId);
+  let finish: { status: string; error?: string } | null = null;
   try {
     for await (const msg of run.stream()) {
       if (msg.type === 'assistant') {
@@ -658,9 +670,9 @@ async function pumpRun(
       emit({ kind: 'assistant', text: result.result });
     }
     if (result.status === 'error') {
-      emit({ kind: 'done', status: 'error', error: result.error?.message ?? 'Run failed' });
+      finish = { status: 'error', error: result.error?.message ?? 'Run failed' };
     } else {
-      emit({ kind: 'done', status: result.status });
+      finish = { status: result.status };
     }
     if (agent) {
       try {
@@ -678,11 +690,12 @@ async function pumpRun(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     emit({ kind: 'error', message });
-    emit({ kind: 'done', status: 'error', error: message });
+    finish = { status: 'error', error: message };
   } finally {
     currentRun = null;
     persistTranscript(projectDir);
   }
+  if (finish) emit({ kind: 'done', status: finish.status, error: finish.error });
 }
 
 export async function getChatStatus(): Promise<ChatStatus> {
@@ -916,9 +929,11 @@ export async function cancelChat(): Promise<{ ok: boolean }> {
     try {
       if (currentRun.supports('cancel')) await currentRun.cancel();
     } catch {
-      /* ignore */
+      /* pumpRun still reports the end once the run is actually free */
     }
+    return { ok: true };
   }
+  if (startingSend > 0) return { ok: true };
   emit({ kind: 'done', status: 'cancelled' });
   return { ok: true };
 }
@@ -932,9 +947,12 @@ export async function sendChat(input: {
 }): Promise<ChatSendResult> {
   const projectDir = appState.projectDir;
   if (!projectDir) return { ok: false, error: 'No project open.' };
-  if (currentRun) return { ok: false, error: 'A run is already in progress.' };
+  if (currentRun || startingSend > 0) return { ok: false, error: 'A run is already in progress.' };
 
   ensureSdkConfigured();
+  startingSend += 1;
+  cancelRequested = false;
+  try {
   const auth = await Cursor.auth.status({ store: credentialStore() });
   if (auth.status !== 'logged-in') return { ok: false, error: 'Not signed in.' };
   if (typeof auth.apiKeyExpiresAtMs === 'number' && auth.apiKeyExpiresAtMs < Date.now()) {
@@ -942,7 +960,6 @@ export async function sendChat(input: {
   }
 
   addBreadcrumb('chat', 'send');
-  cancelRequested = false;
 
   const staged = await stageAttachments(projectDir, input.attachments ?? []);
   const files = [...(input.files ?? []), ...staged.files];
@@ -1009,5 +1026,12 @@ export async function sendChat(input: {
     persistTranscript(projectDir);
     const message = err instanceof CursorAgentError || err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
+  }
+  } finally {
+    startingSend -= 1;
+    if (cancelRequested && !currentRun && startingSend === 0) {
+      cancelRequested = false;
+      emit({ kind: 'done', status: 'cancelled' });
+    }
   }
 }

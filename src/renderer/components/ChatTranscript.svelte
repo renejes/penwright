@@ -19,11 +19,15 @@
     streaming,
     elapsedSec,
     lastAssistantId,
+    queued = [],
+    onUnqueue,
   }: {
     turns: ChatTurn[];
     streaming: boolean;
     elapsedSec: number;
     lastAssistantId: string | null;
+    queued?: { id: string; label: string }[];
+    onUnqueue?: (id: string) => void;
   } = $props();
 
   function renderBody(text: string): string {
@@ -80,7 +84,7 @@
       {#each items as item, i (`${turn.id}:${item.kind}:${i}`)}
         {#if item.kind === 'activity'}
           {@const current = isCurrentPhase(items, i, live)}
-          <details class="chat-activity" open={current}>
+          <details class="chat-activity">
             <summary>{headline(item, current)}</summary>
             {#if item.tools.length > 0}
               <ul class="chat-activity-tools">
@@ -114,6 +118,17 @@
     </article>
   {/if}
 {/each}
+{#each queued as item (item.id)}
+  <article class="chat-turn user queued">
+    <div class="chat-body">{item.label}</div>
+    <p class="chat-queue-note">
+      {t().chat.queueNote}
+      {#if onUnqueue}
+        <button type="button" onclick={() => onUnqueue(item.id)} aria-label={t().chat.removeChip}>×</button>
+      {/if}
+    </p>
+  </article>
+{/each}
 
 <style>
   .chat-turn { padding: 0; }
@@ -122,6 +137,27 @@
     padding: 8px 10px;
     background: #f5f5f5;
     border: 1px solid #dddddd;
+  }
+  .chat-turn.queued {
+    border-style: dashed;
+    color: #666;
+  }
+  .chat-queue-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: #888;
+  }
+  .chat-queue-note button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: #888;
+    font-size: 14px;
+    line-height: 1;
   }
   .chat-turn.assistant {
     display: flex;

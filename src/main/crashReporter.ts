@@ -374,14 +374,19 @@ export function setupCrashCapture(): void {
   // Native crash reporter — uploadToServer:false keeps everything local.
   // Minidumps land in `<userData>/Crashpad` and are not auto-deleted, but
   // our text reports are the user-facing surface.
-  try {
-    electronCrashReporter.start({
-      uploadToServer: false,
-      submitURL: '',
-      productName: 'Penwright',
-    });
-  } catch (err) {
-    console.warn('[penwright] crashReporter setup failed:', err);
+  // Dev is usually launched from Cursor's terminal. Cursor already owns a
+  // Crashpad handler; a second one fails mach_port_request_notification and
+  // retries forever. Packaged builds still capture native crashes.
+  if (app.isPackaged) {
+    try {
+      electronCrashReporter.start({
+        uploadToServer: false,
+        submitURL: '',
+        productName: 'Penwright',
+      });
+    } catch (err) {
+      console.warn('[penwright] crashReporter setup failed:', err);
+    }
   }
 
   // Native source-map support — Node ≥ 12 can resolve stack-trace lines

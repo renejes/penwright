@@ -1,17 +1,25 @@
 /**
  * The load-bearing tool restriction for the in-app Cursor agent.
  *
- * Default local agents auto-run shell / edit / write. If those stay on,
- * the agent writes `.typ` / `style.typ` past snapshots, the style guard
- * and safe-apply — a P4 break. Every `Agent.create` / `resume` / `send`
- * path must go through `buildChatAgentOptions` so there is no way to
- * forget the allowlist.
+ * Shell and subagents stay off. MCP, file reads, web search, and edit stay
+ * on: the in-app chat has no approval dialog, so a tool that is not in this
+ * list simply does not exist for the agent. Every `Agent.create` / `resume`
+ * path must go through `buildChatAgentOptions`.
  *
  * Pure: no Electron, no `@cursor/sdk`. The shape is asserted by
  * `scripts/chat-agent-options-test.mts` without mocking the SDK.
  */
 
-export const CHAT_TOOLS = ['mcp', 'read', 'grep', 'glob', 'ls'] as const;
+export const CHAT_TOOLS = [
+  'mcp',
+  'read',
+  'grep',
+  'glob',
+  'ls',
+  'edit',
+  'webSearch',
+  'webFetch',
+] as const;
 export const CHAT_DISALLOWED_TOOLS = ['shell', 'task'] as const;
 export const DEFAULT_CHAT_MODEL_ID = 'composer-2.5';
 
