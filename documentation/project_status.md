@@ -1,8 +1,8 @@
 # Penwright — aktueller Stand
 
-> **Stand:** 2026-08-21 · App **0.13.0** · `MCP_SETUP_VERSION` **0.43.0** · Typst **0.15.1** · MCP **66 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent)
+> **Stand:** 2026-09-22 · App **0.15.1** · `MCP_SETUP_VERSION` **0.43.0** · Typst **0.15.1** · MCP **66 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent)
 >
-> Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf und verworfene Pläne: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md). In-App-Chat-Plan: [01-cursor-sdk-integration-plan.md](01-cursor-sdk-integration-plan.md).
+> Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf und verworfene Pläne: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md). In-App-Chat-Plan: [done/01-cursor-sdk-integration-plan.md](done/01-cursor-sdk-integration-plan.md).
 
 ---
 
@@ -56,7 +56,7 @@ Polar, Kaufdialoge, Testphase und Feature-Gates sind entfernt. Der In-App-Chat r
 
 **Export.** PDF (wie die Vorschau), Druck-PDF (Beschnitt, Schnittmarken, Bund), DOCX, HTML (eine Seite oder Magazin-Mini-Site). Markdown-Import. Zotero-`.bib` mit Auto-Sync.
 
-**KI — Chat in der App (neu, 2026-08-21).** `@cursor/sdk` im Main-Prozess. Renderer importiert das SDK nie. **Ansicht → Chat** (`Cmd+J`), Leiste unter dem Editor (Editorbreite; PDF volle Höhe). Anmeldung unter Einstellungen → Cursor (90-Tage-Key, nicht die IDE-Session). Composer: Enter senden, Shift+Enter Zeile, Dateien anhängen, `@` auf Kapitel. Agent/Plan, Modell/Fast/Thinking im Dropdown. Mehrere Chats pro Projekt (Tabs, History, +), gespeichert in `<projekt>/.penwright/cursor-agent/`. Ein Stream zur Zeit; Wechsel = `Agent.resume`. Schreiben nur über Penwright-MCP (`tools: mcp, read, grep, glob, ls` — kein Shell/Task, kein builtin write). Dieselben 66 Tools, Snapshots und Safe-Apply wie Cursor IDE / Claude.
+**KI — Chat in der App.** `@cursor/sdk` im Main-Prozess. Renderer importiert das SDK nie. **Ansicht → Chat** (`Cmd+J`), Leiste unter dem Editor (Editorbreite; PDF volle Höhe). Anmeldung unter Einstellungen → Cursor (90-Tage-Key, nicht die IDE-Session). Composer: Enter senden, Shift+Enter Zeile, Dateien anhängen, `@` auf Kapitel. Während ein Lauf arbeitet, bleibt das Feld offen; Nachreichungen gehen im nächsten Turn raus. Die Transkript-Ansicht folgt nur, solange man unten ist. Denken und Tool-Aufrufe stehen in einer Box, die der Nutzer auf- und zuklappt; Updates ändern die Zusammenfassung. Agent/Plan, Modell/Fast/Thinking im Dropdown. Mehrere Chats pro Projekt (Tabs, History, +), gespeichert in `<projekt>/.penwright/cursor-agent/`. Ein Stream zur Zeit; Wechsel = `Agent.resume`. Werkzeuge: `mcp`, `read`, `grep`, `glob`, `ls`, `edit`, `webSearch`, `webFetch` — kein Shell, kein Task. Kein Freigabe-Dialog (`autoReview`, Sandbox aus), sonst startet der Penwright-MCP nicht. Dieselben 66 MCP-Tools, Snapshots und Safe-Apply wie Cursor IDE / Claude. Crashpad nur in der gepackten App.
 
 **KI — externe Hosts.** MCP-Server, 66 Tools. Beim Start schreibt Penwright sich nach **`~/.cursor/mcp.json`**. Claude Code optional (Hilfe → MCP-Verbindung). Claude Desktop eigener Wizard. Kein Web-Export-Tool (bewusst: Menü + Dialog). „Design with AI“-Popover und Claude-Handoff aus dem Kontextmenü sind entfernt; der Anker ist **In Chat einfügen**.
 
@@ -91,7 +91,7 @@ Chat: `scripts/chat-agent-options-test.mts` (Allowlist + Session-Index, ohne SDK
 
 ## Distribution
 
-- **macOS / Apple Silicon:** gebaut, signiert, notariert (`npm run package:mac`).
+- **macOS / Apple Silicon:** gebaut und mit Developer ID signiert, nicht notariert (`mac.notarize: false`). Der DMG enthält `Installation.txt` für den Erststart.
 - **Windows:** verdrahtet, auf echtem Gerät **nicht** verifiziert.
 - **Linux:** AppImage-Pfad existiert; Claude-Desktop-Wizard n/a.
 - Kein Auto-Updater. Domain `penwright.online` ist kanonisch, aber noch nicht registriert. Handbuch liegt in der App (`handbook.md` / `handbuch.md`).
@@ -106,7 +106,6 @@ Nicht hier pflegen — in [next-steps.md](next-steps.md):
 - Windows auf echtem Gerät
 - Anwaltliches Gegenlesen der Lizenz (PolyForm Strict unverändert; Zusätze stehen nur in `LICENSE.md`)
 - Finale QA auf echter Thesis
-- In-App-Chat: packaged Spike / Notarisierung mit Native-SDK-Binaries (Plan Phase 3)
 
 ---
 
@@ -118,7 +117,7 @@ Nicht hier pflegen — in [next-steps.md](next-steps.md):
 | [README.md](../README.md) | Produkt, Suite, Chat, Lizenz |
 | [handbook.md](handbook.md) / [handbuch.md](handbuch.md) | Nutzer-Handbuch (in der App) |
 | [mcp-server.md](mcp-server.md) | MCP-Tools |
-| [01-cursor-sdk-integration-plan.md](01-cursor-sdk-integration-plan.md) | In-App-Chat (Plan + Stand) |
+| [done/01-cursor-sdk-integration-plan.md](done/01-cursor-sdk-integration-plan.md) | In-App-Chat (abgeschlossener Plan) |
 | [next-steps.md](next-steps.md) | Offene Arbeit bis zum Release |
 | [done/](done/) | Abgeschlossene Pläne und alte Strategien |
 | [handover.md](handover.md) | Session-Handover (Historie) |

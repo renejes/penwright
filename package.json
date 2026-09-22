@@ -1,6 +1,6 @@
 {
   "name": "penwright",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "Penwright — A WYSIWYG editor for Typst documents",
   "author": "René Jesser",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -181,10 +181,22 @@
       "identity": "Rene Jesser (3LAHNFWNT3)"
     },
     "dmg": {
-      "window": { "width": 540, "height": 420 },
+      "window": {
+        "width": 540,
+        "height": 420
+      },
       "contents": [
-        { "x": 140, "y": 160, "type": "file" },
-        { "x": 400, "y": 160, "type": "link", "path": "/Applications" },
+        {
+          "x": 140,
+          "y": 160,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 160,
+          "type": "link",
+          "path": "/Applications"
+        },
         {
           "x": 270,
           "y": 340,

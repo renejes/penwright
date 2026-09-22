@@ -7,7 +7,7 @@
 A standalone desktop app for WYSIWYG editing of [Typst](https://typst.app) documents —
 from academic theses to design-grade magazines, brochures and reports.
 
-![version](https://img.shields.io/badge/version-0.15.0-3b6ea5)
+![version](https://img.shields.io/badge/version-0.15.1-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
 ![Windows](https://img.shields.io/badge/Windows-scaffolded-777777)
 ![license](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-3fa45b)
@@ -48,7 +48,8 @@ With a [Cursor](https://cursor.com) account you can chat **inside Penwright**
 (**View → Toggle Chat**, `Cmd+J`). The agent works in the open project — drafts, design,
 “make this a magazine” — through the same 66 MCP tools Cursor IDE and Claude Desktop use.
 Several chats per project, tabs and history, stored in `.penwright/cursor-agent/` so they
-travel with the folder.
+travel with the folder. A follow-up typed while the agent is working waits for the
+next turn. The transcript stays put when you scroll up.
 
 Penwright stays free. Usage is billed to your Cursor plan. Without signing in, the editor,
 preview and export still work. Cursor IDE and Claude remain optional under
@@ -107,7 +108,7 @@ The in-app User Guide is `documentation/handbook.md` (English) and
 
 ## Status
 
-Pre-release **0.15.0**. macOS / Apple Silicon is built and Developer-ID signed, not notarized. Windows is
+Pre-release **0.15.1**. macOS / Apple Silicon is built and Developer-ID signed, not notarized. Windows is
 scaffolded (unverified on a real device). The app starts at a Start Screen and never
 auto-reopens a project.
 
