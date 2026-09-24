@@ -58,6 +58,8 @@ export const chat = {
   activityWorking: 'Working',
   emptyHint: 'Describe what you need. Type @ to point at a chapter or file.',
   mentionEmpty: 'No matching files',
+  errorPrefix: 'Could not send',
+  planning: 'Planning next moves',
   runCancelled: 'Stopped before the model replied',
   serverAccepted: 'The server has the run. The first reply can take a minute.',
   loginFailed: 'Sign-in did not complete.',

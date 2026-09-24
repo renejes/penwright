@@ -59,6 +59,8 @@ export const chat: ChatMessages = {
   activityWorking: 'Arbeitet',
   emptyHint: 'Beschreib, was du brauchst. Mit @ zeigst du auf ein Kapitel oder eine Datei.',
   mentionEmpty: 'Keine passenden Dateien',
+  errorPrefix: 'Senden fehlgeschlagen',
+  planning: 'Plant die nächsten Schritte',
   runCancelled: 'Abgebrochen, bevor das Modell geantwortet hat',
   serverAccepted: 'Der Server hat den Lauf. Die erste Antwort kann eine Minute dauern.',
   loginFailed: 'Anmeldung nicht abgeschlossen.',
