@@ -37,7 +37,7 @@ import {
   mergeMcpChildEnv,
   quoteStdioCommand,
 } from '../shared/chatAgentOptions';
-import { normalizeChatModel } from '../shared/chatModels';
+import { normalizeChatModel, paramsForModel, sameChatParams } from '../shared/chatModels';
 import { applyTurnAssistantText, applyTurnStatus, applyTurnSummary, applyTurnThinking, applyTurnTool, describeChatTool } from '../shared/chatStream';
 import type {
   ChatAnchor,
@@ -250,24 +250,49 @@ function writeStoredAgentId(projectDir: string, id: string): void {
   }
 }
 
-async function resolveModelId(): Promise<string> {
-  const stored = getChatModelId() || DEFAULT_CHAT_MODEL_ID;
+async function resolveModelSelection(): Promise<{ id: string; params?: ChatModelParam[] }> {
+  const storedId = getChatModelId() || DEFAULT_CHAT_MODEL_ID;
+  let catalog: ChatModelInfo[] = [];
   try {
     const apiKey = await loadApiKey();
-    const models = await Cursor.models.list(apiKey ? { apiKey } : undefined);
-    if (!Array.isArray(models) || models.length === 0) return stored;
-    if (models.some(m => m.id === stored)) return stored;
-    const fallback = models.find(m => m.id === DEFAULT_CHAT_MODEL_ID) ?? models[0];
-    if (fallback && fallback.id !== stored) setChatModelId(fallback.id);
-    return fallback.id;
+    const listed = await Cursor.models.list(apiKey ? { apiKey } : undefined);
+    if (Array.isArray(listed)) {
+      catalog = listed.map(m => normalizeChatModel({
+        id: m.id,
+        displayName: m.displayName || m.id,
+        parameters: (m.parameters ?? []).map(p => ({
+          id: p.id,
+          displayName: p.displayName || p.id,
+          values: (p.values ?? []).map(v => ({
+            value: v.value,
+            displayName: v.displayName || v.value,
+          })),
+        })),
+        variants: (m.variants ?? []).map(v => ({
+          displayName: v.displayName,
+          description: v.description,
+          isDefault: v.isDefault,
+          params: (v.params ?? []).map(p => ({ id: p.id, value: p.value })),
+        })),
+      }));
+    }
   } catch {
-    return stored;
+    /* no catalogue: do not forward params from another model */
   }
-}
-
-function modelSelection(modelId: string): { id: string; params?: ChatModelParam[] } {
-  const params = getChatModelParams();
-  return params.length > 0 ? { id: modelId, params } : { id: modelId };
+  let id = storedId;
+  if (catalog.length > 0 && !catalog.some(m => m.id === id)) {
+    const fallback = catalog.find(m => m.id === DEFAULT_CHAT_MODEL_ID) ?? catalog[0];
+    if (fallback) {
+      id = fallback.id;
+      if (id !== storedId) setChatModelId(id);
+    }
+  }
+  const model = catalog.find(m => m.id === id);
+  const params = paramsForModel(model, model ? getChatModelParams() : []);
+  if (model && !sameChatParams(getChatModelParams(), params)) {
+    setChatModelParams(params.length > 0 ? params : null);
+  }
+  return params.length > 0 ? { id, params } : { id };
 }
 
 function restrictionOptions(projectDir: string) {
@@ -317,13 +342,13 @@ export async function disposeChatAgent(): Promise<void> {
 }
 
 async function createOptsFor(projectDir: string) {
-  const modelId = await resolveModelId();
+  const model = await resolveModelSelection();
   const apiKey = await loadApiKey();
   const base = restrictionOptions(projectDir);
   const store = new JsonlLocalAgentStore(agentDir(projectDir));
   return {
     ...base,
-    model: modelSelection(modelId),
+    model,
     name: 'Penwright',
     ...(apiKey ? { apiKey } : {}),
     // No approval UI in the chat panel. autoReview lets the backend allow
@@ -974,7 +999,7 @@ export async function sendChat(input: {
     return { ok: false, error: message };
   }
 
-  const modelId = await resolveModelId();
+  const model = await resolveModelSelection();
   const restriction = restrictionOptions(projectDir);
   const userText = `${text}${formatAnchors(input.anchors ?? [])}${formatFiles(files)}`;
 
@@ -1000,7 +1025,7 @@ export async function sendChat(input: {
       : userText;
     const seen = { text: false, thinking: false, tools: false };
     const run = await bound.send(payload, {
-      model: modelSelection(modelId),
+      model,
       mcpServers: restriction.mcpServers,
       mode: input.mode === 'plan' ? 'plan' : 'agent',
       onDelta: ({ update }) => {

@@ -11,7 +11,9 @@
     isFastParam,
     isThinkingParam,
     normalizeChatModel,
+    paramsForModel,
     paramValue,
+    sameChatParams,
     upsertParam,
   } from '../../shared/chatModels';
   import ChatTranscript from './ChatTranscript.svelte';
@@ -85,6 +87,12 @@
     try {
       const list = await api.invoke('chat:models') as ChatModelInfo[];
       models = Array.isArray(list) ? list : [];
+      const selected = models.find(m => m.id === chatUi.status?.modelId);
+      const stored = chatUi.status?.modelParams ?? [];
+      if (selected) {
+        const cleaned = paramsForModel(selected, stored);
+        if (!sameChatParams(cleaned, stored)) await persistModel(selected.id, cleaned);
+      }
     } catch {
       models = [];
     }
@@ -514,21 +522,23 @@
   async function onModelChange(e: Event): Promise<void> {
     const id = (e.target as HTMLSelectElement).value;
     const model = catalog.find(m => m.id === id);
-    const def = model?.variants.find(v => v.isDefault) ?? model?.variants[0];
-    await persistModel(id, def?.params ?? []);
+    await persistModel(id, paramsForModel(model, []));
   }
 
   async function onParamChange(paramId: string, e: Event): Promise<void> {
     if (!chatUi.status) return;
     const value = (e.target as HTMLSelectElement).value;
-    await persistModel(chatUi.status.modelId, upsertParam(currentParams, paramId, value));
+    await persistModel(
+      chatUi.status.modelId,
+      paramsForModel(selectedModel ?? undefined, upsertParam(currentParams, paramId, value)),
+    );
   }
 
   async function onVariantChange(e: Event): Promise<void> {
     const name = (e.target as HTMLSelectElement).value;
     const variant = selectedModel?.variants.find(v => v.displayName === name);
     if (!chatUi.status || !variant) return;
-    await persistModel(chatUi.status.modelId, variant.params);
+    await persistModel(chatUi.status.modelId, paramsForModel(selectedModel ?? undefined, variant.params));
   }
 
   async function attachFiles(): Promise<void> {

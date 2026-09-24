@@ -34,7 +34,7 @@ import {
   upsertToolChip,
 } from '../src/shared/chatStream.ts';
 import type { ChatTurn } from '../src/shared/chatTypes.ts';
-import { formatTokenCount, normalizeChatModel } from '../src/shared/chatModels.ts';
+import { formatTokenCount, normalizeChatModel, paramsForModel } from '../src/shared/chatModels.ts';
 import {
   activateSession,
   addSession,
@@ -134,6 +134,34 @@ const already = normalizeChatModel({
 assert.equal(already.parameters.filter(p => p.id === 'fast').length, 1);
 assert.equal(formatTokenCount(12400), '12.4k');
 assert.equal(formatTokenCount(0), '');
+
+const grok = normalizeChatModel({
+  id: 'grok-4.7',
+  parameters: [
+    { id: 'context', displayName: 'Context', values: [{ value: '256k', displayName: '256k' }, { value: '500k', displayName: '500k' }] },
+    { id: 'reasoning_effort', displayName: 'Reasoning', values: [{ value: 'low', displayName: 'Low' }, { value: 'medium', displayName: 'Medium' }] },
+  ],
+});
+const opus = normalizeChatModel({
+  id: 'claude-opus-5-5',
+  parameters: [
+    { id: 'context', displayName: 'Context', values: [{ value: '300k', displayName: '300k' }, { value: '1m', displayName: '1m' }] },
+    { id: 'effort', displayName: 'Effort', values: [{ value: 'medium', displayName: 'Medium' }] },
+  ],
+});
+const grokParams = paramsForModel(grok, [
+  { id: 'context', value: '500k' },
+  { id: 'effort', value: 'medium' },
+]);
+assert.deepEqual(grokParams, [
+  { id: 'context', value: '500k' },
+  { id: 'reasoning_effort', value: 'low' },
+]);
+assert.deepEqual(paramsForModel(opus, grokParams), [
+  { id: 'context', value: '300k' },
+  { id: 'effort', value: 'medium' },
+]);
+assert.deepEqual(paramsForModel(undefined, grokParams), []);
 
 assert.equal(posixQuote("/Library/Application Support/x"), "'/Library/Application Support/x'");
 const wrapped = quoteStdioCommand('/Library/Application Support/Penwright/mcp-server/penwright-mcp', []);
