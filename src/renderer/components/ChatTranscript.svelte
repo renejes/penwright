@@ -13,6 +13,7 @@
     type DisplayChatItem,
   } from '../../shared/chatStream';
   import type { ChatTurn } from '../../shared/chatTypes';
+  import LiveTurn from './LiveTurn.svelte';
 
   let {
     turns,
@@ -60,6 +61,8 @@
       errorMany: c.errorMany,
       running: c.toolRunning,
       working: c.activityWorking,
+      planning: c.planning,
+      exploring: c.exploring,
     }, { live, elapsedSec: live ? elapsedSec : undefined });
   }
 
@@ -81,6 +84,9 @@
     {@const items = itemsFor(turn)}
     {@const live = streaming && turn.id === lastAssistantId}
     <article class="chat-turn assistant">
+      {#if live}
+        <LiveTurn />
+      {:else}
       {#each items as item, i (`${turn.id}:${item.kind}:${i}`)}
         {#if item.kind === 'activity'}
           {@const current = isCurrentPhase(items, i, live)}
@@ -112,8 +118,6 @@
           <div class="chat-body">{@html renderBody(item.text)}</div>
         {/if}
       {/each}
-      {#if live && items.length === 0}
-        <div class="chat-busy">{t().chat.workingElapsed(elapsedSec)}</div>
       {/if}
     </article>
   {/if}
@@ -174,6 +178,24 @@
   }
   .chat-turn.user .chat-body { border: none; padding: 0; }
   .chat-body :global(code) { font-size: 12px; background: #f3f3f3; padding: 1px 4px; }
+  .chat-live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+    font-size: 13px;
+  }
+  .chat-live.failed { color: #b42318; }
+  .chat-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #ddd;
+    border-top-color: #555;
+    border-radius: 50%;
+    animation: chat-spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes chat-spin { to { transform: rotate(360deg); } }
   .chat-busy { color: #888; font-style: italic; font-size: 13px; }
   .chat-activity {
     border: 1px solid #dddddd;

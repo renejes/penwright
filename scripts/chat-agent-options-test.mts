@@ -28,6 +28,7 @@ import {
   applyTurnTool,
   describeChatTool,
   groupChatLog,
+  liveWorkLabel,
   mergeStreamText,
   shortToolName,
   synthesizeChatLog,
@@ -136,10 +137,15 @@ assert.equal(formatTokenCount(12400), '12.4k');
 assert.equal(formatTokenCount(0), '');
 
 const grok = normalizeChatModel({
-  id: 'grok-4.7',
+  id: 'grok-4.6',
   parameters: [
     { id: 'context', displayName: 'Context', values: [{ value: '256k', displayName: '256k' }, { value: '500k', displayName: '500k' }] },
     { id: 'reasoning_effort', displayName: 'Reasoning', values: [{ value: 'low', displayName: 'Low' }, { value: 'medium', displayName: 'Medium' }] },
+    { id: 'fast', displayName: 'Fast', values: [{ value: 'false', displayName: 'Off' }, { value: 'true', displayName: 'Fast' }] },
+  ],
+  variants: [
+    { displayName: 'Low', isDefault: true, params: [{ id: 'context', value: '256k' }, { id: 'reasoning_effort', value: 'low' }, { id: 'fast', value: 'false' }] },
+    { displayName: '500k', params: [{ id: 'context', value: '500k' }, { id: 'reasoning_effort', value: 'medium' }, { id: 'fast', value: 'false' }] },
   ],
 });
 const opus = normalizeChatModel({
@@ -155,13 +161,29 @@ const grokParams = paramsForModel(grok, [
 ]);
 assert.deepEqual(grokParams, [
   { id: 'context', value: '500k' },
-  { id: 'reasoning_effort', value: 'low' },
+  { id: 'reasoning_effort', value: 'medium' },
+  { id: 'fast', value: 'false' },
 ]);
-assert.deepEqual(paramsForModel(opus, grokParams), [
-  { id: 'context', value: '300k' },
+assert.deepEqual(paramsForModel(opus, grokParams), []);
+assert.deepEqual(paramsForModel(undefined, grokParams), []);
+assert.deepEqual(paramsForModel(normalizeChatModel({
+  id: 'grok-4.7',
+  parameters: grok.parameters,
+  variants: grok.variants,
+}), grokParams), []);
+const opusWithVariant = normalizeChatModel({
+  id: 'claude-opus-5-5',
+  parameters: opus.parameters,
+  variants: [{
+    displayName: 'Default',
+    isDefault: true,
+    params: [{ id: 'context', value: '1m' }, { id: 'effort', value: 'medium' }],
+  }],
+});
+assert.deepEqual(paramsForModel(opusWithVariant, []), [
+  { id: 'context', value: '1m' },
   { id: 'effort', value: 'medium' },
 ]);
-assert.deepEqual(paramsForModel(undefined, grokParams), []);
 
 assert.equal(posixQuote("/Library/Application Support/x"), "'/Library/Application Support/x'");
 const wrapped = quoteStdioCommand('/Library/Application Support/Penwright/mcp-server/penwright-mcp', []);
@@ -232,6 +254,8 @@ const labels = {
   errorMany: (n: number) => `${n} errors`,
   running: (name: string) => `${name} running`,
   working: 'Working',
+  planning: 'Planning next moves',
+  exploring: (name: string) => (name ? `Exploring · ${name}` : 'Exploring'),
 };
 
 const legacy: ChatTurn = {
@@ -256,6 +280,8 @@ assert.equal(act?.kind, 'activity');
 if (act?.kind === 'activity') {
   assert.equal(act.tools.length, 2);
   assert.equal(activityHeadline(act, labels), 'Thinking · 2 MCP calls');
+  assert.equal(liveWorkLabel(undefined, labels), 'Planning next moves');
+  assert.equal(liveWorkLabel(act, labels), 'Thinks');
 }
 
 const split = groupChatLog([

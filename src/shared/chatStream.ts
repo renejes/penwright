@@ -215,6 +215,8 @@ export interface ActivityHeadlineLabels {
   errorMany: (n: number) => string;
   running: (name: string) => string;
   working: string;
+  planning: string;
+  exploring: (name: string) => string;
 }
 
 export function activityHeadline(
@@ -236,4 +238,19 @@ export function activityHeadline(
     return activity.statuses[activity.statuses.length - 1] ?? labels.working;
   }
   return bits.join(' · ') || labels.working;
+}
+
+export function isRunFailure(text: string): boolean {
+  return /invalid parameters|not found|failed|error|abgebrochen|stopped before/i.test(text);
+}
+
+/** What the reader sees while a turn is still running, before opening the activity box. */
+export function liveWorkLabel(activity: ChatActivity | undefined, labels: ActivityHeadlineLabels): string {
+  if (!activity) return labels.planning;
+  const failure = [...activity.statuses].reverse().find(isRunFailure);
+  if (failure) return failure;
+  const running = [...activity.tools].reverse().find(t => t.status === 'running');
+  if (running) return labels.exploring(shortToolName(running.name));
+  if (activity.thinking) return labels.thinks;
+  return labels.planning;
 }

@@ -63,6 +63,17 @@ export function paramValue(params: ChatModelParam[], id: string, fallback: strin
   return params.find(p => p.id === id)?.value ?? fallback;
 }
 
+/**
+ * Grok 4.7 lists context, reasoning and fast variants, but the registry
+ * rejects every one of them ("Invalid parameters"). The same model answers
+ * when the request carries only the id. Measured 2026-09-24.
+ */
+const MODEL_IDS_WITHOUT_PARAMS = new Set(['grok-4.7']);
+
+export function modelAcceptsParams(modelId: string): boolean {
+  return !MODEL_IDS_WITHOUT_PARAMS.has(modelId);
+}
+
 export function sameChatParams(a: ChatModelParam[], b: ChatModelParam[]): boolean {
   if (a.length !== b.length) return false;
   const map = new Map(b.map(p => [p.id, p.value]));
@@ -70,13 +81,14 @@ export function sameChatParams(a: ChatModelParam[], b: ChatModelParam[]): boolea
 }
 
 /**
- * Params actually sent for one model. Requested values survive only when
- * that model declares the id and lists the value. Anything left over from
- * the previous model is dropped. Declared params fall back to the default
- * variant, then to the first listed value, so the payload matches the dropdown.
+ * Params actually sent for one model. The registry accepts only a whole
+ * variant, so a partial set (context without reasoning, or the previous
+ * model's effort id) is rejected. Requested values pick the closest variant
+ * that does not contradict them. A switch with an empty request uses the
+ * default variant.
  */
 export function paramsForModel(model: ChatModelInfo | undefined, requested: ChatModelParam[]): ChatModelParam[] {
-  if (!model) return [];
+  if (!model || !modelAcceptsParams(model.id)) return [];
   const allowed = new Map(model.parameters.map(p => [p.id, new Set(p.values.map(v => v.value))]));
   const known = (p: ChatModelParam): boolean => {
     const values = allowed.get(p.id);
@@ -84,22 +96,27 @@ export function paramsForModel(model: ChatModelInfo | undefined, requested: Chat
     if (model.parameters.length > 0) return false;
     return model.variants.some(v => v.params.some(vp => vp.id === p.id && vp.value === p.value));
   };
-  const keep = (list: ChatModelParam[]) => list.filter(known);
-  const variant = model.variants.find(v => v.isDefault) ?? model.variants[0];
+  const requestedOk = requested.filter(known);
+  if (model.variants.length === 0) return requestedOk;
 
-  if (model.parameters.length === 0) {
-    const requestedOk = keep(requested);
-    if (requestedOk.length > 0) return requestedOk;
-    return variant?.params ?? [];
-  }
-
-  const merged = new Map<string, string>();
-  for (const p of model.parameters) {
-    if (p.values[0]) merged.set(p.id, p.values[0].value);
-  }
-  for (const p of keep(variant?.params ?? [])) merged.set(p.id, p.value);
-  for (const p of keep(requested)) merged.set(p.id, p.value);
-  return [...merged.entries()].map(([id, value]) => ({ id, value }));
+  const matches = (variant: ChatModelVariant, p: ChatModelParam) =>
+    variant.params.some(vp => vp.id === p.id && vp.value === p.value);
+  const compatible = model.variants.filter(variant =>
+    requestedOk.every(p => {
+      const slot = variant.params.find(vp => vp.id === p.id);
+      return !slot || slot.value === p.value;
+    }),
+  );
+  const pool = compatible.length > 0 ? compatible : model.variants;
+  const score = (variant: ChatModelVariant) => requestedOk.filter(p => matches(variant, p)).length;
+  const best = pool.reduce((winner, variant) => {
+    const better = score(variant) - score(winner);
+    if (better > 0) return variant;
+    if (better < 0) return winner;
+    if (variant.isDefault && !winner.isDefault) return variant;
+    return winner;
+  });
+  return best.params.map(p => ({ id: p.id, value: p.value }));
 }
 
 export function formatTokenCount(n: number): string {

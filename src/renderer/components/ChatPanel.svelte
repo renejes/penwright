@@ -11,11 +11,13 @@
     isFastParam,
     isThinkingParam,
     normalizeChatModel,
+    modelAcceptsParams,
     paramsForModel,
     paramValue,
     sameChatParams,
     upsertParam,
   } from '../../shared/chatModels';
+  import { chatLive } from '../chatLive.svelte';
   import ChatTranscript from './ChatTranscript.svelte';
   import type {
     ChatAnchor,
@@ -225,15 +227,9 @@
   }
 
   $effect(() => {
+    void chatLive.frame;
     void chatUi.turns.length;
     void chatUi.streaming;
-    const last = chatUi.turns.at(-1);
-    void last?.text;
-    void last?.thinking;
-    void last?.tools?.length;
-    void last?.tools?.at(-1)?.status;
-    void last?.log?.length;
-    void last?.log?.at(-1);
     void queued.length;
     if (!threadEl || !untrack(() => stickToBottom)) return;
     scrollingSelf = true;
@@ -359,6 +355,7 @@
     dropEmptyTrailingAssistant();
     chatUi.turns.push({ id: `u-${Date.now()}`, role: 'user', text: item.label });
     chatUi.turns.push({ id: `a-${Date.now()}`, role: 'assistant', text: '', log: [] });
+    chatLive.begin();
 
     const ticket = ++sendTicket;
     try {
@@ -397,6 +394,7 @@
     chatUi.streaming = false;
     chatUi.lastError = message;
     chatUi.turns = chatUi.turns.slice(0, -2);
+    chatLive.begin();
     chatUi.draft = item.text;
     chatUi.pendingAnchors = item.anchors;
     chatUi.pendingFiles = item.files;
@@ -766,7 +764,9 @@
                   </select>
                 </label>
               {/if}
-              {#if selectedModel}
+              {#if selectedModel && !modelAcceptsParams(selectedModel.id)}
+                <p class="chat-menu-usage">{t().chat.modelParamsIgnored}</p>
+              {:else if selectedModel}
                 {#each selectedModel.parameters as p (p.id)}
                   {#if p.values.length > 0}
                     <label class="chat-menu-field">
@@ -842,6 +842,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    contain: layout paint;
     background: #fafafa;
     color: #1a1a1a;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

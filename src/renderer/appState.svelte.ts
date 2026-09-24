@@ -6,7 +6,7 @@
 import type { Editor } from '@tiptap/core';
 import type { DocumentSettings } from '../editor/lib/messages';
 import { formatTokenCount } from '../shared/chatModels';
-import { applyTurnAssistantText, applyTurnStatus, applyTurnSummary, applyTurnThinking, applyTurnTool } from '../shared/chatStream';
+import { chatLive } from './chatLive.svelte';
 import type { ChatAnchor, ChatAttachment, ChatMode, ChatSessionsSnapshot, ChatStatus, ChatStreamEvent, ChatTurn } from '../shared/chatTypes';
 
 // ─── Editor State ───────────────────────────────
@@ -107,38 +107,15 @@ export let chatUi = $state({
 });
 
 export function applyChatEvent(event: ChatStreamEvent): void {
-  if (event.kind !== 'done' && event.kind !== 'error') {
-    chatUi.lastActivityAt = Date.now();
+  if (event.kind !== 'done' && event.kind !== 'error' && event.kind !== 'heartbeat' && event.kind !== 'usage') {
+    chatLive.ingest(event);
+    return;
   }
-  const last = [...chatUi.turns].reverse().find(t => t.role === 'assistant');
+  if (event.kind === 'done' || event.kind === 'error') {
+    const last = [...chatUi.turns].reverse().find(t => t.role === 'assistant');
+    if (last) chatLive.commit(last);
+  }
   switch (event.kind) {
-    case 'assistant':
-      // Snapshot from the host (stream or wait()) — already merged there.
-      // Merging again doubled every token: "Ich les lesee zuerst zuerst".
-      if (last) applyTurnAssistantText(last, event.text, 'snapshot');
-      break;
-    case 'assistant-delta':
-      if (last) applyTurnAssistantText(last, event.text, 'delta');
-      break;
-    case 'thinking':
-      if (last) applyTurnThinking(last, event.text);
-      break;
-    case 'tool':
-      if (last) {
-        applyTurnTool(last, {
-          id: event.id,
-          name: event.name,
-          status: event.status,
-          detail: event.detail,
-        });
-      }
-      break;
-    case 'status':
-      if (last) applyTurnStatus(last, event.text);
-      break;
-    case 'summary':
-      if (last) applyTurnSummary(last, event.phase);
-      break;
     case 'heartbeat':
       break;
     case 'usage': {

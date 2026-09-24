@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   Agent,
+  AgentBusyError,
   Cursor,
   CursorAgentError,
   FileCredentialStore,
@@ -229,6 +230,37 @@ function emit(event: ChatStreamEvent): void {
   appState.mainWindow?.webContents.send('penwright', { type: 'chatEvent', event });
 }
 
+const pendingEmits: ChatStreamEvent[] = [];
+let emitTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Token deltas are tiny and frequent. Flushing them in a batch keeps the window usable. */
+function emitSoon(event: ChatStreamEvent): void {
+  pendingEmits.push(event);
+  if (emitTimer) return;
+  emitTimer = setTimeout(() => {
+    emitTimer = null;
+    const batch = pendingEmits.splice(0);
+    for (const item of batch) emit(item);
+  }, 16);
+}
+
+function flushEmits(): void {
+  if (emitTimer) {
+    clearTimeout(emitTimer);
+    emitTimer = null;
+  }
+  const batch = pendingEmits.splice(0);
+  for (const item of batch) emit(item);
+}
+
+let catalogCache: { at: number; models: ChatModelInfo[] } | null = null;
+
+function catalogFresh(): ChatModelInfo[] | null {
+  if (!catalogCache) return null;
+  if (Date.now() - catalogCache.at > 60_000) return null;
+  return catalogCache.models;
+}
+
 function readStoredAgentId(projectDir: string): string | null {
   try {
     const file = path.join(agentDir(projectDir), AGENT_ID_FILE);
@@ -252,32 +284,36 @@ function writeStoredAgentId(projectDir: string, id: string): void {
 
 async function resolveModelSelection(): Promise<{ id: string; params?: ChatModelParam[] }> {
   const storedId = getChatModelId() || DEFAULT_CHAT_MODEL_ID;
-  let catalog: ChatModelInfo[] = [];
-  try {
-    const apiKey = await loadApiKey();
-    const listed = await Cursor.models.list(apiKey ? { apiKey } : undefined);
-    if (Array.isArray(listed)) {
-      catalog = listed.map(m => normalizeChatModel({
-        id: m.id,
-        displayName: m.displayName || m.id,
-        parameters: (m.parameters ?? []).map(p => ({
-          id: p.id,
-          displayName: p.displayName || p.id,
-          values: (p.values ?? []).map(v => ({
-            value: v.value,
-            displayName: v.displayName || v.value,
+  let catalog = catalogFresh();
+  if (!catalog) {
+    catalog = [];
+    try {
+      const apiKey = await loadApiKey();
+      const listed = await Cursor.models.list(apiKey ? { apiKey } : undefined);
+      if (Array.isArray(listed)) {
+        catalog = listed.map(m => normalizeChatModel({
+          id: m.id,
+          displayName: m.displayName || m.id,
+          parameters: (m.parameters ?? []).map(p => ({
+            id: p.id,
+            displayName: p.displayName || p.id,
+            values: (p.values ?? []).map(v => ({
+              value: v.value,
+              displayName: v.displayName || v.value,
+            })),
           })),
-        })),
-        variants: (m.variants ?? []).map(v => ({
-          displayName: v.displayName,
-          description: v.description,
-          isDefault: v.isDefault,
-          params: (v.params ?? []).map(p => ({ id: p.id, value: p.value })),
-        })),
-      }));
+          variants: (m.variants ?? []).map(v => ({
+            displayName: v.displayName,
+            description: v.description,
+            isDefault: v.isDefault,
+            params: (v.params ?? []).map(p => ({ id: p.id, value: p.value })),
+          })),
+        }));
+        catalogCache = { at: Date.now(), models: catalog };
+      }
+    } catch {
+      /* no catalogue: do not forward params from another model */
     }
-  } catch {
-    /* no catalogue: do not forward params from another model */
   }
   let id = storedId;
   if (catalog.length > 0 && !catalog.some(m => m.id === id)) {
@@ -592,7 +628,7 @@ function applyInteractionDelta(
       if (!text) return;
       seen.text = true;
       applyTurnAssistantText(turn, text, 'delta');
-      emit({ kind: 'assistant-delta', text });
+      emitSoon({ kind: 'assistant-delta', text });
       return;
     }
     case 'thinking-delta': {
@@ -600,7 +636,7 @@ function applyInteractionDelta(
       if (!text) return;
       seen.thinking = true;
       applyTurnThinking(turn, text);
-      emit({ kind: 'thinking', text });
+      emitSoon({ kind: 'thinking', text });
       return;
     }
     case 'tool-call-started':
@@ -643,14 +679,14 @@ async function pumpRun(
         const chunk = assistantText(msg);
         if (chunk && turn) {
           applyTurnAssistantText(turn, chunk, 'delta');
-          emit({ kind: 'assistant', text: turn.text });
+          emitSoon({ kind: 'assistant', text: turn.text });
         }
       } else if (msg.type === 'thinking') {
         if (seen.thinking) continue;
         const chunk = msg.text ?? '';
         if (chunk && turn) {
           applyTurnThinking(turn, chunk);
-          emit({ kind: 'thinking', text: chunk });
+          emitSoon({ kind: 'thinking', text: chunk });
         }
       } else if (msg.type === 'tool_call' && turn) {
         if (seen.tools) continue;
@@ -662,10 +698,12 @@ async function pumpRun(
           status: fields.status ?? msg.status,
         });
       } else if (msg.type === 'status' && turn) {
-        const text = msg.message ?? '';
-        if (text) {
-          applyTurnStatus(turn, text);
-          emit({ kind: 'status', text });
+        const raw = msg.message || (typeof msg.status === 'string' ? msg.status : '');
+        if (!raw || raw === 'RUNNING' || raw === 'undefined') {
+          /* RUNNING means the server accepted the run. The live line already says so. */
+        } else if (turn) {
+          applyTurnStatus(turn, raw);
+          emit({ kind: 'status', text: raw });
         }
       } else if (msg.type === 'task' && turn) {
         const text = msg.text ?? '';
@@ -690,12 +728,23 @@ async function pumpRun(
       }
     }
     const result = await run.wait();
+    flushEmits();
     if (turn && !turn.text.trim() && typeof result.result === 'string' && result.result.trim()) {
       applyTurnAssistantText(turn, result.result, 'snapshot');
       emit({ kind: 'assistant', text: result.result });
     }
     if (result.status === 'error') {
-      finish = { status: 'error', error: result.error?.message ?? 'Run failed' };
+      const message = result.error?.message ?? 'Run failed';
+      if (turn) {
+        applyTurnStatus(turn, message);
+        emit({ kind: 'status', text: message });
+      }
+      finish = { status: 'error', error: message };
+    } else if (result.status === 'cancelled' && turn && !turn.text.trim()) {
+      const message = resolveDict(getLocale()).chat.runCancelled;
+      applyTurnStatus(turn, message);
+      emit({ kind: 'status', text: message });
+      finish = { status: 'cancelled' };
     } else {
       finish = { status: result.status };
     }
@@ -713,6 +762,7 @@ async function pumpRun(
       }
     }
   } catch (err) {
+    flushEmits();
     const message = err instanceof Error ? err.message : String(err);
     emit({ kind: 'error', message });
     finish = { status: 'error', error: message };
@@ -948,17 +998,47 @@ export async function deleteChatSession(id: string): Promise<{ ok: boolean; erro
   return { ok: true, sessions: snapshotSessions(), turns: transcript.slice() };
 }
 
-export async function cancelChat(): Promise<{ ok: boolean }> {
-  cancelRequested = true;
+function localRunOptions(projectDir: string) {
+  return {
+    runtime: 'local' as const,
+    cwd: projectDir,
+    store: new JsonlLocalAgentStore(agentDir(projectDir)),
+  };
+}
+
+/** Stop the run we hold and any the server still marks running after a lost handle. */
+async function cancelStuckRuns(projectDir: string): Promise<void> {
+  const requestedAt = Date.now();
   if (currentRun) {
     try {
       if (currentRun.supports('cancel')) await currentRun.cancel();
     } catch {
-      /* pumpRun still reports the end once the run is actually free */
+      /* a run we no longer hold is handled below */
     }
-    return { ok: true };
   }
-  if (startingSend > 0) return { ok: true };
+  const agentId = agent?.agentId ?? sessionIndex.activeId;
+  if (!agentId) return;
+  try {
+    const listed = await Agent.listRuns(agentId, localRunOptions(projectDir));
+    for (const run of listed.items) {
+      if (run.status !== 'running') continue;
+      if (typeof run.createdAt === 'number' && run.createdAt > requestedAt) continue;
+      try {
+        await Agent.cancelRun(run.id, localRunOptions(projectDir));
+      } catch {
+        /* already finished */
+      }
+    }
+  } catch {
+    /* no local store yet */
+  }
+}
+
+export async function cancelChat(): Promise<{ ok: boolean }> {
+  cancelRequested = true;
+  const projectDir = appState.projectDir;
+  if (projectDir) await cancelStuckRuns(projectDir);
+  if (currentRun || startingSend > 0) return { ok: true };
   emit({ kind: 'done', status: 'cancelled' });
   return { ok: true };
 }
@@ -1024,17 +1104,35 @@ export async function sendChat(input: {
       ? { text: userText, images: staged.images }
       : userText;
     const seen = { text: false, thinking: false, tools: false };
-    const run = await bound.send(payload, {
-      model,
-      mcpServers: restriction.mcpServers,
-      mode: input.mode === 'plan' ? 'plan' : 'agent',
-      onDelta: ({ update }) => {
-        applyInteractionDelta(assistantTurn, update as { type: string } & Record<string, unknown>, seen);
-      },
-      onStep: () => {
-        emit({ kind: 'heartbeat' });
-      },
-    });
+    let run: Run | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        run = await bound.send(payload, {
+          model,
+          mcpServers: restriction.mcpServers,
+          mode: input.mode === 'plan' ? 'plan' : 'agent',
+          onDelta: ({ update }) => {
+            applyInteractionDelta(assistantTurn, update as { type: string } & Record<string, unknown>, seen);
+          },
+          onStep: () => {
+            emit({ kind: 'heartbeat' });
+          },
+        });
+        break;
+      } catch (err) {
+        const message = err instanceof CursorAgentError || err instanceof Error ? err.message : String(err);
+        const busy = err instanceof AgentBusyError || /already has active run/i.test(message);
+        if (busy && attempt === 0) {
+          await cancelStuckRuns(projectDir);
+          continue;
+        }
+        transcript.pop();
+        transcript.pop();
+        persistTranscript(projectDir);
+        return { ok: false, error: message };
+      }
+    }
+    if (!run) return { ok: false, error: 'Could not start the run.' };
     currentRun = run;
     if (cancelRequested) {
       try {
