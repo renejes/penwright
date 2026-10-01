@@ -24,23 +24,18 @@ inside it, so copying the folder takes the whole state along.
 The app is **free for everyone, including companies.** You may run it. You may not reuse
 this repository’s source in another project. Details below.
 
-## Three apps, one desk — or each on its own
+## Two apps, one desk — or each on its own
 
 Penwright is part of a small suite. The pieces **fit together** and **each works alone**.
 
 | App | Job |
 |---|---|
 | **[Research Overview Platform](https://github.com/renejes/research-overview-platform)** | Transparent AI research: sources you can check, citations, a writing pack. It does not write the article. |
-| **[Easy Writing](https://github.com/renejes/easy-writing)** | The manuscript. A folder is the project; you write Markdown/MDX with `[@citekey]` and footnotes. No layout studio. |
-| **Penwright** (this repo) | Typesetting and design. Open a Typst project or an Easy Writing folder and shape the page. |
+| **Penwright** (this repo) | Writing and design. You write in the editor and shape the page in the same project. |
 
-Used together: research → write in Easy Writing → open that folder here. Penwright does
-**not** rewrite the manuscript — `[@key]` stays `[@key]`, the `.bib` is left alone.
-Wording changes go back to Easy Writing.
+Used together: research → write and typeset here.
 
-Penwright also opens ordinary Typst projects (templates, an existing `.typ` tree, the
-bundled sample). **File → Import Markdown…** is the older one-file path and writes a new
-`.typ`; do not use it on an Easy Writing folder.
+Penwright also opens an existing Typst project or the bundled sample. **File → Import Markdown…** turns one Markdown file into a new `.typ`.
 
 ## Chat in the app
 
