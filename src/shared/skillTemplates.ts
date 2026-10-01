@@ -175,7 +175,7 @@ This finding aligns with @chen2021codex.
 #bibliography("references.bib", style: "apa")
 ~~~
 
-Available styles: \`apa\`, \`chicago-author-date\`, \`ieee\`, \`mla\`, ~80 others — see Typst's CSL list.
+Available styles: \`apa\`, \`deutsche-gesellschaft-für-psychologie\` (DGPs, German psychology), \`chicago-author-date\`, \`ieee\`, \`mla\`, ~80 others — see Typst's CSL list.
 
 ## Source Comments — \`//\` ≠ Penwright annotations
 

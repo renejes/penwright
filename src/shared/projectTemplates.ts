@@ -106,6 +106,101 @@ Start writing here...
     },
   },
   {
+    id: 'hausarbeit',
+    label: 'Hausarbeit',
+    description: 'SRH term paper: cover page, Arial, margins, DGPs citations',
+    files: {
+      'main.typ': `#set text(font: "Arial", size: 11pt, lang: "de")
+#set page(
+  paper: "a4",
+  margin: (top: 2.5cm, bottom: 2cm, left: 4cm, right: 2cm),
+  numbering: none,
+)
+#set par(leading: 0.5em, spacing: 1.2em, justify: true)
+#set heading(numbering: "1.1")
+#show footnote.entry: set text(size: 10pt)
+#show footnote.entry: set par(leading: 0.2em, justify: false)
+
+#align(left)[
+  #text(size: 18pt, weight: "bold")[Hausarbeit]
+
+  #v(0.6em)
+  #text(size: 11pt)[(Prüfungsformat laut Aufgabenblatt)]
+
+  #v(2.2em)
+  Titel der Arbeit:
+
+  #v(0.4em)
+  #text(size: 14pt)[Titel der Arbeit hier eintragen]
+
+  #v(2em)
+  Aufgabennummer:
+
+  #v(0.3em)
+  A
+
+  #v(1.6em)
+  Modulverantwortliche\\*r Professor\\*in/Fachdozent\\*in:
+
+  #v(0.3em)
+  Name der Betreuung
+
+  SRH Fernhochschule
+
+  #v(1.6em)
+  Modul:
+
+  #v(0.3em)
+  Name des Moduls
+
+  #v(1.6em)
+  Studiengang:
+
+  #v(0.3em)
+  Name des Studiengangs
+
+  #v(1.6em)
+  Verfasser\\*in:
+
+  #v(0.3em)
+  Vorname Nachname
+
+  Matrikelnummer: 0000
+]
+
+#pagebreak()
+#set page(numbering: "1")
+#counter(page).update(1)
+
+#outline()
+
+#pagebreak()
+
+#include "chapters/01-einleitung.typ"
+
+#pagebreak()
+
+#bibliography("bibliography.bib", style: "deutsche-gesellschaft-für-psychologie", title: "Literaturverzeichnis")
+`,
+      'chapters/01-einleitung.typ': `= Einleitung
+
+Hier beginnt der Text. Zitate nach DGPs stehen im Fließtext, mit Seitenangabe: @mueller2016[S. 12].
+
+Ein wörtliches Zitat steht in Anführungszeichen. „Der genaue Wortlaut bleibt erhalten.“ @mueller2016[S. 14]
+`,
+      'bibliography.bib': `@article{mueller2016,
+  author = {Müller, Jana and Schmidt, Paul},
+  title = {Beispielaufsatz zum Ersetzen},
+  journal = {Psychologische Rundschau},
+  year = {2016},
+  volume = {67},
+  number = {1},
+  pages = {1--20},
+}
+`,
+    },
+  },
+  {
     id: 'letter',
     label: 'Letter',
     description: 'Formal letter',

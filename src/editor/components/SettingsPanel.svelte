@@ -73,6 +73,7 @@
   const citationStyles = $derived([
     { value: '', label: `${t().common.default} (Typst)` },
     { value: 'apa', label: 'APA' },
+    { value: 'deutsche-gesellschaft-für-psychologie', label: 'DGPs (Psychologie, Deutsch)' },
     { value: 'ieee', label: 'IEEE' },
     { value: 'mla', label: 'MLA' },
     { value: 'chicago-author-date', label: 'Chicago (Author-Date)' },

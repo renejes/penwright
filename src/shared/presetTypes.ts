@@ -88,6 +88,14 @@ export const PROJECT_TYPES: ProjectTypeDef[] = [
     description: { en: 'A single-file document for anything short.', de: 'Ein Ein-Datei-Dokument für alles Kurze.' },
   },
   {
+    id: 'hausarbeit', order: 25, icon: '📝', blankTemplateId: 'hausarbeit',
+    label: { en: 'Term paper', de: 'Hausarbeit' },
+    description: {
+      en: 'SRH cover page, Arial, the required margins, and DGPs citations.',
+      de: 'SRH-Deckblatt, Arial, die vorgegebenen Ränder und Zitierstil DGPs.',
+    },
+  },
+  {
     id: 'thesis', order: 20, icon: '🎓', blankTemplateId: 'thesis',
     label: { en: 'Thesis', de: 'Abschlussarbeit' },
     description: { en: 'Chapters, title page, table of contents, bibliography.', de: 'Kapitel, Titelseite, Inhaltsverzeichnis, Literaturverzeichnis.' },

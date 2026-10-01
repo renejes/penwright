@@ -850,7 +850,7 @@ The project's own conventions are prompts: penwright-conventions, typst-referenc
 const server = new McpServer(
   {
     name: 'penwright',
-    version: '0.15.3',
+    version: '0.15.4',
   },
   { instructions: SERVER_INSTRUCTIONS },
 );
@@ -1639,7 +1639,7 @@ tool(
     // "fontSize" reported success and changed nothing.
     settings: z.object({
       lang: z.string().optional().describe('Document language tag, e.g. "de" or "en" — drives hyphenation and spell-check.'),
-      bibliographyStyle: z.string().optional().describe('Citation style for #bibliography(style: …), e.g. "apa", "ieee".'),
+      bibliographyStyle: z.string().optional().describe('Citation style for #bibliography(style: …), e.g. "apa", "deutsche-gesellschaft-für-psychologie" (DGPs, German psychology), "ieee".'),
     }).describe('The settings to change. Only these two exist.'),
   },
   async ({ settings }) => {
@@ -2921,9 +2921,9 @@ function scaffoldSummary(r: Awaited<ReturnType<typeof mcpScaffold>>): string {
 
 tool(
   'penwright_create_project',
-  'Create a new project from a BLANK template (document | thesis | paper | letter | book | magazine) — structure and Penwright defaults, no design and no content. For a finished look the user can start writing into, prefer penwright_create_from_preset. Sets up Git, .gitignore, assets/, sources/, the project skills and style.typ, and switches to the new project.',
+  'Create a new project from a BLANK template (document | thesis | hausarbeit | paper | letter | book | magazine) — structure and Penwright defaults, no design and no content. For a finished look the user can start writing into, prefer penwright_create_from_preset. Sets up Git, .gitignore, assets/, sources/, the project skills and style.typ, and switches to the new project.',
   {
-    templateId: z.enum(['document', 'thesis', 'paper', 'letter', 'book', 'magazine']).describe('Template ID'),
+    templateId: z.enum(['document', 'thesis', 'hausarbeit', 'paper', 'letter', 'book', 'magazine']).describe('Template ID'),
     projectName: z.string().describe('Project name (becomes the folder name)'),
     parentDir: z.string().describe('Parent directory where the project folder will be created'),
   },
