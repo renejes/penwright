@@ -1,6 +1,6 @@
 # Penwright — aktueller Stand
 
-> **Stand:** 2026-09-24 · App **0.15.3** · `MCP_SETUP_VERSION` **0.43.0** · Typst **0.15.1** · MCP **66 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent)
+> **Stand:** 2026-10-01 · App **0.15.4** · `MCP_SETUP_VERSION` **0.43.0** · Typst **0.15.1** · MCP **66 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent)
 >
 > Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf und verworfene Pläne: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md). In-App-Chat-Plan: [done/01-cursor-sdk-integration-plan.md](done/01-cursor-sdk-integration-plan.md).
 
@@ -54,7 +54,7 @@ Polar, Kaufdialoge, Testphase und Feature-Gates sind entfernt. Der In-App-Chat r
 
 **Design.** Themes, Paletten, Layouts, gebündelte OFL-Fonts, parametrische Design-Elemente, Kapitel-Looks. Jede Design-Änderung wird vor dem Behalten kompiliert und bei Fehler zurückgerollt (`shared/safeApply.ts`, App und MCP).
 
-**Export.** PDF (wie die Vorschau), Druck-PDF (Beschnitt, Schnittmarken, Bund), DOCX, HTML (eine Seite oder Magazin-Mini-Site). Markdown-Import. Zotero-`.bib` mit Auto-Sync.
+**Export.** PDF (wie die Vorschau), Druck-PDF (Beschnitt, Schnittmarken, Bund), DOCX, HTML (eine Seite oder Magazin-Mini-Site). Markdown-Import. Zotero-`.bib` mit Auto-Sync. Zitierstil **DGPs** (`deutsche-gesellschaft-für-psychologie`) steht in den Dokumenteinstellungen. Die Projektvorlage **Hausarbeit** setzt das SRH-Deckblatt, Arial, die Ränder 2,5/2/4/2 cm und diesen Stil.
 
 **KI — Chat in der App.** `@cursor/sdk` im Main-Prozess. Renderer importiert das SDK nie. **Ansicht → Chat** (`Cmd+J`), Leiste unter dem Editor (Editorbreite; PDF volle Höhe). Anmeldung unter Einstellungen → Cursor (90-Tage-Key, nicht die IDE-Session). Composer: Enter senden, Shift+Enter Zeile, Dateien anhängen, `@` auf Kapitel. Während ein Lauf arbeitet, bleibt das Feld offen; Nachreichungen gehen im nächsten Turn raus. Die Transkript-Ansicht folgt nur, solange man unten ist. Denken und Tool-Aufrufe stehen in einer Box, die der Nutzer auf- und zuklappt; Updates ändern die Zusammenfassung. Agent/Plan, Modell/Fast/Thinking im Dropdown. Mehrere Chats pro Projekt (Tabs, History, +), gespeichert in `<projekt>/.penwright/cursor-agent/`. Ein Stream zur Zeit; Wechsel = `Agent.resume`. Werkzeuge: `mcp`, `read`, `grep`, `glob`, `ls`, `edit`, `webSearch`, `webFetch` — kein Shell, kein Task. Modellparameter gehen nur mit, wenn das gewählte Modell sie selbst erlaubt; ein Wechsel verwirft den Rest. Grok 4.7 startet nur mit der Modell-ID, weil die Registry jeden Parametersatz ablehnt. Der Token-Strom wird einmal pro Frame in die letzte Sprechblase gezeichnet, der Editor liest ihn nicht mit. Kein Freigabe-Dialog (`autoReview`, Sandbox aus), sonst startet der Penwright-MCP nicht. Dieselben 66 MCP-Tools, Snapshots und Safe-Apply wie Cursor IDE / Claude. Crashpad nur in der gepackten App.
 
