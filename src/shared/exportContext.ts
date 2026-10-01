@@ -366,7 +366,7 @@ function stripSpacerLines(content: string): string {
 export function isConfigBlock(content: string, blockType: string): boolean {
   if (blockType === 'config') return true;
   const trimmed = content.trim();
-  if (/^#(set|show|import)\s/.test(trimmed)) return true;
+  if (/^#(set|show|import|include|counter)\b/.test(trimmed)) return true;
   if (trimmed.startsWith('#show ')) return true;
   if (/^\/\/\s*─/.test(trimmed)) return true;
   // All lines are comments or preamble directives → no manuscript content.

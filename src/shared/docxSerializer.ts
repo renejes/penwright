@@ -30,6 +30,7 @@ import {
   HeadingLevel,
   ImageRun,
   LevelFormat,
+  Bookmark,
   PageBreak,
   PageNumber,
   Packer,
@@ -44,6 +45,7 @@ import {
   type IRunOptions,
 } from 'docx';
 import * as fs from 'fs';
+import JSZip from 'jszip';
 import * as path from 'path';
 import { parseBibFile, type BibEntry } from './bibParser';
 import { parseSettings, type DocumentSettings } from './settingsParser';
@@ -147,6 +149,10 @@ interface DocxCtx {
   rendered: Map<string, RenderedSnippet>;
   /** Citation rendering style derived from the bibliography setting. */
   citationMode: 'author-year' | 'numeric';
+  /** CSL style name from `#bibliography`, when the source states one. */
+  bibStyle: string;
+  /** Citekeys already rendered, so a later DGPs cite of 3–5 authors becomes „et al.“. */
+  seenCites: Set<string>;
   /** Ordered citekey list for numeric citation style. */
   numericOrder: string[];
   /** Monotonic counter handing each ordered list its own numbering instance. */
@@ -160,6 +166,17 @@ interface DocxCtx {
 }
 
 let activeCtx: DocxCtx | null = null;
+/** Heading node → the contents entry written into the TOC field result. */
+let tocByNode = new Map<TipTapNode, TocItem>();
+let tocBibItem: TocItem | null = null;
+
+interface TocItem {
+  id: string;
+  level: number;
+  title: string;
+  page: number;
+  node: TipTapNode | null;
+}
 
 // ─── Public API ──────────────────────────────────────────────
 
@@ -174,7 +191,7 @@ export async function serializeDocx(
   opts: SerializeDocxOptions = {},
 ): Promise<Buffer> {
   const settings = typstContent ? parseSettings(typstContent) : null;
-  const resolved = resolveConfig(settings, style);
+  const resolved = resolveConfig(settings, style, typstContent);
 
   const bibInfo = findBibliographyInfo(doc, typstContent, baseDir);
 
@@ -183,32 +200,46 @@ export async function serializeDocx(
   // conversion (which can then look everything up without awaiting).
   const ctx = await buildExportContext(doc, typstContent ?? '', baseDir, resolved, bibInfo.entries, opts);
   activeCtx = ctx;
+  const tocPlan = planContents(doc, resolved);
+  tocByNode = new Map(tocPlan.filter(item => item.node).map(item => [item.node as TipTapNode, item]));
+  tocBibItem = tocPlan.find(item => item.node === null) ?? null;
 
   try {
-    const children: (Paragraph | Table | TableOfContents)[] = [];
+    const cover: (Paragraph | Table | TableOfContents)[] = [];
+    const body: (Paragraph | Table | TableOfContents)[] = [];
+    let pastCover = false;
+    let coverHasHeading = false;
     const footnotes: Record<number, { children: Paragraph[] }> = {};
     let footnoteCounter = 1;
     let bibRendered = false;
 
-    for (const node of doc.content ?? []) {
-      // Replace #outline raw blocks with a localized TOC field.
+    const push = (els: (Paragraph | Table | TableOfContents)[]) => {
+      (pastCover ? body : cover).push(...els);
+    };
+
+    for (const original of doc.content ?? []) {
+      const peeled = peelLeadingPageBreak(original);
+      if (peeled.broke) {
+        // A page break before any heading closes the unnumbered cover.
+        // The section break is that page break, so it is not emitted again.
+        if (!pastCover && !coverHasHeading && cover.length > 0) pastCover = true;
+        else push([new Paragraph({ children: [new PageBreak()] })]);
+      }
+      const node = peeled.node;
+      if (isIgnorablePreamble(node)) continue;
+      if (!pastCover && node.type === 'heading') coverHasHeading = true;
+
+      // #outline becomes a Word TOC whose result is already filled in.
+      // Word for the web does not calculate an empty TOC field, so the
+      // entries have to be in the file or the list stays blank.
       if (isOutlineBlock(node)) {
-        children.push(
-          new Paragraph({
-            heading: HeadingLevel.HEADING_1,
-            children: [new TextRun({ text: label('toc', resolved.lang) })],
-          }),
-          new TableOfContents(label('toc', resolved.lang), {
-            hyperlink: true,
-            headingStyleRange: '1-3',
-          }),
-        );
+        push(renderContents(resolved, tocPlan));
         continue;
       }
 
       // Replace bibliography blocks with formatted entries.
       if (isBibliographyBlock(node) && bibInfo.entries.length > 0) {
-        children.push(...renderBibliography(bibInfo.entries, resolved.lang, ctx));
+        push(renderBibliography(bibInfo.entries, resolved.lang, ctx));
         bibRendered = true;
         continue;
       }
@@ -221,66 +252,293 @@ export async function serializeDocx(
         resolved.hasHeadingNumbering,
         bibInfo.entries,
       );
-      children.push(...result.elements);
+      push(result.elements);
       footnoteCounter = result.nextFootnoteId;
     }
 
     if (bibInfo.entries.length > 0 && !bibRendered) {
-      children.push(...renderBibliography(bibInfo.entries, resolved.lang, ctx));
+      push(renderBibliography(bibInfo.entries, resolved.lang, ctx));
     }
+
+    const splitCover = pastCover && cover.length > 0 && resolved.pageNumbering;
+    const page = buildPageProperties(resolved).page;
+    const sections = splitCover
+      ? [
+          { properties: { page }, children: cover },
+          {
+            properties: { page: { ...page, pageNumbers: { start: 1 } } },
+            footers: { default: buildPageNumberFooter(resolved) },
+            children: body,
+          },
+        ]
+      : [{
+          properties: { page },
+          ...(resolved.pageNumbering
+            ? { footers: { default: buildPageNumberFooter(resolved) } }
+            : {}),
+          children: [...cover, ...body],
+        }];
 
     const document = new Document({
       features: { updateFields: true },
       styles: buildStyles(resolved),
       numbering: buildNumbering(resolved),
-      sections: [{
-        properties: buildPageProperties(resolved),
-        ...(resolved.pageNumbering
-          ? { footers: { default: buildPageNumberFooter(resolved) } }
-          : {}),
-        children,
-      }],
+      sections,
       footnotes,
     });
 
-    return Packer.toBuffer(document);
+    const raw = await Packer.toBuffer(document);
+    return markTocContentControl(raw);
   } finally {
     activeCtx = null;
+    tocByNode = new Map();
+    tocBibItem = null;
   }
 }
 
 // ─── Resolve Typst settings → Word-ready configuration ───────
 
-function resolveConfig(settings: DocumentSettings | null, style: ProjectStyle | null): Resolved {
-  // After the Design-Editor consolidation, the typography + layout values
-  // that used to live in `DocumentSettings` are part of `ProjectStyle` —
-  // `style.json`, written by the Design panel. The DOCX serializer reads
-  // both: `style` for design tokens, `settings` for document-content fields
-  // (just `lang` at the moment). When a project has no style.json yet, the
-  // serializer falls back to plain defaults.
-  const bodyFont    = normalizeFont(style?.fonts.body);
-  const bodySize    = parseFontSizeHalfPt(style?.scale.base, 22);          // 11pt default
-  const lineSpacing = parseLeadingToLine240ths(style?.scale.leading, 360); // 1.5 default
-  const { width, height } = parsePaperSize(style?.layout.paper);
-  const margin = parseMargin(style?.layout.margin);
-  const lang = normalizeLang(settings?.lang);
-  const headingNumbering = style?.headings.numbering ?? '';
+/**
+ * Fills the TOC with the headings Word for the web cannot calculate itself.
+ * Page numbers follow the same page breaks and the body measure, so a short
+ * term paper lands on the pages the PDF uses.
+ */
+function planContents(doc: TipTapDoc, resolved: Resolved): TocItem[] {
+  type Ev =
+    | { k: 'cover-end' }
+    | { k: 'break' }
+    | { k: 'outline' }
+    | { k: 'heading'; node: TipTapNode; level: number; text: string }
+    | { k: 'text'; chars: number }
+    | { k: 'bib'; title: string };
+
+  const events: Ev[] = [];
+  let pastCover = false;
+  let coverHasHeading = false;
+  let coverLen = 0;
+
+  for (const original of doc.content ?? []) {
+    const peeled = peelLeadingPageBreak(original);
+    if (peeled.broke) {
+      if (!pastCover && !coverHasHeading && coverLen > 0) {
+        pastCover = true;
+        events.push({ k: 'cover-end' });
+      } else {
+        events.push({ k: 'break' });
+        pastCover = true;
+      }
+    }
+    const node = peeled.node;
+    if (isIgnorablePreamble(node)) continue;
+    if (!pastCover && node.type === 'heading') coverHasHeading = true;
+    if (!pastCover) coverLen++;
+
+    if (isOutlineBlock(node)) { events.push({ k: 'outline' }); continue; }
+    if (isBibliographyBlock(node)) {
+      const content = String(node.attrs?.content ?? '');
+      const title = content.match(/title:\s*"([^"]*)"/)?.[1] || label('bibliography', resolved.lang);
+      events.push({ k: 'bib', title });
+      continue;
+    }
+    if (node.type === 'heading') {
+      const level = Math.min(6, Math.max(1, (node.attrs?.level as number) ?? 1));
+      const text = getPlainText(stripHeadingLabelContent(node.content ?? [])).replace(/\s+/g, ' ').trim();
+      if (text) events.push({ k: 'heading', node, level, text });
+      continue;
+    }
+    const chars = plainChars(node);
+    if (chars > 0) events.push({ k: 'text', chars });
+  }
+
+  const textWidth = Math.max(1, resolved.pageWidthTwips - resolved.margin.left - resolved.margin.right);
+  const textHeight = Math.max(1, resolved.pageHeightTwips - resolved.margin.top - resolved.margin.bottom);
+  const lineTwips = Math.max(200, Math.round((resolved.bodySize / 2) * 20 * (resolved.lineSpacing / 240)));
+  const linesPerPage = Math.max(20, Math.floor(textHeight / lineTwips));
+  const charsPerLine = Math.max(40, Math.floor(textWidth / (resolved.bodySize * 5)));
+  const listed = events.filter(e => e.k === 'heading' || e.k === 'bib').length;
+  const hasCover = events.some(e => e.k === 'cover-end');
+
+  let started = false;
+  let page = 1;
+  let used = 0;
+  const counters = [0, 0, 0, 0, 0, 0];
+  const items: TocItem[] = [];
+  let n = 1;
+  const consume = (lines: number) => {
+    used += lines;
+    while (used > linesPerPage) {
+      used -= linesPerPage;
+      page++;
+    }
+  };
+
+  for (const ev of events) {
+    if (ev.k === 'cover-end') { started = true; page = 1; used = 0; continue; }
+    if (!started) {
+      if (hasCover) continue;
+      started = true;
+    }
+    if (ev.k === 'break') { page++; used = 0; continue; }
+    if (ev.k === 'outline') { consume(2 + listed); continue; }
+    if (ev.k === 'heading') {
+      if (resolved.hasHeadingNumbering) {
+        counters[ev.level - 1]++;
+        for (let i = ev.level; i < counters.length; i++) counters[i] = 0;
+      }
+      const num = resolved.hasHeadingNumbering ? counters.slice(0, ev.level).join('.') : '';
+      items.push({
+        id: `_Toc${n++}`,
+        level: ev.level,
+        title: num ? `${num} ${ev.text}` : ev.text,
+        page,
+        node: ev.node,
+      });
+      consume(ev.level === 1 ? 3 : 2);
+      continue;
+    }
+    if (ev.k === 'bib') {
+      items.push({ id: `_Toc${n++}`, level: 1, title: ev.title, page, node: null });
+      continue;
+    }
+    consume(Math.max(1, Math.ceil(ev.chars / charsPerLine)));
+  }
+  return items;
+}
+
+function plainChars(node: TipTapNode): number {
+  if (node.type === 'paragraph' || node.type === 'heading') {
+    return getPlainText(node.content ?? []).trim().length;
+  }
+  if (node.type === 'typstRawBlock') {
+    return String(node.attrs?.content ?? '').replace(/#[\p{L}_][\w.]*/gu, '').replace(/\s+/g, ' ').trim().length;
+  }
+  return (node.content ?? []).reduce((sum, child) => sum + plainChars(child), 0);
+}
+
+function renderContents(resolved: Resolved, items: TocItem[]): (Paragraph | TableOfContents)[] {
+  const title = label('toc', resolved.lang);
+  return [
+    new Paragraph({
+      spacing: { before: 0, after: 200 },
+      children: [new TextRun({
+        text: title,
+        bold: true,
+        size: Math.round(resolved.bodySize * 1.8),
+        font: resolved.bodyFont,
+      })],
+    }),
+    new TableOfContents(title, {
+      hyperlink: true,
+      headingStyleRange: '1-3',
+      useAppliedParagraphOutlineLevel: true,
+      beginDirty: false,
+      cachedEntries: items.filter(item => item.level <= 3).map(item => ({
+        title: item.title,
+        level: item.level,
+        page: item.page,
+        href: item.id,
+      })),
+    }),
+  ];
+}
+
+/**
+ * Word for the web only treats a TOC as updatable when the content control
+ * says it is one. The field result is already filled, so the list is visible
+ * even when the web app cannot recalculate it.
+ */
+async function markTocContentControl(buf: Buffer): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(buf);
+  const file = zip.file('word/document.xml');
+  if (!file) return buf;
+  let xml = await file.async('string');
+  if (!xml.includes('TOC \\')) return buf;
+  xml = xml.replace(
+    /<w:sdtPr>(<w:alias w:val="[^"]*"\/>)<\/w:sdtPr>/,
+    '<w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj>$1</w:sdtPr>',
+  );
+  zip.file('word/document.xml', xml);
+  const out = await zip.generateAsync({ type: 'nodebuffer' });
+  return Buffer.from(out);
+}
+
+function resolveConfig(settings: DocumentSettings | null, style: ProjectStyle | null, typstContent?: string): Resolved {
+  const scraped = style ? null : scrapeTypstLayout(typstContent ?? '');
+  const bodyFont    = normalizeFont(style?.fonts.body ?? scraped?.font);
+  const bodySize    = parseFontSizeHalfPt(style?.scale.base ?? scraped?.size, 22);
+  const lineSpacing = style?.scale.leading
+    ? parseLeadingToLine240ths(style.scale.leading, 360)
+    : leadingEmToWord(scraped?.leading);
+  const { width, height } = parsePaperSize(style?.layout.paper ?? scraped?.paper);
+  const margin = parseMargin(style?.layout.margin ?? scraped?.margin);
+  const lang = normalizeLang(settings?.lang || scraped?.lang);
+  const headingNumbering = style?.headings.numbering ?? scraped?.headingNumbering ?? '';
 
   return {
     bodyFont,
     bodySize,
     lineSpacing,
-    justified: true, // academic convention — can be overridden per-paragraph
+    justified: scraped?.justify ?? true,
     lang,
     pageWidthTwips: width,
     pageHeightTwips: height,
     margin,
     hasHeadingNumbering: !!headingNumbering,
     headingFormats: parseTypstNumberingPattern(headingNumbering),
-    pageNumbering: !!(style?.layout.pageNumbering && style.layout.pageNumbering.trim()),
+    pageNumbering: style
+      ? !!(style.layout.pageNumbering && style.layout.pageNumbering.trim())
+      : !!scraped?.pageNumbering,
     creditSeparator: style?.elements.figure.creditSeparator ?? ' — ',
     creditLabel: style?.elements.figure.creditLabel ?? 'Photo: ',
   };
+}
+
+/** Layout from a hand-written preamble when the project has no style.json. */
+function scrapeTypstLayout(src: string): {
+  font?: string; size?: string; lang?: string; paper?: string; margin?: string;
+  leading?: string; justify?: boolean; headingNumbering?: string; pageNumbering?: boolean;
+} {
+  const text = firstSetArgs(src, 'text');
+  const page = firstSetArgs(src, 'page');
+  const par = firstSetArgs(src, 'par');
+  const heading = firstSetArgs(src, 'heading');
+  const font = text?.match(/font:\s*"([^"]+)"/)?.[1];
+  const size = text?.match(/size:\s*([\d.]+\s*pt)/)?.[1]?.replace(/\s+/g, '');
+  const lang = text?.match(/lang:\s*"([a-zA-Z-]+)"/)?.[1]?.slice(0, 2).toLowerCase();
+  const paper = page?.match(/paper:\s*"([^"]+)"/)?.[1];
+  const margin = page?.match(/margin:\s*(\([^)]*\)|[\d.]+\s*[a-z]+)/)?.[1];
+  const leading = par?.match(/leading:\s*([\d.]+\s*em)/)?.[1]?.replace(/\s+/g, '');
+  const justify = par ? /justify:\s*true/.test(par) : undefined;
+  const headingNumbering = heading?.match(/numbering:\s*"([^"]+)"/)?.[1];
+  const numbering = [...src.matchAll(/#set\s+page\([^)]*numbering:\s*(none|"[^"]*")/g)];
+  const lastNum = numbering.at(-1)?.[1];
+  return {
+    font, size, lang, paper, margin, leading, justify, headingNumbering,
+    pageNumbering: !!lastNum && lastNum !== 'none',
+  };
+}
+
+function firstSetArgs(src: string, name: string): string | null {
+  const m = new RegExp(`#set\\s+${name}\\s*\\(`).exec(src);
+  if (!m) return null;
+  let depth = 0;
+  for (let i = m.index + m[0].length - 1; i < src.length; i++) {
+    if (src[i] === '(') depth++;
+    else if (src[i] === ')') {
+      depth--;
+      if (depth === 0) return src.slice(m.index + m[0].length, i);
+    }
+  }
+  return null;
+}
+
+/** Typst `leading` is the gap added to the font size, so 0.5em is a 1.5 line. */
+function leadingEmToWord(leading: string | undefined): number {
+  const m = leading?.trim().match(/^([\d.]+)em$/i);
+  if (!m) return 360;
+  const em = parseFloat(m[1]);
+  if (!isFinite(em) || em <= 0) return 360;
+  return Math.round(240 * (1 + em));
 }
 
 /**
@@ -582,6 +840,41 @@ function buildStyles(r: Resolved) {
         },
       },
       {
+        id: 'TOC1',
+        name: 'toc 1',
+        basedOn: 'Normal',
+        next: 'Normal',
+        run: { size: r.bodySize, font: r.bodyFont },
+        paragraph: {
+          spacing: { before: 60, after: 40, line: r.lineSpacing },
+          alignment: AlignmentType.LEFT,
+        },
+      },
+      {
+        id: 'TOC2',
+        name: 'toc 2',
+        basedOn: 'Normal',
+        next: 'Normal',
+        run: { size: r.bodySize, font: r.bodyFont },
+        paragraph: {
+          indent: { left: 240 },
+          spacing: { before: 20, after: 20, line: r.lineSpacing },
+          alignment: AlignmentType.LEFT,
+        },
+      },
+      {
+        id: 'TOC3',
+        name: 'toc 3',
+        basedOn: 'Normal',
+        next: 'Normal',
+        run: { size: r.bodySize, font: r.bodyFont },
+        paragraph: {
+          indent: { left: 480 },
+          spacing: { before: 20, after: 20, line: r.lineSpacing },
+          alignment: AlignmentType.LEFT,
+        },
+      },
+      {
         id: 'TableHeader',
         name: 'Table Header',
         basedOn: 'Normal',
@@ -762,10 +1055,13 @@ function loadBibEntries(bibPath: string, baseDir: string): BibEntry[] {
 function renderBibliography(entries: BibEntry[], lang: string, ctx: DocxCtx): Paragraph[] {
   const paragraphs: Paragraph[] = [];
 
+  const bibTitle = tocBibItem?.title || label('bibliography', lang);
   paragraphs.push(
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
-      children: [new TextRun({ text: label('bibliography', lang) })],
+      children: tocBibItem
+        ? [new Bookmark({ id: tocBibItem.id, children: [new TextRun({ text: bibTitle })] })]
+        : [new TextRun({ text: bibTitle })],
     }),
   );
 
@@ -801,11 +1097,73 @@ function renderBibliography(entries: BibEntry[], lang: string, ctx: DocxCtx): Pa
   return paragraphs;
 }
 
+function bibPeople(raw: string): { surname: string; initials: string }[] {
+  return raw.split(/\s+and\s+/).flatMap(part => {
+    const clean = cleanBibText(part.trim());
+    if (!clean || /^others$/i.test(clean)) return [];
+    const comma = clean.indexOf(',');
+    const surname = (comma >= 0 ? clean.slice(0, comma) : clean).trim();
+    const given = comma >= 0 ? clean.slice(comma + 1).trim() : '';
+    const initials = given.split(/\s+/).filter(Boolean).map(w => `${w[0]}.`).join(' ');
+    return [{ surname, initials }];
+  });
+}
+
+function joinBibPeople(people: { surname: string; initials: string }[], editor: boolean): string {
+  const bits = people.map(p => editor
+    ? (p.initials ? `${p.initials} ${p.surname}` : p.surname)
+    : (p.initials ? `${p.surname}, ${p.initials}` : p.surname));
+  if (bits.length <= 1) return bits[0] ?? '';
+  if (bits.length === 2) return `${bits[0]} & ${bits[1]}`;
+  return `${bits.slice(0, -1).join(', ')} & ${bits[bits.length - 1]}`;
+}
+
+/** DGPs reference line, matched to what the bundled CSL writes into the PDF. */
+function formatDgpsEntry(entry: BibEntry): TextRun[] {
+  const parts: TextRun[] = [];
+  const authors = joinBibPeople(bibPeople(entry.author || ''), false);
+  if (authors) parts.push(new TextRun({ text: authors }));
+  if (entry.year) parts.push(new TextRun({ text: ` (${entry.year}).` }));
+  if (entry.title) parts.push(new TextRun({ text: ` ${cleanBibText(entry.title)}.` }));
+
+  const journal = entry.fields['journal'];
+  const booktitle = entry.fields['booktitle'];
+  if (journal) {
+    const vol = entry.fields['volume'] ? cleanBibText(entry.fields['volume']) : '';
+    const num = entry.fields['number'] ? cleanBibText(entry.fields['number']) : '';
+    const pages = entry.fields['pages'] ? cleanBibText(entry.fields['pages']) : '';
+    parts.push(new TextRun({ text: ' ' }));
+    parts.push(new TextRun({
+      text: vol ? `${cleanBibText(journal)}, ${vol}` : cleanBibText(journal),
+      italics: true,
+    }));
+    parts.push(new TextRun({ text: `${num ? `(${num})` : ''}${pages ? `, ${pages}` : ''}.` }));
+  } else if (booktitle) {
+    const editors = entry.fields['editor'] ? joinBibPeople(bibPeople(entry.fields['editor']), true) : '';
+    const pages = entry.fields['pages'] ? cleanBibText(entry.fields['pages']) : '';
+    const address = entry.fields['address'] ? cleanBibText(entry.fields['address']) : '';
+    const publisher = entry.fields['publisher'] ? cleanBibText(entry.fields['publisher']) : '';
+    parts.push(new TextRun({ text: editors ? ` In ${editors} (Hrsg.), ` : ' ' }));
+    parts.push(new TextRun({ text: cleanBibText(booktitle), italics: true }));
+    parts.push(new TextRun({ text: pages ? ` (S. ${pages}).` : '.' }));
+    if (address || publisher) {
+      parts.push(new TextRun({ text: ` ${[address, publisher].filter(Boolean).join(': ')}.` }));
+    }
+  }
+
+  const doi = entry.fields['doi'];
+  if (doi) {
+    parts.push(new TextRun({ text: ` https://doi.org/${doi.replace(/^https?:\/\/doi\.org\//, '')}` }));
+  }
+  return parts;
+}
+
 /**
  * Author–year reference entry, loosely APA-shaped:
  * Authors (Year). Title. Venue, Volume(Issue), Pages. DOI/URL.
  */
 function formatBibEntryRuns(entry: BibEntry): TextRun[] {
+  if ((activeCtx?.bibStyle ?? '').toLowerCase().includes('psychologie')) return formatDgpsEntry(entry);
   const parts: TextRun[] = [];
 
   if (entry.author) {
@@ -870,10 +1228,14 @@ function convertNode(
       footnoteId = runs.nextFootnoteId;
       const alignment = mapAlignment(node.attrs?.textAlign as string);
 
+      const toc = tocByNode.get(node);
+      const children = toc
+        ? [new Bookmark({ id: toc.id, children: runs.children })]
+        : runs.children;
       elements.push(
         new Paragraph({
           heading: headingLevel,
-          children: runs.children,
+          children,
           // Attach Word's multilevel numbering to the paragraph instead of
           // pre-pending the number as literal text — this way Word
           // re-numbers automatically when a heading is inserted, moved
@@ -1148,6 +1510,31 @@ function convertNode(
 
 // ─── Outline / Bibliography Detection ────────────────────────
 
+/** A leading `#pagebreak()` starts a new page; the rest of the block is what follows. */
+function peelLeadingPageBreak(node: TipTapNode): { broke: boolean; node: TipTapNode } {
+  if (node.type === 'pagebreak') return { broke: true, node: { type: 'paragraph', content: [] } };
+  if (node.type !== 'typstRawBlock') return { broke: false, node };
+  const content = ((node.attrs?.content as string) ?? '').trim();
+  const m = content.match(/^#pagebreak\s*\([^)]*\)\s*/);
+  if (!m) return { broke: false, node };
+  return {
+    broke: true,
+    node: { ...node, attrs: { ...node.attrs, content: content.slice(m[0].length).trim() } },
+  };
+}
+
+/** `#set`, `#counter` and comments carry no manuscript text. */
+function isIgnorablePreamble(node: TipTapNode): boolean {
+  if (node.type === 'paragraph' && !(node.content ?? []).length) return true;
+  if (node.type !== 'typstRawBlock') return false;
+  const content = ((node.attrs?.content as string) ?? '').trim();
+  if (!content) return true;
+  return content.split('\n').every(line => {
+    const t = line.trim();
+    return t === '' || t.startsWith('//') || /^#(set|counter|show)\b/.test(t);
+  });
+}
+
 function isOutlineBlock(node: TipTapNode): boolean {
   if (node.type !== 'typstRawBlock') return false;
   const content = ((node.attrs?.content as string) ?? '').trim();
@@ -1183,15 +1570,25 @@ function convertInlineContent(
     // Adjacent citations (separated only by whitespace) collapse into one
     // parenthetical group, like Typst renders `@a @b @c`.
     if (node.type === 'citation') {
-      const keys = [(node.attrs?.citekey as string) ?? ''];
+      const group: { key: string; supplement: string }[] = [{
+        key: (node.attrs?.citekey as string) ?? '',
+        supplement: String(node.attrs?.supplement ?? '').trim(),
+      }];
       let j = idx + 1;
       while (j < nodes.length) {
         const nx = nodes[j];
         if (nx.type === 'text' && (nx.text ?? '').trim() === '' && nodes[j + 1]?.type === 'citation') { j++; continue; }
-        if (nx.type === 'citation') { keys.push((nx.attrs?.citekey as string) ?? ''); j++; continue; }
+        if (nx.type === 'citation') {
+          group.push({
+            key: (nx.attrs?.citekey as string) ?? '',
+            supplement: String(nx.attrs?.supplement ?? '').trim(),
+          });
+          j++;
+          continue;
+        }
         break;
       }
-      children.push(...renderCitationGroup(keys.filter(Boolean), bibEntries));
+      children.push(...renderCitationGroup(group.filter(g => g.key), bibEntries));
       idx = j - 1;
       continue;
     }
@@ -1296,21 +1693,45 @@ function convertInlineContent(
   return { children, nextFootnoteId: footnoteId };
 }
 
+/** DGPs names every author up to five, joined with „und“. Other styles stay on the shared label. */
+function citeLabel(citekey: string, entries: BibEntry[]): string | null {
+  const style = (activeCtx?.bibStyle ?? '').toLowerCase();
+  if (!style.includes('psychologie')) return citationInner(citekey, entries);
+  const entry = entries.find(e => e.citekey === citekey);
+  if (!entry?.author) return citationInner(citekey, entries);
+  const surnames = entry.author
+    .split(/\s+and\s+/)
+    .map(n => cleanBibText(n).split(',')[0].trim())
+    .filter(Boolean);
+  const year = entry.year ? `, ${entry.year}` : '';
+  if (surnames.length <= 1) return `${surnames[0] ?? citekey}${year}`;
+  if (surnames.length === 2) return `${surnames[0]} & ${surnames[1]}${year}`;
+  if (surnames.length <= 5) {
+    const seen = activeCtx?.seenCites;
+    const again = seen?.has(citekey) ?? false;
+    seen?.add(citekey);
+    if (again) return `${surnames[0]} et al.${year}`;
+    return `${surnames.slice(0, -1).join(', ')} & ${surnames[surnames.length - 1]}${year}`;
+  }
+  return `${surnames[0]} et al.${year}`;
+}
+
 /**
  * Render a citation as `(Author et al., Year)` when the entry is known,
  * otherwise fall back to `[citekey]`. Produces readable inline cites instead
  * of the opaque `[smith2024]` placeholder users were seeing before.
  */
-function renderCitation(citekey: string, entries: BibEntry[]): TextRun[] {
+function renderCitation(citekey: string, entries: BibEntry[], supplement = ''): TextRun[] {
   if (activeCtx?.citationMode === 'numeric') {
     const idx = activeCtx.numericOrder.indexOf(citekey);
     return [new TextRun({ text: `[${idx >= 0 ? idx + 1 : '?'}]` })];
   }
-  const inner = citationInner(citekey, entries);
+  const inner = citeLabel(citekey, entries);
+  const loc = supplement ? `, ${supplement}` : '';
   if (!inner) {
-    return [new TextRun({ text: `[${citekey}]`, color: '666666' })];
+    return [new TextRun({ text: `[${citekey}]${loc}`, color: '666666' })];
   }
-  return [new TextRun({ text: `(${inner})` })];
+  return [new TextRun({ text: `(${inner}${loc})` })];
 }
 
 /**
@@ -1318,16 +1739,19 @@ function renderCitation(citekey: string, entries: BibEntry[]): TextRun[] {
  * `(Bender et al., 2021; Chen et al., 2021)` — matching how Typst collapses
  * `@a @b` into a single cite group. Numeric mode → `[1, 2]`.
  */
-function renderCitationGroup(citekeys: string[], entries: BibEntry[]): TextRun[] {
-  if (citekeys.length === 1) return renderCitation(citekeys[0], entries);
+function renderCitationGroup(group: { key: string; supplement: string }[], entries: BibEntry[]): TextRun[] {
+  if (group.length === 1) return renderCitation(group[0].key, entries, group[0].supplement);
   if (activeCtx?.citationMode === 'numeric') {
-    const nums = citekeys.map(k => {
-      const idx = activeCtx!.numericOrder.indexOf(k);
+    const nums = group.map(g => {
+      const idx = activeCtx!.numericOrder.indexOf(g.key);
       return idx >= 0 ? String(idx + 1) : '?';
     });
     return [new TextRun({ text: `[${nums.join(', ')}]` })];
   }
-  const parts = citekeys.map(k => citationInner(k, entries) ?? k);
+  const parts = group.map(g => {
+    const inner = citeLabel(g.key, entries) ?? g.key;
+    return g.supplement ? `${inner}, ${g.supplement}` : inner;
+  });
   return [new TextRun({ text: `(${parts.join('; ')})` })];
 }
 
@@ -1534,6 +1958,7 @@ async function buildExportContext(
   // a local flat copy is exactly how DOCX and HTML drifted apart before.
   const model = buildExportModel(doc, typstContent);
   const { labelMap, citationMode, numericOrder } = model;
+  const bibStyle = typstContent.match(/#bibliography\([^)]*style:\s*"([^"]+)"/)?.[1] ?? '';
 
   // DOCX-specific raster plan: display-math (from the shared model) plus SVG
   // images, which Word can't embed natively. The SVG scan mirrors the render
@@ -1571,7 +1996,7 @@ async function buildExportContext(
 
   return {
     baseDir, resolved, bibEntries, labelMap, rendered,
-    citationMode, numericOrder, orderedInstance: 1,
+    citationMode, numericOrder, bibStyle, seenCites: new Set<string>(), orderedInstance: 1,
     figureSeq: 0, tableSeq: 0,
   };
 }
@@ -1772,9 +2197,10 @@ function renderTextChunks(chunks: string[], alignment: string | null, fn: FnStat
     const collect: string[] = [];
     const runs = parseInlineTypst(src, {}, fn, collect);
     const visible = collect.join('').replace(/[^\p{L}\p{N}]+/gu, '');
-    if (visible.length < 2) continue;
+    if (visible.length < 1) continue;
     out.push(new Paragraph({
       children: runs,
+      spacing: { before: 200, after: 40 },
       ...(align ? { alignment: align } : {}),
     }));
   }
