@@ -34,6 +34,7 @@ import { isDesignAdopted } from '../shared/styleWrite';
 import { stripPreamble } from './fileManager';
 import { ensureClaudeSkills } from './projectManager';
 import { saveZoteroBibPath, getProjectStyle, hasProjectStyle, getLocale } from './persistenceManager';
+import { writeZoteroLink } from './zoteroLink';
 import { resolveDict } from '../shared/i18n';
 import { buildWebBundle, buildWebSite, prepareWebDesign, slugify, deriveTitle, type WebDesign } from './webExport';
 import { splitIntoArticles, isMagazineSite, deriveIssueTitle, deriveDocMeta } from '../shared/magazineSplit';
@@ -784,6 +785,24 @@ export async function handleLinkZotero(): Promise<void> {
     return;
   }
 
+  const modeChoice = await dialog.showMessageBox(appState.mainWindow!, {
+    type: 'question',
+    message: md.zoteroPdfModeTitle,
+    detail: md.zoteroPdfModeDetail,
+    buttons: [md.zoteroPdfModeLinked, md.zoteroPdfModeCopy, md.cancel],
+    defaultId: 0,
+    cancelId: 2,
+  });
+  if (modeChoice.response === 2) return;
+  const pdfMode = modeChoice.response === 1 ? 'copy' : 'linked';
+
+  const folder = await dialog.showOpenDialog(appState.mainWindow!, {
+    properties: ['openDirectory'],
+    title: md.zoteroAttachmentTitle,
+    message: md.zoteroAttachmentMessage,
+  });
+  const attachmentDir = folder.canceled ? null : (folder.filePaths[0] ?? null);
+
   const dir = appState.projectDir || path.dirname(appState.currentFilePath);
   const destPath = path.join(dir, 'zotero.bib');
 
@@ -802,6 +821,7 @@ export async function handleLinkZotero(): Promise<void> {
     }
 
     saveZoteroBibPath(zoteroBibPath);
+    writeZoteroLink(dir, { sourceBibPath: zoteroBibPath, pdfMode, attachmentDir });
 
     if (zoteroWatcher) {
       zoteroWatcher.close();
@@ -821,7 +841,7 @@ export async function handleLinkZotero(): Promise<void> {
     dialog.showMessageBox(appState.mainWindow!, {
       type: 'info',
       message: md.zoteroLinkedTitle,
-      detail: md.zoteroLinkedDetail(path.basename(zoteroBibPath)),
+      detail: md.zoteroLinkedDetail(path.basename(zoteroBibPath)) + '\n\n' + md.zoteroLinkedMode(pdfMode),
     });
   } catch (err) {
     dialog.showErrorBox(md.zoteroLinkFailedTitle, String(err));

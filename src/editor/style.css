@@ -943,6 +943,36 @@ body {
   margin-top: 1px;
 }
 
+.citation-menu-page {
+  padding: 8px 10px;
+}
+
+.citation-menu-page-label {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.citation-menu-page-input {
+  width: 100%;
+  margin-top: 4px;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--toolbar-bg);
+  color: var(--text-color);
+}
+
+.citation-menu-page-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(128, 128, 128, 0.85);
+  line-height: 1.35;
+}
+
 /* ─── Bibliography Preview ─────────────────── */
 .typst-bibliography {
   border: 1px solid var(--border-color);

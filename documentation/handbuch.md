@@ -1,6 +1,6 @@
 # Penwright Desktop — Handbuch
 
-> **Version:** 0.15.5 (Pre-Release)
+> **Version:** 0.15.6 (Pre-Release)
 > **Letzte Aktualisierung:** 2026-08-21
 > **English version:** [handbook.md](handbook.md)
 
@@ -830,7 +830,7 @@ Stopp eine laufende Antwort, bevor du den Chat wechselst oder einen neuen starte
 
 Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol). Der **Chat in der App** nutzt ihn automatisch. Denselben Server koennen **Cursor IDE**, **Claude Desktop**, **Claude Code** oder **Codex Desktop** nutzen, wenn du diese Apps bevorzugst.
 
-> **Hinweis:** Der MCP-Server ist **fuer alle freigeschaltet** — alle 66 Tools, ohne Key, ohne Zeitlimit. Siehe [Lizenz](#lizenz). Der Chat in der App braucht zusaetzlich ein Cursor-Konto (das ist Cursors Abrechnung, keine Penwright-Sperre).
+> **Hinweis:** Der MCP-Server ist **fuer alle freigeschaltet** — alle 68 Tools, ohne Key, ohne Zeitlimit. Siehe [Lizenz](#lizenz). Der Chat in der App braucht zusaetzlich ein Cursor-Konto (das ist Cursors Abrechnung, keine Penwright-Sperre).
 
 ### Einrichtung: Cursor (Standard)
 
@@ -840,7 +840,7 @@ Bestaetigen oder erneut registrieren: **Hilfe → MCP-Verbindung…**.
 
 ### Was kann der MCP-Server?
 
-Die KI kann ueber den MCP-Server (66 Tools):
+Die KI kann ueber den MCP-Server (68 Tools):
 - **Ein komplettes Projekt aus einem Preset anlegen** (`penwright_list_presets` + `penwright_create_from_preset`) — designter Startpunkt inkl. Platzhalter-Text, statt bei null anzufangen; Magazin-Presets mit eigenem Layout pro Kapitel
 - Typst-Dokumente oeffnen, lesen, bearbeiten und verifizieren (`compile` ist reiner Verifier; das Schreiben von Artefakten uebernehmen die Export-Tools)
 - **Die Seite sehen.** `penwright_render_page` rendert eine Seite des kompilierten PDFs als Bild und gibt sie zurueck — die KI kann Abstaende, Ueberlaeufe, Farben und die Position einer Ueberschrift beurteilen, statt sie aus dem Quelltext zu erraten
@@ -952,9 +952,9 @@ Du musst die Config **nicht** jedes Mal aendern, wenn du das Projekt wechselst. 
 
 Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
-### Verfuegbare Tools (66)
+### Verfuegbare Tools (68)
 
-Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 66 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
+Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 68 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
 **Projekt & Dateien (5)**
 
@@ -1047,7 +1047,9 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 
 - `penwright_search_project` — Sucht in allen `.typ`-Dateien (optional `.bib`); whole-word funktioniert dank Lookarounds auch bei `@citekey`-Backlinks; max. 1000 Treffer.
 - `penwright_replace_in_project` — Ersetzt alle Vorkommen einer Suche projektweit; **destruktiv** — vorher `save_version` aufrufen.
-- `penwright_find_source_for_citation` — Sucht ein PDF in `sources/` das zum Citekey passt (`<citekey>.pdf` bevorzugt, Suffix-Varianten erlaubt).
+- `penwright_find_source_for_citation` — Sucht die PDF zu einem Citekey (verknüpfte Zotero-Datei, Anhangordner, dann `sources/`).
+- `penwright_search_sources` — Durchsucht alle Paper der verknüpften Bibliothek, auch noch nicht zitierte. Liefert Citekey, Seite und den Absatz um die Fundstelle.
+- `penwright_read_source` — Liest ein kurzes Seitenfenster eines dieser Paper.
 
 **Export (3)**
 

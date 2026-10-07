@@ -1,4 +1,7 @@
-import { Node } from '@tiptap/core';
+import { Node, type Editor } from '@tiptap/core';
+import { attachFieldPopup } from './fieldPopup';
+import { formatCitationPage, pageFieldFromSupplement } from '../../shared/citationPdf';
+import { t } from '../../shared/i18n/store.svelte';
 
 /**
  * Inline atom node for Typst citations (@citekey).
@@ -51,11 +54,10 @@ export const TypstCitation = Node.create({
   },
 
   addNodeView() {
-    return ({ node }) => {
+    return ({ node, editor, getPos }: { node: { attrs: Record<string, unknown>; type: { name: string } }; editor: Editor; getPos: () => number | undefined }) => {
       const dom = document.createElement('span');
       dom.className = 'typst-citation';
       dom.contentEditable = 'false';
-      dom.title = `@${node.attrs.citekey} — Right-click to find usages`;
 
       const icon = document.createElement('span');
       icon.className = 'typst-citation-icon';
@@ -63,16 +65,58 @@ export const TypstCitation = Node.create({
 
       const text = document.createElement('span');
       text.className = 'typst-citation-text';
-      text.textContent = node.attrs.label || node.attrs.citekey;
+
+      const paint = (attrs: Record<string, unknown>) => {
+        const citekey = String(attrs.citekey ?? '');
+        const label = String(attrs.label || citekey);
+        const supplement = String(attrs.supplement ?? '');
+        text.textContent = supplement ? `${label} ${supplement}` : label;
+        dom.title = `@${citekey}`;
+        dom.setAttribute('data-supplement', supplement);
+      };
+      paint(node.attrs);
+      let attrs = node.attrs;
 
       dom.appendChild(icon);
       dom.appendChild(text);
+
+      dom.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('penwright:citation-leave'));
+      });
+
+      const pagePopup = attachFieldPopup(dom, () => {
+        const pos = getPos();
+        const live = pos == null ? null : editor.state.doc.nodeAt(pos);
+        const attrs = (live?.attrs ?? node.attrs) as Record<string, unknown>;
+        return {
+          title: `@${String(attrs.citekey ?? '')}`,
+          fields: [{
+            key: 'page',
+            label: t().editorLib.citationPageLabel,
+            hint: t().editorLib.citationPageHint,
+            rows: 1,
+          }],
+          read: () => pageFieldFromSupplement(String(attrs.supplement ?? '')),
+          write: (_key, value) => {
+            const at = getPos();
+            if (at == null) return;
+            const current = editor.state.doc.nodeAt(at);
+            if (!current) return;
+            if (value.trim() && !formatCitationPage(value)) return;
+            const supplement = formatCitationPage(value) ?? '';
+            editor.view.dispatch(editor.state.tr.setNodeMarkup(at, undefined, {
+              ...current.attrs,
+              supplement,
+            }));
+          },
+        };
+      });
 
       // Right-click on a citation → open Project Search pre-filled with
       // `@<citekey>` (whole-word) so the user lands on every usage in the
       // project. Whole-word stops `@chen2021codex` matching `@chen2021codex2`.
       dom.addEventListener('contextmenu', (e) => {
-        const citekey = (node.attrs.citekey as string) || '';
+        const citekey = String(attrs.citekey || '');
         if (!citekey) return;
         e.preventDefault();
         e.stopPropagation();
@@ -122,11 +166,12 @@ export const TypstCitation = Node.create({
         ignoreMutation: () => true,
         update(updatedNode) {
           if (updatedNode.type.name !== 'citation') return false;
-          text.textContent = updatedNode.attrs.label || updatedNode.attrs.citekey;
-          dom.title = `@${updatedNode.attrs.citekey} — Right-click to find usages`;
+          attrs = updatedNode.attrs;
+          paint(attrs);
           return true;
         },
         destroy() {
+          pagePopup.destroy();
           // A pending dwell timer would otherwise fire against the detached
           // dom (all-zero rect) and pop a mispositioned hover card.
           if (hoverTimer != null) {

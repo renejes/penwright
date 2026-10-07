@@ -49,6 +49,7 @@ const INVOKE_CHANNELS = [
   'agent:activity',
   'project:showInFinder',
   'project:findSourceForCitation',
+  'project:openCitationPdf',
   'project:getInfo',
   'project:getPreferences',
   'project:setPreferences',

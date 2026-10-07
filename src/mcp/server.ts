@@ -104,6 +104,7 @@ import { listProjectMacros } from '../main/projectMacros.js';
 import { buildMacroCall } from '../shared/macroCall.js';
 import { searchProject, replaceInProject } from '../main/projectSearch.js';
 import { findSourceForCitation } from '../main/citationSources.js';
+import { readProjectSource, searchProjectSources } from '../main/sourceIndex.js';
 import { markdownToTypst } from '../shared/markdownImporter.js';
 import {
   adoptEasyWritingProject,
@@ -831,7 +832,7 @@ const SERVER_INSTRUCTIONS = `Penwright edits Typst documents — a project folde
 
 Start of a task: the project and the open file are detected automatically. penwright_get_document tells you where you are; penwright_set_project only if you mean a different folder.
 
-SEE the document before judging anything visual. penwright_render_page returns a rendered page as an image. Spacing, overflow, colour, where a heading landed, whether a figure sits well — none of that is knowable from the source, and guessing at it is the most common way to be confidently wrong here.
+SEE the document before judging anything visual. penwright_render_page returns a rendered page as an image. Spacing, overflow, colour, where a heading landed, whether a figure sits well — none of that is knowable from the source.
 
 Design lives in tokens, not in ad-hoc Typst. penwright_get_style first: "initialized": false means you are looking at defaults, not at the document; "adopted": false means the author wrote style.typ by hand and the design tools will refuse. Then apply_palette / apply_layout / apply_style / update_style. Design writes are staged, test-compiled and rolled back if the document stops compiling — the project is never left broken, so try things.
 
@@ -840,6 +841,8 @@ Anchors, not offsets. Editing tools take afterText plus an optional 1-based occu
 Every write is snapshotted: penwright_list_edits, penwright_undo_last_edit. That net is bounded and per-file — for anything the user should be able to return to, penwright_save_version.
 
 Watch for two notes on results: a file open with unsaved changes (what you read is not what they see) and a document that was already failing to compile before you touched it (do not assume the next failure is yours).
+
+Sources: penwright_search_sources covers every paper in the linked zotero.bib, cited or not. Then penwright_read_source. Cite as @citekey[S. n]. An empty search means these sources do not say it.
 
 Web/HTML export has no tool. Tell the user: File ▸ Export to Web (HTML).
 
@@ -850,7 +853,7 @@ The project's own conventions are prompts: penwright-conventions, typst-referenc
 const server = new McpServer(
   {
     name: 'penwright',
-    version: '0.15.5',
+    version: '0.15.6',
   },
   { instructions: SERVER_INSTRUCTIONS },
 );
@@ -1009,6 +1012,8 @@ const TOOL_META: Record<string, ToolMeta> = {
   penwright_add_citation:             W('Add citation'),
   penwright_ensure_bibliography:      W('Set up the bibliography', { idempotent: true }),
   penwright_find_source_for_citation: R('Find the source PDF'),
+  penwright_search_sources:          R('Search the linked papers'),
+  penwright_read_source:             R('Read pages of a paper'),
 
   // Cross-refs, footnotes, comments
   penwright_list_labels:      R('List labels'),
@@ -4092,26 +4097,81 @@ tool(
 
 tool(
   'penwright_find_source_for_citation',
-  'Find a PDF in sources/ matching a BibTeX citekey. Exact `<citekey>.pdf` preferred, suffix variants accepted. Returns project-relative path or null.',
+  'Find the PDF for a BibTeX citekey. A linked Zotero library is checked first (the entry\'s file field, then the attachment folder chosen when linking, then Zotero\'s local API if the file field is absent). sources/ is the fallback. A hit outside the project is not copied. Returns the path, or found:false.',
   { citekey: z.string().describe('BibTeX citation key (e.g. "chen2021codex")') },
   async ({ citekey }) => {
     try {
       if (!state.projectDir) {
         return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
-      const abs = findSourceForCitation(state.projectDir, citekey);
-      if (!abs) {
+      const hit = await findSourceForCitation(state.projectDir, citekey);
+      if (!hit.path) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ found: false, citekey }, null, 2) }],
         };
       }
-      const rel = path.relative(state.projectDir, abs).replace(/\\/g, '/');
+      const rel = hit.inProject ? path.relative(state.projectDir, hit.path).replace(/\\/g, '/') : undefined;
       return {
         content: [{
           type: 'text' as const,
-          text: JSON.stringify({ found: true, citekey, relPath: rel }, null, 2),
+          text: JSON.stringify({
+            found: true,
+            citekey,
+            path: hit.path,
+            inProject: hit.inProject,
+            ...(rel ? { relPath: rel } : {}),
+          }, null, 2),
         }],
       };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+// ─── Tool: penwright_search_sources / penwright_read_source ─
+//
+// The linked bibliography is the shelf, not the citations already typed.
+// Search returns places to look. Read returns the passage. Neither writes
+// a citation; the document still gets `@citekey[S. n]`.
+
+tool(
+  'penwright_search_sources',
+  'Search every paper in the linked bibliography (zotero.bib when present, otherwise the project .bib files) — including papers the manuscript does not cite yet. Use for “what do our sources say about X”. Pass words that occur in the papers, not a whole question; add the English term for an English PDF. Returns at most 10 hits: citekey, page, and the paragraph around the words. Title and abstract count. An empty hit list means these sources do not say it — do not invent a paper or a page. Cite in the document as @citekey[S. n], never as author-year prose. Follow a hit with penwright_read_source.',
+  {
+    query: z.string().describe('Words to find, e.g. "self-efficacy exam" or "Selbstwirksamkeit".'),
+    citekeys: z.array(z.string()).optional().describe('Limit the search to these citekeys. Omit to search the whole linked library.'),
+  },
+  async ({ query, citekeys }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
+      }
+      const report = await searchProjectSources(state.projectDir, query, { citekeys });
+      const text = report.hits.length
+        ? JSON.stringify(report, null, 2)
+        : JSON.stringify({ ...report, note: 'No passage in this bibliography matches these words.' }, null, 2);
+      return { content: [{ type: 'text' as const, text }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+tool(
+  'penwright_read_source',
+  'Read a short page window of one paper from the linked bibliography, after penwright_search_sources has named the place. pages is "12" or "12-14" (max 8 pages). Printed page labels are used when the PDF has them; otherwise these are file page numbers, and the result says which. Does not copy the PDF. Cite in the document as @citekey[S. n].',
+  {
+    citekey: z.string().describe('BibTeX citekey of the paper to read.'),
+    pages: z.string().optional().describe('Page or range, e.g. "12" or "12-14". Omit to read the first two pages.'),
+  },
+  async ({ citekey, pages }) => {
+    try {
+      if (!state.projectDir) {
+        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
+      }
+      const window = await readProjectSource(state.projectDir, citekey, pages);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(window, null, 2) }] };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }

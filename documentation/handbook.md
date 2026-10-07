@@ -1,6 +1,6 @@
 # Penwright Desktop — User Handbook
 
-> **Version:** 0.15.5 (Pre-Release)
+> **Version:** 0.15.6 (Pre-Release)
 > **Last updated:** 2026-08-21
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
@@ -830,7 +830,7 @@ Stop a running reply before switching or starting another chat.
 
 Penwright ships a built-in MCP server (Model Context Protocol). The **in-app chat** uses it automatically. The same server also lets **Cursor IDE**, **Claude Desktop**, **Claude Code** or **Codex Desktop** work on your Typst documents if you prefer those apps.
 
-> **Note:** the MCP server is **unlocked for everyone** — all 66 tools, no key, no time limit. See [License](#license). The in-app chat additionally needs a Cursor account (that is Cursor's billing, not a Penwright lock).
+> **Note:** the MCP server is **unlocked for everyone** — all 68 tools, no key, no time limit. See [License](#license). The in-app chat additionally needs a Cursor account (that is Cursor's billing, not a Penwright lock).
 
 ### Setup: Cursor (default)
 
@@ -840,7 +840,7 @@ You can confirm or re-register from **Help → MCP Connection…**.
 
 ### What can the MCP server do?
 
-Over MCP (66 tools) the AI can:
+Over MCP (68 tools) the AI can:
 - **Create a whole project from a preset** (`penwright_list_presets` + `penwright_create_from_preset`) — a designed starting point with placeholder content instead of starting from scratch; magazine presets ship a different layout per chapter
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
 - **See the page.** `penwright_render_page` renders a page of the compiled PDF to an image and hands it back, so the AI can judge spacing, overflow, colour and where a heading fell instead of guessing from source
@@ -952,9 +952,9 @@ You don't need to edit the config every time you switch projects. Just tell Clau
 
 Claude will call `penwright_set_project` and work with the new project from there on.
 
-### Available tools (66)
+### Available tools (68)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 66 tools with one-line descriptions, grouped by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 68 tools with one-line descriptions, grouped by category:
 
 **Project & files (5)**
 
@@ -1047,7 +1047,9 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 
 - `penwright_search_project` — Search across all `.typ` (optionally `.bib`) files; whole-word uses lookarounds so it works for `@citekey` backlinks; capped at 1000 matches.
 - `penwright_replace_in_project` — Replace all matches of a query project-wide; **destructive** — call `save_version` first.
-- `penwright_find_source_for_citation` — Look up a PDF in `sources/` matching a citekey (`<citekey>.pdf` preferred, suffix variants allowed).
+- `penwright_find_source_for_citation` — Look up the PDF for a citekey (linked Zotero file, attachment folder, then `sources/`).
+- `penwright_search_sources` — Search every paper in the linked bibliography, cited or not. Returns citekey, page, and the surrounding passage.
+- `penwright_read_source` — Read a short page window of one of those papers.
 
 **Export (3)**
 

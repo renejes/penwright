@@ -21,7 +21,7 @@ export const mcpConnection: McpConnectionMessages = {
   connecting: 'Wird verbunden…',
   close: 'Schließen',
   freeForEveryone:
-    'Der MCP-Server ist für alle freigeschaltet — alle 66 Tools, ohne Schlüssel, ohne Zeitlimit.',
+    'Der MCP-Server ist für alle freigeschaltet — alle 68 Tools, ohne Schlüssel, ohne Zeitlimit.',
 
   done: {
     cursorTitle: 'Mit Cursor verbunden',

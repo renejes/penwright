@@ -100,7 +100,7 @@ import {
   type McpHost,
 } from './mcpRegistration';
 import { searchProject, replaceInProject, type SearchOptions, type ReplaceOptions } from './projectSearch';
-import { findSourceForCitation } from './citationSources';
+import { findSourceForCitation, isNotedCitationPdf, openCitationPdf } from './citationSources';
 import {
   captureRendererCrash,
   getLatestUnshownReport,
@@ -693,7 +693,7 @@ export function setupIPC(): void {
 
   ipcMain.handle('filetree:open', (_event, filePath: string) => {
     if (!filePath) return;
-    if (!isPathWithinProject(filePath)) return;
+    if (!isPathWithinProject(filePath) && !isNotedCitationPdf(filePath)) return;
 
     if (filePath.endsWith('.typ')) {
       openFile(filePath);
@@ -763,7 +763,7 @@ export function setupIPC(): void {
   });
 
   ipcMain.handle('textfile:readBinary', async (_event, filePath: string) => {
-    if (!isPathWithinProject(filePath)) {
+    if (!isPathWithinProject(filePath) && !isNotedCitationPdf(filePath)) {
       throw new Error('Access denied: path is outside the project directory.');
     }
     const buf = await fs.promises.readFile(filePath);
@@ -1084,8 +1084,13 @@ export function setupIPC(): void {
   // citekey (case-insensitive), tolerating common separators between citekey
   // and trailing tokens. Returns absolute path or null. Used by the citation
   // hover card to surface a "Open PDF" button when the source is bundled.
-  ipcMain.handle('project:findSourceForCitation', (_event, citekey: string) => {
+  ipcMain.handle('project:findSourceForCitation', async (_event, citekey: string) => {
     return findSourceForCitation(appState.projectDir ?? '', citekey);
+  });
+
+  ipcMain.handle('project:openCitationPdf', async (_event, citekey: string) => {
+    if (!appState.projectDir) return null;
+    return openCitationPdf(appState.projectDir, citekey);
   });
 
   ipcMain.handle('project:showInFinder', () => {

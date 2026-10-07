@@ -19,7 +19,7 @@ export const mcpConnection = {
   connecting: 'Connecting…',
   close: 'Close',
   freeForEveryone:
-    'The MCP server is unlocked for everyone — all 66 tools, no key, no time limit.',
+    'The MCP server is unlocked for everyone — all 68 tools, no key, no time limit.',
 
   done: {
     cursorTitle: 'Connected to Cursor',

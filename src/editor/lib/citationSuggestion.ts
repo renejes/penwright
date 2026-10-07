@@ -2,6 +2,8 @@ import { Extension, type Editor } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import { attachFloating, type FloatingHandle } from './popupAnchor';
+import { formatCitationPage } from '../../shared/citationPdf';
+import { t } from '../../shared/i18n/store.svelte';
 
 export interface CitationEntry {
   citekey: string;
@@ -72,11 +74,14 @@ export const CitationSuggestion = Extension.create({
           range: { from: number; to: number };
           props: unknown;
         }) => {
-          const entry = props as CitationEntry;
+          const picked = props as { entry: CitationEntry; page: string };
+          const entry = picked.entry ?? (props as CitationEntry);
+          const page = picked.entry ? picked.page : '';
           const firstAuthor = entry.author.split(',')[0].split(' and ')[0].trim();
           const label = entry.year
             ? `${firstAuthor} (${entry.year})`
             : firstAuthor;
+          const supplement = formatCitationPage(page) ?? '';
 
           editor
             .chain()
@@ -87,6 +92,7 @@ export const CitationSuggestion = Extension.create({
               attrs: {
                 citekey: entry.citekey,
                 label,
+                supplement,
               },
             })
             .run();
@@ -122,6 +128,7 @@ class CitationPopup {
   private commandFn: ((props: unknown) => void) | null = null;
   private floating: FloatingHandle | null = null;
   private anchor: (() => DOMRect | null) | null = null;
+  private pageFor: CitationEntry | null = null;
 
   constructor(props: Record<string, unknown>) {
     this.el = document.createElement('div');
@@ -131,11 +138,13 @@ class CitationPopup {
   }
 
   update(props: Record<string, unknown>) {
+    if (this.pageFor) return;
     this.applyProps(props);
   }
 
   onKeyDown(props: Record<string, unknown>): boolean {
     const event = props.event as KeyboardEvent;
+    if (this.pageFor) return true;
     if (event.key === 'ArrowDown') {
       this.selected = (this.selected + 1) % this.items.length;
       this.render();
@@ -179,9 +188,16 @@ class CitationPopup {
 
   private selectItem(index: number) {
     const item = this.items[index];
-    if (item && this.commandFn) {
-      this.commandFn(item);
-    }
+    if (!item) return;
+    this.pageFor = item;
+    this.renderPage();
+  }
+
+  private commitPage() {
+    const entry = this.pageFor;
+    if (!entry || !this.commandFn) return;
+    const input = this.el.querySelector('input') as HTMLInputElement | null;
+    this.commandFn({ entry, page: input?.value ?? '' });
   }
 
   /**
@@ -200,6 +216,10 @@ class CitationPopup {
   }
 
   private render() {
+    if (this.pageFor) {
+      this.renderPage();
+      return;
+    }
     const truncate = (s: string, max: number) =>
       s.length > max ? s.slice(0, max) + '\u2026' : s;
 
@@ -224,6 +244,33 @@ class CitationPopup {
         this.selectItem(idx);
       });
     });
+  }
+
+  private renderPage() {
+    const entry = this.pageFor;
+    if (!entry) return;
+    const lib = t().editorLib;
+    this.el.innerHTML = `
+      <div class="citation-menu-page">
+        <div class="citation-menu-key">@${this.esc(entry.citekey)}</div>
+        <label class="citation-menu-page-label">${this.esc(lib.citationPageLabel)}</label>
+        <input class="citation-menu-page-input" type="text" placeholder="12" />
+        <div class="citation-menu-page-hint">${this.esc(lib.citationPageHint)}</div>
+      </div>`;
+    const input = this.el.querySelector('input') as HTMLInputElement;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.commitPage();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.pageFor = null;
+        this.render();
+      }
+    });
+    input.focus();
+    requestAnimationFrame(() => input.focus());
   }
 
   private esc(text: string): string {

@@ -19,6 +19,7 @@ import { ensureMcpHosts } from './mcpRegistration';
 import { resolveDict } from '../shared/i18n';
 import { handleExportPdf, handleExportDocx, handleExportWeb, handleImportMarkdown, handleLinkZotero, getZoteroWatcher } from './importExport';
 import { isPathWithin } from './pathSecurity';
+import { isNotedCitationPdf } from './citationSources';
 import { getTypstFontPath } from './typstPath';
 import { setupCrashCapture, addBreadcrumb } from './crashReporter';
 
@@ -198,7 +199,8 @@ app.whenReady().then(() => {
 
     // Only allow files within the current project directory (symlink-aware)
     const projectRoot = appState.projectDir || (appState.currentFilePath ? path.dirname(appState.currentFilePath) : null);
-    if (!projectRoot || !isPathWithin(filePath, projectRoot)) {
+    const inProject = !!projectRoot && isPathWithin(filePath, projectRoot);
+    if (!inProject && !isNotedCitationPdf(filePath)) {
       return new Response('Forbidden', { status: 403 });
     }
 

@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **66 Tools** fuer externe AI-Agents **und** den In-App-Chat | Unabhaengig von der Electron-App | Cursor (IDE oder Chat in Penwright), Claude Desktop, Claude Code, Codex u.a.
+> **68 Tools** fuer externe AI-Agents **und** den In-App-Chat | Unabhaengig von der Electron-App | Cursor (IDE oder Chat in Penwright), Claude Desktop, Claude Code, Codex u.a.
 
 ---
 
@@ -74,7 +74,7 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 
 ---
 
-## Verfuegbare Tools (66)
+## Verfuegbare Tools (68)
 
 Die Gliederung unten ist die des Servers selbst (`TOOL_META` in `src/mcp/server.ts`) — dieselben Gruppen (die Reihenfolge innerhalb einer Gruppe ist hier lesbarer sortiert). Jedes Tool traegt dort einen `title` und seine Annotations (`readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`); ein Tool ohne Eintrag wirft beim Registrieren, kann also nicht unklassifiziert ausgeliefert werden.
 
@@ -160,7 +160,9 @@ Alles hier arbeitet auf der **Wurzel**, nicht auf der gerade offenen Datei — e
 | `penwright_get_citations` | Alle `.bib`-Eintraege im Projekt (citekey, type, title, author, year und alle BibTeX-Felder) |
 | `penwright_add_citation` | BibTeX-Eintrag hinzufuegen; legt `references.bib` an, falls es fehlt, und stellt das `#bibliography` im Dokument sicher |
 | `penwright_ensure_bibliography` | `references.bib` + `#bibliography`-Aufruf erstellen, falls fehlend |
-| `penwright_find_source_for_citation` | Sucht in `sources/` nach `<citekey>.pdf` oder Suffix-Varianten (`<citekey>_supplement.pdf` etc.). Liefert den projekt-relativen Pfad oder `null` |
+| `penwright_find_source_for_citation` | Sucht die PDF zur Citekey: `file`-Feld der verknüpften `.bib`, dann der Anhangordner, dann `sources/`. Kopiert nichts |
+| `penwright_search_sources` | Durchsucht alle Paper der verknüpften Bibliothek, auch ohne Zitat im Text. Treffer: Citekey, Seite, Absatz |
+| `penwright_read_source` | Liest ein Seitenfenster (`12` oder `12-14`) eines Papers, nachdem die Suche die Stelle genannt hat |
 
 ### Cross-Refs, Fussnoten & Comments (8)
 
@@ -560,7 +562,7 @@ winget install --id Typst.Typst
 
 ## Lizenz
 
-**Der MCP Server ist ungesperrt. Er startet fuer alle** — alle 66 Tools, ohne Key, ohne Zeitlimit. Penwright selbst ist kostenlos fuer alle, inklusive Unternehmen; der Quelltext darf nicht in fremde Projekte uebernommen werden. Siehe [LICENSE.md](../LICENSE.md).
+**Der MCP Server ist ungesperrt. Er startet fuer alle** — alle 68 Tools, ohne Key, ohne Zeitlimit. Penwright selbst ist kostenlos fuer alle, inklusive Unternehmen; der Quelltext darf nicht in fremde Projekte uebernommen werden. Siehe [LICENSE.md](../LICENSE.md).
 
 ---
 
@@ -569,7 +571,7 @@ winget install --id Typst.Typst
 Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft die (gebuendelte oder System-)`typst`-Binary fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts             <- Alle 66 Tools in einer Datei
+src/mcp/server.ts             <- Alle 68 Tools in einer Datei
 esbuild.mcp.mjs               <- Build (ESM, Node 20) -> dist/mcp/server.mjs (Dev / manueller Node-Pfad)
 scripts/build-mcp-binary.mjs  <- Bun `--compile` -> dist/mcp/bin/penwright-mcp-<triple> (die ausgelieferte Standalone-Binary)
 ```

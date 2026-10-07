@@ -37,6 +37,8 @@ export const editorLib: EditorLibMessages = {
   slashFootnoteDesc: 'Fußnote einfügen (öffnet Editor)',
   slashCitationTitle: 'Zitation',
   slashCitationDesc: 'Zitation einfügen (@citekey)',
+  citationPageLabel: 'Seite',
+  citationPageHint: 'Zum Beispiel 12 oder 12–14. f. und ff. werden nicht übernommen.',
   slashReferenceTitle: 'Querverweis',
   slashReferenceDesc: 'Querverweis einfügen (@label)',
   slashImageTitle: 'Bild',

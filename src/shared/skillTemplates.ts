@@ -390,7 +390,10 @@ All four live inside the project folder.
 
 ## sources/ — Citation PDF Naming
 
-For the in-app **citation hover-card** to find the PDF for \`@chen2021codex\`, name the file so the basename starts with the citekey:
+For the in-app **citation hover-card** to find the PDF for \`@chen2021codex\`:
+
+- A linked Zotero library is tried first: the \`file\` field in \`zotero.bib\`, then the attachment folder chosen when linking. The PDF stays where Zotero stores it. Do not copy it into \`sources/\` unless the project chose copy-on-open.
+- Otherwise name the file so the basename starts with the citekey:
 
 - ✅ \`sources/chen2021codex.pdf\` (exact match — preferred)
 - ✅ \`sources/chen2021codex_supplement.pdf\` (suffix variant)
@@ -1053,9 +1056,13 @@ For each source you'll cite:
 
 1. **BibTeX entry** in \`references.bib\`. Citekey is a slug (no colon — colons are reserved for label prefixes). Convention: \`<lastauthor><year><firstword>\` → \`chen2021codex\`.
 
-2. **Source PDF** in \`sources/\`, named so the basename starts with the citekey. \`sources/chen2021codex.pdf\` is preferred; \`chen2021codex_supplement.pdf\` etc. work as fallback. Naming matters: Penwright's hover-card and \`penwright_find_source_for_citation\` match on this prefix.
+2. **Source PDF.** If the project linked a Zotero library, the PDF stays in Zotero's folder — do not ask the user to copy it into \`sources/\`. Otherwise put it in \`sources/\`, named so the basename starts with the citekey. \`sources/chen2021codex.pdf\` is preferred; \`chen2021codex_supplement.pdf\` etc. work as fallback.
 
 3. **Notes** as Markdown in a scratch location (or directly as \`.typ\` in \`chapters/\` once it's a real chapter).
+
+### What the papers say
+
+\`penwright_search_sources\` searches every paper in the linked \`zotero.bib\`, whether or not the manuscript cites it yet. Pass words that occur in the papers (translate the question yourself: an English PDF will not contain „Selbstwirksamkeit“). Then \`penwright_read_source\` for the page a hit names. In the document, cite \`@key[S. n]\`. If the search returns no hits, these sources do not support the claim — do not invent a paper.
 
 ### MCP-tool path
 

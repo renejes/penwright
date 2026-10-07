@@ -21,6 +21,7 @@
 
   let pdfPath = $state<string | null>(null);
   let pdfChecked = $state(false);
+  let linked = $state(false);
   let cardEl: HTMLDivElement;
 
   // Position card to the right of the badge, but clamp into the viewport.
@@ -82,7 +83,9 @@
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
     }).electronAPI;
     api.invoke('project:findSourceForCitation', citekey).then((p) => {
-      pdfPath = (p as string | null) ?? null;
+      const hit = p as { path?: string | null; linked?: boolean } | null;
+      pdfPath = hit?.path ?? null;
+      linked = !!hit?.linked;
       pdfChecked = true;
     }).catch(() => {
       pdfChecked = true;
@@ -96,10 +99,21 @@
   });
 
   function handleOpenPdf() {
-    if (pdfPath) {
-      onOpenPdf(pdfPath);
-      onClose();
-    }
+    const api = (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    api.invoke('project:openCitationPdf', citekey).then((p) => {
+      const opened = (p as string | null) ?? pdfPath;
+      if (opened) {
+        onOpenPdf(opened);
+        onClose();
+      }
+    }).catch(() => {
+      if (pdfPath) {
+        onOpenPdf(pdfPath);
+        onClose();
+      }
+    });
   }
 
   function truncate(s: string, max: number): string {
@@ -142,6 +156,8 @@
       <span class="citation-card-pdf-name" title={pdfPath}>
         {pdfPath.split('/').pop()}
       </span>
+    {:else if linked}
+      <span class="citation-card-pdf-missing">{t().pickers.citationNoPdfLinked}</span>
     {:else}
       <span class="citation-card-pdf-missing">
         {@html t().pickers.citationNoPdf.replace('{folder}', '<code>sources/</code>')}

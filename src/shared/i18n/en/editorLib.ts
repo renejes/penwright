@@ -37,6 +37,8 @@ export const editorLib = {
   slashFootnoteDesc: 'Insert footnote (opens editor)',
   slashCitationTitle: 'Citation',
   slashCitationDesc: 'Insert citation (@citekey)',
+  citationPageLabel: 'Page',
+  citationPageHint: 'For example 12 or 12–14. f. and ff. are not kept.',
   slashReferenceTitle: 'Reference',
   slashReferenceDesc: 'Insert cross-reference (@label)',
   slashImageTitle: 'Image',

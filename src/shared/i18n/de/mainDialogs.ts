@@ -36,7 +36,17 @@ export const mainDialogs: MainDialogsMessages = {
   zoteroLinkedTitle: 'Zotero-Bibliothek verknüpft!',
   zoteroLinkedDetail: (file: string) =>
     `"${file}" wurde als zotero.bib ins Projekt kopiert.\nÄnderungen in Zotero werden automatisch synchronisiert, solange die App läuft.`,
+  zoteroLinkedMode: (mode: 'linked' | 'copy'): string =>
+    mode === 'copy'
+      ? 'Beim Öffnen einer Quelle wird genau diese PDF nach sources/ kopiert. Der Rest bleibt, wo Zotero ihn hat.'
+      : 'Die PDFs bleiben, wo Zotero sie hat. Ins Projekt wird nichts kopiert.',
   zoteroLinkFailedTitle: 'Zotero-Verknüpfung fehlgeschlagen',
+  zoteroPdfModeTitle: 'Wie soll Penwright die PDFs verwenden?',
+  zoteroPdfModeDetail: 'Verknüpft lässt jede PDF dort, wo Zotero sie speichert. Kopieren legt eine Datei erst in sources/ ab, wenn du diese Quelle öffnest.',
+  zoteroPdfModeLinked: 'Verknüpft lassen',
+  zoteroPdfModeCopy: 'Beim Öffnen ins Projekt kopieren',
+  zoteroAttachmentTitle: 'Ordner mit den verknüpften PDFs',
+  zoteroAttachmentMessage: 'Wähle den Ordner, in dem Zotero verknüpfte Anhänge ablegt, zum Beispiel Dropbox/Zotero-PDFs. Abbrechen überspringt die Ordnersuche.',
 
   // ─── Apply Style Template (root-file guard) ──────────
   styleCannotChangeHereTitle: 'Stil kann hier nicht geändert werden',
