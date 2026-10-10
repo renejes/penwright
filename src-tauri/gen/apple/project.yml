@@ -57,8 +57,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.15.6
-        CFBundleVersion: "0.15.6"
+        CFBundleShortVersionString: 0.20.0
+        CFBundleVersion: "0.20.0"
     entitlements:
       path: penwright-ipad_iOS/penwright-ipad_iOS.entitlements
     scheme:
