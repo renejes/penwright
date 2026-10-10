@@ -17,3 +17,9 @@ penwright.corpus.json
 .env.*
 *.env.local
 build/notarize.env.local
+
+# iPad host (Tauri). The Mac app does not build this.
+src-tauri/target/
+dist/ipad/
+!src-tauri/Cargo.lock
+

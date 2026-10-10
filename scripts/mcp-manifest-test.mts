@@ -160,8 +160,8 @@ console.log('\nThe classification is right where it is checkable');
     check(`${n.replace('penwright_', '')} is NOT destructive (it rolls back)`, destructive(n) === false);
   }
 
-  check('git_push is the only open-world tool',
-    tools.filter(t => t.annotations?.openWorldHint).map(t => t.name).join(',') === 'penwright_git_push',
+  check('no tool talks to a remote',
+    tools.filter(t => t.annotations?.openWorldHint).length === 0,
     tools.filter(t => t.annotations?.openWorldHint).map(t => t.name).join(', '));
 }
 
@@ -271,11 +271,8 @@ console.log('\nAn export cannot overwrite the source it was made from');
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-console.log('\nThe low-level git tools stay inside this project');
+console.log('\nA version is one chapter file and does not touch an enclosing repository');
 {
-  // A project that is not a repo but sits inside one — the ordinary case for
-  // any document folder under a checkout. simpleGit walks UP, so git_commit
-  // would have staged and committed the enclosing repository.
   const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-outerrepo-'));
   const { execFileSync } = await import('node:child_process');
   execFileSync('git', ['init', '-q'], { cwd: outer });
@@ -287,18 +284,16 @@ console.log('\nThe low-level git tools stay inside this project');
 
   const out = await callMcp(inner, [
     call(2, 'penwright_set_project', { projectDir: inner }),
-    call(3, 'penwright_git_commit', { message: 'should not happen' }),
+    call(3, 'penwright_save_version', { name: 'Entwurf' }),
   ]);
-  check('committing refuses when the repo is not this project', out.includes('not the root of its Git repository') || out.includes('not a Git repository'), out.slice(-400));
+  const saved = path.join(inner, 'versions', 'main.typ', 'Entwurf.typ');
+  check('the version is that one chapter', fs.existsSync(saved) && fs.readFileSync(saved, 'utf8') === '= Title\n', replyText(out, 3).slice(0, 400));
+  check('the living file is unchanged', fs.readFileSync(path.join(inner, 'main.typ'), 'utf8') === '= Title\n');
+  check('the document folder itself is not a repository', !fs.existsSync(path.join(inner, '.git')));
 
   const log = (() => { try { return execFileSync('git', ['log', '--oneline'], { cwd: outer }).toString(); } catch { return ''; } })();
   check('and the enclosing repository has no new commit', log.trim() === '', log);
-
-  const status = await callMcp(inner, [
-    call(2, 'penwright_set_project', { projectDir: inner }),
-    call(3, 'penwright_git_status', {}),
-  ]);
-  check('status refuses too, naming the way out', status.includes('penwright_save_version') || status.includes('not the root'), status.slice(-400));
+  check('the neighbour file is untouched', fs.readFileSync(path.join(outer, 'someone-elses-work.txt'), 'utf8') === 'do not touch');
 
   fs.rmSync(outer, { recursive: true, force: true });
 }
@@ -438,11 +433,10 @@ console.log('\nBulk operations are previewable, and the irreversible one asks');
   ]);
   check('without dryRun it actually replaces', fs.readFileSync(chapter, 'utf-8').includes('Paragraph'), replyText(real, 3).slice(0, 200));
 
-  // restore_version discards uncommitted work with no snapshot to return to —
-  // the only tool here that cannot be undone, so the only one that asks.
+  // Making a version the main text swaps two files, so it asks first.
   const restore = await callMcp(dir, [
     call(2, 'penwright_set_project', { projectDir: dir }),
-    call(3, 'penwright_restore_version', { sha: 'abc1234' }),
+    call(3, 'penwright_restore_version', { path: 'versions/chapters/01-intro.typ/Entwurf.typ' }),
   ]);
   check('restore_version refuses without confirm', replyText(restore, 3).includes('Not restored'), replyText(restore, 3).slice(0, 300));
   check('…and explains how to keep the current state', replyText(restore, 3).includes('penwright_save_version'));

@@ -1,6 +1,6 @@
 import { Node, type Editor } from '@tiptap/core';
 import { attachFieldPopup } from './fieldPopup';
-import { formatCitationPage, pageFieldFromSupplement } from '../../shared/citationPdf';
+import { formatCitationPage, pageFieldFromSupplement } from '../../shared/citationPage';
 import { t } from '../../shared/i18n/store.svelte';
 
 /**

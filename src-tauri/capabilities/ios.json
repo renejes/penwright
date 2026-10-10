@@ -1,0 +1,10 @@
+{
+  "identifier": "ios",
+  "description": "iPad: security-scoped project folder and the Vite dev server",
+  "platforms": ["iOS"],
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://*:*", "http://*"]
+  },
+  "permissions": ["core:default", "scoped-storage:default"]
+}

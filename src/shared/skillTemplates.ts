@@ -372,7 +372,7 @@ my-thesis/
 ├── exports/                 # PDF / DOCX outputs (auto-created on first export)
 ├── .claude/skills/          # These skills, deployed per project
 ├── .penwright/                # Hidden: auto-backups, AI-edit snapshots, per-project preferences
-└── .git/                    # Version history
+└── versions/                # One folder per chapter, one file per named version
 ~~~
 
 \`assets/\`, \`sources/\`, \`exports/\`, and \`comments/\` stay visible in the file tree even when empty so it's clear where things go.
@@ -381,7 +381,7 @@ my-thesis/
 
 | Layer | Trigger | Storage | Purpose |
 |---|---|---|---|
-| **Versions** (Git) | User-saved milestones | \`.git/\` | Named history points: "Chapter 3 first draft", "Before supervisor feedback". User vocabulary is "version", not "commit". |
+| **Versions** | User-saved, one chapter | \`versions/<chapter>/<name>.typ\` | Named copies of a single \`.typ\` file. "Make main" swaps that file with the living chapter. |
 | **Auto-backups** | Timer (default 30 s) | \`.penwright/backups/<timestamp>/\` | Crash protection. Each backup is a flat snapshot of all .typ + .bib files plus a \`.meta.json\`. |
 | **AI-edit snapshots** | Each external file change | \`.penwright/ai-snapshots/\` | Ring buffer used by "Undo AI Edit". |
 | **UI preferences** | UI knob changes (debounced) | \`.penwright/preferences.json\` | Per-project editor + PDF zoom levels. Travels with the project folder. Extend this file rather than electron-store when adding new per-project UI knobs. |
@@ -423,7 +423,7 @@ Quelle ergänzen — vielleicht den Müller-Artikel?
 
 - **anchor** is the verbatim text the comment is attached to. Penwright re-locates it on file load using \`indexOf\` when offsets drift.
 - Comments are **never compiled** into PDF / DOCX — the source stays clean.
-- Visible in the file tree, cloud-sync-friendly (Dropbox / iCloud), git-diffable, editable from any text editor.
+- Visible in the file tree, cloud-sync-friendly (Dropbox / iCloud), plain Markdown, editable from any text editor.
 - Anchors that span paragraphs get marked \`orphaned: true\` automatically.
 
 When creating comments programmatically, **prefer \`penwright_add_comment\`** over hand-writing the Markdown — the tool generates the id, computes range offsets, fills frontmatter correctly.
@@ -510,11 +510,11 @@ If you have read/write access to the project folder (Terminal Claude, VS Code Cl
 **Watcher quirks:**
 - \`.penwright/\` is excluded — backup writes don't trigger refresh loops.
 - Penwright saves are tagged with a 3-second self-write guard; your external writes always go through.
-- Don't edit \`.penwright/\` or \`.git/\` directly. Both are managed state.
+- Don't edit \`.penwright/\` directly. It is managed state. A chapter version belongs in \`versions/\`, via \`penwright_save_version\`.
 
 ### MCP tools (Claude Desktop, Codex Desktop, …)
 
-When connected via the Penwright MCP server, you have **52 dedicated tools** instead of raw filesystem access. They enforce project boundaries (every path validated against the project root, symlink-aware), generate ids and YAML, validate cross-reference labels, regenerate \`style.typ\` from \`style.json\`, etc.
+When connected via the Penwright MCP server, you have **65 tools** instead of raw filesystem access. They enforce project boundaries (every path validated against the project root, symlink-aware), generate ids and YAML, validate cross-reference labels, regenerate \`style.typ\` from \`style.json\`, etc.
 
 **Prefer the dedicated tool over raw \`penwright_write_file\`** when one exists:
 
@@ -674,7 +674,7 @@ Packages outside this list still work via \`#import "@preview/<name>:<version>"\
 - **Image paths are relative to the file containing \`#image\`.** Drop new images into \`assets/\` and reference as \`assets/foo.png\`.
 - **Citekeys go in \`.bib\` files; labels go in \`.typ\` files.** Keep the colon convention (\`@chen2021codex\` vs \`@fig:arch\`).
 - **Save a version before bulk replacements.** \`penwright_save_version\` → \`penwright_replace_in_project\` → \`penwright_compile\`. Restore on regression.
-- **Never commit \`.penwright/\`.** It's already in \`.gitignore\` for a reason — it's machine state, not project content.
+- **Don't write into \`.penwright/\`.** It is machine state, not project content. A \`.gitignore\` already lists it.
 `;
 
 export const WRITING_STYLE_SKILL = `---
@@ -1162,7 +1162,7 @@ penwright_replace_in_project({
 penwright_compile()
 ~~~
 
-If the compile fails: \`penwright_restore_version({ sha: "<sha-from-save>" })\` rolls back.
+If the compile fails: \`penwright_restore_version({ path: "<path-from-save>", confirm: true })\` swaps that version back into the chapter.
 
 ### Leave a comment for the supervisor
 

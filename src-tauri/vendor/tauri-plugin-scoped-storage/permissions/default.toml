@@ -1,0 +1,24 @@
+[default]
+description = "Default permissions for the plugin"
+permissions = [
+  "allow-pick-folder",
+  "allow-forget-folder",
+  "allow-list-folders",
+  "allow-get-folder-info",
+  "allow-read-dir",
+  "allow-stat",
+  "allow-exists",
+  "allow-read-file",
+  "allow-write-file",
+  "allow-read-text-file",
+  "allow-read-text-file-lines",
+  "allow-write-text-file",
+  "allow-append-file",
+  "allow-mkdir",
+  "allow-remove-file",
+  "allow-remove-dir",
+  "allow-copy",
+  "allow-move",
+  "allow-rename",
+  "allow-truncate",
+]

@@ -10,7 +10,7 @@ import * as path from 'path';
 import { appState } from './appState';
 import { buildMenu } from './menuBuilder';
 import { setupIPC } from './ipcHandlers';
-import { setupGitIPC } from './gitManager';
+import { setupVersionIPC } from './chapterVersions';
 import { openFile, saveFile, saveFileAs, closeProjectInteractive, stopFileWatcher, disposeCompiler, publishSession } from './fileManager';
 import { openProject } from './projectManager';
 import { releaseLock } from '../shared/lockFile';
@@ -228,7 +228,7 @@ app.whenReady().then(() => {
   buildMenu(appState);
   setupIPC();
   createWindow();
-  setupGitIPC();
+  setupVersionIPC();
   addBreadcrumb('lifecycle', 'window created');
 
   // Register this app's MCP server with Cursor (and Claude Code if already

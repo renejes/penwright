@@ -57,6 +57,7 @@ export const pickers: PickersMessages = {
   citationOpenPdf: 'PDF öffnen',
   citationNoPdf: 'Keine PDF in {folder}',
   citationNoPdfLinked: 'Zu dieser Quelle wurde keine PDF gefunden.',
+  citationChoosePdfFolder: 'PDF-Ordner wählen…',
   citationNoAuthor: '(kein Autor)',
   citationNoTitle: '(kein Titel)',
 

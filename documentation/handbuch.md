@@ -1,6 +1,6 @@
 # Penwright Desktop — Handbuch
 
-> **Version:** 0.15.6 (Pre-Release)
+> **Version:** 0.20.0 (Pre-Release)
 > **Letzte Aktualisierung:** 2026-08-21
 > **English version:** [handbook.md](handbook.md)
 
@@ -254,7 +254,8 @@ Im **Look-Designer** (Doppelklick auf `style.typ`) -> Abschnitt **„Aus Preset 
 - Die Projektdateien (main.typ, chapters/, ggf. style.typ / macros.typ / assets)
 - `assets/` fuer Bilder, `sources/` fuer Quellen-PDFs
 - `.claude/skills/` mit Claude-Code-Skills (typst, Penwright, research, writing-style, design)
-- `.git/` + `.gitignore` — Versionssystem ab der ersten Speicherung
+- `versions/` — eine benannte Kopie pro Kapitel, ab der ersten Version, die du speicherst
+- `.gitignore` — haelt `.penwright/` aus einem Git-Repo heraus, das du selbst fuehrst
 - `.penwright/` fuer Auto-Backups + AI-Edit-Snapshots (versteckt, projekt-lokal)
 - Einen Initial-Commit
 
@@ -283,11 +284,10 @@ Die Sidebar hat fuenf Tabs:
 - Der **Look** des Kapitels wird nicht mehr hier gesetzt — er lebt in der **Statusleiste**, während du das Kapitel bearbeitest (Kapitel-Look ▾ + der **✎**-Editor). Siehe [das Look-Modell](#design--das-look-modell).
 
 ### Project
-Dieser Tab ersetzt das alte Git-Panel und nutzt Schreiber-Vokabular statt roher Git-Befehle. Vollstaendiger Workflow: siehe Abschnitt **[Versionen & Auto-Backup](#versionen--auto-backup)** weiter unten. Kurzfassung:
-- **Version speichern** — benennt deinen aktuellen Stand und legt ihn im Verlauf des Projekts ab
-- **Aenderungen seit letzter Version** — Checkboxen, welche Dateien in die naechste Version kommen
-- **Verlauf & Wiederherstellen** — ein Button oeffnet einen Hub mit allem, was du zurueckholen kannst: gespeicherte Versionen, automatische Backups und KI-Aenderungen (siehe unten)
-- **Erweitert** (zugeklappt) — optional: Cloud-Sync (Push/Pull zu GitHub oder einem beliebigen Git-Remote)
+In diesem Tab speicherst du eine Kapitelversion. Siehe **[Versionen & Auto-Backup](#versionen--auto-backup)**. Kurzfassung:
+- **Version speichern** — legt eine benannte Kopie der `.typ`-Datei im aktiven Tab unter `versions/` ab
+- Jede Version hat ein **⋮**-Menü: Lesen, Bearbeiten, Zur Hauptfassung, Umbenennen, Löschen
+- **Verlauf & Wiederherstellen** — Auto-Backups und KI-Aenderungen. Die Kapitelversionen stehen in der Liste darueber
 
 ### Comments
 - Liste aller Kommentare zur **aktuellen Datei** oder **dem ganzen Projekt** (Tab oben im Panel)
@@ -644,7 +644,7 @@ Penwright haelt drei unabhaengige Schichten zur Absicherung deiner Arbeit — je
 
 | Schicht | Ausloeser | Zweck | Wo es lebt |
 |---------|-----------|-------|------------|
-| **Versionen** | Du klickst **Version speichern** | Bewusste Meilensteine im Projektverlauf | `<projekt>/.git/` |
+| **Versionen** | Du klickst **Version speichern** | Eine benannte Kopie des offenen Kapitels | `<projekt>/versions/<Kapitel>/<Name>.typ` |
 | **Auto-Backup** | Timer (konfigurierbar, Default alle 30 s) | Crash-/Hänger-Schutz — nie mehr als X Sekunden Arbeit verlieren | `<projekt>/.penwright/backups/` |
 | **AI-Edit-Undo** | Externe Aenderung (KI-Agent / MCP) | Schnelles Rueckgaengig der letzten AI-Aenderung | `<projekt>/.penwright/ai-snapshots/` |
 
@@ -652,21 +652,22 @@ Alle drei leben **innerhalb des Projektordners**, das Projekt ist also self-cont
 
 ### Eine Version speichern
 
-Im **Project**-Sidebar-Tab:
-1. Tippe eine kurze Beschreibung in **Version speichern** ("Kapitel 3 erste Fassung", "Vor Lektorats-Feedback", …)
-2. Optional: hak einzelne Dateien in **Aenderungen seit letzter Version** ab, die nicht in diese Version sollen
-3. Klick **Version speichern**
+Im **Project**-Tab, mit einer `.typ`-Datei im aktiven Tab:
+1. Der Vorschlagsname ist `Dateiname_V1_Jahr_Monat_Tag`. Du kannst ihn aendern.
+2. Klick **Version speichern**
 
-Deine neue Version erscheint im Abschnitt **Versionen** von **Verlauf & Wiederherstellen**. Jeder Eintrag bleibt fuer immer abrufbar (bis du das Projekt loeschst).
+Die Kopie ist eine Datei: `versions/<Kapitelpfad>/<Name>.typ`. Sie steht unter diesem Kapitel. Das **⋮**-Menue an der Zeile oeffnet sie zum Lesen oder Bearbeiten, benennt sie um, loescht sie oder macht sie zur Hauptfassung.
 
-### Verlauf durchsuchen
+**Zur Hauptfassung** tauscht die beiden Texte. Die Version behaelt ihren Namen und enthaelt danach den bisherigen Kapiteltext.
 
-Oeffne **Verlauf & Wiederherstellen** (im **Project**-Tab) und klick auf einen Eintrag im Abschnitt **Versionen**, um die Detail-Ansicht zu oeffnen:
-- Datum + Beschreibung
-- Diff pro Datei im Quelltext-Stil (rote entfernte Zeilen, gruene neue — wie GitHub)
-- **Diese Version wiederherstellen**-Button — ueberschreibt die aktuellen Dateien mit dem historischen Stand (mit Bestaetigung)
+### Verlauf & Wiederherstellen
 
-Dein aktueller Stand geht nie verloren: vor dem Wiederherstellen kannst du eine **Version speichern**, um den jetzigen Zwischenstand festzuhalten.
+**Verlauf & Wiederherstellen** listet die Kapitelversionen nicht. Die stehen im Project-Tab. Das Fenster hat zwei Netze:
+
+- **Auto-Backups** — zeitliche Kopien der `.typ`- und `.bib`-Dateien. **Wiederherstellen** setzt das Projekt auf diesen Zeitpunkt zurueck, nach einer Bestaetigung.
+- **KI-Aenderungen** — der vorherige Text einer Datei, bevor ein Agent sie ueberschrieben hat. **Letzte rueckgaengig** holt diese eine Datei zurueck.
+
+Das Zahnrad an den Auto-Backups setzt das Intervall (10 s – 5 min), wie viele Backups bleiben und wie viele KI-Snapshots bleiben.
 
 ### Auto-Backup
 
@@ -679,15 +680,9 @@ Der Abschnitt **Auto-Backups** in **Verlauf & Wiederherstellen** listet jeden au
 
 Wenn ein externes Tool (ein KI-Agent, der MCP-Server, …) eine Datei im Projekt aendert, wird der vorherige Inhalt **vor** der Aenderung gesichert — fuer jede Datei, nicht nur fuer die gerade geoeffnete. Geh sie einzeln im Abschnitt **KI-Aenderungen** von **Verlauf & Wiederherstellen** zurueck (oder ueber den Menue-Eintrag **Undo AI Edit**). Snapshots ueberleben App-Neustarts (sie liegen in `.penwright/ai-snapshots/`), und die KI sieht genau dieselbe Liste: sie kann sie lesen und ihre eigene letzte Aenderung zuruecknehmen.
 
-### Cloud-Backup (optional)
+### Derselbe Ordner auf einem anderen Geraet
 
-Der Versionsverlauf ist standardmaessig lokal. Wer ihn zu GitHub (oder einem beliebigen Git-Remote) pushen will — als externes Backup oder um auf einem zweiten Geraet zu arbeiten:
-
-1. **Project**-Tab oeffnen, **Erweitert** ausklappen
-2. Remote-URL einfuegen (z. B. `https://github.com/dein-user/deine-thesis.git`)
-3. **Mit Cloud synchronisieren** (Push) und **Cloud-Backup laden** (Pull) nach Bedarf nutzen
-
-Zwei Geraete parallel sind nicht abgesichert — immer nur ein Geraet zur Zeit.
+`versions/`, die Backups und die KI-Snapshots liegen im Projekt. Kopierst du den Ordner, oder synchronisiert Dropbox ihn, sieht das iPad dieselben Kapitel und dieselben Versionen. Penwright schiebt keinen Git-Remote.
 
 ---
 
@@ -749,7 +744,7 @@ Penwright trennt zwei Arten von Zustand: **App-Einstellungen**, die global zur I
 - Auto-Backup-Konfiguration (Intervall, Max-Anzahl Backups, Max-AI-Snapshots)
 
 **Pro Projekt** (im Projektordner):
-- Versionsverlauf (`.git/`)
+- Kapitelversionen (`versions/`)
 - Auto-Backups (`.penwright/backups/`)
 - AI-Edit-Snapshots (`.penwright/ai-snapshots/`)
 - Chat-Gespraeche in der App (`.penwright/cursor-agent/`)
@@ -830,7 +825,7 @@ Stopp eine laufende Antwort, bevor du den Chat wechselst oder einen neuen starte
 
 Penwright enthaelt einen eingebauten MCP-Server (Model Context Protocol). Der **Chat in der App** nutzt ihn automatisch. Denselben Server koennen **Cursor IDE**, **Claude Desktop**, **Claude Code** oder **Codex Desktop** nutzen, wenn du diese Apps bevorzugst.
 
-> **Hinweis:** Der MCP-Server ist **fuer alle freigeschaltet** — alle 68 Tools, ohne Key, ohne Zeitlimit. Siehe [Lizenz](#lizenz). Der Chat in der App braucht zusaetzlich ein Cursor-Konto (das ist Cursors Abrechnung, keine Penwright-Sperre).
+> **Hinweis:** Der MCP-Server ist **fuer alle freigeschaltet** — alle 65 Tools, ohne Key, ohne Zeitlimit. Siehe [Lizenz](#lizenz). Der Chat in der App braucht zusaetzlich ein Cursor-Konto (das ist Cursors Abrechnung, keine Penwright-Sperre).
 
 ### Einrichtung: Cursor (Standard)
 
@@ -840,7 +835,7 @@ Bestaetigen oder erneut registrieren: **Hilfe → MCP-Verbindung…**.
 
 ### Was kann der MCP-Server?
 
-Die KI kann ueber den MCP-Server (68 Tools):
+Die KI kann ueber den MCP-Server (65 Tools):
 - **Ein komplettes Projekt aus einem Preset anlegen** (`penwright_list_presets` + `penwright_create_from_preset`) — designter Startpunkt inkl. Platzhalter-Text, statt bei null anzufangen; Magazin-Presets mit eigenem Layout pro Kapitel
 - Typst-Dokumente oeffnen, lesen, bearbeiten und verifizieren (`compile` ist reiner Verifier; das Schreiben von Artefakten uebernehmen die Export-Tools)
 - **Die Seite sehen.** `penwright_render_page` rendert eine Seite des kompilierten PDFs als Bild und gibt sie zurueck — die KI kann Abstaende, Ueberlaeufe, Farben und die Position einer Ueberschrift beurteilen, statt sie aus dem Quelltext zu erraten
@@ -952,9 +947,9 @@ Du musst die Config **nicht** jedes Mal aendern, wenn du das Projekt wechselst. 
 
 Claude ruft dann `penwright_set_project` auf und arbeitet ab sofort mit dem neuen Projekt.
 
-### Verfuegbare Tools (68)
+### Verfügbare Tools (65)
 
-Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 68 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
+Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Beispielen liegt in [mcp-server.md](mcp-server.md). Hier alle 65 Tools mit Ein-Satz-Beschreibung, gruppiert nach Kategorie:
 
 **Projekt & Dateien (5)**
 
@@ -967,7 +962,7 @@ Volle Referenz mit Parameter-Schemata, Return-Shapes und End-to-End-Workflow-Bei
 **Presets — fertige Projekt-Starter (2)**
 
 - `penwright_list_presets` — Listet alle Built-in-Presets (fertige, designte Projekte mit Platzhalter-Text) auf — `id` / `type` / `label` / `tagline`, optional nach `type` gefiltert (magazine, report, cookbook, portfolio, thesis …).
-- `penwright_create_from_preset` — Legt ein neues Projekt aus einem Preset an: kopiert den kompletten Ordner (Design + Makros + Assets + Lorem), `git init`, wechselt auf die Startdatei. Bevorzugt gegenueber `create_project`, wenn ein designter Startpunkt gewuenscht ist — Magazin-Presets bringen pro Kapitel ein eigenes Layout mit.
+- `penwright_create_from_preset` — Legt ein neues Projekt aus einem Preset an: kopiert den kompletten Ordner (Design + Makros + Assets + Lorem) und wechselt auf die Startdatei. Bevorzugt gegenueber `create_project`, wenn ein designter Startpunkt gewuenscht ist — Magazin-Presets bringen pro Kapitel ein eigenes Layout mit.
 
 **Dokument-Operationen (5)**
 
@@ -1034,10 +1029,10 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 
 **Versionen, Backups & Rueckgaengig (8) — entspricht „Verlauf & Wiederherstellen"**
 
-- `penwright_save_version` — Speichert eine benannte Version (Git-Commit); initialisiert das Repo falls noch keins da ist; lokal-only, kein Push.
-- `penwright_list_versions` — Liefert die Versions-Historie (max. 200, neueste zuerst) inkl. `isAuto`-Flag fuer Penwright-interne Auto-Versionen.
-- `penwright_show_version` — Zeigt den Per-File-Diff einer Version (added/modified/deleted/renamed + Unified-Diff-Hunks).
-- `penwright_restore_version` — Stellt Dateien aus einer historischen Version wieder her; vorher selbst eine Version speichern!
+- `penwright_save_version` — Speichert eine benannte Version des offenen Kapitels (oder von `file`). Die lebende Datei bleibt. Die Kopie liegt unter `versions/<Kapitel>/<Name>.typ`.
+- `penwright_list_versions` — Listet diese Versionen, gruppiert nach Kapitel. Jeder Eintrag ist `{ name, path }`.
+- `penwright_show_version` — Liest eine Versionsdatei. `path` kommt aus der Liste.
+- `penwright_restore_version` — Tauscht diese Version mit der lebenden Kapiteldatei. Die Version behält ihren Namen und enthält danach den bisherigen Kapiteltext. Verlangt `confirm: true`.
 - `penwright_list_backups` — Listet die automatischen Backups des Projekts (zeitgesteuerte Snapshots aller Textdateien, neueste zuerst) — das Absturz-Netz, verschieden von Versionen und von Edit-Snapshots.
 - `penwright_read_backup` — Liest, was in einem Backup steckt: die Dateiliste oder den Inhalt einer Datei. Nur lesend — das Wiederherstellen bleibt deine Entscheidung in „Verlauf & Wiederherstellen".
 - `penwright_list_edits` — Listet die rueckgaengig machbaren Edit-Snapshots: den vorherigen Stand jeder Datei, die Penwright oder der Server ueberschrieben hat, neueste zuerst. Dieselbe Liste wie der Abschnitt **KI-Aenderungen**.
@@ -1061,12 +1056,6 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 
 - `penwright_import_markdown` — Konvertiert Markdown/MDX zu Typst und schreibt in eine Projekt-Datei; inline-Markdown oder `srcPath` zu einer `.md` / `.mdx`-Datei. Ein Easy-Writing-Ordner wird über `penwright_set_project` geöffnet, nicht hier geflattet.
 - `penwright_add_image` — Importiert ein Bild nach `assets/` (Content-Hash-Dedup), baut den Typst-Snippet (mit optionaler Caption + Label → `#figure(…)`) und kann ihn direkt am Anker einfuegen.
-
-**Git Low-Level (3) — fuer Sync mit Remote**
-
-- `penwright_git_status` — Liefert Branch, ahead/behind und geaenderte Dateien.
-- `penwright_git_commit` — Stagt alle Aenderungen und committet mit der gegebenen Message.
-- `penwright_git_push` — Pusht commits zum Remote-Repository.
 
 Alle datei-beruehrenden Tools laufen ueber `resolveInsideProject` — symlink-aware, blockiert `../`-Traversal. Anker-basierte Tools (`add_comment` / `insert_reference` / `add_footnote` / `add_image`) nehmen einen `afterText`/`anchor` plus optional einen 1-basierten `occurrence`, wenn der Anker mehrfach vorkommt — der Agent muss keine Offsets selbst berechnen.
 

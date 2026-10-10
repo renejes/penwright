@@ -61,6 +61,7 @@ export const pickers = {
   citationOpenPdf: 'Open PDF',
   citationNoPdf: 'No PDF in {folder}',
   citationNoPdfLinked: 'No PDF found for this source.',
+  citationChoosePdfFolder: 'Choose PDF folder…',
   citationNoAuthor: '(no author)',
   citationNoTitle: '(no title)',
 

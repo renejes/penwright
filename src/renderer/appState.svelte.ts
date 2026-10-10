@@ -4,6 +4,7 @@
  */
 
 import type { Editor } from '@tiptap/core';
+import { t } from '../shared/i18n/store.svelte';
 import type { DocumentSettings } from '../editor/lib/messages';
 import { formatTokenCount } from '../shared/chatModels';
 import { chatLive } from './chatLive.svelte';
@@ -28,7 +29,11 @@ export let uiState = $state({
   showHandbook: false,
   exporting: false,
   exportFormat: '' as string,
+  banner: '',
 });
+
+/** Set when the iPad host has a folder, even before a chapter is open. */
+export let projectState = $state({ open: false, name: '' });
 
 // ─── Panel State ────────────────────────────────
 export let panelState = $state({
@@ -163,6 +168,8 @@ export function resetChatUi(): void {
 export interface EditorTab {
   path: string;
   type: 'typ' | 'text' | 'rawtyp' | 'pdf' | 'design';
+  /** Set when the tab is a chapter version. `read` does not write the file. */
+  versionMode?: 'read' | 'edit';
 }
 
 export let tabState = $state({
@@ -216,27 +223,68 @@ export let exportDialogState = $state({
 
 // ─── Tab Operations ──────────────────────────────
 
-export function openTab(filePath: string, type: 'typ' | 'text' | 'rawtyp' | 'pdf' | 'design' = 'typ') {
-  const existingIndex = tabState.openTabs.findIndex(t => t.path === filePath && t.type === type);
+export function openTab(
+  filePath: string,
+  type: 'typ' | 'text' | 'rawtyp' | 'pdf' | 'design' = 'typ',
+  versionMode?: 'read' | 'edit',
+) {
+  const existingIndex = tabState.openTabs.findIndex(tab => tab.path === filePath && tab.type === type);
   if (existingIndex >= 0) {
+    const prev = tabState.openTabs[existingIndex];
+    if (versionMode && prev.versionMode !== versionMode) {
+      const next = [...tabState.openTabs];
+      next[existingIndex] = { ...prev, versionMode };
+      tabState.openTabs = next;
+    }
     tabState.activeTabIndex = existingIndex;
     return;
   }
-  tabState.openTabs = [...tabState.openTabs, { path: filePath, type }];
+  tabState.openTabs = [...tabState.openTabs, { path: filePath, type, ...(versionMode ? { versionMode } : {}) }];
   tabState.activeTabIndex = tabState.openTabs.length - 1;
 }
 
+/** Point an open tab at a renamed version file. */
+export function retargetTab(oldPath: string, newPath: string): void {
+  let changed = false;
+  const next = tabState.openTabs.map((tab) => {
+    if (tab.path !== oldPath) return tab;
+    changed = true;
+    return { ...tab, path: newPath };
+  });
+  if (!changed) return;
+  tabState.openTabs = next;
+  if (tabState.currentFile === oldPath) tabState.currentFile = newPath;
+}
+
+export function closeTabByPath(filePath: string): void {
+  const index = tabState.openTabs.findIndex((tab) => tab.path === filePath);
+  if (index < 0) return;
+  const wasActive = index === tabState.activeTabIndex;
+  closeTab(index);
+  if (wasActive && tabState.activeTabIndex >= 0) switchToTab(tabState.activeTabIndex);
+}
+
 export function closeTab(index: number) {
+  const wasActive = index === tabState.activeTabIndex;
   tabState.openTabs = tabState.openTabs.filter((_, i) => i !== index);
-  if (tabState.activeTabIndex >= tabState.openTabs.length) {
-    tabState.activeTabIndex = tabState.openTabs.length - 1;
+  if (tabState.openTabs.length === 0) {
+    tabState.activeTabIndex = -1;
+    return;
+  }
+  if (wasActive) {
+    tabState.activeTabIndex = Math.min(index, tabState.openTabs.length - 1);
+  } else if (tabState.activeTabIndex > index) {
+    tabState.activeTabIndex -= 1;
   }
 }
 
 export function tabName(tab: EditorTab): string {
   const name = tab.path.split('/').pop() || '';
   if (tab.type === 'design') return 'Look';
-  return tab.type === 'rawtyp' ? `${name} [Text]` : name;
+  const label = tab.type === 'rawtyp' ? `${name} [Text]` : name;
+  if (tab.versionMode === 'read') return `${label} · ${t().project.openRead}`;
+  if (tab.versionMode === 'edit') return `${label} · ${t().project.openEdit}`;
+  return label;
 }
 
 export function switchToTab(index: number) {

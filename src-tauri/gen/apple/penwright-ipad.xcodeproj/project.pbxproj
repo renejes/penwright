@@ -1,0 +1,465 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		241E722F1506156A9A399892 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E943FF74C8EC74378C3641EF /* libapp.a */; };
+		364A6D0423A0CEE29C95001B /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFEDCB108FA446AFEB8D2117 /* CoreGraphics.framework */; };
+		3B30551EEB72D9A9D90B2A1B /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C785D8B079C36562D5AF95E0 /* LaunchScreen.storyboard */; };
+		4EBB2AE0EF029788B44700D4 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 13C8AA4A7BCA01744964BF72 /* Metal.framework */; };
+		6BBE0677BD6FFFBE46235062 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CAA2A06DB29FB01DF97D3DC2 /* QuartzCore.framework */; };
+		816A7EF61D2DFCFCC62FDBF7 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 9C8263D16F7CBBA6DF776854 /* assets */; };
+		B75D98B9F30CA52BA603A4C5 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = AB7F37D1EA2228F0B842BE55 /* main.mm */; };
+		C250051A8E207B9F228B778E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AEECB56F1265C8874EB33D17 /* Assets.xcassets */; };
+		D055E2FD6E139F9B7BD472E6 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A2E173D7648DC9791A58A5B /* WebKit.framework */; };
+		D9991767636FA910B65AFAB4 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40FF0A8F7F942A4172E50E3B /* Security.framework */; };
+		DCA625B40ED72DE8DCA3FF7D /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6374F01C0E1C8D4D937BD091 /* MetalKit.framework */; };
+		EBE6EB55AA29BF389BB42816 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 712621DF2AD45E3AF0A8D0A5 /* UIKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0C8E4D79038921FB13C3BFD4 /* penwright-ipad_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "penwright-ipad_iOS.entitlements"; sourceTree = "<group>"; };
+		13C8AA4A7BCA01744964BF72 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		1528EEAFC9263E388B5A2280 /* penwright-ipad_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "penwright-ipad_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		40FF0A8F7F942A4172E50E3B /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		4A2E173D7648DC9791A58A5B /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		4D19A76A6975F270FE1C1949 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		6374F01C0E1C8D4D937BD091 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		712621DF2AD45E3AF0A8D0A5 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		9C8263D16F7CBBA6DF776854 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		AB7F37D1EA2228F0B842BE55 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		AEECB56F1265C8874EB33D17 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BFE0BBBB3B3CC8F3BF7F5CD6 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		BFEDCB108FA446AFEB8D2117 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		C785D8B079C36562D5AF95E0 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		CAA2A06DB29FB01DF97D3DC2 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		D1BEAFE0ACCEE385652C53CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E892B2C09403327107E1C47F /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		E943FF74C8EC74378C3641EF /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AECF5B9BE330E79AB50B8D55 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				241E722F1506156A9A399892 /* libapp.a in Frameworks */,
+				364A6D0423A0CEE29C95001B /* CoreGraphics.framework in Frameworks */,
+				4EBB2AE0EF029788B44700D4 /* Metal.framework in Frameworks */,
+				DCA625B40ED72DE8DCA3FF7D /* MetalKit.framework in Frameworks */,
+				6BBE0677BD6FFFBE46235062 /* QuartzCore.framework in Frameworks */,
+				D9991767636FA910B65AFAB4 /* Security.framework in Frameworks */,
+				EBE6EB55AA29BF389BB42816 /* UIKit.framework in Frameworks */,
+				D055E2FD6E139F9B7BD472E6 /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2A163DADD1810DEEFE4406C1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BFEDCB108FA446AFEB8D2117 /* CoreGraphics.framework */,
+				E943FF74C8EC74378C3641EF /* libapp.a */,
+				13C8AA4A7BCA01744964BF72 /* Metal.framework */,
+				6374F01C0E1C8D4D937BD091 /* MetalKit.framework */,
+				CAA2A06DB29FB01DF97D3DC2 /* QuartzCore.framework */,
+				40FF0A8F7F942A4172E50E3B /* Security.framework */,
+				712621DF2AD45E3AF0A8D0A5 /* UIKit.framework */,
+				4A2E173D7648DC9791A58A5B /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		58AC0C89C19A2CEA2A55A271 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1528EEAFC9263E388B5A2280 /* penwright-ipad_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8B11FB5D9A3BDCEC27BF277F /* src */ = {
+			isa = PBXGroup;
+			children = (
+				E892B2C09403327107E1C47F /* lib.rs */,
+				BFE0BBBB3B3CC8F3BF7F5CD6 /* main.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		A13BE3F1B0B073052AC487C4 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		C6CD0938DD1468B178D72A55 /* penwright-ipad */ = {
+			isa = PBXGroup;
+			children = (
+				AB7F37D1EA2228F0B842BE55 /* main.mm */,
+				F5B0B0919279BAA864897180 /* bindings */,
+			);
+			path = "penwright-ipad";
+			sourceTree = "<group>";
+		};
+		D828D31EA52911F234A687D3 = {
+			isa = PBXGroup;
+			children = (
+				9C8263D16F7CBBA6DF776854 /* assets */,
+				AEECB56F1265C8874EB33D17 /* Assets.xcassets */,
+				C785D8B079C36562D5AF95E0 /* LaunchScreen.storyboard */,
+				A13BE3F1B0B073052AC487C4 /* Externals */,
+				D92364768DA97681D9D2C4C9 /* penwright-ipad_iOS */,
+				EBE6C8126D573F0182ED96F3 /* Sources */,
+				8B11FB5D9A3BDCEC27BF277F /* src */,
+				2A163DADD1810DEEFE4406C1 /* Frameworks */,
+				58AC0C89C19A2CEA2A55A271 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D92364768DA97681D9D2C4C9 /* penwright-ipad_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				D1BEAFE0ACCEE385652C53CF /* Info.plist */,
+				0C8E4D79038921FB13C3BFD4 /* penwright-ipad_iOS.entitlements */,
+			);
+			path = "penwright-ipad_iOS";
+			sourceTree = "<group>";
+		};
+		EBE6C8126D573F0182ED96F3 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C6CD0938DD1468B178D72A55 /* penwright-ipad */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		F5B0B0919279BAA864897180 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				4D19A76A6975F270FE1C1949 /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0F075E20EF8F9B1AB64DDDBF /* penwright-ipad_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF0D4F7E35F386AC6541A935 /* Build configuration list for PBXNativeTarget "penwright-ipad_iOS" */;
+			buildPhases = (
+				4783EC85FF11B954174697FE /* Build Rust Code */,
+				F84863B4864378B453C6EEB7 /* Sources */,
+				42D1C399F9EBC4CEA0A5CF29 /* Resources */,
+				AECF5B9BE330E79AB50B8D55 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "penwright-ipad_iOS";
+			packageProductDependencies = (
+			);
+			productName = "penwright-ipad_iOS";
+			productReference = 1528EEAFC9263E388B5A2280 /* penwright-ipad_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4759AFE79FDC5DBC1C345411 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0F075E20EF8F9B1AB64DDDBF = {
+						DevelopmentTeam = 3LAHNFWNT3;
+					};
+				};
+			};
+			buildConfigurationList = 184ED4DD07BD7B9F62DBA29A /* Build configuration list for PBXProject "penwright-ipad" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D828D31EA52911F234A687D3;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 58AC0C89C19A2CEA2A55A271 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0F075E20EF8F9B1AB64DDDBF /* penwright-ipad_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		42D1C399F9EBC4CEA0A5CF29 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C250051A8E207B9F228B778E /* Assets.xcassets in Resources */,
+				3B30551EEB72D9A9D90B2A1B /* LaunchScreen.storyboard in Resources */,
+				816A7EF61D2DFCFCC62FDBF7 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		4783EC85FF11B954174697FE /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "npm run -- tauri ios xcode-script -v --platform \"${PLATFORM_DISPLAY_NAME:?}\" --sdk-root \"${SDKROOT:?}\" --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration \"${CONFIGURATION:?}\" ${ARCHS:?}\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F84863B4864378B453C6EEB7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B75D98B9F30CA52BA603A4C5 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		4329E4270E8C96478A02DB1A /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		73FDCE7AFA8A60EC9421B113 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		8D917F5BB0C59B92810A75CE /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "penwright-ipad_iOS/penwright-ipad_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "3LAHNFWNT3";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "penwright-ipad_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = online.penwright.ipad;
+				PRODUCT_NAME = "Penwright";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		E96851E00131B464858BB42C /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "penwright-ipad_iOS/penwright-ipad_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "3LAHNFWNT3";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "penwright-ipad_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = online.penwright.ipad;
+				PRODUCT_NAME = "Penwright";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		184ED4DD07BD7B9F62DBA29A /* Build configuration list for PBXProject "penwright-ipad" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4329E4270E8C96478A02DB1A /* debug */,
+				73FDCE7AFA8A60EC9421B113 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		BF0D4F7E35F386AC6541A935 /* Build configuration list for PBXNativeTarget "penwright-ipad_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E96851E00131B464858BB42C /* debug */,
+				8D917F5BB0C59B92810A75CE /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4759AFE79FDC5DBC1C345411 /* Project object */;
+}

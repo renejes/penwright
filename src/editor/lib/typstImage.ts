@@ -1,6 +1,7 @@
 import { Node } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { t } from '../../shared/i18n/store.svelte';
+import { isIpadHost } from '../../shared/hostKind';
 
 /**
  * Document base URI for resolving relative image paths in the webview.
@@ -18,9 +19,19 @@ function refreshAllImages() {
   document.querySelectorAll('.typst-image-block img').forEach((img) => {
     const el = img as HTMLImageElement;
     const rawSrc = el.closest('.typst-image-block')?.querySelector('.typst-image-path')?.textContent || '';
-    if (rawSrc && documentBaseUri) {
-      el.src = resolveImageSrc(rawSrc);
-    }
+    if (rawSrc && documentBaseUri) applyImageSrc(el, rawSrc);
+  });
+}
+
+function applyImageSrc(img: HTMLImageElement, src: string): void {
+  if (!isIpadHost()) {
+    img.src = resolveImageSrc(src);
+    return;
+  }
+  const reader = window.__penwrightIpad?.readImage;
+  if (!reader) return;
+  void reader(src, documentBaseUri).then((url) => {
+    if (url) img.src = url;
   });
 }
 
@@ -313,7 +324,7 @@ export const TypstImage = Node.create({
     return [
       'img',
       {
-        src: resolveImageSrc(node.attrs.src),
+        src: isIpadHost() ? '' : resolveImageSrc(node.attrs.src),
         'data-src': node.attrs.src,
         alt: node.attrs.alt,
         width: node.attrs.width,
@@ -333,7 +344,7 @@ export const TypstImage = Node.create({
       }
 
       const img = document.createElement('img');
-      img.src = resolveImageSrc(node.attrs.src);
+      applyImageSrc(img, node.attrs.src);
       img.alt = node.attrs.alt || '';
       if (node.attrs.width) {
         img.style.width = node.attrs.width;
@@ -433,7 +444,7 @@ export const TypstImage = Node.create({
         update(updatedNode) {
           if (updatedNode.type.name !== 'image') return false;
           currentNode = updatedNode;
-          img.src = resolveImageSrc(updatedNode.attrs.src);
+          applyImageSrc(img, updatedNode.attrs.src);
           img.alt = updatedNode.attrs.alt || '';
           if (updatedNode.attrs.width) {
             img.style.width = updatedNode.attrs.width;

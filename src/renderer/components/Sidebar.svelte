@@ -111,6 +111,7 @@
     }
     showNewFolderInput = false;
     newFolderName = '';
+    await loadTree();
   }
 
   function cancelNewFolder() {
@@ -189,7 +190,7 @@
       </div>
     {:else}
       <ul class="file-list" role="tree" aria-label={t().sidebar.filesAria}>
-        {#each tree as entry}
+        {#each tree as entry (entry.path)}
           {@render fileNode(entry, 0)}
         {/each}
       </ul>
@@ -215,7 +216,7 @@
     </button>
     {#if entry.isDir && entry.children && expandedDirs.has(entry.path)}
       <ul class="file-list">
-        {#each entry.children as child}
+        {#each entry.children as child (child.path)}
           {@render fileNode(child, depth + 1)}
         {/each}
       </ul>

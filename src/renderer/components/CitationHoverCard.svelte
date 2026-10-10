@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { getCitationEntries, type CitationEntry } from '../../editor/lib/citationSuggestion';
   import { t } from '@shared/i18n/store.svelte';
+  import { isIpadHost } from '@shared/hostKind';
 
   let {
     citekey,
@@ -98,6 +99,19 @@
     window.removeEventListener('penwright:citation-hover', handleCitationHover);
   });
 
+  function choosePdfFolder() {
+    const api = (window as unknown as {
+      electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
+    }).electronAPI;
+    api.invoke('project:pickZoteroPdfFolder').then(async (result) => {
+      const picked = result as { ok?: boolean };
+      if (!picked?.ok) return;
+      const again = await api.invoke('project:findSourceForCitation', citekey) as { path?: string | null; linked?: boolean };
+      pdfPath = again?.path ?? null;
+      linked = !!again?.linked;
+    }).catch(() => {});
+  }
+
   function handleOpenPdf() {
     const api = (window as unknown as {
       electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> };
@@ -156,12 +170,17 @@
       <span class="citation-card-pdf-name" title={pdfPath}>
         {pdfPath.split('/').pop()}
       </span>
-    {:else if linked}
-      <span class="citation-card-pdf-missing">{t().pickers.citationNoPdfLinked}</span>
     {:else}
-      <span class="citation-card-pdf-missing">
-        {@html t().pickers.citationNoPdf.replace('{folder}', '<code>sources/</code>')}
-      </span>
+      {#if isIpadHost()}
+        <button class="citation-card-btn" type="button" onclick={choosePdfFolder}>{t().pickers.citationChoosePdfFolder}</button>
+      {/if}
+      {#if linked}
+        <span class="citation-card-pdf-missing">{t().pickers.citationNoPdfLinked}</span>
+      {:else}
+        <span class="citation-card-pdf-missing">
+          {t().pickers.citationNoPdf.split('{folder}')[0]}<code>sources/</code>{t().pickers.citationNoPdf.split('{folder}')[1] ?? ''}
+        </span>
+      {/if}
     {/if}
   </div>
 </div>
@@ -214,6 +233,7 @@
   .citation-card-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
     padding-top: 8px;

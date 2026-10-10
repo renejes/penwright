@@ -4,11 +4,11 @@ export const history: HistoryMessages = {
   openButton: 'Verlauf & Wiederherstellen',
   openButtonAria: 'Verlauf und Wiederherstellen öffnen',
   title: 'Verlauf & Wiederherstellen',
-  intro: 'Alles, was du zurückholen kannst, liegt hier — selbst gespeicherte Stände, automatische Kopien und KI-Bearbeitungen.',
+  intro: 'Automatische Kopien und KI-Bearbeitungen, die du zurückholen kannst. Kapitelversionen liegen im Reiter Projekt.',
 
   versionsTitle: 'Versionen',
-  versionsDesc: 'Benannte Meilensteine, die du selbst speicherst — bleiben dauerhaft erhalten.',
-  versionsEmpty: 'Noch keine Versionen.',
+  versionsDesc: 'Eine Version ist ein Kapitel. Du benennst sie, öffnest sie zum Lesen oder Bearbeiten und tauschst sie im Reiter Projekt mit der lebenden Datei.',
+  versionsEmpty: 'Die Versionen stehen im Reiter Projekt.',
 
   backupsTitle: 'Auto-Backups',
   backupsDesc: 'Automatische Kopien alle paar Minuten — dein Absturzschutz.',
@@ -21,4 +21,5 @@ export const history: HistoryMessages = {
   aiEmpty: 'Keine KI-Bearbeitungen zum Rückgängigmachen in diesem Projekt.',
   aiNoFile: 'Öffne eine Datei, um ihre KI-Bearbeitungen zu sehen.',
   aiUndoLast: 'Letzte rückgängig',
+  aiUndoFailed: 'Die letzte KI-Änderung konnte nicht zurückgeholt werden.',
 };

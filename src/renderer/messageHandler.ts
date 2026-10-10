@@ -9,6 +9,7 @@ import { updateCitationEntries } from '../editor/lib/citationSuggestion';
 import { setDocumentBaseUri } from '../editor/lib/typstImage';
 import { setEditorLanguage } from '../editor/lib/editor';
 import { ipc } from '../editor/lib/ipcAdapter';
+import { isIpadHost } from '../shared/hostKind';
 import { setProjectMacros, clearProjectMacros, type ProjectMacroItem } from '../editor/lib/projectMacroStore';
 import type { ExtensionMessage } from '../editor/lib/messages';
 import {
@@ -21,6 +22,7 @@ import {
   savePresetState,
   panelState,
   zoomState,
+  projectState,
   zoomEditorIn,
   zoomEditorOut,
   resetEditorZoom,
@@ -32,6 +34,12 @@ import {
   applyChatEvent,
   resetChatUi,
 } from './appState.svelte';
+
+function ipadSkips(): boolean {
+  if (!isIpadHost()) return false;
+  window.dispatchEvent(new CustomEvent('penwright:mac-only'));
+  return true;
+}
 
 /**
  * Loads the building blocks callable in `targetFile` into the store the slash
@@ -137,7 +145,7 @@ export function handleMessage(message: ExtensionMessage): void {
     previewState.error = '';
     previewState.compiling = false;
     previewState.dirty = false;
-    if (!panelState.showPreview) {
+    if (!panelState.showPreview && !isIpadHost()) {
       panelState.showPreview = true;
     }
   } else if (message.type === 'compileError') {
@@ -150,13 +158,29 @@ export function handleMessage(message: ExtensionMessage): void {
   }
 
   // Handle save status
-  const msg = message as unknown as { type: string; panel?: string; saved?: boolean; file?: string };
+  const msg = message as unknown as {
+    type: string;
+    panel?: string;
+    saved?: boolean;
+    file?: string;
+    name?: string;
+    message?: string;
+  };
   if (msg.type === 'saveStatus') {
     tabState.isSaved = msg.saved ?? true;
     if (msg.saved) {
       const now = new Date();
       tabState.lastSaveTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
+  }
+
+  if (msg.type === 'projectOpened') {
+    projectState.open = true;
+    projectState.name = typeof msg.name === 'string' ? msg.name : '';
+    uiState.banner = '';
+  }
+  if (msg.type === 'hostNotice') {
+    uiState.banner = typeof msg.message === 'string' ? msg.message : '';
   }
 
   // Handle new project dialog
@@ -174,8 +198,8 @@ export function handleMessage(message: ExtensionMessage): void {
   // Handle panel toggles from main process menu
   if (msg.type === 'togglePanel') {
     if (msg.panel === 'sidebar') panelState.showSidebar = !panelState.showSidebar;
-    if (msg.panel === 'preview') panelState.showPreview = !panelState.showPreview;
-    if (msg.panel === 'chat') panelState.showChat = !panelState.showChat;
+    if (msg.panel === 'preview' && !ipadSkips()) panelState.showPreview = !panelState.showPreview;
+    if (msg.panel === 'chat' && !ipadSkips()) panelState.showChat = !panelState.showChat;
   }
 
   // Open the About dialog from the native menu
@@ -232,12 +256,13 @@ export function handleMessage(message: ExtensionMessage): void {
   }
   // Help → "Show Introduction": re-open the first-run onboarding tour.
   if (msg.type === 'showOnboarding') {
-    window.dispatchEvent(new CustomEvent('penwright:show-onboarding'));
+    if (!ipadSkips()) window.dispatchEvent(new CustomEvent('penwright:show-onboarding'));
   }
 
   // Open the Export selection dialog when the menu triggers an export on
   // a multi-chapter project.
   if (msg.type === 'showExportDialog') {
+    if (ipadSkips()) return;
     const data = msg as unknown as { format: 'pdf' | 'docx' | 'web'; sections: typeof exportDialogState.sections };
     exportDialogState.format = data.format;
     exportDialogState.sections = data.sections;
@@ -273,6 +298,8 @@ export function handleMessage(message: ExtensionMessage): void {
     tabState.currentFile = '';
     tabState.currentContent = '';
     tabState.isSaved = true;
+    projectState.open = false;
+    projectState.name = '';
     zoomState.editor = 1.0;
     zoomState.pdf = 1.0;
     clearProjectMacros();
@@ -294,12 +321,12 @@ export function handleMessage(message: ExtensionMessage): void {
   // Help menu → "Mit Claude Desktop verbinden…". The wizard mounts on a
   // window event so App.svelte's listener owns the visibility state.
   if (msg.type === 'showMcpSetupWizard') {
-    window.dispatchEvent(new CustomEvent('penwright:show-mcp-wizard'));
+    if (!ipadSkips()) window.dispatchEvent(new CustomEvent('penwright:show-mcp-wizard'));
   }
 
   // Help menu → "MCP-Verbindung…" — Cursor / Claude Code registration.
   if (msg.type === 'showMcpConnection') {
-    window.dispatchEvent(new CustomEvent('penwright:show-mcp-connection'));
+    if (!ipadSkips()) window.dispatchEvent(new CustomEvent('penwright:show-mcp-connection'));
   }
 
   // Native-menu actions whose logic lives in the MAIN process. The menu sends

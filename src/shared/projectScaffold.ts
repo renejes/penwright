@@ -25,7 +25,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { SimpleGit } from 'simple-git';
 import { findRootFileIn } from './rootFinder';
 import { ensureStyleInclude } from './styleParser';
 import { isDesignAdopted } from './styleWrite';
@@ -195,20 +194,9 @@ export interface ScaffoldOptions {
   renderStyleTyp: (styleJson: string) => string;
   /** True only when creating a project — see `ensureStyleFiles`. */
   wireRoot: boolean;
-  /** Message for the initial commit. */
-  initialCommitMessage: string;
-  /**
-   * Git access, injected because the two processes construct it differently
-   * and `shared/` should not decide. Return null to skip Git entirely.
-   */
-  git: (dir: string) => SimpleGit | null;
-  /** Repo-local identity fallback — writers' machines often have no global one. */
-  ensureIdentity?: (git: SimpleGit) => Promise<void>;
 }
 
 export interface ScaffoldResult {
-  gitInitialized: boolean;
-  committed: boolean;
   skillsWritten: string[];
   warnings: string[];
 }
@@ -218,14 +206,11 @@ export interface ScaffoldResult {
  * expects to find. Idempotent: safe on an existing project, which is why the
  * "open an existing folder" path can call it too.
  *
- * Order matters. `.gitignore` before `git init` + `add -A`, or the first
- * commit captures `.penwright/` as content. Style files before the commit, so
- * the initial version contains the look the user is about to see.
+ * A `.gitignore` is still written. Penwright does not create a repository;
+ * the file only keeps `.penwright/` out of a repo the author already has.
  */
 export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldResult> {
   const result: ScaffoldResult = {
-    gitInitialized: false,
-    committed: false,
     skillsWritten: [],
     warnings: [],
   };
@@ -255,27 +240,6 @@ export async function scaffoldProject(opts: ScaffoldOptions): Promise<ScaffoldRe
     defaultStyleJson: opts.defaultStyleJson,
     renderStyleTyp: opts.renderStyleTyp,
   });
-
-  const git = opts.git(opts.dir);
-  if (git) {
-    try {
-      if (!(await git.checkIsRepo())) {
-        await git.init();
-        // Older Git still defaults to "master".
-        try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch { /* fine */ }
-        result.gitInitialized = true;
-        if (opts.ensureIdentity) await opts.ensureIdentity(git);
-        await git.add('-A');
-        const status = await git.status();
-        if (status.staged.length > 0 || status.created.length > 0) {
-          await git.commit(opts.initialCommitMessage);
-          result.committed = true;
-        }
-      }
-    } catch (err) {
-      result.warnings.push(`Git setup failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
 
   return result;
 }

@@ -54,4 +54,22 @@ export const project: ProjectMessages = {
     'Tipp: Speichere vorher den aktuellen Stand als eigene Version, falls du nichts verlieren willst.\n\n' +
     'Fortfahren?',
   cloudPullFailed: (msg: string) => `Cloud-Backup konnte nicht geladen werden: ${msg}`,
+
+  versionOf: (file: string) => `Nur diese Datei: ${file}`,
+  noOpenChapter: 'Öffne ein Kapitel. Eine Version gilt immer für den Tab, den du gerade siehst.',
+  createVersion: 'Version anlegen',
+  openRead: 'Lesen',
+  openEdit: 'Bearbeiten',
+  makeMain: 'Zur Hauptfassung',
+  makeMainTitle: 'Diese Version mit der lebenden Kapiteldatei tauschen',
+  makeMainConfirm: 'Die Kapiteldatei und diese Version tauschen den Text. Die Version behält ihren Namen und enthält danach den bisherigen Kapiteltext. Die Kapiteldatei wird zu dem, was jetzt in der Version steht.',
+  deleteVersion: 'Löschen',
+  deleteConfirm: (name: string) => `Version „${name}“ löschen?`,
+  rename: 'Umbenennen',
+  renamePrompt: 'Name dieser Version',
+  versionsEmpty: 'Noch keine Versionen.',
+  versionsTitle: 'Versionen',
+  versionMenu: 'Aktionen für diese Version',
+  nameTaken: 'Eine Version mit diesem Namen gibt es schon.',
+  versionFailed: (msg: string) => `Das hat nicht geklappt: ${msg}`,
 };

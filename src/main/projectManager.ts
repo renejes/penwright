@@ -6,7 +6,6 @@
 import { app, dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import simpleGit from 'simple-git';
 import { templates as projectTemplates } from '../shared/projectTemplates';
 import { parseSettings, applySettings } from '../shared/settingsParser';
 import { findRootFile } from '../shared/rootFinder';
@@ -24,7 +23,6 @@ import { isPathWithin } from './pathSecurity';
 import { addBreadcrumb } from './crashReporter';
 import { getLocale } from './persistenceManager';
 import { resolveDict } from '../shared/i18n';
-import { ensureGitIdentity } from '../shared/gitIdentity';
 
 /**
  * The five project skills, in the shape `shared/projectScaffold` wants.
@@ -56,22 +54,18 @@ export function styleScaffoldArgs(): {
 }
 
 /**
- * Ensures a project has a Git repo + .gitignore + `.penwright/` + a `style.typ`
- * so that "Version speichern" works immediately. Idempotent — safe to call on
- * existing projects.
+ * Ensures a project has a `.gitignore` + `.penwright/` + a `style.typ`.
+ * Idempotent — safe to call on existing projects.
  *
- * The defaults are the CONSERVATIVE ones, because this is reachable from
- * `git:ensureRepo` — i.e. from a plain "Save Version" on a folder the user
- * opened from outside Penwright. That must not start creating `assets/`,
- * `sources/` and `.claude/skills/` in someone's document folder as a side
- * effect of saving. The creation paths opt in explicitly.
+ * The defaults are the CONSERVATIVE ones. Opening a folder the user already
+ * made must not start creating `assets/`, `sources/` and `.claude/skills/`
+ * as a side effect. The creation paths opt in explicitly.
  *
  * `wireRoot` is likewise off by default: silently injecting `#show: apply-style`
  * into a document somebody already made would change how it looks.
  */
 export async function ensureProjectInfrastructure(
   dir: string,
-  initialMessage = 'Initial version',
   opts: { wireRoot?: boolean; skills?: boolean; standardDirs?: boolean } = {},
 ): Promise<void> {
   const res = await scaffoldProject({
@@ -79,9 +73,6 @@ export async function ensureProjectInfrastructure(
     skills: opts.skills ? SKILL_FILES : [],
     standardDirs: opts.standardDirs ?? false,
     wireRoot: opts.wireRoot ?? false,
-    initialCommitMessage: initialMessage,
-    git: (d) => simpleGit(d),
-    ensureIdentity: ensureGitIdentity,
     ...styleScaffoldArgs(),
   });
   for (const w of res.warnings) console.warn('[penwright]', w);
@@ -109,7 +100,7 @@ export interface FileEntry {
   children?: FileEntry[];
 }
 
-const IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
+const IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build', 'versions']);
 const ALLOWED_EXTENSIONS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.mdx', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.doc', '.csv', '.json', '.tex']);
 
 export function readDirTree(dir: string, depth = 0): FileEntry[] {
@@ -179,12 +170,12 @@ export async function handleCreateProject(templateId: string, projectName: strin
     }
   }
 
-  // Standard folders, .gitignore, .penwright/, skills, style.typ, Git repo and
-  // the first commit — one call, the same one `penwright_create_project` makes.
+  // Standard folders, .gitignore, .penwright/, skills, style.typ — one call,
+  // the same one `penwright_create_project` makes.
   // `wireRoot: true` because this project is being created: the root gets
   // `#import "style.typ": *` from the start, so the Look is designable
   // immediately (the default fonts match the templates, so it is seamless).
-  await ensureProjectInfrastructure(dir, `Initial version (${template.label})`, {
+  await ensureProjectInfrastructure(dir, {
     wireRoot: true, skills: true, standardDirs: true,
   });
 
@@ -410,13 +401,12 @@ export async function openSampleProject(): Promise<string | null> {
     return null;
   }
 
-  // Git + first version so the Verlauf shows one entry from the start, plus
-  // the skills and the .penwright/ skeleton — through the same scaffold every
+  // Skills and the .penwright/ skeleton — through the same scaffold every
   // other creation path uses. `wireRoot: false`: the sample ships its own
   // finished design and must not be restyled on the way in.
   // The sample ships its own finished design and folder layout: skills yes,
   // extra folders no, and definitely no restyling on the way in.
-  await ensureProjectInfrastructure(targetDir, 'Sample — initial state', { skills: true });
+  await ensureProjectInfrastructure(targetDir, { skills: true });
 
   return openProject(targetDir);
 }

@@ -1,6 +1,6 @@
 # Penwright MCP Server — AI Integration
 
-> **68 Tools** fuer externe AI-Agents **und** den In-App-Chat | Unabhaengig von der Electron-App | Cursor (IDE oder Chat in Penwright), Claude Desktop, Claude Code, Codex u.a.
+> **65 Tools** fuer externe AI-Agents **und** den In-App-Chat | Unabhaengig von der Electron-App | Cursor (IDE oder Chat in Penwright), Claude Desktop, Claude Code, Codex u.a.
 
 ---
 
@@ -74,7 +74,7 @@ Kein `--project`-Pfad noetig — der Agent wechselt Projekte dynamisch via `penw
 
 ---
 
-## Verfuegbare Tools (68)
+## Verfuegbare Tools (65)
 
 Die Gliederung unten ist die des Servers selbst (`TOOL_META` in `src/mcp/server.ts`) — dieselben Gruppen (die Reihenfolge innerhalb einer Gruppe ist hier lesbarer sortiert). Jedes Tool traegt dort einen `title` und seine Annotations (`readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`); ein Tool ohne Eintrag wirft beim Registrieren, kann also nicht unklassifiziert ausgeliefert werden.
 
@@ -196,11 +196,11 @@ Zwei Wege, ein Projekt anzulegen. `create_project` gibt ein **leeres** Template 
 |------|-------------|
 | `penwright_create_project` | Neues Projekt aus einem **leeren** Template (document / thesis / paper / letter / book / **magazine**). Seit Session 42 laeuft das durch **denselben Scaffold wie „Neues Projekt" in der App** (`shared/projectScaffold`): `assets/` + `sources/`, `.gitignore`, `.penwright/`-Skelett, die fuenf Projekt-Skills unter `.claude/skills/`, `style.typ` in der Wurzel verdrahtet, Git-Repo + erste Version. Vorher entstanden hier drei Dateien und sonst nichts — kein Repo (also nichts, was „Version speichern" haette wiederherstellen koennen) und keine Skills (der naechste Agent wusste nichts ueber die Konventionen des Projekts) |
 | `penwright_list_presets` | Alle Presets auflisten (`id` / `type` / **`origin`** / `label` / `tagline` / `openFile`), optional nach `type` gefiltert (magazine, report, document, cookbook, portfolio, thesis, letter, newsletter, book, paper). `origin: "user"` sind die selbst gespeicherten Presets des Nutzers — bei „in meinem Stil" die zuerst nehmen |
-| `penwright_create_from_preset` | Neues Projekt aus einem Preset anlegen — kopiert den Ordner verbatim (Design + Makros + Assets + Lorem, ohne `preset.json`/`thumbnail`), dann derselbe Scaffold wie oben, aber **ohne Restyling** (`wireRoot: false` — ein Preset bringt sein eigenes, oft handgeschriebenes `style.typ` mit, und das bleibt unangetastet): `.penwright/`, `.gitignore`, **die fuenf Projekt-Skills**, `git init` + erste Version; wechselt auf die Startdatei des Presets. Bis Session 42 trug **kein einziges** der gebuendelten Presets `.claude/`. **Bevorzugt gegenueber `create_project`, wenn ein designter Startpunkt gewuenscht ist** |
+| `penwright_create_from_preset` | Neues Projekt aus einem Preset anlegen — kopiert den Ordner verbatim (Design + Makros + Assets + Lorem, ohne `preset.json`/`thumbnail`), dann derselbe Scaffold wie oben, aber **ohne Restyling** (`wireRoot: false` — ein Preset bringt sein eigenes, oft handgeschriebenes `style.typ` mit, und das bleibt unangetastet): `.penwright/`, `.gitignore`, **die fuenf Projekt-Skills**; wechselt auf die Startdatei des Presets. Bis Session 42 trug **kein einziges** der gebuendelten Presets `.claude/`. **Bevorzugt gegenueber `create_project`, wenn ein designter Startpunkt gewuenscht ist** |
 
 ### Verlauf (8)
 
-Drei getrennte Netze, und der Unterschied ist der Punkt: **Versionen** sind absichtlich und benannt (Git), **Auto-Backups** sind zeitgesteuert und vollstaendig (das Absturznetz), **Edit-Snapshots** sind pro Datei und pro Schreibvorgang (das Undo-Netz). Die Versionen-Tools sind die High-Level-API analog zum „Versionen"-Panel im UI: Schreiber-Vokabular („Version speichern" statt „Commit"), rein lokal, kein Push zum Remote, und das Git-Repo wird angelegt, wenn das Projekt noch keines hat.
+Drei getrennte Netze, und der Unterschied ist der Punkt: **Versionen** sind absichtlich und benannt (eine Kapiteldatei unter `versions/`), **Auto-Backups** sind zeitgesteuert und vollstaendig (das Absturznetz), **Edit-Snapshots** sind pro Datei und pro Schreibvorgang (das Undo-Netz). Die Versionen-Tools sind dieselbe Ablage wie der Projekt-Reiter: eine Version ist nur das offene Kapitel, und „zur Hauptfassung" tauscht die beiden Dateien.
 
 Die Auto-Backups sind von dieser Seite aus **nur lesbar**: sie zu erzeugen ist Sache der App, und ein Fremdschreiben wuerde genau das Netz beschaedigen, an dem die Wiederherstellung des Nutzers haengt. Das Zurueckspielen bleibt darum auch beim Nutzer — der Agent verweist auf „Verlauf & Wiederherstellen" in Penwright.
 
@@ -210,22 +210,12 @@ Die Auto-Backups sind von dieser Seite aus **nur lesbar**: sie zu erzeugen ist S
 |------|-------------|
 | `penwright_list_backups` | Die automatischen Backups des Projekts, neueste zuerst — pro Eintrag `{ id, at, files, bytes }`. `id` ist der Zeitstempel-Ordnername und geht so in `penwright_read_backup` |
 | `penwright_read_backup` | Was in einem Backup steht: ohne `file` die Dateiliste, mit `file` der Inhalt dieser einen Datei (gleiche 400-k-Kappung wie `read_file`). Zum Vergleich mit dem Ist-Zustand, bevor eine Wiederherstellung vorgeschlagen wird |
-| `penwright_save_version` | Benannte Version speichern (Git-Commit). Optional auf bestimmte Dateien einschraenken. Returns `{ sha: null, skipped: true }`, wenn nichts zu speichern ist |
-| `penwright_list_versions` | Versionsverlauf lesen, neueste zuerst, max. 200 Eintraege. Pro Eintrag `{ sha, message, date, author, isAuto }` |
-| `penwright_show_version` | Diff einer einzelnen Version pro Datei: `{ path, status, patch }`, `status` = added / modified / deleted / renamed |
-| `penwright_restore_version` | Dateien aus einer historischen Version zurueck in den Working-Tree — **verwirft alles, was seitdem geschrieben wurde**. **Verlangt `confirm: true`**, als einziges Tool hier, weil `git checkout` unkommittete Arbeit verwirft und dabei **keinen** Snapshot hinterlaesst, auf den `penwright_undo_last_edit` zurueckgreifen koennte. Ohne `confirm` passiert nichts und der Agent bekommt gesagt, was er stattdessen tun soll (vorher `penwright_save_version`) |
+| `penwright_save_version` | Benannte Version des offenen Kapitels (oder von `file`). Die lebende Datei bleibt. Die Kopie ist `versions/<Kapitel>/<Name>.typ`. Ohne `name` ein Vorschlag `Dateiname_V1_Jahr_Monat_Tag` |
+| `penwright_list_versions` | Diese Versionen, gruppiert nach Kapitel. Pro Eintrag `{ name, path }` |
+| `penwright_show_version` | Den Text einer Version lesen. `path` kommt aus der Liste |
+| `penwright_restore_version` | Diese Version mit der lebenden Kapiteldatei **tauschen**. Die Version behält ihren Namen und enthält danach den bisherigen Kapiteltext. **Verlangt `confirm: true`**. Ohne `confirm` passiert nichts |
 | `penwright_list_edits` | Die rueckgaengig machbaren Snapshots auflisten, neueste zuerst (`file` / `at` / `timestamp`) plus `count` und die geltende Aufbewahrungsgrenze (`retention`). Optional auf eine Datei eingeschraenkt |
 | `penwright_undo_last_edit` | Den neuesten Snapshot zurueckspielen — die letzte Ueberschreibung einer Datei, oder ohne `file` die zuletzt geschriebene ueberhaupt. Mehrfach aufrufbar, meldet die Zahl der verbleibenden Undos. Laeuft selbst durch `guardedWrite`, ist also seinerseits rueckgaengig machbar. Erreicht nur, was durch Penwright oder diesen Server geschrieben wurde — fuer alles andere `penwright_restore_version` |
-
-### Git — Low-Level (3)
-
-Fuer Cloud-Sync-Workflows. Im Normalfall reicht der Verlaufs-Block oben. Alle drei verweigern, wenn das Projektverzeichnis **nicht selbst** die Wurzel eines Repos ist — sonst wuerde Git nach oben laufen und ein fremdes Repository stagen, committen oder pushen, ohne dass am Aufruf etwas falsch ausgesehen haette.
-
-| Tool | Beschreibung |
-|------|-------------|
-| `penwright_git_status` | Branch, Ahead/Behind, geaenderte Dateien |
-| `penwright_git_commit` | Stage all + Commit mit Message |
-| `penwright_git_push` | Push zum Remote (das einzige Tool mit `openWorldHint`) |
 
 ### Export (3)
 
@@ -342,26 +332,23 @@ Ein eigener `penwright_compile` danach ist nicht noetig: die Design-Tools kompil
 ### Version speichern und wiederherstellen
 
 ```
-Agent: penwright_save_version({ message: "Vor Lektorats-Feedback" })
-  -> { sha: "a3f7b91", changes: 4, insertions: 120, deletions: 8 }
+Agent: penwright_save_version({ name: "Vor Lektorats-Feedback" })
+  -> { path: "versions/chapters/03-method.typ/Vor Lektorats-Feedback.typ", name: "Vor Lektorats-Feedback", source: "chapters/03-method.typ" }
 
 Agent: penwright_list_versions()
-  -> [
-       { sha: "a3f7b91...", message: "Vor Lektorats-Feedback", date: "...", isAuto: false },
-       { sha: "9e2d4c8...", message: "Kapitel 3 erste Fassung", date: "...", isAuto: false }
-     ]
+  -> [ { source: "chapters/03-method.typ", versions: [ { name: "Vor Lektorats-Feedback", path: "versions/chapters/03-method.typ/Vor Lektorats-Feedback.typ" } ] } ]
 
-Agent: penwright_show_version({ sha: "a3f7b91" })
-  -> { sha: "a3f7b91", files: [{ path: "chapters/03-method.typ", status: "modified", patch: "@@ ..." }] }
+Agent: penwright_show_version({ path: "versions/chapters/03-method.typ/Vor Lektorats-Feedback.typ" })
+  -> { path: "…", source: "chapters/03-method.typ", content: "= Methode\n…" }
 
-Agent: penwright_restore_version({ sha: "9e2d4c8", files: ["chapters/03-method.typ"] })
-  -> "Not restored. Restoring 9e2d4c8 would discard every change made since that version, …"
+Agent: penwright_restore_version({ path: "versions/chapters/03-method.typ/Vor Lektorats-Feedback.typ" })
+  -> "Not restored. Making this version the main text swaps it with the living chapter. …"
 
-Agent: penwright_restore_version({ sha: "9e2d4c8", files: ["chapters/03-method.typ"], confirm: true })
-  -> "Restored 1 file(s) from version 9e2d4c8."
+Agent: penwright_restore_version({ path: "versions/chapters/03-method.typ/Vor Lektorats-Feedback.typ", confirm: true })
+  -> "Swapped chapters/03-method.typ with versions/…. The chapter now has the version's text."
 ```
 
-`restore_version` ist das einzige Tool mit `confirm: true`. Ohne das Flag passiert nichts, und der Agent bekommt gesagt, was er stattdessen tun soll — vor einem `restore` gehoert ein `save_version`, sonst gehen die aktuellen Aenderungen der wiederhergestellten Dateien verloren.
+`restore_version` tauscht die beiden Dateien und verlangt `confirm: true`. Ohne das Flag passiert nichts. Die bisherige Kapiteldatei bleibt als diese Version erhalten.
 
 ### Cross-Reference einfuegen
 
@@ -460,7 +447,7 @@ Agent: penwright_compile()
   -> { success: true, rootFile: ".../main.typ", sizeBytes: 842103, errors: [], warnings: [] }
 ```
 
-Der `dryRun` ist kein Ritual: er laeuft ueber dieselbe Suche wie der Replace, und ein Regex, der mehr trifft als gemeint, ist der Query allein nicht anzusehen. Wenn der Compile fehlschlaegt: `penwright_restore_version({ sha: "8f2a91c", confirm: true })` rollt zurueck — oder, fuer die letzte einzelne Ueberschreibung, `penwright_undo_last_edit`.
+Der `dryRun` ist kein Ritual: er laeuft ueber dieselbe Suche wie der Replace, und ein Regex, der mehr trifft als gemeint, ist der Query allein nicht anzusehen. Wenn der Compile fehlschlaegt: `penwright_restore_version({ path: "versions/…/Vor Citekey-Umbenennung.typ", confirm: true })` tauscht zurueck — oder, fuer die letzte einzelne Ueberschreibung, `penwright_undo_last_edit`.
 
 ### Recherche-Notizen als Kapitel importieren
 
@@ -562,7 +549,7 @@ winget install --id Typst.Typst
 
 ## Lizenz
 
-**Der MCP Server ist ungesperrt. Er startet fuer alle** — alle 68 Tools, ohne Key, ohne Zeitlimit. Penwright selbst ist kostenlos fuer alle, inklusive Unternehmen; der Quelltext darf nicht in fremde Projekte uebernommen werden. Siehe [LICENSE.md](../LICENSE.md).
+**Der MCP Server ist ungesperrt. Er startet fuer alle** — alle 65 Tools, ohne Key, ohne Zeitlimit. Penwright selbst ist kostenlos fuer alle, inklusive Unternehmen; der Quelltext darf nicht in fremde Projekte uebernommen werden. Siehe [LICENSE.md](../LICENSE.md).
 
 ---
 
@@ -571,7 +558,7 @@ winget install --id Typst.Typst
 Der MCP Server ist ein **eigenstaendiger Prozess** — er laeuft unabhaengig von der Electron-App. Er importiert Shared-Module (settingsParser, rootFinder, bibParser) direkt und ruft die (gebuendelte oder System-)`typst`-Binary fuer Kompilierung auf.
 
 ```
-src/mcp/server.ts             <- Alle 68 Tools in einer Datei
+src/mcp/server.ts             <- Alle 65 Tools in einer Datei
 esbuild.mcp.mjs               <- Build (ESM, Node 20) -> dist/mcp/server.mjs (Dev / manueller Node-Pfad)
 scripts/build-mcp-binary.mjs  <- Bun `--compile` -> dist/mcp/bin/penwright-mcp-<triple> (die ausgelieferte Standalone-Binary)
 ```

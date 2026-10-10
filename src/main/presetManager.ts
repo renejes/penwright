@@ -23,7 +23,6 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 import * as path from 'path';
 import * as fs from 'fs';
-import simpleGit from 'simple-git';
 import { appState } from './appState';
 import { findRootFileIn } from '../shared/rootFinder';
 import { getLocale } from './persistenceManager';
@@ -327,13 +326,13 @@ export async function createFromPreset(presetId: string, suggestedName?: string)
     return null;
   }
 
-  // Git + .penwright skeleton + first commit (idempotent; the preset ships its
-  // own style.json/style.typ, which ensureProjectInfrastructure leaves intact).
+  // .penwright skeleton (idempotent; the preset ships its own style.json and
+  // style.typ, which ensureProjectInfrastructure leaves intact).
   // Skills yes — a preset used to arrive with none, so the agent that opened
   // it next knew nothing about the project's conventions (nought of the
   // thirty-five bundled presets carried `.claude/`). Folders no: the preset
   // brings its own layout.
-  await ensureProjectInfrastructure(target, `New from preset — ${localize(manifest.label, 'en')}`, { skills: true });
+  await ensureProjectInfrastructure(target, { skills: true });
   addBreadcrumb('project', `created from preset ${manifest.id}`);
 
   const opened = await openProject(target);

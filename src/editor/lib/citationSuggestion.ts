@@ -2,7 +2,7 @@ import { Extension, type Editor } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import { attachFloating, type FloatingHandle } from './popupAnchor';
-import { formatCitationPage } from '../../shared/citationPdf';
+import { formatCitationPage } from '../../shared/citationPage';
 import { t } from '../../shared/i18n/store.svelte';
 
 export interface CitationEntry {

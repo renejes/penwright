@@ -488,6 +488,27 @@ export function updateTitle(): void {
   appState.mainWindow.setTitle(`${fileName}${dirtyMark} — Penwright`);
 }
 
+/**
+ * Write bytes we just decided on (a chapter version swap or rename) and, when
+ * that file is the open buffer, replace the buffer in the same turn. A pending
+ * autosave would otherwise put the pre-swap text back a moment later.
+ */
+export function writeKnownBytes(absPath: string, content: string): void {
+  const abs = path.resolve(absPath);
+  writeFileAtomic(abs, content);
+  noteDiskContent(abs, content);
+  if (!appState.currentFilePath || path.resolve(appState.currentFilePath) !== abs) return;
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+  appState.currentContent = content;
+  appState.isDirty = false;
+  updateTitle();
+  appState.mainWindow?.webContents.send('penwright', { type: 'update', content });
+  appState.mainWindow?.webContents.send('penwright', { type: 'saveStatus', saved: true, file: abs });
+}
+
 // ─── Typst Compiler ───────────────────────────────────
 
 function setupCompiler(): void {
@@ -730,7 +751,10 @@ function isTextLike(p: string): boolean {
 /** Files whose content ends up in the compiled PDF. */
 function affectsCompiledOutput(p: string): boolean {
   // A backup snapshot is a .typ, but it never reaches the compiled document.
-  if (p.replace(/\\/g, '/').includes('/.penwright/')) return false;
+  // Chapter versions live beside the chapter and are not included either.
+  const unix = p.replace(/\\/g, '/');
+  if (unix.includes('/.penwright/')) return false;
+  if (unix.includes('/versions/')) return false;
   return /\.(typ|bib)$/i.test(p) || /\.(png|jpe?g|gif|svg|webp)$/i.test(p);
 }
 

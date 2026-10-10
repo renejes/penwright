@@ -11,6 +11,7 @@ export const app: AppMessages = {
 
   // Navigation tabs
   navAria: 'Seitenleisten-Panels',
+  menuButton: 'Menü',
   navFiles: 'Dateien',
   navOutline: 'Gliederung',
   navChapters: 'Kapitel',
@@ -28,6 +29,9 @@ export const app: AppMessages = {
   statusProject: 'Projekt',
   statusPreview: 'Vorschau',
   statusChat: 'Chat',
+  macOnly: 'Nur am Mac',
+  versionReadOnly: 'Nur lesen. Diese Version wird nicht verändert.',
+  versionEditing: 'Du bearbeitest diese Version. Das Kapitel ändert sich erst, wenn du sie zur Hauptfassung machst.',
   wordsLabel: (n: number) => (n === 1 ? 'Wort' : 'Wörter'),
   minRead: (m: number) => `${m} Min. Lesezeit`,
   readingTimeTitle: 'Wortanzahl · geschätzte Lesezeit bei 200 WpM',

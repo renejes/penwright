@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-append-file"
+description = "Enables the append_file command without any pre-configured scope."
+commands.allow = ["append_file"]
+
+[[permission]]
+identifier = "deny-append-file"
+description = "Denies the append_file command without any pre-configured scope."
+commands.deny = ["append_file"]

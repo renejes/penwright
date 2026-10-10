@@ -9,6 +9,11 @@
 
 import * as path from 'path';
 import { parseBibFile } from './bibParser';
+import { bibFilePdfPaths, pdfNameMatchesCitekey } from './zoteroPdfMatch';
+
+export { bibFilePdfPaths, pdfNameMatchesCitekey };
+
+export { formatCitationPage, pageFieldFromSupplement } from './citationPage';
 
 export type ZoteroPdfMode = 'linked' | 'copy';
 
@@ -39,53 +44,6 @@ export interface LocatedCitationPdf {
 }
 
 const CITEKEY_PATTERN = /^[\w:.-]+$/;
-
-/** `12` → `S. 12`, `12-14` → `S. 12–14`. Empty stays empty. `f.` / `ff.` are dropped. */
-export function formatCitationPage(raw: string): string | null {
-  let s = raw.trim();
-  if (!s) return null;
-  s = s.replace(/\s+f{1,2}\.?\s*$/i, '').trim();
-  s = s.replace(/^(?:S\.|pp?\.)\s*/i, '').trim();
-  s = s.replace(/\s*[-–—]\s*/g, '–');
-  if (!/^\d+(?:–\d+)?$/.test(s)) return null;
-  return `S. ${s}`;
-}
-
-/** What the page field shows for a supplement already stored on the citation. */
-export function pageFieldFromSupplement(supplement: string): string {
-  return supplement.replace(/^S\.\s*/i, '').trim();
-}
-
-/**
- * Better BibTeX `file` values. Each chunk is `description:path:mime` or
- * `:path:mime`; colons and semicolons in the path are escaped.
- * PDF chunks only, in order.
- */
-export function bibFilePdfPaths(fileField: string): string[] {
-  const out: string[] = [];
-  for (const chunk of splitUnescaped(fileField, ';')) {
-    const segs = splitUnescaped(chunk, ':');
-    const mime = segs[segs.length - 1] ?? '';
-    const isPdf = /pdf/i.test(mime) || /\.pdf$/i.test(segs[segs.length - 2] ?? '') || /\.pdf$/i.test(chunk);
-    if (!isPdf) continue;
-    const pathSeg = segs.length >= 3 ? segs[segs.length - 2] : segs.filter(Boolean).pop();
-    const filePath = (pathSeg ?? '').trim();
-    if (filePath && /\.pdf$/i.test(filePath)) out.push(filePath);
-  }
-  return out;
-}
-
-export function pdfNameMatchesCitekey(fileName: string, citekey: string): boolean {
-  const lc = fileName.toLowerCase();
-  if (!lc.endsWith('.pdf')) return false;
-  const stem = lc.slice(0, -4);
-  const key = citekey.toLowerCase();
-  return stem === key
-    || stem.startsWith(key + '_')
-    || stem.startsWith(key + '-')
-    || stem.startsWith(key + ' ')
-    || stem.startsWith(key + '.');
-}
 
 export async function locateCitationPdf(input: LocateCitationPdfInput): Promise<LocatedCitationPdf | null> {
   const { citekey, projectDir, io } = input;
@@ -148,23 +106,3 @@ function firstExisting(paths: string[], io: CitationPdfIo): string | null {
   return null;
 }
 
-function splitUnescaped(s: string, sep: ';' | ':'): string[] {
-  const out: string[] = [];
-  let cur = '';
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (ch === '\\' && i + 1 < s.length) {
-      cur += s[i + 1];
-      i++;
-      continue;
-    }
-    if (ch === sep) {
-      out.push(cur);
-      cur = '';
-      continue;
-    }
-    cur += ch;
-  }
-  out.push(cur);
-  return out;
-}

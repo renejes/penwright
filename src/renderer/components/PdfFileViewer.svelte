@@ -4,11 +4,26 @@
   import { TextLayer } from 'pdfjs-dist';
   import { zoomState, zoomPdfIn, zoomPdfOut, resetPdfZoom } from '../appState.svelte';
   import { t } from '@shared/i18n/store.svelte';
+  import { isIpadHost } from '@shared/hostKind';
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
     import.meta.url,
   ).href;
+
+  /**
+   * WKWebView never finishes a module worker, so getDocument stays on
+   * "loading" and the page stays blank. Importing the worker on the main
+   * thread makes pdf.js use its in-page engine instead.
+   */
+  let ipadEngine: Promise<void> | null = null;
+  function useMainThreadPdfEngine(): Promise<void> {
+    if (!isIpadHost()) return Promise.resolve();
+    const host = globalThis as { pdfjsWorker?: { WorkerMessageHandler?: unknown } };
+    if (host.pdfjsWorker?.WorkerMessageHandler) return Promise.resolve();
+    ipadEngine ??= import('pdfjs-dist/build/pdf.worker.mjs').then(() => undefined);
+    return ipadEngine;
+  }
 
   let {
     filePath = '',
@@ -77,7 +92,9 @@
     observer?.disconnect();
 
     try {
+      await useMainThreadPdfEngine();
       const base64 = await api.invoke('textfile:readBinary', filePath) as string;
+      if (!base64) throw new Error('empty');
       const binaryStr = atob(base64);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) {
@@ -95,8 +112,12 @@
       }
       currentPdf = doc;
       pageCount = currentPdf.numPages;
-
+      // The page list is not in the document while `loading` is true.
+      // Building it before that flag drops finds no container, so the tab
+      // stays blank until something else — the zoom control — builds it again.
+      loading = false;
       await tick();
+      if (seq !== loadSeq) return;
       setupPlaceholders();
       setupIntersectionObserver();
     } catch (err) {
@@ -149,6 +170,7 @@
     for (const el of pageElements) {
       observer.observe(el);
     }
+    if (pageElements.length > 0) void renderPage(0);
   }
 
   async function renderPage(index: number) {
@@ -238,6 +260,8 @@
   .pdf-viewer {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     height: 100%;
     background: #f5f5f5;
   }

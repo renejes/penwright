@@ -24,7 +24,7 @@ function isPathWithinProject(filePath: string): boolean {
   return isPathWithin(filePath, projectRoot);
 }
 import { handleRequestCitations, getExportableSections, runFilteredExport, runWebExport, preflightPrintImages, type ExportConfig } from './importExport';
-import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, ensureProjectInfrastructure, openProject, openSampleProject, handleNewFolder, handleAddAssets, pickAssetPath } from './projectManager';
+import { handleCreateProject, handlePickImage, handleDropImage, handleDropImagePath, handleRequestSettings, handleUpdateSettings, readDirTree, openProject, openSampleProject, handleNewFolder, handleAddAssets, pickAssetPath } from './projectManager';
 import { buildGallery, createFromPreset, saveProjectAsPreset, deleteUserPreset, listPresetStyles, getPresetStyle, renderPresetPreview } from './presetManager';
 import {
   getPanelState,
@@ -1563,13 +1563,6 @@ export function setupIPC(): void {
       appState.mainWindow?.webContents.send('penwright', { type: 'filetreeChanged' });
     }
     return ok;
-  });
-
-  // Ensure repo + .gitignore + .penwright/ for projects opened that pre-date this version.
-  ipcMain.handle('git:ensureRepo', async () => {
-    if (!appState.projectDir) return { initialized: false };
-    await ensureProjectInfrastructure(appState.projectDir, 'First version');
-    return { initialized: true };
   });
 
   // ─── Crash Reports ─────────────────────────────

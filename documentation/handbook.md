@@ -1,6 +1,6 @@
 # Penwright Desktop — User Handbook
 
-> **Version:** 0.15.6 (Pre-Release)
+> **Version:** 0.20.0 (Pre-Release)
 > **Last updated:** 2026-08-21
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
@@ -254,7 +254,8 @@ In the **Look designer** (double-click `style.typ`) -> **“Import from preset�
 - The project files (main.typ, chapters/, plus style.typ / macros.typ / assets where applicable)
 - `assets/` for images, `sources/` for reference PDFs
 - `.claude/skills/` with Claude Code skills (typst, Penwright, research, writing-style, design)
-- `.git/` + `.gitignore` — version system from the first save
+- `versions/` — one named copy per chapter, from the first version you save
+- `.gitignore` — keeps `.penwright/` out of a Git repository you already keep
 - `.penwright/` for auto-backups + AI-edit snapshots (hidden, project-local)
 - An initial commit
 
@@ -283,11 +284,10 @@ The sidebar has five tabs:
 - The chapter's **Look** is no longer set here — it lives in the **status bar** while you edit the chapter (Chapter Look ▾ + the **✎** editor). See [the Look model](#design--the-look-model).
 
 ### Project
-This tab replaces the old Git panel and uses writer-friendly vocabulary instead of raw Git commands. See the **[Versions & Auto-Backup](#versions--auto-backup)** section below for the full workflow. In short:
-- **Save Version** — names your current state and stores it in the project's history
-- **Changes since last version** — checkboxes for which files go into the next version
-- **History & Restore** — one button opens a hub with everything you can get back: your saved versions, automatic backups, and AI edits (see below)
-- **Advanced** (collapsed) — optional cloud sync (push/pull to GitHub or any other Git remote)
+This tab is where a chapter version is saved. See **[Versions & Auto-Backup](#versions--auto-backup)**. In short:
+- **Save Version** — stores a named copy of the `.typ` file in the active tab under `versions/`
+- Each version has a **⋮** menu: Read, Edit, Make main, Rename, Delete
+- **History & Restore** — auto-backups and AI edits. Chapter versions stay in the list above this button
 
 ### Comments
 - Lists every comment for the **current file** or **the whole project** (toggle at the top of the panel)
@@ -644,7 +644,7 @@ Penwright keeps three independent layers of safety for your work — each with a
 
 | Layer | Trigger | Purpose | Where it lives |
 |-------|---------|---------|----------------|
-| **Versions** | You click **Save Version** | Deliberate milestones in your project's history | `<project>/.git/` |
+| **Versions** | You click **Save Version** | A named copy of the open chapter | `<project>/versions/<chapter>/<name>.typ` |
 | **Auto-Backup** | Timer (configurable, default every 30 s) | Crash / freeze protection — never lose more than X seconds of work | `<project>/.penwright/backups/` |
 | **AI-Edit Undo** | Triggered by an external edit (an AI agent / MCP) | Quick rollback of the last AI change | `<project>/.penwright/ai-snapshots/` |
 
@@ -652,21 +652,22 @@ All three live **inside the project folder**, so the project is self-contained: 
 
 ### Saving a version
 
-In the **Project** sidebar tab:
-1. Type a short description in **Save Version** ("Chapter 3 first draft", "Before lecturer review", …)
-2. Optionally untick files in **Changes since last version** that should not be part of this version
-3. Click **Save Version**
+In the **Project** sidebar tab, with a `.typ` file active:
+1. The suggested name is `Filename_V1_Year_Month_Day`. Change it if you want.
+2. Click **Save Version**
 
-Your new version appears in the **Versions** section of **History & Restore**. Every entry stays available forever (until you delete the project).
+The copy is one file: `versions/<chapter path>/<name>.typ`. It is grouped under that chapter. The **⋮** menu on the row opens it to read or to edit, renames it, deletes it, or makes it the living chapter.
 
-### Browsing the history
+**Make main** swaps the two texts. The version keeps its name and afterwards holds what the chapter used to say.
 
-Open **History & Restore** (in the **Project** tab) and click any entry in the **Versions** section to open its detail view:
-- Date and message
-- A diff per file in source-text style (red removed lines, green added lines — like GitHub)
-- **Restore this version** button — replaces the current files with the historical ones (with a confirmation prompt)
+### History & Restore
 
-The current document is never destroyed: restoring an old version overwrites your working copy, but you can always **Save Version** beforehand to keep your in-progress state.
+**History & Restore** does not list chapter versions. Those stay in the Project tab. The window has two nets:
+
+- **Auto-backups** — timed copies of the project's `.typ` and `.bib` files. **Restore** puts the project back to that time, after you confirm.
+- **AI changes** — the previous text of a file before an agent overwrote it. **Undo last** restores that one file.
+
+The gear on Auto-backups sets the interval (10 s – 5 min), how many backups to keep, and how many AI snapshots to keep.
 
 ### Auto-Backup
 
@@ -679,15 +680,9 @@ The **Auto-backups** section of **History & Restore** lists every automatic snap
 
 When an external tool (an AI agent, the MCP server, …) modifies a file in the project, the previous content is saved **before** the change is applied — for any file, not just the one you have open. Step back through them one at a time from the **AI changes** section of **History & Restore** (or the **Undo AI Edit** menu entry). Snapshots survive app restarts (they live in `.penwright/ai-snapshots/`), and the AI sees exactly the same list: it can read it and undo its own last edit.
 
-### Cloud backup (optional)
+### The same folder on another device
 
-The version history is local by default. If you want to push it to GitHub (or any other Git remote) for off-machine backup or to use the project on a second device:
-
-1. Open the **Project** tab and expand **Advanced**
-2. Paste the remote URL (e.g. `https://github.com/your-user/your-thesis.git`)
-3. Use **Sync to cloud** (push) and **Pull from cloud** as needed
-
-Two devices in parallel are not safe — one machine at a time.
+`versions/`, the backups and the AI snapshots sit inside the project. Copy the folder, or let Dropbox sync it, and the iPad sees the same chapters and the same versions. Penwright does not push a Git remote.
 
 ---
 
@@ -749,7 +744,7 @@ Penwright stores two kinds of state separately — **app preferences** that are 
 - Auto-Backup configuration (interval, max number of backups, max AI-snapshots)
 
 **Per-project** (inside the project folder):
-- Version history (`.git/`)
+- Chapter versions (`versions/`)
 - Auto-backups (`.penwright/backups/`)
 - AI-edit snapshots (`.penwright/ai-snapshots/`)
 - In-app chat threads (`.penwright/cursor-agent/`)
@@ -830,7 +825,7 @@ Stop a running reply before switching or starting another chat.
 
 Penwright ships a built-in MCP server (Model Context Protocol). The **in-app chat** uses it automatically. The same server also lets **Cursor IDE**, **Claude Desktop**, **Claude Code** or **Codex Desktop** work on your Typst documents if you prefer those apps.
 
-> **Note:** the MCP server is **unlocked for everyone** — all 68 tools, no key, no time limit. See [License](#license). The in-app chat additionally needs a Cursor account (that is Cursor's billing, not a Penwright lock).
+> **Note:** the MCP server is **unlocked for everyone** — all 65 tools, no key, no time limit. See [License](#license). The in-app chat additionally needs a Cursor account (that is Cursor's billing, not a Penwright lock).
 
 ### Setup: Cursor (default)
 
@@ -840,7 +835,7 @@ You can confirm or re-register from **Help → MCP Connection…**.
 
 ### What can the MCP server do?
 
-Over MCP (68 tools) the AI can:
+Over MCP (65 tools) the AI can:
 - **Create a whole project from a preset** (`penwright_list_presets` + `penwright_create_from_preset`) — a designed starting point with placeholder content instead of starting from scratch; magazine presets ship a different layout per chapter
 - Open, read, edit and verify Typst documents (separate compile = verify-only; export tools own artifact writing)
 - **See the page.** `penwright_render_page` renders a page of the compiled PDF to an image and hands it back, so the AI can judge spacing, overflow, colour and where a heading fell instead of guessing from source
@@ -952,9 +947,9 @@ You don't need to edit the config every time you switch projects. Just tell Clau
 
 Claude will call `penwright_set_project` and work with the new project from there on.
 
-### Available tools (68)
+### Available tools (65)
 
-The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 68 tools with one-line descriptions, grouped by category:
+The full reference with parameter schemas, return shapes, and end-to-end workflow examples lives in [mcp-server.md](mcp-server.md). All 65 tools with one-line descriptions, grouped by category:
 
 **Project & files (5)**
 
@@ -967,7 +962,7 @@ The full reference with parameter schemas, return shapes, and end-to-end workflo
 **Presets — ready-made project starters (2)**
 
 - `penwright_list_presets` — List all built-in presets (finished, designed projects with placeholder content) — `id` / `type` / `label` / `tagline`, optionally filtered by `type` (magazine, report, cookbook, portfolio, thesis …).
-- `penwright_create_from_preset` — Create a new project from a preset: copies the whole folder (design + macros + assets + Lorem), `git init`, switches to its opening file. Prefer this over `create_project` when a designed starting point is wanted — magazine presets ship a different layout per chapter.
+- `penwright_create_from_preset` — Create a new project from a preset: copies the whole folder (design + macros + assets + Lorem) and switches to its opening file. Prefer this over `create_project` when a designed starting point is wanted — magazine presets ship a different layout per chapter.
 
 **Document operations (5)**
 
@@ -1034,10 +1029,10 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 
 **Versions, backups & undo (8) — matches the History & Restore hub**
 
-- `penwright_save_version` — Save a named version (Git commit); auto-initialises the repo if missing; local-only, never pushes.
-- `penwright_list_versions` — Return the version history (max. 200, newest first) including an `isAuto` flag for Penwright-internal auto-versions.
-- `penwright_show_version` — Return the per-file diff for one version (added/modified/deleted/renamed + unified-diff hunks).
-- `penwright_restore_version` — Restore files from a historical version into the working tree; save a version first!
+- `penwright_save_version` — Save a named version of the open chapter (or of `file`). The living file stays. The copy is `versions/<chapter>/<name>.typ`.
+- `penwright_list_versions` — List those versions, grouped by chapter. Each entry is `{ name, path }`.
+- `penwright_show_version` — Read one version file. `path` comes from the list.
+- `penwright_restore_version` — Swap that version with the living chapter. The version keeps its name and then holds the previous chapter text. Requires `confirm: true`.
 - `penwright_list_backups` — List the automatic backups of this project (timed snapshots of every text file, newest first) — the crash net, distinct from versions and from edit snapshots.
 - `penwright_read_backup` — Read what one backup holds: its file list, or one file's content. Read-only — restoring stays your call in History & Restore.
 - `penwright_list_edits` — List the undoable edit snapshots: the previous version of every file Penwright or the server overwrote, newest first. Same list the **AI changes** section shows.
@@ -1061,12 +1056,6 @@ The structured design surface — the visual Look designer (open `style.typ`). W
 
 - `penwright_import_markdown` — Convert Markdown/MDX to Typst and write into a project file; inline markdown or `srcPath` to a `.md` / `.mdx` file. An Easy Writing folder is opened via `penwright_set_project`, not flattened here.
 - `penwright_add_image` — Import an image into `assets/` (content-hash dedup), build the Typst snippet (with optional caption + label → `#figure(…)`), and optionally insert it at an anchor.
-
-**Git low-level (3) — for syncing with a remote**
-
-- `penwright_git_status` — Return branch, ahead/behind, and changed files.
-- `penwright_git_commit` — Stage all changes and commit with the given message.
-- `penwright_git_push` — Push commits to the remote repository.
 
 All file-touching tools route paths through `resolveInsideProject` — symlink-aware, blocks `../`-traversal. Anchor-based tools (`add_comment` / `insert_reference` / `add_footnote` / `add_image`) take an `afterText`/`anchor` plus an optional 1-based `occurrence` when the anchor appears multiple times — the agent never has to compute offsets.
 

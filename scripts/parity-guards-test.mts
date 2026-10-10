@@ -445,10 +445,8 @@ console.log('\nEvery creation path produces the same project');
     skills: [{ slug: 'typst', content: '# Typst\n' }, { slug: 'design', content: '# Design\n' }],
     standardDirs: true,
     wireRoot: true,
-    initialCommitMessage: 'Initial version',
     defaultStyleJson: '{}',
     renderStyleTyp: () => '// Penwright style — generated\n',
-    git: () => null,   // Git is exercised through the app path; not needed here
   });
 
   check('standard folders exist', fs.existsSync(path.join(dir, 'assets')) && fs.existsSync(path.join(dir, 'sources')));
@@ -466,8 +464,8 @@ console.log('\nEvery creation path produces the same project');
   fs.writeFileSync(path.join(dir, '.claude', 'skills', 'design', 'SKILL.md'), 'MY OWN NOTES');
   const again = await scaffoldProject({
     dir, skills: [{ slug: 'typst', content: '# Typst\n' }, { slug: 'design', content: '# Design\n' }],
-    standardDirs: true, wireRoot: true, initialCommitMessage: 'x', defaultStyleJson: '{}',
-    renderStyleTyp: () => 'REGENERATED', git: () => null,
+    standardDirs: true, wireRoot: true, defaultStyleJson: '{}',
+    renderStyleTyp: () => 'REGENERATED',
   });
   check('a customised skill survives a second run', fs.readFileSync(path.join(dir, '.claude', 'skills', 'design', 'SKILL.md'), 'utf-8') === 'MY OWN NOTES');
   check('nothing is reported as newly written', again.skillsWritten.length === 0);
@@ -484,7 +482,7 @@ console.log('\nA hand-designed project gets nothing forced on it');
   fs.writeFileSync(path.join(dir, 'style.typ'), authored);
 
   await scaffoldProject({
-    dir, skills: [], wireRoot: true, initialCommitMessage: 'x',
+    dir, skills: [], wireRoot: true,
     defaultStyleJson: '{"colors":{}}',
     renderStyleTyp: () => '// GENERATED — would destroy the macros\n',
     git: () => null,
@@ -513,18 +511,16 @@ console.log('\n.gitignore is extended, never replaced');
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-console.log('\n"Save Version" does not quietly restructure someone\'s folder');
+console.log('\nOpening a foreign folder does not quietly restructure it');
 {
-  // ensureProjectInfrastructure is reachable from git:ensureRepo. On a folder
-  // the user opened from outside Penwright, saving a version must add the
-  // repo and the .penwright skeleton — and nothing else they did not ask for.
+  // The conservative scaffold runs when a folder is opened. It adds the
+  // .penwright skeleton and a .gitignore — and nothing else they did not ask for.
   const dir = tmp('pw-saveversion-');
   fs.writeFileSync(path.join(dir, 'Sichtbarkeitskonzept.typ'), '= Konzept\n');
 
   await scaffoldProject({
     dir, skills: [], standardDirs: false, wireRoot: false,
-    initialCommitMessage: 'First version',
-    defaultStyleJson: '{}', renderStyleTyp: () => '// generated\n', git: () => null,
+    defaultStyleJson: '{}', renderStyleTyp: () => '// generated\n',
   });
 
   check('no assets/ or sources/ appear', !fs.existsSync(path.join(dir, 'assets')) && !fs.existsSync(path.join(dir, 'sources')));

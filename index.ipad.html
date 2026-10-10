@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Penwright</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; overflow: hidden; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+        background: #ffffff;
+        color: #1a1a1a;
+        -webkit-font-smoothing: antialiased;
+      }
+      body.pw-ipad .toolbar button,
+      body.pw-ipad .nav-tab,
+      body.pw-ipad .status-toggle,
+      body.pw-ipad .action-card {
+        min-height: 44px;
+      }
+      body.pw-ipad .editor-container {
+        padding-bottom: var(--pw-keyboard-inset, 0px);
+      }
+    </style>
+  </head>
+  <body>
+    <script>window.__PENWRIGHT_HOST__ = 'ios';</script>
+    <div id="app"></div>
+    <script type="module" src="/src/ipad/main.ts"></script>
+  </body>
+</html>

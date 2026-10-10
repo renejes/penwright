@@ -16,6 +16,7 @@ import {
   locateCitationPdf,
   pageFieldFromSupplement,
 } from '../src/shared/citationPdf.ts';
+import { locateIpadCitationPdf } from '../src/shared/zoteroPdfMatch.ts';
 import { findSourceForCitation, openCitationPdf } from '../src/main/citationSources.ts';
 import { writeZoteroLink } from '../src/main/zoteroLink.ts';
 
@@ -113,6 +114,20 @@ writeZoteroLink(project, { sourceBibPath: '', pdfMode: 'copy', attachmentDir: dr
 const copied = await openCitationPdf(project, 'bandura1977');
 const dest = path.join(project, 'sources', 'bandura1977.pdf');
 check('copy mode writes one file on open', copied === dest && fs.existsSync(dest));
+
+const ipadBib = `@article{bandura1977,
+  title = {Self-efficacy},
+  year = {1977},
+  file = {:/Users/me/Dropbox/Zotero-PDFs/bandura1977.pdf:application/pdf}
+}
+`;
+const ipadHit = locateIpadCitationPdf('bandura1977', ipadBib, ['notes/bandura1977.pdf', 'other.pdf'], ['sources/bandura1977.pdf']);
+check('ipad uses the file name, not the Mac path', ipadHit?.where === 'attachment' && ipadHit.rel === 'notes/bandura1977.pdf');
+const ipadKey = locateIpadCitationPdf('mueller2016', '@article{mueller2016, title={X}, year={2016}}', ['mueller2016_scan.pdf'], []);
+check('ipad citekey match in the folder', ipadKey?.where === 'attachment' && ipadKey.rel === 'mueller2016_scan.pdf');
+const ipadSources = locateIpadCitationPdf('bandura1977', null, [], ['sources/bandura1977.pdf']);
+check('ipad falls back to sources', ipadSources?.where === 'sources' && ipadSources.rel === 'sources/bandura1977.pdf');
+check('ipad does not invent a path', locateIpadCitationPdf('missing1999', ipadBib, ['other.pdf'], []) === null);
 
 if (failures) {
   console.log(`\n${failures} failed`);

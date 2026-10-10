@@ -10,6 +10,7 @@ export const app = {
 
   // Navigation tabs
   navAria: 'Sidebar panels',
+  menuButton: 'Menu',
   navFiles: 'Files',
   navOutline: 'Outline',
   navChapters: 'Chapters',
@@ -27,6 +28,10 @@ export const app = {
   statusProject: 'Project',
   statusPreview: 'Preview',
   statusChat: 'Chat',
+  /** iPad: the control stays where it is and does not run. */
+  macOnly: 'Mac only',
+  versionReadOnly: 'Read only. This version is not changed.',
+  versionEditing: 'You are editing this version. The chapter changes only when you make this the main text.',
   wordsLabel: (n: number): string => (n === 1 ? 'word' : 'words'),
   minRead: (m: number) => `${m} min read`,
   readingTimeTitle: 'Word count · estimated reading time at 200 wpm',

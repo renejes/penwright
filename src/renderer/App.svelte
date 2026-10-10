@@ -31,6 +31,8 @@
   import SectionLookEditor from './components/SectionLookEditor.svelte';
   import ResizeHandle from './components/ResizeHandle.svelte';
   import StartScreen from './components/StartScreen.svelte';
+  import IpadMenu from './components/IpadMenu.svelte';
+  import { isIpadHost } from '@shared/hostKind';
   import { t, applyLocale, i18nState, setLocale } from '@shared/i18n/store.svelte';
   import { createEditor } from '../editor/lib/editor';
   import { serializeTypstCached } from '../editor/lib/serializer';
@@ -44,6 +46,7 @@
     panelState,
     previewState,
     tabState,
+    projectState,
     contextMenu,
     newProjectState,
     savePresetState,
@@ -160,10 +163,21 @@
   });
 
   let activeTab = $derived(tabState.activeTabIndex >= 0 ? tabState.openTabs[tabState.activeTabIndex] : null);
+
+  // A version opened to read must not accept keystrokes. Editing a version
+  // writes that version file; the living chapter stays until "make main".
+  $effect(() => {
+    editorVersion.value;
+    const mode = tabState.openTabs[tabState.activeTabIndex]?.versionMode;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const editable = mode !== 'read';
+    if (editor.isEditable !== editable) editor.setEditable(editable);
+  });
   let textViewerFile = $derived(activeTab?.type === 'text' || activeTab?.type === 'rawtyp' ? activeTab.path : '');
   let pdfViewerFile = $derived(activeTab?.type === 'pdf' ? activeTab.path : '');
   let designViewerFile = $derived(activeTab?.type === 'design' ? activeTab.path : '');
-  let hasFileOpen = $derived(tabState.openTabs.length > 0 || !!tabState.currentFile);
+  let hasFileOpen = $derived(tabState.openTabs.length > 0 || !!tabState.currentFile || projectState.open);
 
   // Bumped only on transactions that change the document (not cursor moves),
   // so derivations that depend on content don't re-run on every selection.
@@ -251,6 +265,7 @@
   let showMcpConnection = $state(false);
   // First-run onboarding tour (shown once, tracked via `onboardingSeen`).
   let showOnboarding = $state(false);
+  let macOnlyHint = $state('');
   // Chapter-look editor modal (opened by the "✎" in the status bar).
   let editChapterLook = $state<{ chapterPath: string; styleId: string } | null>(null);
 
@@ -298,6 +313,7 @@
     });
 
     ipc.onMessage(handleMessage);
+    window.addEventListener('penwright:read-editor', readEditorForVersion);
     window.addEventListener('keydown', handleGlobalKeydown);
     window.addEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
     window.addEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
@@ -313,6 +329,7 @@
     window.addEventListener('penwright:show-mcp-wizard', onShowMcpWizard);
     window.addEventListener('penwright:show-mcp-connection', onShowMcpConnection);
     window.addEventListener('penwright:show-onboarding', onShowOnboarding);
+    window.addEventListener('penwright:mac-only', onMacOnly);
     window.addEventListener('penwright:edit-chapter-look', onEditChapterLook as EventListener);
     window.addEventListener('penwright:preview-jump', handlePreviewJump as EventListener);
 
@@ -344,24 +361,45 @@
           if (typeof s.previewWidth === 'number') panelState.previewWidth = s.previewWidth;
           if (typeof s.chatWidth === 'number') panelState.chatWidth = s.chatWidth;
           if (typeof s.chatHeight === 'number') panelState.chatHeight = s.chatHeight;
+          if (isIpadHost()) {
+            panelState.showPreview = false;
+            panelState.showChat = false;
+          }
         }
       });
 
       // First-run onboarding tour. The Claude-Desktop MCP wizard is no longer
       // auto-shown — in-app chat is the offered path; Help → MCP Connection
-      // still reaches the wizard.
-      electronAPI.invoke('persist:isOnboardingSeen').then((seenVal) => {
-        const seenAtBoot = !!seenVal;
-        if (!seenAtBoot) {
-          setTimeout(() => { if (!pendingCrash) showOnboarding = true; }, 700);
-        }
-      }).catch(() => { /* ignore */ });
+      // still reaches the wizard. The iPad build does not open either.
+      if (!isIpadHost()) {
+        electronAPI.invoke('persist:isOnboardingSeen').then((seenVal) => {
+          const seenAtBoot = !!seenVal;
+          if (!seenAtBoot) {
+            setTimeout(() => { if (!pendingCrash) showOnboarding = true; }, 700);
+          }
+        }).catch(() => { /* ignore */ });
+      }
     }
 
     ipc.send({ type: 'ready' });
   });
 
+  function readEditorForVersion(event: Event) {
+    const detail = (event as CustomEvent<{ content: string; send: boolean }>).detail;
+    if (!detail) return;
+    clearTimeout(debounceTimer);
+    const editor = editorRef.current;
+    if (!editor) return;
+    const typst = serializeTypstCached(editor.state.doc);
+    tabState.currentContent = typst;
+    detail.content = typst;
+    const open = tabState.openTabs[tabState.activeTabIndex];
+    if (detail.send && open?.versionMode !== 'read') ipc.send({ type: 'edit', content: typst });
+  }
+
   function sendUpdate() {
+    const open = tabState.openTabs[tabState.activeTabIndex];
+    if (open?.versionMode === 'read') return;
     const editor = editorRef.current;
     if (!editor) return;
     const typst = serializeTypstCached(editor.state.doc);
@@ -881,10 +919,12 @@
     }
     if (mod && e.shiftKey && e.key === 'p') {
       e.preventDefault();
+      if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
       panelState.showPreview = !panelState.showPreview;
     }
     if (mod && !e.shiftKey && !e.altKey && (e.key === 'j' || e.key === 'J')) {
       e.preventDefault();
+      if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
       panelState.showChat = !panelState.showChat;
     }
     if (mod && e.altKey && (e.key === 'l' || e.key === 'L')) {
@@ -905,6 +945,7 @@
   }
 
   function handleStartOpenSample() {
+    if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
     const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
     api.invoke('project:openSample');
   }
@@ -915,14 +956,14 @@
   }
 
   function handleFileOpen(filePath: string) {
-    // style.typ is the document's "Look" — open it in the visual Look designer
-    // instead of loading the generated Typst into the editor.
     if ((filePath.split('/').pop() || '') === 'style.typ') {
+      if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
       openTab(filePath, 'design');
       return;
     }
     const api = (window as unknown as { electronAPI: { invoke(channel: string, ...args: unknown[]): Promise<unknown> } }).electronAPI;
     api.invoke('filetree:open', filePath).then((result) => {
+      if (result === 'mac-only') { macOnlyHint = t().app.macOnly; return; }
       if (result === 'editor') {
         openTab(filePath, 'typ');
       } else if (result === 'textviewer') {
@@ -951,6 +992,7 @@
 
   // Opens the document's global Look (the visual designer on style.typ).
   async function openGlobalLook() {
+    if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
     const api = (window as unknown as { electronAPI?: { invoke(c: string, ...a: unknown[]): Promise<unknown> } }).electronAPI;
     try {
       const p = await api?.invoke('project:lookFile') as string | null;
@@ -973,10 +1015,23 @@
 
   // Hoisted (named) handlers for the listeners onDestroy must remove —
   // anonymous closures can't be passed to removeEventListener.
-  function onShowMcpWizard() { showMcpWizard = true; }
-  function onShowMcpConnection() { showMcpConnection = true; }
-  function onShowOnboarding() { showOnboarding = true; }
-  function onEditChapterLook(e: CustomEvent) { editChapterLook = e.detail; }
+  function onShowMcpWizard() {
+    if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
+    showMcpWizard = true;
+  }
+  function onShowMcpConnection() {
+    if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
+    showMcpConnection = true;
+  }
+  function onShowOnboarding() {
+    if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
+    showOnboarding = true;
+  }
+  function onEditChapterLook(e: CustomEvent) {
+    if (isIpadHost()) { macOnlyHint = t().app.macOnly; return; }
+    editChapterLook = e.detail;
+  }
+  function onMacOnly() { macOnlyHint = t().app.macOnly; }
   function onDocumentDragover(e: DragEvent) { e.preventDefault(); }
   function onDocumentDrop(e: DragEvent) {
     e.preventDefault();
@@ -1007,6 +1062,7 @@
   onDestroy(() => {
     clearTimeout(debounceTimer);
     window.removeEventListener('keydown', handleGlobalKeydown);
+    window.removeEventListener('penwright:read-editor', readEditorForVersion);
     window.removeEventListener('penwright:project-search-jump', handleProjectSearchJump as EventListener);
     window.removeEventListener('penwright:add-comment', addCommentFromSelection as EventListener);
     window.removeEventListener('penwright:insert-into-chat', captureSelectionForChat as EventListener);
@@ -1021,6 +1077,7 @@
     window.removeEventListener('penwright:show-mcp-wizard', onShowMcpWizard);
     window.removeEventListener('penwright:show-mcp-connection', onShowMcpConnection);
     window.removeEventListener('penwright:show-onboarding', onShowOnboarding);
+    window.removeEventListener('penwright:mac-only', onMacOnly);
     window.removeEventListener('penwright:edit-chapter-look', onEditChapterLook as EventListener);
     document.removeEventListener('dragover', onDocumentDragover);
     document.removeEventListener('drop', onDocumentDrop);
@@ -1039,14 +1096,29 @@
         {t().common.close}
       </button>
     </div>
+  {:else if macOnlyHint || uiState.banner}
+    <div class="conflict-banner" role="status">
+      <span>{macOnlyHint || uiState.banner}</span>
+      <button class="conflict-dismiss" onclick={() => { macOnlyHint = ''; uiState.banner = ''; }}>
+        {t().common.close}
+      </button>
+    </div>
   {/if}
 
   <div class="penwright-container">
     <!-- Top bar: project-level navigation tabs (left) + formatting toolbar
          (over the editor). "Look" is occasional, so it lives at style.typ /
          the status bar — not up here. -->
+    {#if isIpadHost() && !hasFileOpen}
+      <div class="ipad-menu-bar">
+        <IpadMenu />
+      </div>
+    {/if}
     {#if hasFileOpen}
       <div class="top-bar">
+        {#if isIpadHost()}
+          <IpadMenu />
+        {/if}
         <div class="top-nav" role="tablist" aria-label={t().app.navAria}>
           <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'files'} onclick={() => selectNavTab('files')} role="tab" aria-selected={panelState.sidebarTab === 'files'} aria-label={t().app.navFiles}>{t().app.navFiles}</button>
           <button class="nav-tab" class:active={panelState.showSidebar && panelState.sidebarTab === 'outline'} onclick={() => selectNavTab('outline')} role="tab" aria-selected={panelState.sidebarTab === 'outline'} aria-label={t().app.navOutline}>{t().app.navOutline}</button>
@@ -1110,7 +1182,7 @@
         <div class="panel-editor" class:hidden={!hasFileOpen}>
           {#if tabState.openTabs.length > 0}
             <div class="tab-bar" role="tablist" aria-label={t().app.openFilesAria}>
-              {#each tabState.openTabs as tab, i}
+              {#each tabState.openTabs as tab, i (tab.path + tab.type)}
                 <div
                   class="editor-tab"
                   class:active={i === tabState.activeTabIndex}
@@ -1153,22 +1225,27 @@
                 if (tabState.activeTabIndex >= 0) closeTab(tabState.activeTabIndex);
               }}
             />
-          {:else if designViewerFile}
+          {:else if designViewerFile && !isIpadHost()}
             <div class="design-main-view">
               <DesignPanel mainView />
             </div>
           {/if}
           <div class="editor-container" class:hidden={!!textViewerFile || !!pdfViewerFile || !!designViewerFile} style="--editor-zoom: {zoomState.editor}">
+            {#if activeTab?.versionMode === 'read'}
+              <div class="version-banner">{t().app.versionReadOnly}</div>
+            {:else if activeTab?.versionMode === 'edit'}
+              <div class="version-banner">{t().app.versionEditing}</div>
+            {/if}
             <div class="editor" bind:this={editorElement}></div>
           </div>
         </div>
 
         <div
           class="panel-chat"
-          class:collapsed={!panelState.showChat}
-          style="height: {panelState.showChat ? panelState.chatHeight : 0}px"
+          class:collapsed={!panelState.showChat || isIpadHost()}
+          style="height: {panelState.showChat && !isIpadHost() ? panelState.chatHeight : 0}px"
         >
-          {#if panelState.showChat}
+          {#if panelState.showChat && !isIpadHost()}
             <ResizeHandle
               orientation="horizontal"
               onResize={(delta) => {
@@ -1177,6 +1254,7 @@
               }}
             />
           {/if}
+          {#if !isIpadHost()}
           <ChatPanel
             hasProject={hasFileOpen}
             onOpenSettings={() => ipc.send({ type: 'requestSettings' })}
@@ -1186,10 +1264,11 @@
               return serializeTypstCached(editor.state.doc);
             }}
           />
+          {/if}
         </div>
       </div>
 
-      {#if hasFileOpen && panelState.showPreview}
+      {#if hasFileOpen && panelState.showPreview && !isIpadHost()}
         <ResizeHandle
           orientation="vertical"
           onResize={(delta) => {
@@ -1325,8 +1404,8 @@
       <button
         class="status-toggle"
         class:active={panelState.showPreview}
-        onclick={() => (panelState.showPreview = !panelState.showPreview)}
-        title="Cmd+Shift+P"
+        onclick={() => { if (isIpadHost()) { onMacOnly(); return; } panelState.showPreview = !panelState.showPreview; }}
+        title={isIpadHost() ? t().app.macOnly : 'Cmd+Shift+P'}
         aria-label={t().app.togglePreview}
         aria-pressed={panelState.showPreview}
       >
@@ -1335,8 +1414,8 @@
       <button
         class="status-toggle"
         class:active={panelState.showChat}
-        onclick={() => (panelState.showChat = !panelState.showChat)}
-        title="Cmd+J"
+        onclick={() => { if (isIpadHost()) { onMacOnly(); return; } panelState.showChat = !panelState.showChat; }}
+        title={isIpadHost() ? t().app.macOnly : 'Cmd+J'}
         aria-label={t().app.toggleChat}
         aria-pressed={panelState.showChat}
       >
@@ -1456,6 +1535,17 @@
     -webkit-app-region: no-drag;
     flex-shrink: 0;
     min-height: 38px;
+    position: relative;
+    z-index: 20;
+  }
+
+  .ipad-menu-bar {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    position: relative;
+    z-index: 20;
   }
 
   .top-nav {
@@ -1576,6 +1666,15 @@
     overflow: auto;
     padding: 56px 72px;
     scrollbar-gutter: stable;
+  }
+
+  .version-banner {
+    margin: -28px 0 18px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #f4f1e8;
+    color: #6a5a32;
+    font-size: 13px;
   }
 
   .panel-editor :global(.editor-container.hidden) {

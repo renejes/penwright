@@ -54,5 +54,23 @@ export const project = {
     'Tip: Save the current state as your own version first if you don’t want to lose anything.\n\n' +
     'Continue?',
   cloudPullFailed: (msg: string) => `Could not load cloud backup: ${msg}`,
+
+  versionOf: (file: string) => `Only this file: ${file}`,
+  noOpenChapter: 'Open a chapter. A version is always of the tab you are looking at.',
+  createVersion: 'Save version',
+  openRead: 'Read',
+  openEdit: 'Edit',
+  makeMain: 'Make main',
+  makeMainTitle: 'Swap this version with the living chapter',
+  makeMainConfirm: 'The chapter and this version swap texts. The version keeps its name and then holds what the chapter says now. The chapter becomes what the version says now.',
+  deleteVersion: 'Delete',
+  deleteConfirm: (name: string) => `Delete the version “${name}”?`,
+  rename: 'Rename',
+  renamePrompt: 'Name of this version',
+  versionsEmpty: 'No versions yet.',
+  versionsTitle: 'Versions',
+  versionMenu: 'Actions for this version',
+  nameTaken: 'A version with this name already exists.',
+  versionFailed: (msg: string) => `That did not work: ${msg}`,
 };
 export type ProjectMessages = typeof project;

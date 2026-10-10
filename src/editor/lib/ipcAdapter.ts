@@ -1,9 +1,14 @@
 /**
  * IPC Adapter — abstracts communication between renderer and host process.
- * Works for both VS Code webview (postMessage) and Electron (contextBridge).
+ * Electron (Mac), the old VS Code webview, and Tauri on iPad.
+ * The iPad backend only carries the penwright channel. File and project
+ * calls go through `window.electronAPI.invoke`, which the iPad entry fills
+ * in before this module loads. On the Mac that object is the preload bridge
+ * and this file still takes the Electron path.
  */
 
 import type { WebviewMessage, ExtensionMessage } from './messages';
+import { adapterKind, isIpadHost } from '../../shared/hostKind';
 
 export interface IPCAdapter {
   send(msg: WebviewMessage): void;
@@ -20,6 +25,13 @@ declare global {
       postMessage(msg: unknown): void;
     };
   }
+}
+
+function createTauriAdapter(): IPCAdapter {
+  return {
+    send: (msg) => window.__penwrightIpad?.send(msg),
+    onMessage: (handler) => window.__penwrightIpad?.onMessage((msg) => handler(msg as ExtensionMessage)),
+  };
 }
 
 function createElectronAdapter(): IPCAdapter {
@@ -51,8 +63,14 @@ function createNoopAdapter(): IPCAdapter {
 }
 
 export function createIPCAdapter(): IPCAdapter {
-  if (window.electronAPI) return createElectronAdapter();
-  if (window.acquireVsCodeApi) return createVSCodeAdapter();
+  const kind = adapterKind({
+    ipad: isIpadHost(),
+    electron: !!window.electronAPI,
+    vscode: !!window.acquireVsCodeApi,
+  });
+  if (kind === 'ios') return createTauriAdapter();
+  if (kind === 'electron') return createElectronAdapter();
+  if (kind === 'vscode') return createVSCodeAdapter();
   return createNoopAdapter();
 }
 

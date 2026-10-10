@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Penwright iPad writing host. Not the Mac Electron app.",
+  "windows": ["main"],
+  "permissions": ["core:default", "scoped-storage:default"]
+}

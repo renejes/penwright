@@ -12,6 +12,9 @@ declare module '*.png' {
 // stylesheets). TypeScript needs the declaration to stop flagging the import.
 declare module '*.css';
 
+/** pdf.js worker, imported on the iPad so rendering stays on the page thread. */
+declare module 'pdfjs-dist/build/pdf.worker.mjs';
+
 /**
  * Markdown imported as raw text (`?raw`), used by the in-app handbook viewer.
  * Vite resolves these; without the declaration svelte-check reports the only

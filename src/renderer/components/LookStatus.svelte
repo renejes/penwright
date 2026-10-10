@@ -13,6 +13,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { SECTION_PRESETS } from '../../shared/sectionPresets';
   import { t } from '@shared/i18n/store.svelte';
+  import { isIpadHost } from '@shared/hostKind';
 
   let { file, isDesignView, onOpenGlobalLook }:
     { file: string; isDesignView: boolean; onOpenGlobalLook: () => void } = $props();
@@ -27,7 +28,7 @@
   let note = $state('');
 
   async function refresh(): Promise<void> {
-    if (isDesignView || !api || !file) { isChapter = false; return; }
+    if (isIpadHost() || isDesignView || !api || !file) { isChapter = false; return; }
     try {
       const ctx = await api.invoke('section:context', file) as { isChapter: boolean; styleId: string | null };
       isChapter = !!ctx?.isChapter;
@@ -71,7 +72,9 @@
   }
 </script>
 
-{#if isDesignView}
+{#if isIpadHost()}
+  <button class="ls-badge" type="button" disabled title={t().app.macOnly}>{t().look.lookBadge}</button>
+{:else if isDesignView}
   <span class="ls-badge active">{t().look.globalBadge}</span>
 {:else if isChapter}
   <span class="ls-label">{t().look.chapterLabel}</span>
@@ -83,7 +86,7 @@
     title={t().look.chapterSelectTitle}
   >
     <option value="">{t().look.optionDefault}</option>
-    {#each SECTION_PRESETS as p}
+    {#each SECTION_PRESETS as p (p.id)}
       <option value={p.id}>{p.name}</option>
     {/each}
   </select>

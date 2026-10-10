@@ -2,9 +2,9 @@
   /**
    * History & Restore — the single hub for everything you can get back.
    * Three clearly-labelled sections, each with a one-line purpose:
-   *   1. Versions      — named checkpoints you save (Git).            → VersionDetail diff/restore
-   *   2. Auto-backups  — automatic timed multi-file snapshots.        → restore + settings
-   *   3. AI changes    — undo the most recent AI edits to this file.  → "undo last" (stack)
+ *   1. Versions      — a pointer: chapter versions live in the Project tab.
+ *   2. Auto-backups  — automatic timed multi-file snapshots.        → restore + settings
+ *   3. AI changes    — undo the most recent AI edits to this file.  → "undo last" (stack)
    *
    * The mechanics are unchanged; this only unifies their presentation so the
    * user has one mental model ("everything restorable lives here"). Restoring a
@@ -13,7 +13,7 @@
    */
   import { onMount, onDestroy } from 'svelte';
   import { t } from '@shared/i18n/store.svelte';
-  import VersionDetail from './VersionDetail.svelte';
+  import { isIpadHost } from '../../shared/hostKind';
 
   interface Props {
     onClose: () => void;
@@ -21,12 +21,10 @@
   }
   let { onClose, onRestored }: Props = $props();
 
-  interface Version { sha: string; message: string; date: string; author: string; isAuto: boolean; }
   interface BackupSnapshot { timestamp: string; timestampMs: number; fileCount: number; totalBytes: number; }
   interface AiSnap { timestamp: number; filePath: string; bytes: number; }
   interface BackupConfig { intervalSec: number; maxCount: number; maxAiSnapshots: number; }
 
-  let versions = $state<Version[]>([]);
   let backups = $state<BackupSnapshot[]>([]);
   let aiSnaps = $state<AiSnap[]>([]);
   let config = $state<BackupConfig>({ intervalSec: 30, maxCount: 30, maxAiSnapshots: 20 });
@@ -35,53 +33,72 @@
   let applying = $state(false);
   let undoingAi = $state(false);
   let showSettings = $state(false);
-  let activeVersionSha = $state<string | null>(null);
   let now = $state(Date.now());
+  let pendingRestore = $state<BackupSnapshot | null>(null);
+  let notice = $state('');
 
   const api = (window as unknown as { electronAPI: {
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+    on?(channel: string, callback: (data: { type?: string }) => void): () => void;
   } }).electronAPI;
 
   let tick: ReturnType<typeof setInterval> | null = null;
+  let stopBackupWatch: (() => void) | null = null;
 
   onMount(async () => {
     await refreshAll();
     tick = setInterval(() => { now = Date.now(); }, 1000);
+    stopBackupWatch = api.on?.('penwright', (msg) => {
+      if (msg?.type === 'backupCreated') void refreshBackups();
+    }) ?? null;
   });
-  onDestroy(() => { if (tick) clearInterval(tick); });
+  onDestroy(() => {
+    if (tick) clearInterval(tick);
+    stopBackupWatch?.();
+  });
 
   async function refreshAll() {
-    await Promise.all([refreshVersions(), refreshBackups(), refreshAi(), loadConfig()]);
+    await Promise.all([refreshBackups(), refreshAi(), loadConfig()]);
     loading = false;
   }
-  async function refreshVersions() { try { versions = await api.invoke('git:listVersions') as Version[]; } catch { versions = []; } }
   async function refreshBackups() { try { backups = await api.invoke('project:listBackups') as BackupSnapshot[]; } catch { backups = []; } }
   async function refreshAi() { try { aiSnaps = await api.invoke('ai:list') as AiSnap[]; } catch { aiSnaps = []; } }
   async function loadConfig() { try { config = await api.invoke('project:getBackupConfig') as BackupConfig; } catch {} }
   async function saveConfig() { try { config = await api.invoke('project:setBackupConfig', $state.snapshot(config)) as BackupConfig; } catch {} }
 
-  async function restoreBackup(snap: BackupSnapshot) {
-    const ok = confirm(t().backup.applyConfirm(formatDate(snap.timestampMs)));
-    if (!ok) return;
+  function askRestore(snap: BackupSnapshot) {
+    notice = '';
+    pendingRestore = snap;
+  }
+
+  async function confirmRestore() {
+    const snap = pendingRestore;
+    if (!snap || applying) return;
     applying = true;
+    notice = '';
     try {
       const r = await api.invoke('project:applyBackup', snap.timestamp) as { ok: boolean };
       if (r.ok) onRestored();
-      else alert(t().backup.applyFailed);
+      else notice = t().backup.applyFailed;
     } catch (e) {
-      alert(t().backup.applyError(e instanceof Error ? e.message : String(e)));
+      notice = t().backup.applyError(e instanceof Error ? e.message : String(e));
     } finally {
       applying = false;
+      if (notice) pendingRestore = null;
     }
   }
 
   async function undoLastAi() {
     if (undoingAi) return;
     undoingAi = true;
+    notice = '';
     try {
-      await api.invoke('ai:undoLast');
+      const result = await api.invoke('ai:undoLast') as { undone?: boolean };
+      if (result?.undone === false) notice = t().history.aiUndoFailed;
       await refreshAi();
-    } catch {} finally {
+    } catch {
+      notice = t().history.aiUndoFailed;
+    } finally {
       undoingAi = false;
     }
   }
@@ -131,35 +148,19 @@
       <button class="close-btn" onclick={onClose} aria-label={t().common.close}>×</button>
     </div>
     <p class="modal-intro">{t().history.intro}</p>
+    {#if notice}
+      <p class="notice" role="status">{notice}</p>
+    {/if}
 
     <div class="modal-body">
       {#if loading}
         <div class="muted">…</div>
       {:else}
-        <!-- 1. Versions -->
         <section class="hsec">
           <div class="hsec-head">
             <span class="hsec-title">{t().history.versionsTitle}</span>
-            <button class="icon-btn" onclick={refreshVersions} title={t().project.refresh} aria-label={t().project.refreshHistoryAria}>↻</button>
           </div>
           <div class="hsec-desc">{t().history.versionsDesc}</div>
-          {#if versions.length === 0}
-            <div class="hsec-empty">{t().history.versionsEmpty}</div>
-          {:else}
-            <ul class="rows">
-              {#each versions as v (v.sha)}
-                <li>
-                  <button class="row row-btn" class:auto={v.isAuto} onclick={() => activeVersionSha = v.sha}>
-                    <div class="row-main">{v.message.replace(/^\[auto\]\s*/, '')}</div>
-                    <div class="row-meta">
-                      <span>{relativeTime(v.date)}</span>
-                      {#if v.isAuto}<span class="tag">{t().project.autoTag}</span>{/if}
-                    </div>
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
         </section>
 
         <!-- 2. Auto-backups -->
@@ -179,13 +180,13 @@
               <label class="setting-row">
                 <span>{t().backup.intervalLabel}</span>
                 <select bind:value={config.intervalSec} onchange={saveConfig}>
-                  {#each intervalChoices as choice}<option value={choice.value}>{choice.label}</option>{/each}
+                  {#each intervalChoices as choice (choice.value)}<option value={choice.value}>{choice.label}</option>{/each}
                 </select>
               </label>
               <label class="setting-row">
                 <span>{t().backup.maxCountLabel}</span>
                 <select bind:value={config.maxCount} onchange={saveConfig}>
-                  {#each maxCountChoices as choice}<option value={choice.value}>{choice.label}</option>{/each}
+                  {#each maxCountChoices as choice (choice.value)}<option value={choice.value}>{choice.label}</option>{/each}
                 </select>
               </label>
               <label class="setting-row">
@@ -207,7 +208,7 @@
                     <div class="row-main">{formatDate(b.timestampMs)}</div>
                     <div class="row-meta">{t().backup.fileCount(b.fileCount)} · {formatSize(b.totalBytes)} · {relativeTime(b.timestampMs)}</div>
                   </div>
-                  <button class="restore-btn" onclick={() => restoreBackup(b)} disabled={applying}>{t().history.restore}</button>
+                  <button class="restore-btn" type="button" onclick={() => askRestore(b)} disabled={applying}>{t().history.restore}</button>
                 </li>
               {/each}
             </ul>
@@ -241,21 +242,25 @@
       {/if}
     </div>
 
+    {#if pendingRestore}
+      <div class="confirm-box">
+        <p class="confirm-copy">{t().backup.applyConfirm(formatDate(pendingRestore.timestampMs))}</p>
+        <div class="confirm-actions">
+          <button type="button" onclick={() => { pendingRestore = null; }}>{t().common.cancel}</button>
+          <button type="button" class="confirm-go" onclick={confirmRestore} disabled={applying}>{t().common.confirm}</button>
+        </div>
+      </div>
+    {/if}
+
     <div class="modal-footer">
-      <button class="secondary" onclick={openBackupFolder}>{t().common.openInFinder}</button>
+      {#if !isIpadHost()}
+        <button class="secondary" type="button" onclick={openBackupFolder}>{t().common.openInFinder}</button>
+      {/if}
       <span class="spacer"></span>
-      <button class="secondary" onclick={onClose}>{t().common.close}</button>
+      <button class="secondary" type="button" onclick={onClose}>{t().common.close}</button>
     </div>
   </div>
 </div>
-
-{#if activeVersionSha}
-  <VersionDetail
-    sha={activeVersionSha}
-    onClose={() => activeVersionSha = null}
-    onRestored={() => { activeVersionSha = null; onRestored(); }}
-  />
-{/if}
 
 <style>
   .overlay {
@@ -356,18 +361,6 @@
   }
   .row:last-child { border-bottom: none; }
 
-  .row-btn {
-    width: 100%;
-    text-align: left;
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-family: inherit;
-    border-radius: 6px;
-  }
-  .row-btn:hover { background: rgba(79, 125, 249, 0.06); }
-  .row-btn.auto { opacity: 0.6; }
-
   .row-info { flex: 1; min-width: 0; }
   .row-main {
     font-size: 13px;
@@ -386,16 +379,6 @@
     font-size: 11px;
     color: #999;
   }
-  .tag {
-    background: #f0f0f0;
-    color: #888;
-    padding: 0 6px;
-    border-radius: 8px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-
   .restore-btn, .undo-btn {
     flex-shrink: 0;
     padding: 5px 12px;
@@ -456,6 +439,40 @@
   .setting-row input[type="number"] { min-width: 80px; }
   .settings-note { font-size: 11px; color: #999; }
   .settings-note code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+
+  .notice {
+    margin: 0;
+    padding: 8px 16px;
+    background: #fff6f4;
+    color: #9a3412;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .confirm-box {
+    padding: 12px 16px;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+  }
+  .confirm-copy {
+    margin: 0 0 10px;
+    font-size: 12.5px;
+    color: #333;
+    line-height: 1.45;
+    white-space: pre-line;
+  }
+  .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .confirm-actions button {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid #e5e5e5;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .confirm-go { background: #4f7df9 !important; color: #fff !important; border-color: #4f7df9 !important; }
+  .confirm-actions button:disabled { opacity: 0.4; }
 
   .modal-footer {
     display: flex;

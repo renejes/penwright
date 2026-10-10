@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-mv"
+description = "Enables the mv command without any pre-configured scope."
+commands.allow = ["mv"]
+
+[[permission]]
+identifier = "deny-mv"
+description = "Denies the mv command without any pre-configured scope."
+commands.deny = ["mv"]

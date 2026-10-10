@@ -66,6 +66,14 @@ import { writeFileAtomic } from '../shared/fileWrite.js';
 import { listBackups, loadBackup, readBackupFile, isManagedStore } from '../shared/backupStore.js';
 import { scaffoldProject, planGitignore, ensureSkills } from '../shared/projectScaffold.js';
 import {
+  collectVersions,
+  sourceOfVersion,
+  suggestVersionName,
+  swapped,
+  versionFileRel,
+  type VersionDirEntry,
+} from '../shared/chapterVersions.js';
+import {
   planAddChapter,
   planRemoveChapter,
   planReorderChapters,
@@ -116,9 +124,6 @@ import {
 } from '../shared/easyWriting.js';
 import { serializeDocx, type RenderedSnippet } from '../shared/docxSerializer.js';
 import { deserializeTypst } from '../editor/lib/deserializer.js';
-import simpleGit from 'simple-git';
-import { ensureGitIdentity } from '../shared/gitIdentity.js';
-
 const execFileAsync = promisify(execFile);
 
 /**
@@ -838,7 +843,7 @@ Design lives in tokens, not in ad-hoc Typst. penwright_get_style first: "initial
 
 Anchors, not offsets. Editing tools take afterText plus an optional 1-based occurrence.
 
-Every write is snapshotted: penwright_list_edits, penwright_undo_last_edit. That net is bounded and per-file — for anything the user should be able to return to, penwright_save_version.
+Every write is snapshotted: penwright_list_edits, penwright_undo_last_edit. Bounded. penwright_save_version stores one named chapter under versions/. Restore swaps it with the living file.
 
 Watch for two notes on results: a file open with unsaved changes (what you read is not what they see) and a document that was already failing to compile before you touched it (do not assume the next failure is yours).
 
@@ -853,7 +858,7 @@ The project's own conventions are prompts: penwright-conventions, typst-referenc
 const server = new McpServer(
   {
     name: 'penwright',
-    version: '0.15.6',
+    version: '0.20.0',
   },
   { instructions: SERVER_INSTRUCTIONS },
 );
@@ -1043,11 +1048,6 @@ const TOOL_META: Record<string, ToolMeta> = {
   penwright_restore_version: W('Restore a version', { destructive: true }),
   penwright_list_edits:      R('List undoable edits'),
   penwright_undo_last_edit:  W('Undo the last edit', { destructive: true }),
-
-  // Git
-  penwright_git_status: R('Git status'),
-  penwright_git_commit: W('Git commit'),
-  penwright_git_push:   W('Git push', { openWorld: true, idempotent: true }),
 
   // Export
   penwright_export_pdf:   W('Export PDF', { idempotent: true }),
@@ -1692,7 +1692,7 @@ tool(
   },
 );
 
-const IGNORED_DIRS = new Set(['.git', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
+const IGNORED_DIRS = new Set(['.git', 'versions', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
 const ALLOWED_EXTS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.mdx', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.csv', '.json', '.tex']);
 
 function listDir(dir: string, depth: number): string {
@@ -2395,7 +2395,7 @@ function walkTypFiles(dir: string, out: string[] = []): string[] {
   let entries: fs.Dirent[] = [];
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of entries) {
-    if (e.name.startsWith('.git') || e.name === '.penwright' || e.name === 'node_modules') continue;
+    if (e.name.startsWith('.git') || e.name === 'versions' || e.name === '.penwright' || e.name === 'node_modules') continue;
     const full = path.join(dir, e.name);
     if (e.isDirectory()) walkTypFiles(full, out);
     else if (e.name.endsWith('.typ')) out.push(full);
@@ -2875,12 +2875,12 @@ tool(
 //
 // `penwright_create_project` used to produce a folder with the template files
 // and an `assets/` directory. The app's "New Project" produced the same files
-// plus a Git repo, a `.gitignore`, `sources/`, the `.penwright/` skeleton, five
-// project skills and a `style.typ` wired into the root — twelve files and a
-// commit against three files. Same button, two different projects.
+// plus a `.gitignore`, `sources/`, the `.penwright/` skeleton, five
+// project skills and a `style.typ` wired into the root. The MCP route created
+// the template files and stopped.
 //
-// `shared/projectScaffold` is now the one implementation. What differs between
-// the processes is injected: how Git is constructed, and the skill texts.
+// `shared/projectScaffold` is now the one implementation. The skill texts
+// are injected.
 
 const MCP_SKILL_FILES = [
   { slug: 'typst', content: TYPST_SKILL },
@@ -2890,15 +2890,12 @@ const MCP_SKILL_FILES = [
   { slug: 'design', content: DESIGN_SKILL },
 ];
 
-function mcpScaffold(dir: string, message: string, wireRoot: boolean, standardDirs = false) {
+function mcpScaffold(dir: string, wireRoot: boolean, standardDirs = false) {
   return scaffoldProject({
     dir,
     skills: MCP_SKILL_FILES,
     standardDirs,
     wireRoot,
-    initialCommitMessage: message,
-    git: (d) => simpleGit(d),
-    ensureIdentity: ensureGitIdentity,
     // DEFAULT_PROJECT_STYLE explicitly, not `{}`: the sanitiser happens to
     // produce the same object from either today, but the app passes the
     // constant and "the same by coincidence" is exactly the kind of agreement
@@ -2915,8 +2912,6 @@ function mcpScaffold(dir: string, message: string, wireRoot: boolean, standardDi
 
 function scaffoldSummary(r: Awaited<ReturnType<typeof mcpScaffold>>): string {
   const parts = [
-    r.gitInitialized ? 'Git repo initialised' : 'Git repo already present',
-    r.committed ? 'initial version committed' : 'nothing to commit',
     r.skillsWritten.length > 0 ? `${r.skillsWritten.length} project skills deployed to .claude/skills/` : 'skills already present',
   ];
   return parts.join(' · ') + (r.warnings.length > 0 ? `\nWarnings: ${r.warnings.join('; ')}` : '');
@@ -2926,7 +2921,7 @@ function scaffoldSummary(r: Awaited<ReturnType<typeof mcpScaffold>>): string {
 
 tool(
   'penwright_create_project',
-  'Create a new project from a BLANK template (document | thesis | hausarbeit | paper | letter | book | magazine) — structure and Penwright defaults, no design and no content. For a finished look the user can start writing into, prefer penwright_create_from_preset. Sets up Git, .gitignore, assets/, sources/, the project skills and style.typ, and switches to the new project.',
+  'Create a new project from a BLANK template (document | thesis | hausarbeit | paper | letter | book | magazine) — structure and Penwright defaults, no design and no content. For a finished look the user can start writing into, prefer penwright_create_from_preset. Sets up .gitignore, assets/, sources/, the project skills and style.typ, and switches to the new project.',
   {
     templateId: z.enum(['document', 'thesis', 'hausarbeit', 'paper', 'letter', 'book', 'magazine']).describe('Template ID'),
     projectName: z.string().describe('Project name (becomes the folder name)'),
@@ -2961,7 +2956,7 @@ tool(
       // first commit. Without it "Save Version" had nothing to restore from in
       // exactly the projects an agent had just filled with text, and the next
       // agent to open the folder had no idea what its conventions were.
-      const scaffold = await mcpScaffold(projectDir, `Initial version (${template.label})`, true, true);
+      const scaffold = await mcpScaffold(projectDir, true, true);
 
       // Switch to new project
       state.projectDir = projectDir;
@@ -3057,7 +3052,7 @@ tool(
 
 tool(
   'penwright_create_from_preset',
-  'Create a new project from a built-in preset (see penwright_list_presets): copies the ready-made project (design + macros + placeholder assets + Lorem content) verbatim, git-inits it, and switches the active project to it. Then replace the placeholder text with the real content. Prefer this over penwright_create_project when the user wants a designed starting point.',
+  'Create a new project from a built-in preset (see penwright_list_presets): copies the ready-made project (design + macros + placeholder assets + Lorem content) verbatim and switches the active project to it. Then replace the placeholder text with the real content. Prefer this over penwright_create_project when the user wants a designed starting point.',
   {
     presetId: z.string().describe('Preset id from penwright_list_presets, e.g. "magazine-slow", "report-vibrant", "cookbook-fresh".'),
     projectName: z.string().describe('Project name (becomes the folder name).'),
@@ -3082,14 +3077,10 @@ tool(
       // `wireRoot: false` — a preset ships its own finished design, often as a
       // hand-written style.typ. The scaffold leaves that alone (it asks
       // `isDesignAdopted` first) and only adds what is missing: skills, the
-      // .penwright/ skeleton, .gitignore, Git, the first commit. Not one of
+      // .penwright/ skeleton and .gitignore. Not one of
       // the thirty-five bundled presets carried `.claude/skills`, so every
       // project made from one started with the agent knowing nothing about it.
-      const scaffold = await mcpScaffold(
-        projectDir,
-        `New from preset — ${localize(found.manifest.label, 'en')}`,
-        false,
-      );
+      const scaffold = await mcpScaffold(projectDir, false);
 
       const openRel = found.manifest.openFile ?? found.manifest.root ?? 'main.typ';
       state.projectDir = projectDir;
@@ -3103,149 +3094,73 @@ tool(
 );
 
 // ═══════════════════════════════════════════════════════
-// Versions — high-level project history (mirrors the
-// "Versionen" UI in ProjectPanel). All operations are
-// local; nothing is ever pushed to a remote.
+// Versions — one named copy of one chapter file, in
+// versions/<chapter>/<name>.typ. The same folder the
+// Project tab reads. Making one the main text swaps
+// the two files.
 // ═══════════════════════════════════════════════════════
 
-/**
- * Git access that is definitely THIS project's.
- *
- * `simpleGit(dir)` on a folder without a repo does not fail — it walks up
- * until it finds one. So on any project that is not itself a repo (which is
- * most hand-made documents, and every magazine-pipeline folder) the low-level
- * git tools operated on whatever repository happened to contain it: `git_commit`
- * would `add -A` a stranger's working tree, and `git_push` would send it to a
- * stranger's remote. Nothing in the call would have looked wrong.
- *
- * The high-level version tools are unaffected — they lazily `git init` the
- * project itself, which is the right behaviour there.
- */
-async function requireProjectGit(): Promise<ReturnType<typeof simpleGit>> {
-  if (!state.projectDir) {
-    throw new Error('No project set. Call penwright_set_project first.');
-  }
-  const git = simpleGit(state.projectDir);
-  if (!(await git.checkIsRepo())) {
-    throw new Error(
-      `${path.basename(state.projectDir)} is not a Git repository. ` +
-      `Use penwright_save_version — it initialises one for this project. ` +
-      `(The low-level git tools refuse to act here because Git would otherwise resolve to an enclosing repository that is not this project.)`,
-    );
-  }
-  const top = (await git.revparse(['--show-toplevel'])).trim();
-  const project = fs.realpathSync(state.projectDir);
-  if (fs.realpathSync(top) !== project) {
-    throw new Error(
-      `${path.basename(state.projectDir)} is not the root of its Git repository — that is ${top}. ` +
-      `Refusing to stage, commit or push a repository this project only happens to sit inside.`,
-    );
-  }
-  return git;
+function relFromProject(abs: string): string {
+  return path.relative(state.projectDir ?? '', abs).split(path.sep).join('/');
 }
 
-async function ensureGitRepo(dir: string): Promise<void> {
-  const git = simpleGit(dir);
-  const isRepo = await git.checkIsRepo();
-  if (!isRepo) {
-    await git.init();
-    // Default to "main" — older Git versions still default to "master".
-    try { await git.raw(['symbolic-ref', 'HEAD', 'refs/heads/main']); } catch {}
+/** The chapter a version belongs to, and the bytes to store. */
+function versionTarget(file?: string): { sourceRel: string; content: string } {
+  if (!state.projectDir) throw new Error('No project set. Call penwright_set_project first.');
+  const abs = file ? resolveInsideProject(file) : state.currentFile;
+  if (!abs || !fs.existsSync(abs)) {
+    throw new Error('No chapter is open. Pass file, or open one with penwright_open_file.');
   }
-  // Writers' machines often have no global git identity — without a
-  // repo-local fallback the commit hard-fails ("Please tell me who you are").
-  await ensureGitIdentity(git);
-  // Make sure .gitignore covers Penwright-local state so we don't accidentally
-  // commit auto-backups or generated PDFs. Through the shared planner: this
-  // side used to write a shorter template than the app for a fresh file, so
-  // which process created the project decided whether .DS_Store was ignored.
-  const ignore = planGitignore(dir);
-  if (ignore) guardedWrite(ignore.abs, ignore.content);
+  const rel = relFromProject(abs);
+  const sourceRel = sourceOfVersion(rel) ?? rel;
+  if (!sourceRel.endsWith('.typ') && !sourceRel.endsWith('.typst')) {
+    throw new Error('A version is one .typ file — the open chapter.');
+  }
+  return { sourceRel, content: fs.readFileSync(abs, 'utf8') };
 }
 
-interface DiffFileEntry {
-  path: string;
-  status: 'added' | 'modified' | 'deleted' | 'renamed';
-  patch: string;
-}
-
-function parseUnifiedDiff(diff: string): DiffFileEntry[] {
-  const result: DiffFileEntry[] = [];
-  const fileChunks = diff.split(/^diff --git /m).slice(1);
-  for (const chunk of fileChunks) {
-    const lines = chunk.split('\n');
-    const headerMatch = lines[0].match(/a\/(.+) b\/(.+)/);
-    if (!headerMatch) continue;
-    const filePath = headerMatch[2];
-    let status: DiffFileEntry['status'] = 'modified';
-    if (lines.some(l => l.startsWith('new file mode'))) status = 'added';
-    else if (lines.some(l => l.startsWith('deleted file mode'))) status = 'deleted';
-    else if (lines.some(l => l.startsWith('rename from'))) status = 'renamed';
-    const hunkStart = lines.findIndex(l => l.startsWith('@@'));
-    const patch = hunkStart >= 0 ? lines.slice(hunkStart).join('\n') : '';
-    result.push({ path: filePath, status, patch });
-  }
-  return result;
-}
-
-function validateProjectRelPaths(files: string[]): string[] {
-  const out: string[] = [];
-  for (const f of files) {
-    const abs = resolveInsideProject(f);
-    out.push(path.relative(state.projectDir, abs));
-  }
-  return out;
+function listVersionDir(rel: string): Promise<VersionDirEntry[]> {
+  if (!state.projectDir) return Promise.resolve([]);
+  const root = path.resolve(state.projectDir);
+  const abs = path.resolve(root, rel);
+  if (abs !== root && !abs.startsWith(root + path.sep)) return Promise.resolve([]);
+  if (!fs.existsSync(abs)) return Promise.resolve([]);
+  if (!fs.statSync(abs).isDirectory()) return Promise.resolve([]);
+  return Promise.resolve(fs.readdirSync(abs, { withFileTypes: true }).map((entry) => ({
+    name: entry.name,
+    path: `${rel}/${entry.name}`.replace(/\/+/g, '/'),
+    isDir: entry.isDirectory(),
+  })));
 }
 
 // ─── Tool: penwright_save_version ──────────────────────
 
 tool(
   'penwright_save_version',
-  'Save a named version (Git commit, local-only). Auto-inits repo if missing. Returns { sha: null, skipped: true } if no changes.',
+  'Save a named version of one chapter — the open file, unless file says otherwise. The living chapter stays as it is. The copy is versions/<chapter>/<name>.typ. Omit name for a suggestion like Dateiname_V1_Year_Month_Day.',
   {
-    message: z.string().describe('Version description, e.g. "Chapter 3 first draft" or "Before supervisor feedback"'),
-    files: z.array(z.string()).optional().describe('Restrict to these project-relative paths. Omit to include all changes.'),
+    name: z.string().optional().describe('Version name. Omit for Dateiname_V1_Year_Month_Day. A slash is not part of the name.'),
+    message: z.string().optional().describe('Older calls passed the name here. Used when name is omitted.'),
+    file: z.string().optional().describe('Project-relative .typ path. Omit to use the open file.'),
   },
-  async ({ message, files }) => {
+  async ({ name, message, file }) => {
     try {
-      if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
+      const target = versionTarget(file);
+      const chosen = (name ?? message ?? '').trim();
+      const versionName = chosen || suggestVersionName(target.sourceRel, existingVersionNames(target.sourceRel));
+      const rel = versionFileRel(target.sourceRel, versionName);
+      if (!rel) {
+        return { content: [{ type: 'text' as const, text: 'Error: that name cannot be a version file.' }], isError: true };
       }
-      await ensureGitRepo(state.projectDir);
-      const git = simpleGit(state.projectDir);
-
-      if (files && files.length > 0) {
-        await git.add(validateProjectRelPaths(files));
-      } else {
-        await git.add('-A');
+      const abs = path.resolve(state.projectDir ?? '', rel);
+      if (fs.existsSync(abs)) {
+        return { content: [{ type: 'text' as const, text: `Error: a version named "${versionName}" already exists for ${target.sourceRel}.` }], isError: true };
       }
-
-      const status = await git.status();
-      if (
-        status.staged.length === 0 &&
-        status.created.length === 0 &&
-        status.deleted.length === 0 &&
-        status.renamed.length === 0
-      ) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({ sha: null, skipped: true, reason: 'No changes to save.' }, null, 2),
-          }],
-        };
-      }
-
-      const result = await git.commit(message || 'Untitled version');
+      guardedWrite(abs, target.content);
       return {
         content: [{
           type: 'text' as const,
-          text: JSON.stringify({
-            sha: result.commit,
-            message,
-            changes: result.summary.changes,
-            insertions: result.summary.insertions,
-            deletions: result.summary.deletions,
-          }, null, 2),
+          text: JSON.stringify({ path: rel, name: versionName, source: target.sourceRel }, null, 2),
         }],
       };
     } catch (err) {
@@ -3254,37 +3169,25 @@ tool(
   },
 );
 
+function existingVersionNames(sourceRel: string): string[] {
+  if (!state.projectDir) return [];
+  const dir = path.join(state.projectDir, 'versions', sourceRel);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((n) => n.toLowerCase().endsWith('.typ'));
+}
+
 // ─── Tool: penwright_list_versions ─────────────────────
 
 tool(
   'penwright_list_versions',
-  'List version history (newest first, max 200). Returns { sha, message, date, author, isAuto }; isAuto = Penwright auto-versions.',
+  'List chapter versions, grouped by the living file. Each version is { name, path } under versions/<chapter>/. Newest is not a separate order — names sort alphabetically inside each chapter.',
   async () => {
     try {
       if (!state.projectDir) {
         return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
-      const git = simpleGit(state.projectDir);
-      const isRepo = await git.checkIsRepo();
-      if (!isRepo) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({ versions: [], note: 'No Git repo yet — call penwright_save_version to create the first version.' }, null, 2),
-          }],
-        };
-      }
-      const log = await git.log({ '--max-count': 200 });
-      const versions = log.all.map(c => ({
-        sha: c.hash,
-        message: c.message,
-        date: c.date,
-        author: c.author_name,
-        isAuto: c.message.startsWith('[auto]'),
-      }));
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(versions, null, 2) }],
-      };
+      const groups = await collectVersions(listVersionDir);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(groups, null, 2) }] };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
@@ -3295,21 +3198,20 @@ tool(
 
 tool(
   'penwright_show_version',
-  'Returns the per-file diff for a specific version. Each file entry: { path, status, patch } where status is "added" | "modified" | "deleted" | "renamed" and patch contains the unified diff hunks.',
-  { sha: z.string().describe('Version id (full or abbreviated Git SHA, 4-40 hex characters) — get this from penwright_list_versions') },
-  async ({ sha }) => {
+  'Read one version file. path comes from penwright_list_versions. Returns the text, not a diff.',
+  { path: z.string().describe('Project-relative path of the version file, e.g. versions/chapters/01.typ/Name.typ') },
+  async ({ path: versionRel }) => {
     try {
-      if (!state.projectDir) {
-        return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
+      if (!sourceOfVersion(versionRel)) {
+        return { content: [{ type: 'text' as const, text: `Error: "${versionRel}" is not a chapter version.` }], isError: true };
       }
-      if (!/^[0-9a-f]{4,40}$/i.test(sha)) {
-        return { content: [{ type: 'text' as const, text: `Error: Invalid version id "${sha}". Expected 4-40 hex characters.` }], isError: true };
-      }
-      const git = simpleGit(state.projectDir);
-      const raw = await git.raw(['show', '--no-color', '--format=', sha]);
-      const files = parseUnifiedDiff(raw);
+      const abs = resolveInsideProject(versionRel);
+      const content = fs.readFileSync(abs, 'utf8');
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ sha, files }, null, 2) }],
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ path: versionRel, source: sourceOfVersion(versionRel), content }, null, 2),
+        }],
       };
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
@@ -3321,46 +3223,41 @@ tool(
 
 tool(
   'penwright_restore_version',
-  'Roll files back to a historical version, DISCARDING everything written since. Call penwright_list_versions first, and penwright_save_version before this so the current state can be returned to. Requires confirm: true — the user should have agreed to lose the current state.',
+  'Make one version the living chapter by SWAPPING the two files. The version keeps its name and afterwards holds what the chapter says now. The chapter file holds what the version said. Requires confirm: true.',
   {
-    sha: z.string().describe('Version id (Git SHA, 4-40 hex chars) — get this from penwright_list_versions'),
-    files: z.array(z.string()).optional().describe('Restrict restore to these project-relative paths. Omit to restore everything from that version.'),
-    confirm: z.boolean().optional().describe('Must be true. Set it only after the user has agreed to discard the current state — this cannot be undone by penwright_undo_last_edit.'),
+    path: z.string().describe('Project-relative path of the version file, from penwright_list_versions.'),
+    confirm: z.boolean().optional().describe('Must be true. Set it only after the user has agreed to swap the living chapter with this version.'),
   },
-  async ({ sha, files, confirm }) => {
+  async ({ path: versionRel, confirm }) => {
     try {
       if (!state.projectDir) {
         return { content: [{ type: 'text' as const, text: 'Error: No project set. Call penwright_set_project first.' }], isError: true };
       }
-      // A deliberate second step, and the only tool here that has one. Every
-      // other write leaves a snapshot; `git checkout` does not — it discards
-      // uncommitted work outright, including anything the user typed since.
-      // Making that a plain argument means it cannot happen on a misread.
       if (confirm !== true) {
         return {
           content: [{
             type: 'text' as const,
-            text: `Not restored. Restoring ${sha.slice(0, 7)} would discard every change made since that version, and unlike an ordinary edit it leaves no snapshot to come back to.\n\n` +
-              `Check with the user first, then call again with confirm: true. To keep the current state as well, run penwright_save_version before restoring.`,
+            text: 'Not restored. Making this version the main text swaps it with the living chapter. The version keeps its name and then holds what the chapter says now.\n\n' +
+              'Check with the user first, then call again with confirm: true. To keep another copy of the current text, run penwright_save_version first.',
           }],
         };
       }
-      if (!/^[0-9a-f]{4,40}$/i.test(sha)) {
-        return { content: [{ type: 'text' as const, text: `Error: Invalid version id "${sha}". Expected 4-40 hex characters.` }], isError: true };
+      const sourceRel = sourceOfVersion(versionRel);
+      if (!sourceRel) {
+        return { content: [{ type: 'text' as const, text: `Error: "${versionRel}" is not a chapter version.` }], isError: true };
       }
-      const git = simpleGit(state.projectDir);
-
-      if (files && files.length > 0) {
-        const validated = validateProjectRelPaths(files);
-        await git.raw(['checkout', sha, '--', ...validated]);
-      } else {
-        await git.raw(['checkout', sha, '--', '.']);
+      const versionAbs = resolveInsideProject(versionRel);
+      const sourceAbs = resolveInsideProject(sourceRel);
+      if (!fs.existsSync(versionAbs) || !fs.existsSync(sourceAbs)) {
+        return { content: [{ type: 'text' as const, text: 'Error: the version or the living chapter is missing.' }], isError: true };
       }
-
+      const next = swapped(fs.readFileSync(sourceAbs, 'utf8'), fs.readFileSync(versionAbs, 'utf8'));
+      guardedWrite(versionAbs, next.version);
+      guardedWrite(sourceAbs, next.live);
       return {
         content: [{
           type: 'text' as const,
-          text: `Restored ${files && files.length > 0 ? `${files.length} file(s)` : 'all files'} from version ${sha.slice(0, 7)}.`,
+          text: `Swapped ${sourceRel} with ${versionRel}. The chapter now has the version's text. The version kept its name and holds the previous chapter text.`,
         }],
       };
     } catch (err) {
@@ -3392,7 +3289,7 @@ tool(
 
 tool(
   'penwright_list_backups',
-  'List Penwright\'s automatic backups of this project — timed snapshots of every text file, newest first. Different from versions (deliberate, named, Git) and from edit snapshots (per-file, per-write): these are the crash net. Read one with penwright_read_backup.',
+  'List Penwright\'s automatic backups of this project — timed snapshots of every text file, newest first. Different from chapter versions (one named file under versions/) and from edit snapshots (per-file, per-write): these are the crash net. Read one with penwright_read_backup.',
   {},
   async () => {
     if (!state.projectDir) {
@@ -3510,80 +3407,6 @@ tool(
         text: `Restored ${rel} to its state from ${new Date(taken.snapshot.timestamp).toISOString()}. ${remaining} further undo${remaining === 1 ? '' : 's'} available${file ? ` for ${rel}` : ''}.`,
       }],
     };
-  },
-);
-
-// ─── Tool: penwright_git_status ────────────────────────
-
-tool(
-  'penwright_git_status',
-  'Returns git status of the project: branch name, ahead/behind counts, and list of changed files.',
-  async () => {
-    try {
-      const git = await requireProjectGit();
-      const status = await git.status();
-      return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            branch: status.current,
-            ahead: status.ahead,
-            behind: status.behind,
-            isClean: status.isClean(),
-            files: status.files.map(f => ({ path: f.path, status: f.working_dir + f.index })),
-          }, null, 2),
-        }],
-      };
-    } catch (err) {
-      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
-    }
-  },
-);
-
-// ─── Tool: penwright_git_commit ────────────────────────
-
-tool(
-  'penwright_git_commit',
-  'Stages all changes and creates a git commit with the given message.',
-  {
-    message: z.string().describe('Commit message'),
-    stageAll: z.boolean().default(true).describe('Stage all changes before committing'),
-  },
-  async ({ message, stageAll }) => {
-    try {
-      const git = await requireProjectGit();
-      await ensureGitIdentity(git);
-      if (stageAll) {
-        await git.add('-A');
-      }
-      const result = await git.commit(message);
-      return {
-        content: [{
-          type: 'text' as const,
-          text: `Committed: ${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions\nHash: ${result.commit}`,
-        }],
-      };
-    } catch (err) {
-      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
-    }
-  },
-);
-
-// ─── Tool: penwright_git_push ──────────────────────────
-
-tool(
-  'penwright_git_push',
-  'Pushes committed changes to the remote repository.',
-  async () => {
-    try {
-      const git = await requireProjectGit();
-      await git.push();
-      return {
-        content: [{ type: 'text' as const, text: 'Pushed to remote.' }],
-      };
-    } catch (err) {
-      return { content: [{ type: 'text' as const, text: `Error: ${err}` }], isError: true };
-    }
   },
 );
 
