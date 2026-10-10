@@ -46,10 +46,19 @@ export interface SnapshotRef {
  */
 export const DEFAULT_SNAPSHOT_LIMIT = 40;
 
-const LIMIT_FILE = '.limit';
+const LIMIT_FILE = 'limit';
+const LEGACY_LIMIT_FILE = '.limit';
 
+/** Where new snapshots are written. Dropbox on iOS cannot keep a dot-folder. */
 export function aiSnapshotsDirFor(projectDir: string): string {
-  return path.join(projectDir, '.penwright', 'ai-snapshots');
+  return path.join(projectDir, 'penwright', 'ai-snapshots');
+}
+
+function snapshotDirs(projectDir: string): string[] {
+  return [
+    path.join(projectDir, 'penwright', 'ai-snapshots'),
+    path.join(projectDir, '.penwright', 'ai-snapshots'),
+  ];
 }
 
 export function snapshotFileName(timestamp: number, filePath: string): string {
@@ -82,12 +91,16 @@ export function publishSnapshotLimit(projectDir: string, limit: number): void {
 }
 
 export function snapshotLimit(projectDir: string): number {
-  try {
-    const raw = fs.readFileSync(path.join(aiSnapshotsDirFor(projectDir), LIMIT_FILE), 'utf-8');
-    const n = Number(raw.trim());
-    if (Number.isFinite(n) && n >= 1) return Math.min(1000, Math.round(n));
-  } catch {
-    /* never published */
+  for (const dir of snapshotDirs(projectDir)) {
+    for (const name of [LIMIT_FILE, LEGACY_LIMIT_FILE]) {
+      try {
+        const raw = fs.readFileSync(path.join(dir, name), 'utf-8');
+        const n = Number(raw.trim());
+        if (Number.isFinite(n) && n >= 1) return Math.min(1000, Math.round(n));
+      } catch {
+        /* this spelling is not there */
+      }
+    }
   }
   return DEFAULT_SNAPSHOT_LIMIT;
 }
@@ -141,40 +154,48 @@ export function recordSnapshot(
 
 /** Keeps the folder bounded, oldest first. */
 export function pruneSnapshots(projectDir: string, keep: number): void {
-  const dir = aiSnapshotsDirFor(projectDir);
-  try {
-    const entries = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort();
-    for (const name of entries.slice(0, Math.max(0, entries.length - keep))) {
-      try { fs.unlinkSync(path.join(dir, name)); } catch { /* already gone */ }
+  const files: string[] = [];
+  for (const dir of snapshotDirs(projectDir)) {
+    let names: string[];
+    try {
+      names = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+    } catch {
+      continue;
     }
-  } catch {
-    /* no folder yet */
+    for (const name of names) files.push(path.join(dir, name));
+  }
+  files.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
+  for (const file of files.slice(0, Math.max(0, files.length - keep))) {
+    try { fs.unlinkSync(file); } catch { /* already gone */ }
   }
 }
 
 // ─── Reading ─────────────────────────────────────────────────────────
 
-function readAll(projectDir: string): { ref: SnapshotRef; snap: EditSnapshot }[] {
-  const dir = aiSnapshotsDirFor(projectDir);
-  const out: { ref: SnapshotRef; snap: EditSnapshot }[] = [];
-  let names: string[];
-  try {
-    names = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
-  } catch {
-    return out;
-  }
-  for (const name of names) {
+function readAll(projectDir: string): { ref: SnapshotRef; snap: EditSnapshot; diskPath: string }[] {
+  const out: { ref: SnapshotRef; snap: EditSnapshot; diskPath: string }[] = [];
+  for (const dir of snapshotDirs(projectDir)) {
+    let names: string[];
     try {
-      const raw = fs.readFileSync(path.join(dir, name), 'utf-8');
-      const s = JSON.parse(raw) as EditSnapshot;
-      if (typeof s.filePath !== 'string' || typeof s.content !== 'string') continue;
-      if (typeof s.timestamp !== 'number') continue;
-      out.push({
-        ref: { filePath: s.filePath, timestamp: s.timestamp, diskName: name, bytes: raw.length },
-        snap: s,
-      });
+      names = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
     } catch {
-      /* corrupt entry — skip it rather than break the whole list */
+      continue;
+    }
+    for (const name of names) {
+      try {
+        const diskPath = path.join(dir, name);
+        const raw = fs.readFileSync(diskPath, 'utf-8');
+        const s = JSON.parse(raw) as EditSnapshot;
+        if (typeof s.filePath !== 'string' || typeof s.content !== 'string') continue;
+        if (typeof s.timestamp !== 'number') continue;
+        out.push({
+          ref: { filePath: s.filePath, timestamp: s.timestamp, diskName: name, bytes: raw.length },
+          snap: s,
+          diskPath,
+        });
+      } catch {
+        /* corrupt entry — skip it rather than break the whole list */
+      }
     }
   }
   return out.sort((a, b) => b.snap.timestamp - a.snap.timestamp);
@@ -219,7 +240,7 @@ export function takeLastSnapshot(
 ): { snapshot: EditSnapshot; commit: () => void } | null {
   const entry = readAll(projectDir).find(e => !absFile || sameFile(e.snap.filePath, absFile));
   if (!entry) return null;
-  const diskPath = path.join(aiSnapshotsDirFor(projectDir), entry.ref.diskName);
+  const diskPath = entry.diskPath;
   return {
     snapshot: entry.snap,
     commit: () => {

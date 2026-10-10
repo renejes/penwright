@@ -29,7 +29,7 @@ import { findRootFileIn } from './rootFinder';
 import { ensureStyleInclude } from './styleParser';
 import { isDesignAdopted } from './styleWrite';
 
-export const GITIGNORE_REQUIRED_LINES = ['.penwright/', '.penwright-*', '*.pdf'];
+export const GITIGNORE_REQUIRED_LINES = ['.penwright/', '.penwright-*', '*.pdf', 'penwright/'];
 
 export const GITIGNORE_TEMPLATE = `# Penwright
 ${GITIGNORE_REQUIRED_LINES.join('\n')}

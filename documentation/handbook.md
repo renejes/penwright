@@ -1,6 +1,6 @@
 # Penwright Desktop — User Handbook
 
-> **Version:** 0.20.0 (Pre-Release)
+> **Version:** 0.20.1 (Pre-Release)
 > **Last updated:** 2026-08-21
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
@@ -645,7 +645,7 @@ Penwright keeps three independent layers of safety for your work — each with a
 | Layer | Trigger | Purpose | Where it lives |
 |-------|---------|---------|----------------|
 | **Versions** | You click **Save Version** | A named copy of the open chapter | `<project>/versions/<chapter>/<name>.typ` |
-| **Auto-Backup** | Timer (configurable, default every 30 s) | Crash / freeze protection — never lose more than X seconds of work | `<project>/.penwright/backups/` |
+| **Auto-Backup** | Timer (configurable, default every 30 s) | Crash / freeze protection — never lose more than X seconds of work | `<project>/penwright/backups/` |
 | **AI-Edit Undo** | Triggered by an external edit (an AI agent / MCP) | Quick rollback of the last AI change | `<project>/.penwright/ai-snapshots/` |
 
 All three live **inside the project folder**, so the project is self-contained: copy or move it and the full history goes with it. They're all reached from one place — the **History & Restore** button in the **Project** tab opens a hub with a labelled section for each.

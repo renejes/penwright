@@ -119,7 +119,8 @@ import { getTypstPath, getTypstPackagePath, getTypstFontPath } from './typstPath
 // 0.42.0: MCP SDK v2 (`@modelcontextprotocol/server`), Meta-MCP removed,
 // Cursor is the default host (`~/.cursor/mcp.json`), licence key env gone.
 // 0.44.0: chapter versions under versions/; Git tools removed from the server.
-export const MCP_SETUP_VERSION = '0.44.0';
+// 0.45.0: backups and AI snapshots are written under penwright/, not .penwright/.
+export const MCP_SETUP_VERSION = '0.45.0';
 
 /**
  * Key/name this app registers itself under in every MCP host — Cursor's

@@ -2,10 +2,12 @@
  * Auto-backups and AI-edit snapshots for the iPad host.
  *
  * Same folders the Mac writes, so a Dropbox project round-trips:
- * `.penwright/backups/<stamp>/` plus `.meta.json`, and
- * `.penwright/ai-snapshots/<stamp>_<file>.json`. Chapter writes still go
- * through `saveRefusal` — only this module touches those two stores.
- * Locks and `.penwright/typeset` stay out.
+ * `penwright/backups/<stamp>/` plus `meta.json`, and
+ * `penwright/ai-snapshots/<stamp>_<file>.json`. A leading dot is not used:
+ * Dropbox on iOS turns `.penwright` into a new "unknown file.penwright"
+ * folder on every write. Older `.penwright/` copies are still read.
+ * Chapter writes still go through `saveRefusal`. Locks and
+ * `.penwright/typeset` stay out.
  */
 
 import type { ProjectFs } from './projectFs';
@@ -28,6 +30,8 @@ export interface AiSnap {
   filePath: string;
   bytes: number;
   diskName: string;
+  /** Project-relative path of the JSON file, so undo deletes the copy it read. */
+  diskPath: string;
   content: string;
 }
 
@@ -37,9 +41,11 @@ export const DEFAULT_BACKUP_CONFIG: BackupConfig = {
   maxAiSnapshots: 20,
 };
 
-const BACKUP_ROOT = '.penwright/backups';
-const SNAPSHOT_ROOT = '.penwright/ai-snapshots';
-const SKIP_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
+const BACKUP_ROOT = 'penwright/backups';
+const LEGACY_BACKUP_ROOT = '.penwright/backups';
+const SNAPSHOT_ROOT = 'penwright/ai-snapshots';
+const LEGACY_SNAPSHOT_ROOT = '.penwright/ai-snapshots';
+const SKIP_DIRS = new Set(['.git', '.penwright', 'penwright', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
 const BACKUP_EXT = new Set(['.typ', '.bib']);
 
 export function sanitizeBackupConfig(raw: Partial<BackupConfig> | null | undefined): BackupConfig {
@@ -160,7 +166,7 @@ export async function createBackup(
     fileCount: files.length,
     totalBytes,
   };
-  await fs.writeText(`${root}/.meta.json`, JSON.stringify({
+  await fs.writeText(`${root}/meta.json`, JSON.stringify({
     timestamp: stamp,
     timestampMs: snapshot.timestampMs,
     files,
@@ -170,10 +176,25 @@ export async function createBackup(
   return snapshot;
 }
 
-export async function listBackups(fs: ProjectFs): Promise<BackupSnapshot[]> {
+async function readBackupMeta(fs: ProjectFs, dir: string): Promise<{ timestampMs?: number; files?: unknown[]; totalBytes?: number } | null> {
+  for (const name of ['meta.json', '.meta.json']) {
+    try {
+      return JSON.parse(await fs.readText(`${dir}/${name}`)) as {
+        timestampMs?: number;
+        files?: unknown[];
+        totalBytes?: number;
+      };
+    } catch {
+      /* the other spelling */
+    }
+  }
+  return null;
+}
+
+async function listBackupRoot(fs: ProjectFs, root: string): Promise<BackupSnapshot[]> {
   let entries: Awaited<ReturnType<ProjectFs['readDir']>> = [];
   try {
-    entries = await fs.readDir(BACKUP_ROOT);
+    entries = await fs.readDir(root);
   } catch {
     return [];
   }
@@ -184,31 +205,43 @@ export async function listBackups(fs: ProjectFs): Promise<BackupSnapshot[]> {
     let timestampMs = 0;
     let fileCount = 0;
     let totalBytes = 0;
-    try {
-      const meta = JSON.parse(await fs.readText(`${BACKUP_ROOT}/${entry.name}/.meta.json`)) as {
-        timestampMs?: number;
-        files?: unknown[];
-        totalBytes?: number;
-      };
+    const meta = await readBackupMeta(fs, `${root}/${entry.name}`);
+    if (meta) {
       if (typeof meta.timestampMs === 'number') timestampMs = meta.timestampMs;
       if (Array.isArray(meta.files)) fileCount = meta.files.length;
       if (typeof meta.totalBytes === 'number') totalBytes = meta.totalBytes;
-    } catch {
-      timestampMs = 0;
     }
     out.push({ timestamp: entry.name, timestampMs, fileCount, totalBytes });
+  }
+  return out;
+}
+
+export async function listBackups(fs: ProjectFs): Promise<BackupSnapshot[]> {
+  const seen = new Set<string>();
+  const out: BackupSnapshot[] = [];
+  for (const root of [BACKUP_ROOT, LEGACY_BACKUP_ROOT]) {
+    for (const snap of await listBackupRoot(fs, root)) {
+      if (seen.has(snap.timestamp)) continue;
+      seen.add(snap.timestamp);
+      out.push(snap);
+    }
   }
   return out.sort((a, b) => b.timestampMs - a.timestampMs || (a.timestamp < b.timestamp ? 1 : -1));
 }
 
 async function backupFiles(fs: ProjectFs, stamp: string): Promise<Array<{ rel: string; content: string }>> {
-  const root = `${BACKUP_ROOT}/${stamp}`;
+  const fresh = await backupFilesIn(fs, `${BACKUP_ROOT}/${stamp}`);
+  if (fresh.length > 0) return fresh;
+  return backupFilesIn(fs, `${LEGACY_BACKUP_ROOT}/${stamp}`);
+}
+
+async function backupFilesIn(fs: ProjectFs, root: string): Promise<Array<{ rel: string; content: string }>> {
   const out: Array<{ rel: string; content: string }> = [];
   const walk = async (dir: string, relBase: string): Promise<void> => {
     let entries: Awaited<ReturnType<ProjectFs['readDir']>> = [];
     try { entries = await fs.readDir(dir); } catch { return; }
     for (const entry of entries) {
-      if (!entry.name || entry.name.startsWith('.')) continue;
+      if (!entry.name || entry.name === 'meta.json' || entry.name.startsWith('.')) continue;
       const child = `${dir}/${entry.name}`;
       const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
       if (!safeProjectRel(rel)) continue;
@@ -247,6 +280,7 @@ async function pruneBackups(fs: ProjectFs, maxCount: number): Promise<void> {
   const all = await listBackups(fs);
   for (const snap of all.slice(Math.max(1, maxCount))) {
     await removeTree(fs, `${BACKUP_ROOT}/${snap.timestamp}`);
+    await removeTree(fs, `${LEGACY_BACKUP_ROOT}/${snap.timestamp}`);
   }
 }
 
@@ -258,24 +292,25 @@ function snapshotName(timestamp: number, rel: string): string {
 export async function publishSnapshotLimit(fs: ProjectFs, limit: number): Promise<void> {
   const value = Math.max(1, Math.min(1000, Math.round(limit)));
   try {
-    await fs.writeText(`${SNAPSHOT_ROOT}/.limit`, String(value));
+    await fs.writeText(`${SNAPSHOT_ROOT}/limit`, String(value));
   } catch {
     /* retention is a convenience */
   }
 }
 
-async function readSnapshots(fs: ProjectFs): Promise<AiSnap[]> {
+async function readSnapshotRoot(fs: ProjectFs, root: string): Promise<AiSnap[]> {
   let entries: Awaited<ReturnType<ProjectFs['readDir']>> = [];
   try {
-    entries = await fs.readDir(SNAPSHOT_ROOT);
+    entries = await fs.readDir(root);
   } catch {
     return [];
   }
   const out: AiSnap[] = [];
   for (const entry of entries) {
-    if (entry.isDir || !entry.name.endsWith('.json')) continue;
+    if (entry.isDir || !entry.name.endsWith('.json') || entry.name === 'meta.json') continue;
     try {
-      const raw = await fs.readText(`${SNAPSHOT_ROOT}/${entry.name}`);
+      const diskPath = `${root}/${entry.name}`;
+      const raw = await fs.readText(diskPath);
       const parsed = JSON.parse(raw) as { filePath?: unknown; content?: unknown; timestamp?: unknown };
       if (typeof parsed.filePath !== 'string' || typeof parsed.content !== 'string') continue;
       if (typeof parsed.timestamp !== 'number') continue;
@@ -284,12 +319,21 @@ async function readSnapshots(fs: ProjectFs): Promise<AiSnap[]> {
         filePath: parsed.filePath,
         bytes: raw.length,
         diskName: entry.name,
+        diskPath,
         content: parsed.content,
       });
     } catch {
       /* a broken entry stays on disk and out of the list */
     }
   }
+  return out;
+}
+
+async function readSnapshots(fs: ProjectFs): Promise<AiSnap[]> {
+  const out = [
+    ...await readSnapshotRoot(fs, SNAPSHOT_ROOT),
+    ...await readSnapshotRoot(fs, LEGACY_SNAPSHOT_ROOT),
+  ];
   return out.sort((a, b) => b.timestamp - a.timestamp);
 }
 
@@ -335,7 +379,7 @@ export async function undoLastAi(
   } catch {
     return { undone: false, rel: null, content: null, count: snaps.length };
   }
-  try { await fs.remove(`${SNAPSHOT_ROOT}/${newest.diskName}`); } catch { /* the file is already back */ }
+  try { await fs.remove(newest.diskPath); } catch { /* the file is already back */ }
   const count = (await readSnapshots(fs)).length;
   return { undone: true, rel, content: newest.content, count };
 }

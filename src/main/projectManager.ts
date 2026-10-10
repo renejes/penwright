@@ -100,7 +100,7 @@ export interface FileEntry {
   children?: FileEntry[];
 }
 
-const IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build', 'versions']);
+const IGNORED_DIRS = new Set(['.git', '.penwright', 'penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build', 'versions']);
 const ALLOWED_EXTENSIONS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.mdx', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.doc', '.csv', '.json', '.tex']);
 
 export function readDirTree(dir: string, depth = 0): FileEntry[] {

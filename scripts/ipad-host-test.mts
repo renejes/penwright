@@ -249,15 +249,15 @@ assert.equal(aiSnapshotDiskName(1000, chapter), snapshotFileName(1000, `/Users/x
 const backup = await project.createProjectBackup(1);
 assert.ok(backup);
 const stamp = backup!.timestamp;
-assert.equal(fs.text.get(`.penwright/backups/${stamp}/main.typ`), '= Root\n');
-assert.equal(fs.text.get(`.penwright/backups/${stamp}/${chapter}`), project.currentContent);
-assert.equal(fs.text.get(`.penwright/backups/${stamp}/references.bib`), bib);
-assert.equal(fs.text.get(`.penwright/backups/${stamp}/chapters/eins.typ`), '= Eins <sec:eins>\n');
+assert.equal(fs.text.get(`penwright/backups/${stamp}/main.typ`), '= Root\n');
+assert.equal(fs.text.get(`penwright/backups/${stamp}/${chapter}`), project.currentContent);
+assert.equal(fs.text.get(`penwright/backups/${stamp}/references.bib`), bib);
+assert.equal(fs.text.get(`penwright/backups/${stamp}/chapters/eins.typ`), '= Eins <sec:eins>\n');
 assert.equal([...fs.text.keys()].some((key) => key.includes('/backups/') && key.includes('typeset')), false);
 assert.equal([...fs.text.keys()].some((key) => key.includes('/backups/') && key.includes('assets/')), false);
 assert.equal((await project.projectBackups()).length, 1);
 
-const backedChapter = fs.text.get(`.penwright/backups/${stamp}/${chapter}`);
+const backedChapter = fs.text.get(`penwright/backups/${stamp}/${chapter}`);
 fs.text.set(chapter, 'changed');
 project.currentContent = 'changed';
 const restored = await project.restoreBackup(stamp);
@@ -268,7 +268,7 @@ assert.equal(project.currentContent, backedChapter);
 const second = await project.createProjectBackup(1);
 assert.ok(second);
 assert.equal((await project.projectBackups()).length, 1);
-assert.equal(fs.text.has(`.penwright/backups/${stamp}/.meta.json`), false);
+assert.equal(fs.text.has(`penwright/backups/${stamp}/meta.json`), false);
 
 const older = `.penwright/ai-snapshots/${snapshotFileName(1000, chapter)}`;
 await fs.writeText(older, JSON.stringify({
@@ -289,7 +289,7 @@ assert.equal(project.currentContent, 'neueste Fassung');
 assert.equal(fs.text.has('.penwright/ai-snapshots/2000_roman.typ.json'), false);
 assert.equal(fs.text.has(older), true);
 await project.publishAiLimit(12);
-assert.equal(fs.text.get('.penwright/ai-snapshots/.limit'), '12');
+assert.equal(fs.text.get('penwright/ai-snapshots/limit'), '12');
 await fs.writeText('.penwright/ai-snapshots/3000_gone.typ.json', JSON.stringify({
   filePath: '/Users/x/Roman/chapters/gone.typ',
   content: 'wieder da',

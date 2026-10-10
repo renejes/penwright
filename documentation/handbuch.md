@@ -1,6 +1,6 @@
 # Penwright Desktop — Handbuch
 
-> **Version:** 0.20.0 (Pre-Release)
+> **Version:** 0.20.1 (Pre-Release)
 > **Letzte Aktualisierung:** 2026-08-21
 > **English version:** [handbook.md](handbook.md)
 
@@ -645,7 +645,7 @@ Penwright haelt drei unabhaengige Schichten zur Absicherung deiner Arbeit — je
 | Schicht | Ausloeser | Zweck | Wo es lebt |
 |---------|-----------|-------|------------|
 | **Versionen** | Du klickst **Version speichern** | Eine benannte Kopie des offenen Kapitels | `<projekt>/versions/<Kapitel>/<Name>.typ` |
-| **Auto-Backup** | Timer (konfigurierbar, Default alle 30 s) | Crash-/Hänger-Schutz — nie mehr als X Sekunden Arbeit verlieren | `<projekt>/.penwright/backups/` |
+| **Auto-Backup** | Timer (konfigurierbar, Default alle 30 s) | Crash-/Hänger-Schutz — nie mehr als X Sekunden Arbeit verlieren | `<projekt>/penwright/backups/` |
 | **AI-Edit-Undo** | Externe Aenderung (KI-Agent / MCP) | Schnelles Rueckgaengig der letzten AI-Aenderung | `<projekt>/.penwright/ai-snapshots/` |
 
 Alle drei leben **innerhalb des Projektordners**, das Projekt ist also self-contained: kopierst oder verschiebst du es, wandert der vollstaendige Verlauf mit. Erreichbar sind sie alle an einem Ort — der Button **Verlauf & Wiederherstellen** im **Project**-Tab oeffnet einen Hub mit je einem beschrifteten Abschnitt.

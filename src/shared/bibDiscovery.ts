@@ -29,7 +29,7 @@ import { resolveDesignRoot } from './styleWrite';
 
 /** Mirrors projectSearch's ignore list so both walk the same project. */
 const IGNORED_DIRS = new Set([
-  '.git', '.penwright', 'node_modules', 'assets', 'exports', 'comments', '.claude',
+  '.git', '.penwright', 'penwright', 'node_modules', 'assets', 'exports', 'comments', '.claude',
 ]);
 
 const MAX_DEPTH = 3;

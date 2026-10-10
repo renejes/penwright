@@ -4,8 +4,10 @@
  * Saves and restores: window bounds, panel state, recent projects,
  * last project path, onboarding flag, Zotero path, backup config.
  *
- * Auto-backups live INSIDE each project at <projectDir>/.penwright/backups/<timestamp>/
- * so that projects are self-contained and travel with their history.
+ * Auto-backups live INSIDE each project at <projectDir>/penwright/backups/<timestamp>/
+ * so that projects are self-contained and travel with their history. The older
+ * `.penwright/backups/` tree is still read. A leading dot is not a folder
+ * Dropbox on iOS can keep.
  */
 
 import Store from 'electron-store';
@@ -18,7 +20,7 @@ import {
   sanitizeProjectStyle,
 } from '../shared/styleTypes';
 import type { SelectionPin } from '../shared/selectionTypes';
-import { listBackups, loadBackup } from '../shared/backupStore';
+import { listBackups, loadBackup, locateBackupDir } from '../shared/backupStore';
 
 export interface RecentProject {
   path: string;
@@ -297,18 +299,18 @@ export interface BackupSnapshot {
 }
 
 const BACKED_UP_EXTENSIONS = new Set(['.typ', '.bib']);
-const BACKUP_IGNORED_DIRS = new Set(['.git', '.penwright', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
+const BACKUP_IGNORED_DIRS = new Set(['.git', '.penwright', 'penwright', 'node_modules', '.DS_Store', 'dist', 'build', 'assets', 'sources']);
 
 function penwrightDir(projectDir: string): string {
   return path.join(projectDir, '.penwright');
 }
 
 function backupsDir(projectDir: string): string {
-  return path.join(penwrightDir(projectDir), 'backups');
+  return path.join(projectDir, 'penwright', 'backups');
 }
 
 export function aiSnapshotsDir(projectDir: string): string {
-  return path.join(penwrightDir(projectDir), 'ai-snapshots');
+  return path.join(projectDir, 'penwright', 'ai-snapshots');
 }
 
 function ensureDir(dir: string): void {
@@ -413,7 +415,7 @@ export async function saveProjectBackup(
     files: fileList,
     totalBytes,
   };
-  await fs.promises.writeFile(path.join(snapshotDir, '.meta.json'), JSON.stringify(meta), 'utf-8');
+  await fs.promises.writeFile(path.join(snapshotDir, 'meta.json'), JSON.stringify(meta), 'utf-8');
 
   return {
     timestamp,
@@ -446,7 +448,8 @@ export function pruneProjectBackups(projectDir: string, maxCount: number): void 
 
   const toDelete = all.slice(maxCount);
   for (const snap of toDelete) {
-    const dir = path.join(backupsDir(projectDir), snap.timestamp);
+    const dir = locateBackupDir(projectDir, snap.timestamp);
+    if (!dir) continue;
     try {
       fs.rmSync(dir, { recursive: true, force: true });
     } catch {}
@@ -469,7 +472,9 @@ export function checkForFileRecovery(
 
   const latest = backups[0];
   const relPath = path.relative(projectDir, absFilePath);
-  const backupFilePath = path.join(backupsDir(projectDir), latest.timestamp, relPath);
+  const root = locateBackupDir(projectDir, latest.timestamp);
+  if (!root) return null;
+  const backupFilePath = path.join(root, relPath);
   if (!fs.existsSync(backupFilePath)) return null;
 
   let backupContent: string;

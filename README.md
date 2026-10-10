@@ -7,7 +7,7 @@
 A WYSIWYG editor for [Typst](https://typst.app) documents — on the Mac, and for writing on the iPad.
 From academic theses to design-grade magazines, brochures and reports.
 
-![version](https://img.shields.io/badge/version-0.20.0-3b6ea5)
+![version](https://img.shields.io/badge/version-0.20.1-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
 ![iPad](https://img.shields.io/badge/iPad-writing%20host-111111?logo=apple)
 ![license](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-3fa45b)
@@ -50,12 +50,12 @@ Git is not the version system. Penwright does not create commits for versions. A
 
 ### Two other safety nets
 
-These are not versions. They live under `.penwright/` and are hidden from the file tree.
+These are not versions. They live in `penwright/` inside the project and stay out of the file tree. Older copies under `.penwright/` are still read.
 
 | Net | What it keeps | Where |
 |---|---|---|
-| **Auto-backups** | Timed copies of the project’s `.typ` and `.bib` files, including the open chapter | `.penwright/backups/` |
-| **AI changes** | The previous text of a file before an agent overwrote it, including files you do not have open | `.penwright/ai-snapshots/` |
+| **Auto-backups** | Timed copies of the project’s `.typ` and `.bib` files, including the open chapter | `penwright/backups/` |
+| **AI changes** | The previous text of a file before an agent overwrote it, including files you do not have open | `penwright/ai-snapshots/` |
 
 **History & Restore** in the Project tab lists the backups and the AI changes. Restoring a backup puts the whole project back to that time. **Undo last** on an AI change restores that one file. Chapter versions stay in the list above that button.
 
@@ -166,7 +166,7 @@ The in-app User Guide is `documentation/handbook.md` (English) and
 
 ## Status
 
-Pre-release **0.20.0**. macOS / Apple Silicon is built and Developer-ID signed, not notarized.
+Pre-release **0.20.1**. macOS / Apple Silicon is built and Developer-ID signed, not notarized.
 The iPad app is a writing host for a project folder, installed from this repo onto a device.
 Windows is scaffolded (unverified on a real device).
 

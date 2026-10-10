@@ -16,7 +16,7 @@ export const MAC_ONLY_HINT = 'Nur am Mac';
 const ROOT_TYP = ['main.typ', 'document.typ', 'index.typ'];
 
 const IGNORED_DIRS = new Set([
-  '.git', '.penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build', 'versions',
+  '.git', '.penwright', 'penwright', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build', 'versions',
 ]);
 
 const SHOWN_EXTENSIONS = new Set([

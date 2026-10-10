@@ -382,8 +382,8 @@ my-thesis/
 | Layer | Trigger | Storage | Purpose |
 |---|---|---|---|
 | **Versions** | User-saved, one chapter | \`versions/<chapter>/<name>.typ\` | Named copies of a single \`.typ\` file. "Make main" swaps that file with the living chapter. |
-| **Auto-backups** | Timer (default 30 s) | \`.penwright/backups/<timestamp>/\` | Crash protection. Each backup is a flat snapshot of all .typ + .bib files plus a \`.meta.json\`. |
-| **AI-edit snapshots** | Each external file change | \`.penwright/ai-snapshots/\` | Ring buffer used by "Undo AI Edit". |
+| **Auto-backups** | Timer (default 30 s) | \`penwright/backups/<timestamp>/\` | Crash protection. Each backup is a flat snapshot of all .typ + .bib files plus a \`meta.json\`. Older copies may still sit in \`.penwright/backups/\`. |
+| **AI-edit snapshots** | Each external file change | \`penwright/ai-snapshots/\` | Ring buffer used by "Undo AI Edit". Older copies may still sit in \`.penwright/ai-snapshots/\`. |
 | **UI preferences** | UI knob changes (debounced) | \`.penwright/preferences.json\` | Per-project editor + PDF zoom levels. Travels with the project folder. Extend this file rather than electron-store when adding new per-project UI knobs. |
 
 All four live inside the project folder.

@@ -20,7 +20,7 @@ import { refTypeFromLabel } from '../shared/refLabels';
 import { isPathWithin } from './pathSecurity';
 
 const IGNORED_DIRS = new Set([
-  '.git', '.penwright', 'node_modules', 'dist', 'build', 'assets', 'sources', 'comments',
+  '.git', '.penwright', 'penwright', 'node_modules', 'dist', 'build', 'assets', 'sources', 'comments',
 ]);
 
 const MAX_LABELS = 2000;

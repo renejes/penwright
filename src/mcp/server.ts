@@ -858,7 +858,7 @@ The project's own conventions are prompts: penwright-conventions, typst-referenc
 const server = new McpServer(
   {
     name: 'penwright',
-    version: '0.20.0',
+    version: '0.20.1',
   },
   { instructions: SERVER_INSTRUCTIONS },
 );
@@ -1692,7 +1692,7 @@ tool(
   },
 );
 
-const IGNORED_DIRS = new Set(['.git', 'versions', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
+const IGNORED_DIRS = new Set(['.git', '.penwright', 'penwright', 'versions', 'node_modules', '.DS_Store', '__pycache__', '.venv', 'dist', 'build']);
 const ALLOWED_EXTS = new Set(['.typ', '.bib', '.yaml', '.yml', '.toml', '.txt', '.md', '.mdx', '.png', '.jpg', '.jpeg', '.svg', '.gif', '.pdf', '.docx', '.csv', '.json', '.tex']);
 
 function listDir(dir: string, depth: number): string {
@@ -3344,7 +3344,7 @@ tool(
 
 tool(
   'penwright_list_edits',
-  'List the undoable edit snapshots in `.penwright/ai-snapshots/` — the previous version of every file this server (or Penwright) overwrote, newest first. This is the same net the app\'s History & Restore hub shows. Bounded and per-file; for durable checkpoints use penwright_save_version.',
+  'List the undoable edit snapshots in `penwright/ai-snapshots/` — the previous version of every file this server (or Penwright) overwrote, newest first. Older entries may still sit in `.penwright/ai-snapshots/`. This is the same net the app\'s History & Restore hub shows. Bounded and per-file; for durable checkpoints use penwright_save_version.',
   {
     file: z.string().optional().describe('Project-relative path to narrow the list to one file. Omit for the whole project.'),
   },

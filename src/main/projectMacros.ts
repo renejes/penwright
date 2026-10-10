@@ -45,7 +45,7 @@ export type { MacroParam, ProjectMacro, ProjectMacroResults };
 export { buildMacroCall, macroSignature } from '../shared/macroCall';
 
 const IGNORED_DIRS = new Set([
-  '.git', '.penwright', 'node_modules', 'dist', 'build', 'assets', 'sources', 'comments',
+  '.git', '.penwright', 'penwright', 'node_modules', 'dist', 'build', 'assets', 'sources', 'comments',
 ]);
 
 const MAX_MACROS = 500;

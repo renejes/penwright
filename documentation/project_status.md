@@ -1,6 +1,6 @@
 # Penwright — aktueller Stand
 
-> **Stand:** 2026-10-10 · App **0.20.0** · `MCP_SETUP_VERSION` **0.44.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent, nur Mac)
+> **Stand:** 2026-10-10 · App **0.20.1** · `MCP_SETUP_VERSION` **0.45.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent, nur Mac)
 >
 > Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md).
 
@@ -53,8 +53,8 @@ Derselbe Planer (`src/shared/chapterVersions.ts`) läuft auf dem Mac und auf dem
 
 | Netz | Was es hält | Wo |
 |---|---|---|
-| **Auto-Backups** | Zeitkopien der `.typ`- und `.bib`-Dateien, inklusive des offenen Kapitels | `.penwright/backups/` |
-| **KI-Änderungen** | Der Text einer Datei, bevor ein Agent sie überschrieben hat, auch wenn sie nicht offen war | `.penwright/ai-snapshots/` |
+| **Auto-Backups** | Zeitkopien der `.typ`- und `.bib`-Dateien, inklusive des offenen Kapitels | `penwright/backups/` |
+| **KI-Änderungen** | Der Text einer Datei, bevor ein Agent sie überschrieben hat, auch wenn sie nicht offen war | `penwright/ai-snapshots/` |
 
 **Verlauf & Wiederherstellen** im Projekt-Reiter listet Backups und KI-Änderungen. Ein Backup stellt das Projekt auf diesen Zeitpunkt zurück. **Letzte rückgängig** holt eine Datei zurück. Die Kapitelversionen liegen in der Liste darüber, nicht in diesem Fenster.
 

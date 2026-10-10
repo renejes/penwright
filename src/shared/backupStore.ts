@@ -36,8 +36,37 @@ export interface BackupFile {
   content: string;
 }
 
+/** New backups. A leading dot becomes a junk file on Dropbox for iOS. */
 export function backupsDirFor(projectDir: string): string {
-  return path.join(projectDir, '.penwright', 'backups');
+  return path.join(projectDir, 'penwright', 'backups');
+}
+
+function backupRoots(projectDir: string): string[] {
+  return [
+    path.join(projectDir, 'penwright', 'backups'),
+    path.join(projectDir, '.penwright', 'backups'),
+  ];
+}
+
+/** The folder for one snapshot, new location first, then the older dot-folder. */
+export function locateBackupDir(projectDir: string, timestamp: string): string | null {
+  if (!/^[\w-]+$/.test(timestamp)) return null;
+  for (const root of backupRoots(projectDir)) {
+    const dir = path.join(root, timestamp);
+    if (fs.existsSync(dir)) return dir;
+  }
+  return null;
+}
+
+function readBackupMeta(dir: string): { timestampMs?: number; files?: unknown[]; totalBytes?: number } | null {
+  for (const name of ['meta.json', '.meta.json']) {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(dir, name), 'utf-8'));
+    } catch {
+      /* the other spelling, or no meta at all */
+    }
+  }
+  return null;
 }
 
 /** `2026-07-29T14-32-05` → epoch ms. Falls back to 0 on an unparseable name. */
@@ -52,44 +81,44 @@ export function parseBackupTimestamp(name: string): number {
 
 /** All snapshots, newest first. */
 export function listBackups(projectDir: string): BackupSnapshot[] {
-  const dir = backupsDirFor(projectDir);
   const out: BackupSnapshot[] = [];
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return out;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    let timestampMs = parseBackupTimestamp(entry.name);
-    let fileCount = 0;
-    let totalBytes = 0;
+  const seen = new Set<string>();
+  for (const dir of backupRoots(projectDir)) {
+    let entries: fs.Dirent[];
     try {
-      const meta = JSON.parse(fs.readFileSync(path.join(dir, entry.name, '.meta.json'), 'utf-8'));
-      if (typeof meta.timestampMs === 'number') timestampMs = meta.timestampMs;
-      if (Array.isArray(meta.files)) fileCount = meta.files.length;
-      if (typeof meta.totalBytes === 'number') totalBytes = meta.totalBytes;
+      entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
-      /* no meta — the folder name still dates it */
+      continue;
     }
-    out.push({ timestamp: entry.name, timestampMs, fileCount, totalBytes });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || seen.has(entry.name)) continue;
+      seen.add(entry.name);
+      let timestampMs = parseBackupTimestamp(entry.name);
+      let fileCount = 0;
+      let totalBytes = 0;
+      const meta = readBackupMeta(path.join(dir, entry.name));
+      if (meta) {
+        if (typeof meta.timestampMs === 'number') timestampMs = meta.timestampMs;
+        if (Array.isArray(meta.files)) fileCount = meta.files.length;
+        if (typeof meta.totalBytes === 'number') totalBytes = meta.totalBytes;
+      }
+      out.push({ timestamp: entry.name, timestampMs, fileCount, totalBytes });
+    }
   }
   return out.sort((a, b) => b.timestampMs - a.timestampMs);
 }
 
 /** Every file in one snapshot, contents included. */
 export function loadBackup(projectDir: string, timestamp: string): BackupFile[] {
-  const dir = path.join(backupsDirFor(projectDir), timestamp);
+  const dir = locateBackupDir(projectDir, timestamp);
   const out: BackupFile[] = [];
-  if (!fs.existsSync(dir)) return out;
+  if (!dir) return out;
 
   const walk = (sub: string, relBase: string): void => {
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(sub, { withFileTypes: true }); } catch { return; }
     for (const entry of entries) {
-      if (entry.name === '.meta.json') continue;
+      if (entry.name === '.meta.json' || entry.name === 'meta.json') continue;
       const full = path.join(sub, entry.name);
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
       if (entry.isDirectory()) walk(full, relPath);
@@ -104,7 +133,8 @@ export function loadBackup(projectDir: string, timestamp: string): BackupFile[] 
 
 /** One file out of one snapshot, or null. */
 export function readBackupFile(projectDir: string, timestamp: string, relPath: string): string | null {
-  const dir = path.join(backupsDirFor(projectDir), timestamp);
+  const dir = locateBackupDir(projectDir, timestamp);
+  if (!dir) return null;
   const abs = path.resolve(dir, relPath);
   // The relPath comes from a caller; keep it inside the snapshot.
   if (abs !== path.resolve(dir) && !abs.startsWith(path.resolve(dir) + path.sep)) return null;
@@ -121,5 +151,5 @@ export function readBackupFile(projectDir: string, timestamp: string, relPath: s
  * because neither store is in the file tree.
  */
 export function isManagedStore(abs: string): boolean {
-  return /(^|[\\/])\.penwright[\\/](backups|ai-snapshots)([\\/]|$)/.test(path.resolve(abs));
+  return /(^|[\\/])\.?penwright[\\/](backups|ai-snapshots)([\\/]|$)/.test(path.resolve(abs));
 }

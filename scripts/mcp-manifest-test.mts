@@ -554,8 +554,9 @@ console.log('\nThe design tokens are inside the undo net');
       call(3, 'penwright_apply_palette', { presetId: 'editorial' }),
       call(4, 'penwright_apply_palette', { presetId: 'modern-tech' }),
     ]);
-    const snaps = fs.existsSync(path.join(dir, '.penwright', 'ai-snapshots'))
-      ? fs.readdirSync(path.join(dir, '.penwright', 'ai-snapshots')).filter(f => f.endsWith('.json'))
+    const snapDir = path.join(dir, 'penwright', 'ai-snapshots');
+    const snaps = fs.existsSync(snapDir)
+      ? fs.readdirSync(snapDir).filter(f => f.endsWith('.json'))
       : [];
     const forStyleJson = snaps.filter(f => f.includes('style.json'));
     check('style.json is snapshotted like any other design write', forStyleJson.length > 0,
