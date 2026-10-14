@@ -1,6 +1,6 @@
 # Penwright — aktueller Stand
 
-> **Stand:** 2026-10-10 · App **0.20.1** · `MCP_SETUP_VERSION` **0.45.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent, nur Mac)
+> **Stand:** 2026-10-14 · App **0.20.2** · `MCP_SETUP_VERSION` **0.45.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent, nur Mac)
 >
 > Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md).
 

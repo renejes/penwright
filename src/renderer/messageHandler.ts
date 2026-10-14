@@ -145,9 +145,8 @@ export function handleMessage(message: ExtensionMessage): void {
     previewState.error = '';
     previewState.compiling = false;
     previewState.dirty = false;
-    if (!panelState.showPreview && !isIpadHost()) {
-      panelState.showPreview = true;
-    }
+    // A closed preview stays closed. The bytes are ready for the next time
+    // the user opens the tab; typing must not pop the panel open.
   } else if (message.type === 'compileError') {
     previewState.error = message.error;
     previewState.compiling = false;

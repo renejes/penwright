@@ -7,7 +7,7 @@
 A WYSIWYG editor for [Typst](https://typst.app) documents — on the Mac, and for writing on the iPad.
 From academic theses to design-grade magazines, brochures and reports.
 
-![version](https://img.shields.io/badge/version-0.20.1-3b6ea5)
+![version](https://img.shields.io/badge/version-0.20.2-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
 ![iPad](https://img.shields.io/badge/iPad-writing%20host-111111?logo=apple)
 ![license](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-3fa45b)
@@ -166,7 +166,7 @@ The in-app User Guide is `documentation/handbook.md` (English) and
 
 ## Status
 
-Pre-release **0.20.1**. macOS / Apple Silicon is built and Developer-ID signed, not notarized.
+Pre-release **0.20.2**. macOS / Apple Silicon is built and Developer-ID signed, not notarized.
 The iPad app is a writing host for a project folder, installed from this repo onto a device.
 Windows is scaffolded (unverified on a real device).
 
