@@ -14,6 +14,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { findBibFiles } from '../shared/bibDiscovery';
 import { locateCitationPdf, type ZoteroPdfMode } from '../shared/citationPdf';
 import { isPathWithin } from './pathSecurity';
 import { readZoteroLink } from './zoteroLink';
@@ -44,7 +45,7 @@ export async function findSourceForCitation(projectDir: string, citekey: string)
 
   const link = resolveLink(projectDir);
   const linked = link !== null;
-  const bibText = linked ? readBib(path.join(projectDir, 'zotero.bib')) : null;
+  const bibText = readProjectBibText(projectDir);
   const located = await locateCitationPdf({
     citekey,
     projectDir,
@@ -58,7 +59,7 @@ export async function findSourceForCitation(projectDir: string, citekey: string)
 
   const inProject = isPathWithin(located.path, projectDir);
   if (!inProject) noteCitationPdf(located.path);
-  return { path: located.path, linked, inProject };
+  return { path: located.path, linked: linked || located.via === 'file', inProject };
 }
 
 /**
@@ -94,6 +95,16 @@ function resolveLink(projectDir: string): { pdfMode: ZoteroPdfMode; attachmentDi
 
 function readBib(filePath: string): string | null {
   try { return fs.readFileSync(filePath, 'utf-8'); } catch { return null; }
+}
+
+export function readProjectBibText(projectDir: string): string | null {
+  const zotero = path.join(projectDir, 'zotero.bib');
+  const files = [
+    ...(fs.existsSync(zotero) ? [zotero] : []),
+    ...findBibFiles(projectDir, null).filter((f) => path.resolve(f) !== path.resolve(zotero)),
+  ];
+  const chunks = files.map(readBib).filter((t): t is string => !!t);
+  return chunks.length > 0 ? chunks.join('\n\n') : null;
 }
 
 function diskIo() {

@@ -49,10 +49,10 @@ export async function locateCitationPdf(input: LocateCitationPdfInput): Promise<
   const { citekey, projectDir, io } = input;
   if (!projectDir || !citekey || !CITEKEY_PATTERN.test(citekey)) return null;
 
-  if (input.linked) {
-    const fromFile = firstExisting(bibPdfCandidates(input.bibText, citekey), io);
-    if (fromFile) return { path: fromFile, via: 'file' };
+  const fromFile = firstExisting(bibPdfCandidates(input.bibText, citekey), io);
+  if (fromFile) return { path: fromFile, via: 'file' };
 
+  if (input.linked) {
     const fromFolder = attachmentHit(input.attachmentDir, citekey, io);
     if (fromFolder) return { path: fromFolder, via: 'attachment' };
 

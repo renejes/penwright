@@ -117,6 +117,22 @@ const read = await readProjectSource(project, 'bandura1977', '1');
 check('read returns the passage', read.pdf && read.pages.some(p => p.text.includes('Mastery experiences')));
 check('read does not copy', fs.readdirSync(path.join(project, 'sources')).length === 0);
 
+const aproposProj = path.join(root, 'apropos-project');
+fs.mkdirSync(path.join(aproposProj, 'sources'), { recursive: true });
+fs.writeFileSync(
+  path.join(aproposProj, 'references.bib'),
+  `@article{bandura1977,
+  author = {Bandura, Albert},
+  title = {Self-efficacy},
+  year = {1977},
+  file = {:${pdf}:PDF}
+}
+`,
+);
+const aproposReport = await searchProjectSources(aproposProj, 'mastery exam');
+check('references.bib with file field is indexed without zotero.bib', aproposReport.library === 'references.bib' && aproposReport.withPdf === 1 && aproposReport.hits.some(h => h.citekey === 'bandura1977' && h.where === 'page'));
+check('apropos-style search does not copy PDF into sources/', fs.readdirSync(path.join(aproposProj, 'sources')).length === 0);
+
 if (failures) {
   console.log(`\n${failures} failed`);
   process.exit(1);

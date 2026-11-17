@@ -1,7 +1,7 @@
 # Penwright Desktop — Handbuch
 
-> **Version:** 0.20.2 (Pre-Release)
-> **Letzte Aktualisierung:** 2026-08-21
+> **Version:** 0.20.3 (Pre-Release)
+> **Letzte Aktualisierung:** 2026-11-17
 > **English version:** [handbook.md](handbook.md)
 
 ---
@@ -16,7 +16,7 @@ Penwright ist eine von drei Apps, die **ineinandergreifen und jeweils auch allei
 
 | App | Wofuer |
 |---|---|
-| **[Research Overview Platform](https://github.com/renejes/research-overview-platform)** | Transparente KI-Research: Quellen, Provenienz, Zitate. Liefert ein Schreibpaket — nicht den Artikel. |
+| **[apROPos](https://github.com/renejes/apropos)** | Transparente KI-Research: Quellen, Provenienz, Synthese-Matrix, Sign-off. Synchronisiert `references.bib` (inkl. verlinkter PDFs ohne Kopie) und `apropos-dossier.md` direkt ins Penwright-Projekt — ganz ohne Zotero. |
 | **[Easy Writing](https://github.com/renejes/easy-writing)** | Das Manuskript. Ein Ordner ist das Projekt; du schreibst Markdown/MDX mit `[@citekey]` und Fussnoten. Kein Layout-Studio. |
 | **Penwright** (diese App) | Satz und Design. Oeffne ein Typst-Projekt oder einen Easy-Writing-Ordner und gestalte die Seite. |
 
@@ -217,7 +217,7 @@ Tippe `@` im Editor -> Dropdown mit allen Quellen aus den `.bib`-Dateien:
 
 Hover ueber ein `@citekey`-Badge fuer ~ 350 ms und ein kleines Popover erscheint mit:
 - Autor, Titel und Jahr aus dem `.bib`-Eintrag
-- **PDF oeffnen**-Button, wenn eine passende Quelle in `sources/` liegt
+- **PDF oeffnen**-Button, sobald im `.bib`-Eintrag (`references.bib` oder `zotero.bib`) ein `file`-Pfad hinterlegt ist (z. B. aus **apROPos** oder Zotero, ohne Kopie!) oder eine passende PDF in `sources/` liegt
 
 Konvention: Quell-PDFs in den `sources/`-Ordner legen und so benennen, dass der **Dateiname mit dem Citekey beginnt** — `chen2021codex.pdf`, `chen2021codex_supplement.pdf`, `chen2021codex-arxiv.pdf` matchen alle. Klick auf **PDF oeffnen** und die Quelle erscheint als regulaerer Tab im integrierten PDF-Viewer (Text markierbar + kopierbar).
 
@@ -490,12 +490,9 @@ Editor- und PDF-Vorschau lassen sich unabhaengig voneinander zoomen, 50 % bis 20
 - YAML-Frontmatter wird uebersprungen
 - Erzeugt eine neue `.typ`-Datei (ohne festes Look-Preamble — es gilt das `style.typ` des Projekts)
 
-### Zotero Integration
-- **File -> Link Zotero Library…**
-- Zotero Better BibTeX `.bib`-Datei auswaehlen
-- Wird als `zotero.bib` ins Projekt kopiert
-- **Auto-Sync:** AEnderungen in Zotero werden automatisch uebernommen (solange die App laeuft)
-- Alle Zotero-Quellen erscheinen im `@`-Autocomplete
+### apROPos & Zotero Integration
+- **apROPos (ohne Zotero):** Verknuepfst du dein Penwright-Projekt in **apROPos**, aktualisiert apROPos bei jedem Sign-off automatisch `references.bib` (inkl. verlinkter PDFs im `file`-Feld, ohne Kopie in `sources/`) sowie `apropos-dossier.md` (Synthese-Matrix, `@citekey[S. X]`, Zitate). Penwrights File-Watcher laedt die Citekeys live nach; Hover → **PDF oeffnen** und `penwright_search_sources` greifen direkt auf die zentralen apROPos-PDFs zu.
+- **Zotero (optional):** **File -> Link Zotero Library…** waehlt eine Zotero Better BibTeX `.bib`-Datei, kopiert sie als `zotero.bib` ins Projekt und haelt sie per Auto-Sync aktuell, solange die App laeuft. Alle Quellen erscheinen im `@`-Autocomplete.
 
 ### Export-Dialog
 
@@ -1042,8 +1039,8 @@ Die strukturierte Design-Surface — der visuelle Look-Designer (öffne `style.t
 
 - `penwright_search_project` — Sucht in allen `.typ`-Dateien (optional `.bib`); whole-word funktioniert dank Lookarounds auch bei `@citekey`-Backlinks; max. 1000 Treffer.
 - `penwright_replace_in_project` — Ersetzt alle Vorkommen einer Suche projektweit; **destruktiv** — vorher `save_version` aufrufen.
-- `penwright_find_source_for_citation` — Sucht die PDF zu einem Citekey (verknüpfte Zotero-Datei, Anhangordner, dann `sources/`).
-- `penwright_search_sources` — Durchsucht alle Paper der verknüpften Bibliothek, auch noch nicht zitierte. Liefert Citekey, Seite und den Absatz um die Fundstelle.
+- `penwright_find_source_for_citation` — Sucht die PDF zu einem Citekey (`file`-Feld in `references.bib` / `zotero.bib`, Anhangordner, Zotero-API, dann `sources/`).
+- `penwright_search_sources` — Durchsucht alle Paper der Projekt-`.bib`-Dateien (`references.bib`, `zotero.bib`), auch noch nicht zitierte. Liefert Citekey, Seite und den Absatz um die Fundstelle.
 - `penwright_read_source` — Liest ein kurzes Seitenfenster eines dieser Paper.
 
 **Export (3)**

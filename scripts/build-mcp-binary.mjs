@@ -54,9 +54,15 @@ else if (wantWin) targets = TARGETS_WIN;
 else if (wantAll) targets = TARGETS_DARWIN;
 else targets = [hostTarget];
 
-// Resolve bun. Prefer PATH, but fall back to the common install location so
-// CI / packaging scripts don't need shell setup.
+// Resolve bun. Prefer local node_modules/.bin/bun or PATH, then fall back to
+// common install locations so CI / packaging scripts don't need shell setup.
 function findBun() {
+  const ovenArm = join(ROOT, 'node_modules', '@oven', 'bun-darwin-aarch64', 'bin', 'bun');
+  if (existsSync(ovenArm)) return ovenArm;
+  const ovenX64 = join(ROOT, 'node_modules', '@oven', 'bun-darwin-x64', 'bin', 'bun');
+  if (existsSync(ovenX64)) return ovenX64;
+  const localBin = join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'bun.cmd' : 'bun');
+  if (existsSync(localBin)) return localBin;
   const which = spawnSync('which', ['bun'], { encoding: 'utf-8' });
   if (which.status === 0 && which.stdout.trim()) return which.stdout.trim();
   const home = process.env.HOME ?? '';

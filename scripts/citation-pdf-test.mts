@@ -70,6 +70,23 @@ fs.writeFileSync(path.join(plain, 'sources', 'bandura1977.pdf'), '%PDF-1.4\n');
 const plainHit = await findSourceForCitation(plain, 'bandura1977');
 check('no link uses sources/', plainHit.path === path.join(plain, 'sources', 'bandura1977.pdf') && !plainHit.linked);
 
+const refLinked = path.join(root, 'apropos-linked');
+fs.mkdirSync(path.join(refLinked, 'sources'), { recursive: true });
+fs.writeFileSync(
+  path.join(refLinked, 'references.bib'),
+  `@article{bandura1977,
+  author = {Bandura, Albert},
+  title = {Self-efficacy},
+  year = {1977},
+  file = {:${outside}:PDF}
+}
+`,
+);
+const refHit = await findSourceForCitation(refLinked, 'bandura1977');
+check('references.bib file field resolves outside PDF without zotero.json', refHit.path === outside && !refHit.inProject && refHit.linked, JSON.stringify(refHit));
+const refOpened = await openCitationPdf(refLinked, 'bandura1977');
+check('references.bib open does not copy into sources/', refOpened === outside && fs.readdirSync(path.join(refLinked, 'sources')).length === 0);
+
 const folderOnly = path.join(root, 'folder-only');
 fs.mkdirSync(path.join(folderOnly, 'sources'), { recursive: true });
 fs.writeFileSync(path.join(folderOnly, 'zotero.bib'), '@article{mueller2016, author = {Mueller, A.}, year = {2016}, title = {X}}\n');

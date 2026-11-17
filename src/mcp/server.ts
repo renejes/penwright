@@ -847,7 +847,7 @@ Every write is snapshotted: penwright_list_edits, penwright_undo_last_edit. Boun
 
 Watch for two notes on results: a file open with unsaved changes (what you read is not what they see) and a document that was already failing to compile before you touched it (do not assume the next failure is yours).
 
-Sources: penwright_search_sources covers every paper in the linked zotero.bib, cited or not. Then penwright_read_source. Cite as @citekey[S. n]. An empty search means these sources do not say it.
+Sources: penwright_search_sources covers every paper in the project .bib, cited or not. Then penwright_read_source. Cite as @citekey[S. n]. An empty search means these sources do not say it.
 
 Web/HTML export has no tool. Tell the user: File ▸ Export to Web (HTML).
 
@@ -858,7 +858,7 @@ The project's own conventions are prompts: penwright-conventions, typst-referenc
 const server = new McpServer(
   {
     name: 'penwright',
-    version: '0.20.2',
+    version: '0.20.3',
   },
   { instructions: SERVER_INSTRUCTIONS },
 );
@@ -3920,7 +3920,7 @@ tool(
 
 tool(
   'penwright_find_source_for_citation',
-  'Find the PDF for a BibTeX citekey. A linked Zotero library is checked first (the entry\'s file field, then the attachment folder chosen when linking, then Zotero\'s local API if the file field is absent). sources/ is the fallback. A hit outside the project is not copied. Returns the path, or found:false.',
+  'Find the PDF for a BibTeX citekey. Checks the entry\'s file field in any project .bib file (e.g. from apROPos or Zotero), then any linked attachment folder or Zotero\'s local API when linked, and sources/ as fallback. A hit outside the project is not copied. Returns the path, or found:false.',
   { citekey: z.string().describe('BibTeX citation key (e.g. "chen2021codex")') },
   async ({ citekey }) => {
     try {

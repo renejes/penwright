@@ -160,8 +160,8 @@ Alles hier arbeitet auf der **Wurzel**, nicht auf der gerade offenen Datei — e
 | `penwright_get_citations` | Alle `.bib`-Eintraege im Projekt (citekey, type, title, author, year und alle BibTeX-Felder) |
 | `penwright_add_citation` | BibTeX-Eintrag hinzufuegen; legt `references.bib` an, falls es fehlt, und stellt das `#bibliography` im Dokument sicher |
 | `penwright_ensure_bibliography` | `references.bib` + `#bibliography`-Aufruf erstellen, falls fehlend |
-| `penwright_find_source_for_citation` | Sucht die PDF zur Citekey: `file`-Feld der verknüpften `.bib`, dann der Anhangordner, dann `sources/`. Kopiert nichts |
-| `penwright_search_sources` | Durchsucht alle Paper der verknüpften Bibliothek, auch ohne Zitat im Text. Treffer: Citekey, Seite, Absatz |
+| `penwright_find_source_for_citation` | Sucht die PDF zur Citekey: `file`-Feld in den `.bib`-Dateien des Projekts (`references.bib` aus apROPos oder `zotero.bib`), dann Anhangordner, dann `sources/`. Kopiert nichts |
+| `penwright_search_sources` | Durchsucht alle Paper der Projekt-`.bib`-Dateien (`references.bib`, `zotero.bib`), auch ohne Zitat im Text. Treffer: Citekey, Seite, Absatz |
 | `penwright_read_source` | Liest ein Seitenfenster (`12` oder `12-14`) eines Papers, nachdem die Suche die Stelle genannt hat |
 
 ### Cross-Refs, Fussnoten & Comments (8)

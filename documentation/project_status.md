@@ -1,6 +1,6 @@
 # Penwright — aktueller Stand
 
-> **Stand:** 2026-10-14 · App **0.20.2** · `MCP_SETUP_VERSION` **0.45.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent, nur Mac)
+> **Stand:** 2026-11-17 · App **0.20.3** · `MCP_SETUP_VERSION` **0.45.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent, nur Mac)
 >
 > Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md).
 
@@ -30,7 +30,7 @@ Zwei Eingänge auf dem Mac:
 
 | App | Rolle |
 |---|---|
-| **[Research Overview Platform](https://github.com/renejes/research-overview-platform)** | Transparente KI-Research: Quellen, Provenienz, Zitate. Export ist ein Schreibpaket, kein Artikel. |
+| **[apROPos](https://github.com/renejes/apropos)** | Transparente KI-Research: Quellen, Provenienz, Synthese-Matrix, Sign-off. Synchronisiert `references.bib` (mit verlinkten PDFs) und `apropos-dossier.md` direkt ins Penwright-Projekt. |
 | **[Easy Writing](https://github.com/renejes/easy-writing)** | Das Manuskript. Ordnerprojekt, Markdown/MDX. Kein Layout-Studio. |
 | **Penwright** | Satz und Design auf dem Mac. Schreiben auf dem Mac und auf dem iPad. |
 
@@ -93,7 +93,7 @@ Der In-App-Chat auf dem Mac rechnet über das **Cursor-Abo** der nutzenden Perso
 
 **Export.** PDF (wie die Vorschau), Druck-PDF (Beschnitt, Schnittmarken, Bund), DOCX, HTML (eine Seite oder Magazin-Mini-Site). Markdown-Import. Zitierstil **DGPs** (`deutsche-gesellschaft-für-psychologie`) steht in den Dokumenteinstellungen. Die Projektvorlage **Hausarbeit** setzt das SRH-Deckblatt, Arial, die Ränder 2,5/2/4/2 cm und diesen Stil. Ohne `style.json` liest der DOCX-Export Schrift, Ränder und Zeilenabstand aus den `#set`-Regeln. Das Deckblatt bleibt ohne Seitenzahl, der Text beginnt bei 1. DGPs-Kurzzitate (mit Seite) und das Literaturverzeichnis folgen dem PDF. Das Inhaltsverzeichnis ist ein Word-Feld mit bereits eingetragenen Zeilen, weil Word Online ein leeres Feld nicht berechnet.
 
-**Quellen.** Verknüpfte Better-BibTeX-Datei (`zotero.bib`), die der Mac beobachtet, solange die App läuft. Beim Verknüpfen: PDFs verknüpft lassen oder erst beim Öffnen nach `sources/` kopieren, plus der Ordner der verknüpften Anhänge (häufig ein Dropbox-Ordner). `@` fragt nach der Seite (`@key[S. 12]`). PDF öffnen folgt dem `file`-Feld, dann diesem Ordner, dann der lokalen Zotero-Schnittstelle, dann `sources/`. Auf dem iPad entfällt die lokale Schnittstelle; es zählt der Dateiname in dem einmal gewählten Ordner. `penwright_search_sources` durchsucht alle Paper dieser Bibliothek, auch ohne Zitat im Text; `penwright_read_source` liest die Fundstelle. Der Textindex liegt unter `.penwright/source-index/`.
+**Quellen.** Direkte Anbindung an **apROPos** (`references.bib` mit `file`-Feld + `apropos-dossier.md`, ganz ohne Zotero) oder verknüpfte Better-BibTeX-Datei (`zotero.bib`), die der Mac beobachtet, solange die App läuft. `@` fragt nach der Seite (`@key[S. 12]`). PDF öffnen folgt dem `file`-Feld in jeder Projekt-`.bib` (`references.bib` / `zotero.bib`), dann dem optionalen Anhangordner, dann der lokalen Zotero-Schnittstelle, dann `sources/`. Auf dem iPad entfällt die lokale Schnittstelle; es zählt der Dateiname in dem einmal gewählten Ordner. `penwright_search_sources` durchsucht alle Paper der Projekt-`.bib`-Dateien, auch ohne Zitat im Text; `penwright_read_source` liest die Fundstelle. Der Textindex liegt unter `.penwright/source-index/`.
 
 **KI — Chat in der App (nur Mac).** `@cursor/sdk` im Main-Prozess. Renderer importiert das SDK nie. **Ansicht → Chat** (`Cmd+J`). Anmeldung unter Einstellungen → Cursor. Mehrere Chats pro Projekt, gespeichert in `<projekt>/.penwright/cursor-agent/`. Dieselben 65 MCP-Tools, Snapshots und Safe-Apply wie Cursor IDE / Claude. Kein Web-Export-Tool.
 

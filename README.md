@@ -7,7 +7,7 @@
 A WYSIWYG editor for [Typst](https://typst.app) documents — on the Mac, and for writing on the iPad.
 From academic theses to design-grade magazines, brochures and reports.
 
-![version](https://img.shields.io/badge/version-0.20.2-3b6ea5)
+![version](https://img.shields.io/badge/version-0.20.3-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
 ![iPad](https://img.shields.io/badge/iPad-writing%20host-111111?logo=apple)
 ![license](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-3fa45b)
@@ -90,7 +90,7 @@ Penwright is part of a small suite. The pieces **fit together** and **each works
 
 | App | Job |
 |---|---|
-| **[Research Overview Platform](https://github.com/renejes/research-overview-platform)** | Transparent AI research: sources you can check, citations, a writing pack. It does not write the article. |
+| **[apROPos](https://github.com/renejes/apropos)** | Transparent AI research: verifiable sources, synthesis matrix, retraction guard. Syncs `references.bib` (with linked PDFs, no copy) and `apropos-dossier.md` straight into your Penwright project — no Zotero required. |
 | **Penwright** (this repo) | Writing and design. You write in the editor and, on the Mac, shape the page in the same project. |
 
 Used together: research → write and typeset here.
@@ -118,9 +118,10 @@ preview and export still work. Cursor IDE and Claude remain optional under
 - Live PDF preview (pdf.js), single page or 2-up spread, that stays usable on 100+ pages
 - Comments, project-wide find/replace, citation backlinks, a draggable outline, source-PDF
   preview on citation hover
-- Linked Zotero library: a page on each citation (`@key[S. 12]`), PDFs opened from the
-  folder Zotero uses (often a Dropbox folder) instead of copied, and the in-app agent can
-  search every paper in that library
+- Linked source libraries (**apROPos** or **Zotero**): a page on each citation (`@key[S. 12]`),
+  PDFs opened directly via the `file` field in `references.bib` or `zotero.bib` without
+  copying them into `sources/`, and the in-app agent can search every paper in the project's
+  `.bib` files (`penwright_search_sources`) as well as read `apropos-dossier.md`
 - Bilingual UI (English + German), switchable at runtime
 
 **Design**
@@ -166,7 +167,7 @@ The in-app User Guide is `documentation/handbook.md` (English) and
 
 ## Status
 
-Pre-release **0.20.2**. macOS / Apple Silicon is built and Developer-ID signed, not notarized.
+Pre-release **0.20.3**. macOS / Apple Silicon is built and Developer-ID signed, not notarized.
 The iPad app is a writing host for a project folder, installed from this repo onto a device.
 Windows is scaffolded (unverified on a real device).
 

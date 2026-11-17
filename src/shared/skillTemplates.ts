@@ -392,7 +392,7 @@ All four live inside the project folder.
 
 For the in-app **citation hover-card** to find the PDF for \`@chen2021codex\`:
 
-- A linked Zotero library is tried first: the \`file\` field in \`zotero.bib\`, then the attachment folder chosen when linking. The PDF stays where Zotero stores it. Do not copy it into \`sources/\` unless the project chose copy-on-open.
+- The entry's \`file\` field in \`references.bib\` or \`zotero.bib\` (e.g. synced from apROPos or Zotero) is tried first, then any attachment folder chosen when linking. The PDF stays where apROPos or Zotero stores it. Do not copy it into \`sources/\` unless the project chose copy-on-open.
 - Otherwise name the file so the basename starts with the citekey:
 
 - ✅ \`sources/chen2021codex.pdf\` (exact match — preferred)
@@ -1062,7 +1062,7 @@ For each source you'll cite:
 
 ### What the papers say
 
-\`penwright_search_sources\` searches every paper in the linked \`zotero.bib\`, whether or not the manuscript cites it yet. Pass words that occur in the papers (translate the question yourself: an English PDF will not contain „Selbstwirksamkeit“). Then \`penwright_read_source\` for the page a hit names. In the document, cite \`@key[S. n]\`. If the search returns no hits, these sources do not support the claim — do not invent a paper.
+\`penwright_search_sources\` searches every paper in the project's \`.bib\` files (\`references.bib\`, \`zotero.bib\`), whether or not the manuscript cites it yet. Pass words that occur in the papers (translate the question yourself: an English PDF will not contain „Selbstwirksamkeit“). Then \`penwright_read_source\` for the page a hit names. If an \`apropos-dossier.md\` file exists in the project root, read it with \`penwright_read_file\` for human-verified claims, quotes, page locators, and taboos from apROPos. In the document, cite \`@key[S. n]\`. If the search returns no hits, these sources do not support the claim — do not invent a paper.
 
 ### MCP-tool path
 

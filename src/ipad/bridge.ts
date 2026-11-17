@@ -341,15 +341,17 @@ export class IpadHost {
   private async findCitationPdf(citekey: string): Promise<{ path: string | null; linked: boolean; inProject: boolean }> {
     const empty = { path: null, linked: false, inProject: false };
     if (!this.project || !citekey) return empty;
-    const bib = await this.project.readOptional('zotero.bib');
+    const zoteroBib = await this.project.readOptional('zotero.bib');
+    const refBib = await this.project.readOptional('references.bib');
+    const bib = [zoteroBib, refBib].filter((x): x is string => !!x).join('\n\n') || null;
     const folder = this.zoteroFolder();
-    const linked = bib !== null || folder !== null;
+    const linked = zoteroBib !== null || folder !== null;
     const attachment = folder ? await this.attachmentPdfs() : [];
     const sources = await this.project.listSourcePdfs();
     const hit = locateIpadCitationPdf(citekey, bib, attachment, sources);
     if (!hit) return { path: null, linked, inProject: false };
     if (hit.where === 'sources') return { path: hit.rel, linked, inProject: true };
-    return { path: linkedPdfPath(hit.rel), linked, inProject: false };
+    return { path: linkedPdfPath(hit.rel), linked: true, inProject: false };
   }
 
   private async readLinkedPdf(rel: string): Promise<string> {

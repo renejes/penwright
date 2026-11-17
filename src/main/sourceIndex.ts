@@ -19,6 +19,7 @@ import {
   type SourceHit,
 } from '../shared/sourceSearch';
 import { findBibFiles } from '../shared/bibDiscovery';
+import { readProjectBibText } from './citationSources';
 import { readZoteroLink } from './zoteroLink';
 import { zoteroAttachmentPdf } from './zoteroLocal';
 
@@ -96,19 +97,25 @@ export async function readProjectSource(
 
 function loadLibrary(projectDir: string): { library: string; entries: BibEntry[] } {
   const zotero = path.join(projectDir, 'zotero.bib');
-  if (fs.existsSync(zotero)) {
+  const bibFiles = findBibFiles(projectDir, null);
+  const otherBibs = bibFiles.filter((f) => path.resolve(f) !== path.resolve(zotero));
+  if (fs.existsSync(zotero) && otherBibs.length === 0) {
     return { library: 'zotero.bib', entries: parseBibFile(fs.readFileSync(zotero, 'utf-8')) };
   }
+  const ordered = [
+    ...(fs.existsSync(zotero) ? [zotero] : []),
+    ...otherBibs,
+  ];
   const entries: BibEntry[] = [];
   const seen = new Set<string>();
-  for (const file of findBibFiles(projectDir, null)) {
+  for (const file of ordered) {
     for (const entry of parseBibFile(fs.readFileSync(file, 'utf-8'))) {
       if (seen.has(entry.citekey)) continue;
       seen.add(entry.citekey);
       entries.push(entry);
     }
   }
-  return { library: 'project bib files', entries };
+  return { library: ordered.length === 1 ? path.basename(ordered[0]) : 'project bib files', entries };
 }
 
 async function loadPapers(projectDir: string, entries: BibEntry[], citekeys?: string[]): Promise<PaperText[]> {
@@ -140,8 +147,7 @@ async function paperFromEntry(projectDir: string, entry: BibEntry): Promise<Pape
 async function resolvePdf(projectDir: string, citekey: string): Promise<string | null> {
   const link = readZoteroLink(projectDir);
   const linked = link !== null || fs.existsSync(path.join(projectDir, 'zotero.bib'));
-  const bibPath = path.join(projectDir, 'zotero.bib');
-  const bibText = fs.existsSync(bibPath) ? fs.readFileSync(bibPath, 'utf-8') : null;
+  const bibText = readProjectBibText(projectDir);
   const located = await locateCitationPdf({
     citekey,
     projectDir,

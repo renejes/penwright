@@ -1,7 +1,7 @@
 # Penwright Desktop — User Handbook
 
-> **Version:** 0.20.2 (Pre-Release)
-> **Last updated:** 2026-08-21
+> **Version:** 0.20.3 (Pre-Release)
+> **Last updated:** 2026-11-17
 > **Deutsche Version:** [handbuch.md](handbuch.md)
 
 ---
@@ -16,7 +16,7 @@ Penwright is one of three apps that **fit together, and each also works on its o
 
 | App | What it is for |
 |---|---|
-| **[Research Overview Platform](https://github.com/renejes/research-overview-platform)** | Transparent AI research: sources, provenance, citations. Exports a writing pack — it does not write the article. |
+| **[apROPos](https://github.com/renejes/apropos)** | Transparent AI research: sources, provenance, synthesis matrix, sign-off. Syncs `references.bib` (with linked PDFs, no copy) and `apropos-dossier.md` straight into your Penwright project — without Zotero. |
 | **[Easy Writing](https://github.com/renejes/easy-writing)** | The manuscript. A folder is the project; you write Markdown/MDX with `[@citekey]` and footnotes. No layout studio. |
 | **Penwright** (this app) | Typesetting and design. Open a Typst project, or an Easy Writing folder, and shape the page. |
 
@@ -490,12 +490,9 @@ The editor and the PDF preview zoom independently, from 50 % to 200 % in 10 % st
 - YAML frontmatter is skipped
 - Produces a new `.typ` file (no default look preamble — the project's `style.typ` applies)
 
-### Zotero integration
-- **File -> Link Zotero Library…**
-- Pick a Zotero Better BibTeX `.bib` file
-- Gets copied into the project as `zotero.bib`
-- **Auto-sync:** changes in Zotero are picked up automatically while the app is running
-- All Zotero sources appear in the `@` autocomplete
+### apROPos & Zotero integration
+- **apROPos (no Zotero needed):** Link your Penwright project folder in **apROPos** and every human-signed source is synced live into `references.bib` (including linked PDFs via the `file` field, without copying into `sources/`) alongside `apropos-dossier.md`. Penwright's file watcher reloads `@` completions automatically, and both citation hover → **Open PDF** and `penwright_search_sources` resolve those linked PDFs directly.
+- **Zotero (optional):** **File -> Link Zotero Library…** picks a Zotero Better BibTeX `.bib` file, copies it into the project as `zotero.bib`, and keeps it in sync while the app runs.
 
 ### Export dialog
 
