@@ -858,7 +858,7 @@ The project's own conventions are prompts: penwright-conventions, typst-referenc
 const server = new McpServer(
   {
     name: 'penwright',
-    version: '0.20.3',
+    version: '0.21.0',
   },
   { instructions: SERVER_INSTRUCTIONS },
 );

@@ -179,7 +179,7 @@
     padding: 4px 14px;
     border: none;
     border-radius: 6px;
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
     font-size: 12px;
     font-family: inherit;

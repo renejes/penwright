@@ -5,6 +5,7 @@
    */
   import { t } from '@shared/i18n/store.svelte';
   import { chatLive } from '../chatLive.svelte';
+  import ChatMarkdown from './ChatMarkdown.svelte';
 
   let elapsedSec = $state(0);
 
@@ -31,7 +32,9 @@
   <span>{word}{#if !chatLive.error && elapsedSec > 0} · {elapsedSec}s{/if}</span>
 </div>
 {#if chatLive.text}
-  <div class="chat-body chat-plain">{chatLive.text}</div>
+  <div class="chat-body">
+    <ChatMarkdown text={chatLive.text} />
+  </div>
 {/if}
 
 <style>
@@ -54,11 +57,9 @@
   }
   @keyframes chat-spin { to { transform: rotate(360deg); } }
   .chat-body {
-    white-space: pre-wrap;
     line-height: 1.45;
     overflow-wrap: anywhere;
     border: 1px solid #eeeeee;
     padding: 8px 10px;
   }
-  .chat-plain { font-size: 13px; }
 </style>

@@ -116,9 +116,9 @@
     border-radius: 4px;
     cursor: pointer;
   }
-  .ls-badge:hover { background: rgba(168, 80, 58, 0.08); color: #a8503a; }
+  .ls-badge:hover { background: var(--accent-soft); color: var(--accent); }
   .ls-badge.active {
-    color: #a8503a;
+    color: var(--accent);
     cursor: default;
     font-weight: 600;
   }
@@ -153,7 +153,7 @@
     margin-left: 5px;
     cursor: pointer;
   }
-  .ls-edit:hover { background: #a8503a; border-color: #a8503a; color: #fff; }
+  .ls-edit:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   .ls-note {
     color: #b4402e;

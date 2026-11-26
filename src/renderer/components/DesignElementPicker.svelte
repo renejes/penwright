@@ -157,7 +157,7 @@
   .dep-item-desc { display: block; font-size: 10.5px; color: #888; line-height: 1.4; margin-top: 2px; }
   .dep-empty { padding: 8px 12px; font-size: 11px; color: #777; }
   .dep-form { padding: 0 12px 12px; }
-  .dep-back { background: none; border: none; color: #8ab4f8; cursor: pointer; font-size: 11px; padding: 0 0 6px; }
+  .dep-back { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 11px; padding: 0 0 6px; }
   .dep-form h4 { margin: 4px 0 2px; font-size: 12.5px; color: #eee; }
   .dep-field { display: block; margin-top: 8px; }
   .dep-field span { display: block; font-size: 10.5px; color: #999; margin-bottom: 3px; }

@@ -400,7 +400,7 @@
   .link-btn {
     border: none;
     background: none;
-    color: #4f7df9;
+    color: var(--accent);
     cursor: pointer;
     font-size: 11px;
     font-weight: 600;
@@ -426,8 +426,8 @@
   }
   .format-option:hover { border-color: #c5c5c5; }
   .format-option.selected {
-    border-color: #4f7df9;
-    background: #f8faff;
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
   .format-option input { margin: 0; }
   .format-name { font-size: 13px; font-weight: 600; color: #222; }
@@ -572,7 +572,7 @@
   .secondary:hover:not(:disabled) { background: #f5f5f5; }
   .secondary:disabled { opacity: 0.4; cursor: default; }
   .primary {
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
   }
   .primary:hover:not(:disabled) { background: #3d6ce8; }

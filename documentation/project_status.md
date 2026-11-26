@@ -1,6 +1,6 @@
 # Penwright — aktueller Stand
 
-> **Stand:** 2026-11-17 · App **0.20.3** · `MCP_SETUP_VERSION` **0.45.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.0.x** (In-App-Agent, nur Mac)
+> **Stand:** 2026-11-26 · App **0.21.0** · `MCP_SETUP_VERSION` **0.45.0** · Typst **0.15.1** · MCP **65 Tools** · SDK `@modelcontextprotocol/server` **2.0.0** · `@cursor/sdk` **1.5.2** (In-App-Agent, nur Mac)
 >
 > Diese Datei ist der **aktuelle** Stand, kein Changelog. Session-Verlauf: [handover.md](handover.md), [done/](done/). Offene Arbeit: [next-steps.md](next-steps.md). Architektur für Agents: [CLAUDE.md](../CLAUDE.md).
 
@@ -95,7 +95,17 @@ Der In-App-Chat auf dem Mac rechnet über das **Cursor-Abo** der nutzenden Perso
 
 **Quellen.** Direkte Anbindung an **apROPos** (`references.bib` mit `file`-Feld + `apropos-dossier.md`, ganz ohne Zotero) oder verknüpfte Better-BibTeX-Datei (`zotero.bib`), die der Mac beobachtet, solange die App läuft. `@` fragt nach der Seite (`@key[S. 12]`). PDF öffnen folgt dem `file`-Feld in jeder Projekt-`.bib` (`references.bib` / `zotero.bib`), dann dem optionalen Anhangordner, dann der lokalen Zotero-Schnittstelle, dann `sources/`. Auf dem iPad entfällt die lokale Schnittstelle; es zählt der Dateiname in dem einmal gewählten Ordner. `penwright_search_sources` durchsucht alle Paper der Projekt-`.bib`-Dateien, auch ohne Zitat im Text; `penwright_read_source` liest die Fundstelle. Der Textindex liegt unter `.penwright/source-index/`.
 
-**KI — Chat in der App (nur Mac).** `@cursor/sdk` im Main-Prozess. Renderer importiert das SDK nie. **Ansicht → Chat** (`Cmd+J`). Anmeldung unter Einstellungen → Cursor. Mehrere Chats pro Projekt, gespeichert in `<projekt>/.penwright/cursor-agent/`. Dieselben 65 MCP-Tools, Snapshots und Safe-Apply wie Cursor IDE / Claude. Kein Web-Export-Tool.
+**Optik (Mac und iPad-Oberfläche).** Dieselbe Suite wie Sprechblatt und apROPos: Schreibtisch `#f1f2f5`, Seitenleiste `#f8f8fa`, Papier weiß, Tinte `#18181b` / `#52525b` / `#71717a`, Radien 8/12/16. Fokusfarbe Penwright ist Orange `#c2410c` (Hover `#9a3412`, Fläche `#fff7ed`). Toolbar, Startbildschirm und Seitenleiste nutzen Lucide. Die Schreibfläche bleibt ein durchgehendes Weiß. Ein schwebendes Blatt auf Grau wurde ausprobiert und wieder entfernt.
+
+**KI — Chat in der App (nur Mac).** `@cursor/sdk` **1.5.2** im Main-Prozess (`src/main/cursorAgentHost.ts`). Der Renderer importiert das SDK nie. **Ansicht → Chat** (`Cmd+J`). Anmeldung unter Einstellungen → Cursor. Mehrere Chats pro Projekt unter `<projekt>/.penwright/cursor-agent/`.
+
+Der Antworttext kommt tokenweise und wird als Markdown gezeichnet (Überschriften, Listen, Zitate, Tabellen, Code, fett, kursiv, Links). **Kontext zusammenfassen** ruft `agent.summarize()` auf. Fehlschlag lässt den Verlauf stehen. Eine gekürzte Abschrift wird als Fallback bezeichnet, nicht als volle Zusammenfassung. Reißt die Verbindung ab, steht im Chat „Neuverbinden“.
+
+Rückfragen laufen über das eigene Werkzeug `ask_user`. Das eingebaute `askQuestion` lehnt das lokale SDK ab. Der Lauf wartet, bis im Chat geantwortet wird. Stopp bricht die Frage ab.
+
+Dateiwerkzeuge des Agenten (Lesen, Schreiben, Ersetzen, Suchen) gehen durch `src/main/draftFs.ts`. Lesen kommt von der Platte. Schreiben und Löschen bleiben im Speicher und werden erst nach einem erfolgreichen Lauf übernommen. `.git`, `node_modules` und `.penwright` werden nicht geschrieben. Die 65 MCP-Werkzeuge, vor allem Design, schreiben weiter direkt. Die Regel `.cursor/rules/penwright-chat.mdc` wird beim Öffnen des Chats neu geschrieben und sagt dem Agenten: Manuskript über die Dateiwerkzeuge, Design über MCP, Entscheidungen über `ask_user`, keine Shell.
+
+Geladen werden die Projektregeln (`settingSources: ['project']`), nicht `~/.cursor/mcp.json`. Shell und Unter-Agenten sind aus. Auto-Review ist an, die Sandbox aus, damit das MCP-Binary und die Websuche laufen. Kein Cloud-Agent. Der iPad-Host hat diesen Chat nicht.
 
 **KI — externe Hosts.** MCP-Server, 65 Tools. `penwright_save_version` legt eine benannte Kapitelfassung unter `versions/` ab. Wiederherstellen tauscht sie mit der lebenden Datei. Beim Start schreibt Penwright sich nach **`~/.cursor/mcp.json`** und kopiert das gebündelte MCP-Binary. Claude Code optional (Hilfe → MCP-Verbindung). Claude Desktop eigener Wizard.
 
@@ -111,7 +121,7 @@ Der In-App-Chat auf dem Mac rechnet über das **Cursor-Abo** der nutzenden Perso
 | Satz (nur Mac) | gebündeltes Typst **0.15.1**, 24 Packages, 7 OFL-Familien (meist variabel) |
 | Persistenz | electron-store (`penwright-settings`) auf dem Mac + projektlokales `.penwright/` und `versions/` |
 | MCP | `@modelcontextprotocol/server` 2.0.0 · Zod 4 · Bun-Binary + Node-esbuild-Fallback |
-| In-App-Agent | `@cursor/sdk` · Host `src/main/cursorAgentHost.ts` · UI `ChatPanel.svelte` |
+| In-App-Agent | `@cursor/sdk` **1.5.2** · Host `src/main/cursorAgentHost.ts` · Entwurf `src/main/draftFs.ts` · UI `ChatPanel.svelte` |
 | Hosts | In-App-Chat (Mac) · Cursor IDE · Claude Desktop · Claude Code |
 
 ---
@@ -128,8 +138,8 @@ Die Round-Trip-Baseline ist leer. Das Pixel-Gate hasht **Pixel**, nicht PNG-Byte
 
 ## Distribution
 
-- **macOS / Apple Silicon:** gebaut und mit Developer ID signiert, nicht notariert (`mac.notarize: false`). Der DMG enthält `Installation.txt` für den Erststart.
-- **iPad:** Debug-Build aus diesem Repo auf ein angeschlossenes Gerät (`tauri ios build`). Kein App-Store-Paket.
+- **macOS / Apple Silicon:** **0.21.0** gebaut am 2026-11-26, Developer ID `Rene Jesser (3LAHNFWNT3)`, nicht notariert (`mac.notarize: false`). DMG: `Penwright-0.21.0-arm64.dmg` (auch auf dem Schreibtisch). Erststart über Rechtsklick → Öffnen, Hinweis im DMG: `Installation.txt`. `npm run package:mac` war grün.
+- **iPad:** Schreibhost **0.21.0** ist am 2026-11-26 auf dem gekoppelten **iPad Air 11 RJ** installiert (`online.penwright.ipad`, Entwicklungsprofil, Team `3LAHNFWNT3`). Kein App-Store-Paket. Der DMG ist nur der Mac. Chat, Typst und der Schreibbaum sind auf dem iPad nicht dabei. Die gemeinsame Oberfläche (Orange, Lucide) schon. Beim ersten Start muss der Entwickler auf dem Gerät vertraut werden: Einstellungen → Allgemein → VPN und Geräteverwaltung.
 - **Windows:** verdrahtet, auf echtem Gerät **nicht** verifiziert.
 - **Linux:** AppImage-Pfad existiert; Claude-Desktop-Wizard n/a.
 - Kein Auto-Updater. Domain `penwright.online` ist kanonisch, aber noch nicht registriert. Handbuch liegt in der App (`handbook.md` / `handbuch.md`).

@@ -93,7 +93,7 @@
     color: #aaa;
   }
 
-  .badge.compiling { color: #4f7df9; }
+  .badge.compiling { color: var(--accent); }
   .badge.error { color: #e55; }
   .badge.outdated { color: #c98a3a; }
 
@@ -110,7 +110,7 @@
     padding: 0;
   }
   .refresh-btn:hover { background: #f0f0f0; color: #444; }
-  .refresh-btn.attention { color: #a8503a; }
+  .refresh-btn.attention { color: var(--accent); }
 
   .spread-btn {
     height: 22px;
@@ -126,7 +126,7 @@
     line-height: 1;
   }
   .spread-btn:hover { background: #f0f0f0; color: #444; }
-  .spread-btn.active { color: #4f7df9; background: #eef3ff; }
+  .spread-btn.active { color: var(--accent); background: var(--accent-soft); }
 
   .zoom-controls {
     display: flex;

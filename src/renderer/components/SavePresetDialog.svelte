@@ -118,12 +118,12 @@
   .ok { font-size: 14px; color: #2f7d4f; line-height: 1.5; margin: 8px 0; }
   .field-label { display: block; font-size: 12px; font-weight: 600; color: #888; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
   .field-input { width: 100%; padding: 10px 14px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; font-family: inherit; color: #333; outline: none; transition: border-color 0.15s; box-sizing: border-box; }
-  .field-input:focus { border-color: #4f7df9; }
+  .field-input:focus { border-color: var(--accent); }
   .error { font-size: 12.5px; color: #c0392b; margin: 12px 0 0; }
   .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px; border-top: 1px solid #f0f0f0; }
   .btn-secondary { padding: 8px 18px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; color: #666; font-size: 13px; font-family: inherit; font-weight: 500; cursor: pointer; }
   .btn-secondary:hover { background: #f8f8f8; }
-  .btn-primary { padding: 8px 20px; border: none; border-radius: 8px; background: #4f7df9; color: #fff; font-size: 13px; font-family: inherit; font-weight: 500; cursor: pointer; }
+  .btn-primary { padding: 8px 20px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-size: 13px; font-family: inherit; font-weight: 500; cursor: pointer; }
   .btn-primary:hover { background: #3d6ce8; }
   .btn-primary:disabled { opacity: 0.4; cursor: default; }
 </style>

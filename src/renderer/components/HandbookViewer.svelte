@@ -138,7 +138,7 @@
   }
 
   .hb-lang button.active {
-    background: #a8503a;
+    background: var(--accent);
     color: #fff;
   }
 
@@ -171,12 +171,12 @@
   .hb-body :global(p) { margin: 10px 0; }
   .hb-body :global(ul), .hb-body :global(ol) { margin: 10px 0; padding-left: 22px; }
   .hb-body :global(li) { margin: 4px 0; }
-  .hb-body :global(a) { color: #a8503a; text-decoration: none; }
+  .hb-body :global(a) { color: var(--accent); text-decoration: none; }
   .hb-body :global(a:hover) { text-decoration: underline; }
   .hb-body :global(code) { background: #f4f1ec; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; font-family: 'SF Mono', 'Menlo', monospace; }
   .hb-body :global(pre) { background: #f7f5f1; border: 1px solid #eee; border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 12px 0; }
   .hb-body :global(pre code) { background: none; padding: 0; font-size: 12.5px; }
-  .hb-body :global(blockquote) { margin: 12px 0; padding: 6px 14px; border-left: 3px solid #a8503a; background: #faf7f3; color: #555; }
+  .hb-body :global(blockquote) { margin: 12px 0; padding: 6px 14px; border-left: 3px solid var(--accent); background: #faf7f3; color: #555; }
   .hb-body :global(table) { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 13px; }
   .hb-body :global(th), .hb-body :global(td) { border: 1px solid #e6e6e6; padding: 6px 10px; text-align: left; vertical-align: top; }
   .hb-body :global(th) { background: #faf7f3; font-weight: 600; }

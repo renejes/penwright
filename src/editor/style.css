@@ -1,14 +1,42 @@
 :root {
-  --text-color: #1a1a1a;
-  --bg-color: #ffffff;
-  --border-color: #f0f0f0;
-  --toolbar-bg: #ffffff;
-  --accent: #4f7df9;
+  /* Suite contract, shared with Sprechblatt and apROPos.
+     Penwright's focus colour is a deep orange that stays readable as
+     white-on-colour and as colour-on-white. */
+  --desk-bg: #f1f2f5;
+  --sidebar-bg: #f8f8fa;
+  --sidebar-border: #e3e4ea;
+  --paper-bg: #ffffff;
+  --paper-border: #e4e5eb;
+  --ink-primary: #18181b;
+  --ink-secondary: #52525b;
+  --ink-muted: #71717a;
+  --wash: #f4f5f8;
+  --accent: #c2410c;
+  --accent-color: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-soft: #fff7ed;
+  --accent-border: #fed7aa;
+  --accent-ring: rgba(194, 65, 12, 0.16);
+  --warn: #b45309;
+  --warn-bg: #fffbeb;
+  --warn-border: #fde68a;
+  --ok: #059669;
+  --ok-bg: #ecfdf5;
+  --ok-border: #a7f3d0;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --text-color: var(--ink-primary);
+  --bg-color: var(--paper-bg);
+  --border-color: var(--paper-border);
+  --toolbar-bg: var(--paper-bg);
+  --pw-ui-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
   /* Same stack as `.penwright-app` / index.html. Popups mount on `document.body`
      and fields are `<textarea>`s — both skip ProseMirror inheritance, so this
      variable is the only way the box and the flow stay one face. The PDF is
      still the typeset truth; do not leak style.json fonts in here. */
-  --pw-manuscript-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  --pw-manuscript-font: var(--pw-ui-font);
 }
 
 * {
@@ -55,9 +83,9 @@ body {
 .toolbar-buttons button {
   padding: 5px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: #888;
+  color: var(--ink-muted);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -77,14 +105,14 @@ body {
 
 .toolbar button:hover,
 .toolbar-buttons button:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--wash);
+  color: var(--ink-primary);
 }
 
 .toolbar button.active,
 .toolbar-buttons button.active {
-  background: #eef4ff;
-  color: #4f7df9;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .toolbar button:disabled,
@@ -1246,7 +1274,7 @@ body {
   font-size: 17px;
   font-weight: 600;
   line-height: 1;
-  color: var(--accent-color, #a8503a);
+  color: var(--accent);
 }
 .insert-menu-backdrop {
   position: fixed;
@@ -1261,8 +1289,8 @@ body {
   overflow-y: auto;
   background: var(--toolbar-bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 28px rgba(24, 24, 27, 0.1);
   padding: 4px;
 }
 .insert-menu-group-label {

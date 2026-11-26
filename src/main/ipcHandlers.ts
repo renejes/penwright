@@ -115,6 +115,7 @@ import { listProjectMacros } from './projectMacros';
 import { listComments, createComment, updateComment, deleteComment, type CreateArgs, type UpdateArgs, type ListOptions } from './commentManager';
 import {
   cancelChat,
+  answerChatQuestion,
   closeChatTab,
   deleteChatSession,
   getChatHistory,
@@ -126,6 +127,7 @@ import {
   newChatSession,
   pickChatFiles,
   sendChat,
+  summarizeChat,
   setChatModel,
   switchChatSession,
 } from './cursorAgentHost';
@@ -925,6 +927,8 @@ export function setupIPC(): void {
   ipcMain.handle('chat:closeTab', (_event, id: unknown) => closeChatTab(String(id ?? '')));
   ipcMain.handle('chat:delete', (_event, id: unknown) => deleteChatSession(String(id ?? '')));
   ipcMain.handle('chat:cancel', () => cancelChat());
+  ipcMain.handle('chat:summarize', () => summarizeChat());
+  ipcMain.handle('chat:answer', (_event, payload: { id?: string; text?: string }) => answerChatQuestion(String(payload?.id ?? ''), String(payload?.text ?? '')));
   ipcMain.handle('chat:pickFiles', () => pickChatFiles());
   ipcMain.handle('chat:send', async (_event, payload: ChatSendRequest) => {
     if (payload?.liveContent && appState.currentFilePath) {

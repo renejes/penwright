@@ -237,7 +237,7 @@
     width: 100%; padding: 10px 14px; border: 1px solid #e5e5e5; border-radius: 8px;
     font-size: 14px; font-family: inherit; color: #333; outline: none; transition: border-color 0.15s;
   }
-  .field-input:focus { border-color: #4f7df9; }
+  .field-input:focus { border-color: var(--accent); }
 
   .gallery-loading { color: #bbb; text-align: center; padding: 40px; font-size: 24px; }
 
@@ -260,7 +260,7 @@
     cursor: pointer; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s;
   }
   .card:hover { border-color: #cfd8f5; }
-  .card.selected { border-color: #4f7df9; box-shadow: 0 0 0 3px rgba(79, 125, 249, 0.12); }
+  .card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 
   .thumb {
     position: relative;
@@ -322,7 +322,7 @@
 
   .btn-primary {
     padding: 8px 20px; border: none; border-radius: 8px;
-    background: #4f7df9; color: #fff; font-size: 13px; font-family: inherit; font-weight: 500;
+    background: var(--accent); color: #fff; font-size: 13px; font-family: inherit; font-weight: 500;
     cursor: pointer; transition: background 0.15s;
   }
   .btn-primary:hover { background: #3d6ce8; }

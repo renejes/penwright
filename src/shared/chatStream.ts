@@ -139,19 +139,24 @@ export function applyTurnStatus(turn: ChatTurn, text: string): void {
   log.push({ kind: 'status', text: trimmed });
 }
 
-export function applyTurnSummary(turn: ChatTurn, phase: 'started' | 'completed'): void {
+export function applyTurnSummary(
+  turn: ChatTurn,
+  phase: 'started' | 'completed' | 'error',
+  fallback?: boolean,
+): void {
   const log = ensureLog(turn);
   for (let i = log.length - 1; i >= 0; i--) {
     const item = log[i];
     if (item?.kind !== 'summary') continue;
-    if (item.phase === 'started' && phase === 'completed') {
-      item.phase = 'completed';
+    if (item.phase === 'started' && (phase === 'completed' || phase === 'error')) {
+      item.phase = phase;
+      item.fallback = fallback;
       return;
     }
     if (item.phase === phase) return;
     break;
   }
-  log.push({ kind: 'summary', phase });
+  log.push({ kind: 'summary', phase, fallback });
 }
 
 export type ChatActivity = {
@@ -163,7 +168,7 @@ export type ChatActivity = {
 
 export type DisplayChatItem =
   | { kind: 'text'; text: string }
-  | { kind: 'summary'; phase: 'started' | 'completed' }
+  | { kind: 'summary'; phase: 'started' | 'completed' | 'error'; fallback?: boolean }
   | ChatActivity;
 
 /**
@@ -200,7 +205,7 @@ export function groupChatLog(log: ChatLogItem[]): DisplayChatItem[] {
       if (item.text) out.push({ kind: 'text', text: item.text });
       continue;
     }
-    out.push({ kind: 'summary', phase: item.phase });
+    out.push({ kind: 'summary', phase: item.phase, fallback: item.fallback });
   }
   flush();
   return out;

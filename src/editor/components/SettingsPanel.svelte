@@ -238,13 +238,13 @@
     margin: 0 0 16px 0;
     padding: 10px 12px;
     background: #f9fafb;
-    border-left: 3px solid #3b82f6;
+    border-left: 3px solid var(--accent);
     border-radius: 4px;
     font-size: 12px;
     line-height: 1.5;
     color: #4b5563;
   }
-  .settings-intro :global(strong) { color: #1d4ed8; font-weight: 600; }
+  .settings-intro :global(strong) { color: var(--accent-hover); font-weight: 600; }
   .settings-hint {
     margin: 6px 0 0 0;
     font-size: 11px;

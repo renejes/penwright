@@ -61,6 +61,6 @@
 
   .resize-handle:hover,
   .resize-handle.dragging {
-    background: var(--accent, #0066cc);
+    background: var(--accent);
   }
 </style>

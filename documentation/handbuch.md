@@ -1,6 +1,6 @@
 # Penwright Desktop — Handbuch
 
-> **Version:** 0.20.3 (Pre-Release)
+> **Version:** 0.21.0 (Pre-Release)
 > **Letzte Aktualisierung:** 2026-11-17
 > **English version:** [handbook.md](handbook.md)
 

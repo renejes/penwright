@@ -233,7 +233,7 @@
   }
 
   .crash-actions button.primary {
-    background: var(--accent-color, #2563eb);
+    background: var(--accent);
     color: white;
     border-color: transparent;
   }

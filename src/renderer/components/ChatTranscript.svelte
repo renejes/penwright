@@ -14,6 +14,7 @@
   } from '../../shared/chatStream';
   import type { ChatTurn } from '../../shared/chatTypes';
   import LiveTurn from './LiveTurn.svelte';
+  import ChatMarkdown from './ChatMarkdown.svelte';
 
   let {
     turns,
@@ -112,10 +113,14 @@
           </details>
         {:else if item.kind === 'summary'}
           <p class="chat-summary">
-            {item.phase === 'completed' ? t().chat.contextSummarized : t().chat.contextSummarizing}
+            {item.phase === 'error'
+              ? t().chat.contextSummarizeFailed
+              : item.phase === 'completed'
+                ? (item.fallback ? t().chat.contextSummarizeFallback : t().chat.contextSummarized)
+                : t().chat.contextSummarizing}
           </p>
         {:else}
-          <div class="chat-body">{@html renderBody(item.text)}</div>
+          <div class="chat-body"><ChatMarkdown text={item.text} /></div>
         {/if}
       {/each}
       {/if}

@@ -376,7 +376,7 @@
     transition: border 0.15s, box-shadow 0.15s;
   }
   .ps-input:focus {
-    border-color: #4f7df9;
+    border-color: var(--accent);
     box-shadow: 0 0 0 2px rgba(79, 125, 249, 0.15);
   }
 
@@ -401,8 +401,8 @@
   }
   .ps-opt:hover { background: #f0f0f0; color: #555; }
   .ps-opt.active {
-    background: #eef4ff;
-    color: #4f7df9;
+    background: var(--accent-soft);
+    color: var(--accent);
     border-color: rgba(79, 125, 249, 0.35);
   }
 
@@ -433,9 +433,9 @@
     transition: all 0.15s;
   }
   .ps-replace:hover:not(:disabled) {
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
-    border-color: #4f7df9;
+    border-color: var(--accent);
   }
   .ps-replace:disabled { opacity: 0.45; cursor: not-allowed; }
 
@@ -526,7 +526,7 @@
     border-radius: 0;
     transition: background 0.1s;
   }
-  .ps-match:hover { background: #eef4ff; }
+  .ps-match:hover { background: var(--accent-soft); }
 
   .ps-line-num {
     flex-shrink: 0;

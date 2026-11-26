@@ -178,7 +178,7 @@
   .ob-text :global(code) {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     background: rgba(168, 80, 58, 0.1);
-    color: #a8503a;
+    color: var(--accent);
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 12px;
@@ -209,7 +209,7 @@
     width: 7px;
     height: 7px;
     border-radius: 2px;
-    background: #a8503a;
+    background: var(--accent);
   }
   .ob-bullets :global(strong) { color: #211e1a; }
 
@@ -230,7 +230,7 @@
     transition: background 0.15s, width 0.15s;
   }
   .ob-dot.active {
-    background: #a8503a;
+    background: var(--accent);
     width: 20px;
     border-radius: 4px;
   }
@@ -267,8 +267,8 @@
   .ob-btn.ghost:hover { background: rgba(0, 0, 0, 0.04); color: #5c554a; }
 
   .ob-btn.primary {
-    background: #a8503a;
-    border-color: #a8503a;
+    background: var(--accent);
+    border-color: var(--accent);
     color: #fff;
   }
   .ob-btn.primary:hover { background: #95462f; }

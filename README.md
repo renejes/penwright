@@ -7,7 +7,7 @@
 A WYSIWYG editor for [Typst](https://typst.app) documents — on the Mac, and for writing on the iPad.
 From academic theses to design-grade magazines, brochures and reports.
 
-![version](https://img.shields.io/badge/version-0.20.3-3b6ea5)
+![version](https://img.shields.io/badge/version-0.21.0-3b6ea5)
 ![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple)
 ![iPad](https://img.shields.io/badge/iPad-writing%20host-111111?logo=apple)
 ![license](https://img.shields.io/badge/license-PolyForm%20Strict%201.0.0-3fa45b)
@@ -100,11 +100,25 @@ Penwright also opens an existing Typst project or the bundled sample. **File →
 ## Chat in the Mac app
 
 With a [Cursor](https://cursor.com) account you can chat **inside Penwright**
-(**View → Toggle Chat**, `Cmd+J`). The agent works in the open project — drafts, design,
-“make this a magazine” — through the same 65 MCP tools Cursor IDE and Claude Desktop use.
+(**View → Toggle Chat**, `Cmd+J`). `@cursor/sdk` **1.5.2** runs in the Mac main process.
+Replies stream token by token and render as Markdown. **Summarize context** calls
+`agent.summarize()` and distinguishes a failed summary (transcript unchanged) from a
+trimmed fallback. A dropped connection shows “Reconnecting” instead of looking like thinking.
+
+Decisions go through the custom tool `ask_user`. The built-in `askQuestion` is rejected
+by the local SDK. The run waits until you answer in the chat.
+
+File tools read the project and keep writes in memory (`src/main/draftFs.ts`) until the
+run finishes successfully. `.git` is never written. The 65 MCP tools, design especially,
+still write immediately. On each chat open the app rewrites
+`.cursor/rules/penwright-chat.mdc`: manuscript via the file tools, design via MCP,
+decisions via `ask_user`, no shell. Project rules load (`settingSources: project`).
+The personal Cursor MCP config does not.
+
 Several chats per project, tabs and history, stored in `.penwright/cursor-agent/` so they
 travel with the folder. A follow-up typed while the agent is working waits for the
-next turn. The transcript stays put when you scroll up.
+next turn. The transcript stays put when you scroll up. There is no cloud agent, and
+the iPad host has no chat.
 
 Penwright stays free. Usage is billed to your Cursor plan. Without signing in, the editor,
 preview and export still work. Cursor IDE and Claude remain optional under
@@ -123,6 +137,7 @@ preview and export still work. Cursor IDE and Claude remain optional under
   copying them into `sources/`, and the in-app agent can search every paper in the project's
   `.bib` files (`penwright_search_sources`) as well as read `apropos-dossier.md`
 - Bilingual UI (English + German), switchable at runtime
+- Same suite surfaces as Sprechblatt and apROPos (desk, sidebar, white paper). Penwright’s focus colour is orange (`#c2410c`). Toolbar, start screen and sidebar use Lucide. The writing surface stays one white field.
 
 **Design**
 - Themes, palettes, layouts, bundled OFL fonts, parametric design elements, per-chapter
@@ -167,9 +182,16 @@ The in-app User Guide is `documentation/handbook.md` (English) and
 
 ## Status
 
-Pre-release **0.20.3**. macOS / Apple Silicon is built and Developer-ID signed, not notarized.
-The iPad app is a writing host for a project folder, installed from this repo onto a device.
-Windows is scaffolded (unverified on a real device).
+Pre-release **0.21.0**. macOS / Apple Silicon was packaged on 2026-11-26
+(`Penwright-0.21.0-arm64.dmg`), Developer-ID signed, not notarized. First launch may need
+Finder → right-click → Open.
+
+The iPad writing host **0.21.0** is installed on the paired **iPad Air 11** (development
+profile, not the App Store). Same editor and orange suite. Chat, Typst and the draft tree
+stay on the Mac. The first launch may ask you to trust the developer under Settings →
+General → VPN & Device Management. Windows is scaffolded (unverified on a real device).
+
+Next working session: the in-app agent in apROPos.
 
 ## License
 

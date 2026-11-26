@@ -143,7 +143,7 @@
   }
   .pv-spinner {
     width: 16px; height: 16px; border-radius: 50%;
-    border: 2px solid #ccc; border-top-color: #4f7df9;
+    border: 2px solid #ccc; border-top-color: var(--accent);
     animation: pv-spin 0.7s linear infinite;
   }
   @keyframes pv-spin { to { transform: rotate(360deg); } }
@@ -157,7 +157,7 @@
     width: 7px; height: 7px; border-radius: 50%; border: none; padding: 0;
     background: #cfd3da; cursor: pointer;
   }
-  .pv-dot.active { background: #4f7df9; }
+  .pv-dot.active { background: var(--accent); }
   .pv-counter { font-size: 11.5px; color: #999; margin-left: 6px; }
 
   .pv-actions { display: flex; gap: 8px; }
@@ -167,7 +167,7 @@
   }
   .pv-btn-secondary:hover { background: #f8f8f8; }
   .pv-btn-primary {
-    padding: 8px 18px; border: none; border-radius: 8px; background: #4f7df9;
+    padding: 8px 18px; border: none; border-radius: 8px; background: var(--accent);
     color: #fff; font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer;
   }
   .pv-btn-primary:hover { background: #3d6ce8; }

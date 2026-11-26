@@ -258,7 +258,7 @@
   }
   .secondary:hover { background: #f5f5f5; }
   .primary {
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
   }
   .primary:hover:not(:disabled) { background: #3d6ce8; }

@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { t } from '@shared/i18n/store.svelte';
+  import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+  import FolderPlus from '@lucide/svelte/icons/folder-plus';
+  import Upload from '@lucide/svelte/icons/upload';
 
   let {
     onFileOpen,
@@ -144,20 +147,15 @@
     <div class="sidebar-path">
       {#if hasParent}
         <button class="back-btn" onclick={navigateUp} title={t().sidebar.goUp} aria-label={t().sidebar.goUpAria}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <ChevronLeft size={14} strokeWidth={1.75} />
         </button>
       {/if}
       <span class="path-text" title={projectDir}>{dirName(projectDir)}</span>
       <button class="action-btn" onclick={newFolderAction} title={t().sidebar.newFolder} aria-label={t().sidebar.newFolder}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M2 4h4l1 1.5h7v7H2V4z" stroke="currentColor" stroke-width="1.2" fill="none"/>
-          <path d="M11 8.5v3M9.5 10h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-        </svg>
+        <FolderPlus size={14} strokeWidth={1.75} />
       </button>
       <button class="action-btn" onclick={addAssetAction} title={t().sidebar.addAsset} aria-label={t().sidebar.addAsset}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M8 2v8M4 6l4-4 4 4M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <Upload size={14} strokeWidth={1.75} />
       </button>
     </div>
   {/if}
@@ -330,8 +328,8 @@
   }
 
   .file-entry.active {
-    background: #eef4ff;
-    color: #4f7df9;
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 
   .chevron {
@@ -367,7 +365,7 @@
   }
   .new-folder-input {
     flex: 1;
-    border: 1px solid #4f7df9;
+    border: 1px solid var(--accent);
     border-radius: 4px;
     padding: 3px 6px;
     font-size: 12px;

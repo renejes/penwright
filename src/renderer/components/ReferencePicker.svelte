@@ -308,7 +308,7 @@
     font-family: inherit;
   }
   .ref-picker-search input:focus {
-    border-color: #4f7df9;
+    border-color: var(--accent);
     box-shadow: 0 0 0 2px rgba(79, 125, 249, 0.18);
   }
 
@@ -328,9 +328,9 @@
     font-family: inherit;
   }
   .ref-picker-types button.active {
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
-    border-color: #4f7df9;
+    border-color: var(--accent);
   }
 
   .ref-picker-body {
@@ -388,7 +388,7 @@
   }
   .ref-picker-item.selected {
     background: rgba(79, 125, 249, 0.08);
-    border-left-color: #4f7df9;
+    border-left-color: var(--accent);
   }
 
   .ref-picker-item-main {
@@ -400,7 +400,7 @@
   .ref-picker-item-label {
     font-family: 'SF Mono', Menlo, Consolas, monospace;
     font-size: 12px;
-    color: #4f7df9;
+    color: var(--accent);
     flex-shrink: 0;
   }
   .ref-picker-item-caption {

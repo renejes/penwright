@@ -199,7 +199,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #4f7df9;
+    background: var(--accent);
     flex-shrink: 0;
   }
 

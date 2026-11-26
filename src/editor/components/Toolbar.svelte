@@ -4,6 +4,27 @@
   import { insertMarginNoteWithEditor } from '../lib/typstMagazine';
   import { getCommands, type SlashItem } from '../lib/slashCommands';
   import { t } from '@shared/i18n/store.svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Bold from '@lucide/svelte/icons/bold';
+  import Italic from '@lucide/svelte/icons/italic';
+  import Strikethrough from '@lucide/svelte/icons/strikethrough';
+  import Code from '@lucide/svelte/icons/code';
+  import Link from '@lucide/svelte/icons/link';
+  import Underline from '@lucide/svelte/icons/underline';
+  import Baseline from '@lucide/svelte/icons/baseline';
+  import Highlighter from '@lucide/svelte/icons/highlighter';
+  import List from '@lucide/svelte/icons/list';
+  import ListOrdered from '@lucide/svelte/icons/list-ordered';
+  import Quote from '@lucide/svelte/icons/quote';
+  import Braces from '@lucide/svelte/icons/braces';
+  import AlignLeft from '@lucide/svelte/icons/align-left';
+  import AlignCenter from '@lucide/svelte/icons/align-center';
+  import AlignRight from '@lucide/svelte/icons/align-right';
+  import AlignJustify from '@lucide/svelte/icons/align-justify';
+  import Table2 from '@lucide/svelte/icons/table-2';
+  import Minus from '@lucide/svelte/icons/minus';
+  import Undo2 from '@lucide/svelte/icons/undo-2';
+  import Redo2 from '@lucide/svelte/icons/redo-2';
 
   let { editor }: { editor: Editor } = $props();
 
@@ -149,7 +170,7 @@
     aria-haspopup="true"
     aria-expanded={showInsertMenu}
   >
-    +
+    <Plus size={16} strokeWidth={2} />
   </button>
 
   <div class="separator" role="separator"></div>
@@ -161,7 +182,7 @@
     aria-label={t().editor.toolbarBoldAria}
     aria-pressed={editor.isActive('bold')}
   >
-    <strong>B</strong>
+    <Bold size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -171,7 +192,7 @@
     aria-label={t().editor.toolbarItalicAria}
     aria-pressed={editor.isActive('italic')}
   >
-    <em>I</em>
+    <Italic size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -181,7 +202,7 @@
     aria-label={t().editor.toolbarStrikeAria}
     aria-pressed={editor.isActive('strike')}
   >
-    <s>S</s>
+    <Strikethrough size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -191,7 +212,7 @@
     aria-label={t().editor.toolbarInlineCodeAria}
     aria-pressed={editor.isActive('code')}
   >
-    &lt;/&gt;
+    <Code size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -201,9 +222,7 @@
     aria-label={t().editor.toolbarLinkAria}
     aria-pressed={editor.isActive('link')}
   >
-    <svg class="toolbar-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-      <path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
-    </svg>
+    <Link size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -213,7 +232,7 @@
     aria-label={t().editor.toolbarUnderlineAria}
     aria-pressed={editor.isActive('underline')}
   >
-    <u>U</u>
+    <Underline size={15} strokeWidth={1.75} />
   </button>
 
   <!-- Text color picker -->
@@ -226,7 +245,7 @@
     aria-expanded={showTextColorPicker}
     aria-haspopup="true"
   >
-    <span class="color-btn-label">A</span>
+    <span class="color-btn-label"><Baseline size={15} strokeWidth={1.75} /></span>
     <span class="color-btn-bar" style="background: {editor.getAttributes('textColor').color ? editor.getAttributes('textColor').color : '#e74c3c'}"></span>
   </button>
 
@@ -240,7 +259,7 @@
     aria-expanded={showHighlightPicker}
     aria-haspopup="true"
   >
-    <span class="highlight-btn-label">H</span>
+    <span class="highlight-btn-label"><Highlighter size={15} strokeWidth={1.75} /></span>
     <span class="color-btn-bar" style="background: #f1c40f"></span>
   </button>
 
@@ -285,7 +304,7 @@
     aria-label={t().editor.toolbarBulletListAria}
     aria-pressed={editor.isActive('bulletList')}
   >
-    &bull;
+    <List size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -295,7 +314,7 @@
     aria-label={t().editor.toolbarOrderedListAria}
     aria-pressed={editor.isActive('orderedList')}
   >
-    1.
+    <ListOrdered size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -305,7 +324,7 @@
     aria-label={t().editor.toolbarQuoteAria}
     aria-pressed={editor.isActive('blockquote')}
   >
-    &ldquo;
+    <Quote size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -315,7 +334,7 @@
     aria-label={t().editor.toolbarCodeBlockAria}
     aria-pressed={editor.isActive('codeBlock')}
   >
-    &#123; &#125;
+    <Braces size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -381,7 +400,7 @@
     aria-label={t().editor.toolbarAlignLeftAria}
     aria-pressed={editor.isActive({ textAlign: 'left' })}
   >
-    <span class="align-icon align-left"></span>
+    <AlignLeft size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -391,7 +410,7 @@
     aria-label={t().editor.toolbarAlignCenterAria}
     aria-pressed={editor.isActive({ textAlign: 'center' })}
   >
-    <span class="align-icon align-center"></span>
+    <AlignCenter size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -401,7 +420,7 @@
     aria-label={t().editor.toolbarAlignRightAria}
     aria-pressed={editor.isActive({ textAlign: 'right' })}
   >
-    <span class="align-icon align-right"></span>
+    <AlignRight size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -411,7 +430,7 @@
     aria-label={t().editor.toolbarJustifyAria}
     aria-pressed={editor.isActive({ textAlign: 'justify' })}
   >
-    <span class="align-icon align-justify"></span>
+    <AlignJustify size={15} strokeWidth={1.75} />
   </button>
 
   <div class="separator" role="separator"></div>
@@ -432,7 +451,7 @@
       aria-expanded={showTablePicker}
       aria-haspopup="true"
     >
-      &#9638;
+      <Table2 size={15} strokeWidth={1.75} />
     </button>
 
     {#if showTablePicker}
@@ -466,7 +485,7 @@
     title={t().editor.toolbarHorizontalRule}
     aria-label={t().editor.toolbarHorizontalRuleAria}
   >
-    &mdash;
+    <Minus size={15} strokeWidth={1.75} />
   </button>
 
   <div class="separator" role="separator"></div>
@@ -477,7 +496,7 @@
     title={t().editor.toolbarUndo}
     aria-label={t().editor.toolbarUndoAria}
   >
-    &#8617;
+    <Undo2 size={15} strokeWidth={1.75} />
   </button>
 
   <button
@@ -486,7 +505,7 @@
     title={t().editor.toolbarRedo}
     aria-label={t().editor.toolbarRedoAria}
   >
-    &#8618;
+    <Redo2 size={15} strokeWidth={1.75} />
   </button>
 </div>
 

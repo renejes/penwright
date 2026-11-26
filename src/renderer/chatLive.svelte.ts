@@ -58,7 +58,7 @@ class ChatLive {
         if (isRunFailure(event.text)) this.error = event.text;
         break;
       case 'summary':
-        applyTurnSummary(this.shadow, event.phase);
+        applyTurnSummary(this.shadow, event.phase, event.fallback);
         break;
       default:
         return;

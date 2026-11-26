@@ -116,6 +116,8 @@ const INVOKE_CHANNELS = [
   'chat:setModel',
   'chat:send',
   'chat:cancel',
+  'chat:summarize',
+  'chat:answer',
   'chat:history',
   'chat:models',
   'chat:pickFiles',

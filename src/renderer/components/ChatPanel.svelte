@@ -475,11 +475,35 @@
   async function cancel(): Promise<void> {
     sendTicket += 1;
     dropEmptyTrailingAssistant();
+    chatUi.question = null;
     try {
       await api.invoke('chat:cancel');
     } catch {
       chatUi.streaming = false;
       chatUi.runEpoch += 1;
+    }
+  }
+
+  let answerDraft = $state('');
+
+  async function answerQuestion(text: string): Promise<void> {
+    const question = chatUi.question;
+    if (!question) return;
+    const reply = text.trim();
+    if (!reply) return;
+    chatUi.question = null;
+    answerDraft = '';
+    await api.invoke('chat:answer', { id: question.id, text: reply });
+  }
+
+  async function summarize(): Promise<void> {
+    if (chatUi.streaming) return;
+    chatUi.streaming = true;
+    try {
+      await api.invoke('chat:summarize');
+    } catch (err) {
+      chatUi.streaming = false;
+      chatUi.lastError = err instanceof Error ? err.message : t().chat.errorPrefix;
     }
   }
 
@@ -722,6 +746,26 @@
         rows="3"
         onkeydown={onComposerKey}
       ></textarea>
+      {#if chatUi.connection.startsWith('reconnecting')}
+        <p class="chat-connection">{t().chat.connectionReconnecting(Number(chatUi.connection.split(':')[1] ?? '1'))}</p>
+      {/if}
+      {#if chatUi.question}
+        <div class="chat-question">
+          <p class="chat-question-title">{t().chat.questionTitle}</p>
+          <p>{chatUi.question.text}</p>
+          {#if chatUi.question.options.length > 0}
+            <div class="chat-question-options">
+              {#each chatUi.question.options as option (option)}
+                <button type="button" onclick={() => void answerQuestion(option)}>{option}</button>
+              {/each}
+            </div>
+          {/if}
+          <div class="chat-question-free">
+            <input bind:value={answerDraft} placeholder={t().chat.questionPlaceholder} onkeydown={(e) => { if (e.key === 'Enter') void answerQuestion(answerDraft); }} />
+            <button type="button" onclick={() => void answerQuestion(answerDraft)}>{t().chat.questionSend}</button>
+          </div>
+        </div>
+      {/if}
         <div class="chat-composer-bar">
         <div class="chat-bar-left">
           <div class="chat-menu" bind:this={menuRoot}>
@@ -808,6 +852,7 @@
           <button type="button" class="chat-primary" onclick={() => void cancel()}>{t().chat.cancel}</button>
         {:else}
           <button type="button" class="chat-primary" onclick={() => void send()} disabled={!canSend}>{t().chat.send}</button>
+          <button type="button" class="chat-attach" onclick={() => void summarize()}>{t().chat.contextSummarize}</button>
         {/if}
       </div>
     </div>
@@ -901,7 +946,7 @@
     gap: 2px;
     border-radius: 6px;
   }
-  .chat-history-row.active { background: #eef4ff; }
+  .chat-history-row.active { background: var(--accent-soft); }
   .chat-history-pick {
     flex: 1;
     text-align: left;
@@ -995,7 +1040,7 @@
     align-items: center;
     gap: 4px;
     max-width: 100%;
-    background: #eef4ff;
+    background: var(--accent-soft);
     border-radius: 6px;
     padding: 3px 6px 3px 8px;
     font-size: 12px;
@@ -1026,7 +1071,7 @@
     cursor: pointer;
   }
   .chat-mentions button.active,
-  .chat-mentions button:hover { background: #eef4ff; }
+  .chat-mentions button:hover { background: var(--accent-soft); }
   .chat-composer textarea {
     width: 100%;
     resize: none;
@@ -1086,10 +1131,23 @@
     cursor: pointer;
     color: #444;
   }
-  .chat-attach:hover { border-color: #4f7df9; color: #4f7df9; }
+  .chat-attach:hover { border-color: var(--accent); color: var(--accent); }
+  .chat-question {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    background: var(--accent-soft);
+    font-size: 13px;
+  }
+  .chat-question-title { margin: 0 0 4px; font-size: 11px; font-weight: 700; color: var(--accent); }
+  .chat-question p { margin: 0 0 8px; }
+  .chat-question-options, .chat-question-free { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chat-question-free input { flex: 1; min-width: 8rem; font: inherit; padding: 4px 8px; border: 1px solid var(--paper-border); border-radius: 6px; }
+  .chat-connection { margin: 6px 0 0; font-size: 12px; color: var(--warn, #b45309); }
   .chat-primary {
     border: none;
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
     border-radius: 8px;
     padding: 7px 14px;
@@ -1103,7 +1161,7 @@
     margin-top: 10px;
     border: none;
     background: none;
-    color: #4f7df9;
+    color: var(--accent);
     cursor: pointer;
     font: inherit;
     padding: 0;

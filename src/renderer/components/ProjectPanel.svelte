@@ -423,12 +423,12 @@
     background: #fff;
     color: #222;
   }
-  .save-input:focus { border-color: #4f7df9; }
+  .save-input:focus { border-color: var(--accent); }
   .save-btn {
     padding: 8px 14px;
     border: none;
     border-radius: 6px;
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
     font-size: 13px;
     font-family: inherit;
@@ -551,7 +551,7 @@
     font-family: inherit;
     cursor: pointer;
   }
-  .history-icon { font-size: 15px; line-height: 1; color: #4f7df9; }
+  .history-icon { font-size: 15px; line-height: 1; color: var(--accent); }
   .history-label { flex: 1; text-align: left; font-weight: 500; }
   .history-chevron { color: #bbb; font-size: 16px; }
   .scroll-area { flex: 1; min-height: 0; overflow-y: auto; }
@@ -593,8 +593,8 @@
     cursor: pointer;
   }
   .dialog-actions .primary {
-    background: #4f7df9;
-    border-color: #4f7df9;
+    background: var(--accent);
+    border-color: var(--accent);
     color: #fff;
     font-weight: 600;
   }

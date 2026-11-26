@@ -1370,7 +1370,7 @@
     font-weight: 500;
   }
 
-  .design-status.saving { background: #f0f4ff; color: #3b82f6; }
+  .design-status.saving { background: var(--accent-soft); color: var(--accent); }
   .design-status.saved  { background: #f0fdf4; color: #16a34a; }
   .design-status.error  { background: #fef2f2; color: #dc2626; }
 
@@ -1448,7 +1448,7 @@
     padding: 6px 14px;
     border: none;
     border-radius: 6px;
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
     font-size: 12px;
     font-weight: 500;
@@ -1512,7 +1512,7 @@
     justify-content: center;
     padding: 0;
   }
-  .zone-help-btn:hover { background: #a8503a; border-color: #a8503a; color: #fff; }
+  .zone-help-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   .zone-scope {
     font-size: 10.5px;
@@ -1550,7 +1550,7 @@
   .zone-help-inline {
     border: none;
     background: transparent;
-    color: #a8503a;
+    color: var(--accent);
     font-size: inherit;
     cursor: pointer;
     padding: 0;
@@ -1625,7 +1625,7 @@
   }
 
   .palette-color-input:focus {
-    outline: 2px solid #3b82f6;
+    outline: 2px solid var(--accent);
     outline-offset: -1px;
     border-color: transparent;
   }
@@ -1653,7 +1653,7 @@
   }
 
   .preset-card:hover {
-    border-color: #3b82f6;
+    border-color: var(--accent);
     box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
   }
 
@@ -1709,7 +1709,7 @@
   }
 
   .theme-card:hover {
-    border-color: #3b82f6;
+    border-color: var(--accent);
     box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
   }
 
@@ -1785,7 +1785,7 @@
   }
 
   .layout-card:hover {
-    border-color: #3b82f6;
+    border-color: var(--accent);
     box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
   }
 
@@ -1793,7 +1793,7 @@
     grid-area: icon;
     width: 28px;
     height: 38px;
-    border: 1.5px solid #cbd5f5;
+    border: 1.5px solid var(--accent-border);
     border-radius: 2px;
     background: #f8fafc;
     display: flex;
@@ -1819,7 +1819,7 @@
 
   .layout-bar {
     height: 2px;
-    background: #cbd5f5;
+    background: var(--accent-border);
     border-radius: 1px;
   }
 
@@ -1829,7 +1829,7 @@
 
   .layout-col {
     flex: 1;
-    background: #dbeafe;
+    background: var(--accent-soft);
     border-radius: 1px;
   }
 
@@ -1925,7 +1925,7 @@
   }
 
   .font-card-active {
-    border-color: #3b82f6;
+    border-color: var(--accent);
     background: #f5f9ff;
   }
 
@@ -1955,8 +1955,8 @@
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #1d4ed8;
-    background: #dbeafe;
+    color: var(--accent-hover);
+    background: var(--accent-soft);
     border-radius: 3px;
     padding: 2px 5px;
     font-weight: 600;
@@ -1991,9 +1991,9 @@
   }
 
   .font-action:hover {
-    border-color: #3b82f6;
-    color: #1d4ed8;
-    background: #eff6ff;
+    border-color: var(--accent);
+    color: var(--accent-hover);
+    background: var(--accent-soft);
   }
 
   /* Generic design-field rows (used by Scale / Layout / Headings) */
@@ -2032,7 +2032,7 @@
 
   .design-field input[type="text"]:focus,
   .design-field select:focus {
-    outline: 2px solid #3b82f6;
+    outline: 2px solid var(--accent);
     outline-offset: -1px;
     border-color: transparent;
   }
@@ -2056,7 +2056,7 @@
   }
 
   .heading-card.open {
-    border-color: #cbd5f5;
+    border-color: var(--accent-border);
     background: #f8fafc;
   }
 
@@ -2150,8 +2150,8 @@
   .custom-toggle-badge {
     margin-left: auto;
     font-size: 10px;
-    color: #1d4ed8;
-    background: #dbeafe;
+    color: var(--accent-hover);
+    background: var(--accent-soft);
     padding: 2px 7px;
     border-radius: 3px;
     font-weight: 500;
@@ -2290,8 +2290,8 @@
   }
 
   .section-add-btn:hover {
-    border-color: #4f7df9;
-    color: #4f7df9;
+    border-color: var(--accent);
+    color: var(--accent);
     background: #f5f8ff;
   }
 </style>

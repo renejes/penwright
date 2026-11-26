@@ -333,8 +333,8 @@
   }
   .cp-tab:hover { background: #f0f0f0; color: #555; }
   .cp-tab.active {
-    background: #eef4ff;
-    color: #4f7df9;
+    background: var(--accent-soft);
+    color: var(--accent);
     border-color: rgba(79, 125, 249, 0.35);
   }
 
@@ -387,7 +387,7 @@
     transition: all 0.15s;
   }
   .cp-card:hover { border-color: #d0d0d0; }
-  .cp-card.active { border-color: #4f7df9; background: #f7faff; }
+  .cp-card.active { border-color: var(--accent); background: var(--accent-soft); }
   .cp-card.resolved {
     opacity: 0.55;
     border-left-color: #b0b0b0;
@@ -418,7 +418,7 @@
     cursor: pointer;
     padding: 0;
   }
-  .cp-anchor:hover { color: #4f7df9; }
+  .cp-anchor:hover { color: var(--accent); }
 
   .cp-anchor-text {
     overflow: hidden;
@@ -475,7 +475,7 @@
     box-sizing: border-box;
   }
   .cp-body:focus {
-    border-color: #4f7df9;
+    border-color: var(--accent);
     background: #ffffff;
   }
 

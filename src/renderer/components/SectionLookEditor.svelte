@@ -287,6 +287,6 @@
   .sle-btn:hover { background: #f4f1ec; }
   .sle-btn:disabled { opacity: 0.5; cursor: default; }
   .sle-btn.ghost { border-color: transparent; background: transparent; color: #8a8174; }
-  .sle-btn.primary { background: #a8503a; border-color: #a8503a; color: #fff; }
+  .sle-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .sle-btn.primary:hover { background: #95462f; }
 </style>

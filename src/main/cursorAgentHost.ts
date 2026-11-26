@@ -19,8 +19,12 @@ import {
   type SDKAgent,
   type SDKMessage,
   type Run,
+  type InteractionUpdate,
+  type SDKCustomTool,
 } from '@cursor/sdk';
 import { appState } from './appState';
+import { randomUUID } from 'crypto';
+import { applyDraft, createDraftFileSystem } from './draftFs';
 import { addBreadcrumb } from './crashReporter';
 import { buildServerDefinition } from './mcpRegistration';
 import { isPathWithin } from './pathSecurity';
@@ -69,7 +73,66 @@ import {
   type ChatSessionIndex,
 } from '../shared/chatSessions';
 
+let activeDraft: ReturnType<typeof createDraftFileSystem> | null = null;
+const pendingAnswers = new Map<string, { resolve: (text: string) => void; reject: (err: Error) => void }>();
 const AGENT_DIR = 'cursor-agent';
+
+const CHAT_RULE = `---
+description: Vertrag für den Chat in Penwright
+alwaysApply: true
+---
+
+Du bist der Schreib-Agent in Penwright.
+
+- Änderungen am Manuskript laufen über die Dateiwerkzeuge. Sie bleiben ein Entwurf und landen erst auf der Platte, wenn der Lauf erfolgreich endet.
+- Schreibe \`style.typ\` und \`apply-style\` nicht von Hand um. Design läuft über die Penwright-MCP-Werkzeuge.
+- Wenn du eine Entscheidung brauchst, ruf \`ask_user\` auf und warte. Rate nicht, und ruf nicht \`askQuestion\` auf.
+- Keine Shell.
+`;
+
+function ensureChatRule(projectDir: string): void {
+  const dir = path.join(projectDir, '.cursor', 'rules');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'penwright-chat.mdc'), CHAT_RULE, 'utf8');
+}
+
+function rejectPendingAnswers(reason: string): void {
+  for (const [id, pending] of pendingAnswers) {
+    pendingAnswers.delete(id);
+    pending.reject(new Error(reason));
+  }
+}
+
+export function answerChatQuestion(id: string, text: string): { ok: boolean } {
+  const pending = pendingAnswers.get(id);
+  if (!pending) return { ok: false };
+  pendingAnswers.delete(id);
+  pending.resolve(text.trim() || '(keine Antwort)');
+  return { ok: true };
+}
+
+function askUserTool(): SDKCustomTool {
+  return {
+    description: 'Frage den Menschen, wenn eine Entscheidung nötig ist. Warte auf die Antwort. Nicht raten.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        question: { type: 'string' },
+        options: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['question'],
+    },
+    execute: async (args) => {
+      const question = typeof args.question === 'string' ? args.question : '';
+      const options = Array.isArray(args.options) ? args.options.filter((item): item is string => typeof item === 'string') : [];
+      const id = randomUUID();
+      emit({ kind: 'question', id, text: question, options });
+      return await new Promise<string>((resolve, reject) => {
+        pendingAnswers.set(id, { resolve, reject });
+      });
+    },
+  };
+}
 const AGENT_ID_FILE = 'agent-id';
 const TRANSCRIPT_FILE = 'transcript.json';
 const INDEX_FILE = 'chats.json';
@@ -393,9 +456,24 @@ async function createOptsFor(projectDir: string) {
     local: {
       cwd: projectDir,
       store,
-      settingSources: [],
+      // Project rules and skills only. "user" would also load ~/.cursor/mcp.json,
+      // which this app already registers — a second Penwright server.
+      settingSources: ['project' as const],
       autoReview: true,
       sandboxOptions: { enabled: false },
+      reportedWorkspacePath: '/',
+      customTools: { ask_user: askUserTool() },
+      onConnectionStateChange: (state: { state: 'connected' | 'reconnecting'; attempt?: number }) => {
+        emit({
+          kind: 'connection',
+          state: state.state,
+          attempt: state.state === 'reconnecting' ? state.attempt : undefined,
+        });
+      },
+      fs: () => {
+        activeDraft = createDraftFileSystem(projectDir);
+        return activeDraft.fs;
+      },
     },
   };
 }
@@ -418,6 +496,7 @@ async function bindAgent(
   else transcript = [];
 
   const createOpts = await createOptsFor(projectDir);
+  ensureChatRule(projectDir);
 
   if (want) {
     try {
@@ -617,50 +696,104 @@ function toolCallFields(raw: unknown): { id?: string; name?: string; args?: unkn
   };
 }
 
+function recordSdkTool(
+  turn: ChatTurn,
+  update: { callId: string; toolCall: unknown },
+  status: ChatToolChip['status'],
+): void {
+  const fields = toolCallFields({ callId: update.callId, toolCall: update.toolCall, status });
+  const result = update.toolCall && typeof update.toolCall === 'object'
+    ? (update.toolCall as { result?: { status?: string } }).result
+    : undefined;
+  recordTool(turn, {
+    id: fields.id,
+    name: fields.name,
+    args: fields.args,
+    status: result?.status === 'error' ? 'error' : status,
+  });
+}
+
 function applyInteractionDelta(
   turn: ChatTurn,
-  update: { type: string } & Record<string, unknown>,
+  update: InteractionUpdate,
   seen: { text: boolean; thinking: boolean; tools: boolean },
 ): void {
   switch (update.type) {
     case 'text-delta': {
-      const text = typeof update.text === 'string' ? update.text : '';
-      if (!text) return;
+      if (!update.text) return;
       seen.text = true;
-      applyTurnAssistantText(turn, text, 'delta');
-      emitSoon({ kind: 'assistant-delta', text });
+      applyTurnAssistantText(turn, update.text, 'delta');
+      emitSoon({ kind: 'assistant-delta', text: update.text });
       return;
     }
     case 'thinking-delta': {
-      const text = typeof update.text === 'string' ? update.text : '';
-      if (!text) return;
+      if (!update.text) return;
       seen.thinking = true;
-      applyTurnThinking(turn, text);
-      emitSoon({ kind: 'thinking', text });
+      applyTurnThinking(turn, update.text);
+      emitSoon({ kind: 'thinking', text: update.text });
       return;
     }
     case 'tool-call-started':
     case 'partial-tool-call':
-    case 'tool-call-completed': {
       seen.tools = true;
-      const fields = toolCallFields(update);
-      const status = update.type === 'tool-call-completed'
-        ? (fields.status === 'error' ? 'error' : 'completed')
-        : 'running';
-      recordTool(turn, { id: fields.id, name: fields.name, args: fields.args, status });
+      recordSdkTool(turn, update, 'running');
+      return;
+    case 'tool-call-completed':
+      seen.tools = true;
+      recordSdkTool(turn, update, 'completed');
+      return;
+    case 'tool-call-delta': {
+      const nested = update.taskUpdate;
+      if (nested.type === 'text-delta' || nested.type === 'thinking-delta') {
+        applyInteractionDelta(turn, nested, seen);
+      } else if (nested.type === 'tool-call-started' || nested.type === 'partial-tool-call') {
+        seen.tools = true;
+        recordSdkTool(turn, nested, 'running');
+      } else if (nested.type === 'tool-call-completed') {
+        seen.tools = true;
+        recordSdkTool(turn, nested, 'completed');
+      }
       return;
     }
-    case 'summary-started':
     case 'summary':
+    case 'summary-started':
       applyTurnSummary(turn, 'started');
       emit({ kind: 'summary', phase: 'started' });
       return;
     case 'summary-completed':
-      applyTurnSummary(turn, 'completed');
-      emit({ kind: 'summary', phase: 'completed' });
+      if (update.failed) {
+        applyTurnSummary(turn, 'error');
+        emit({ kind: 'summary', phase: 'error' });
+      } else {
+        applyTurnSummary(turn, 'completed', update.fallback === true);
+        emit({ kind: 'summary', phase: 'completed', fallback: update.fallback === true ? true : undefined });
+      }
       return;
-    default:
+    case 'turn-ended':
+      if (update.usage) {
+        const usage = update.usage;
+        emit({
+          kind: 'usage',
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.inputTokens + usage.outputTokens,
+        });
+      }
       return;
+    case 'thinking-completed':
+    case 'user-message-appended':
+    case 'token-delta':
+    case 'shell-output-delta':
+    case 'model-call-completed':
+    case 'step-started':
+    case 'step-completed':
+    case 'tool-requests-listed':
+    case 'shell-tool-call-delta':
+      return;
+    default: {
+      const _never: never = update;
+      void _never;
+    }
   }
 }
 
@@ -729,6 +862,11 @@ async function pumpRun(
     }
     const result = await run.wait();
     flushEmits();
+    if (result.status === 'finished' && activeDraft) {
+      const applied = applyDraft(projectDir, activeDraft.changes());
+      if (applied > 0) emit({ kind: 'status', text: resolveDict(getLocale()).chat.draftApplied(applied) });
+    }
+    activeDraft = null;
     if (turn && !turn.text.trim() && typeof result.result === 'string' && result.result.trim()) {
       applyTurnAssistantText(turn, result.result, 'snapshot');
       emit({ kind: 'assistant', text: result.result });
@@ -1036,11 +1174,37 @@ async function cancelStuckRuns(projectDir: string): Promise<void> {
 
 export async function cancelChat(): Promise<{ ok: boolean }> {
   cancelRequested = true;
+  rejectPendingAnswers('abgebrochen');
   const projectDir = appState.projectDir;
   if (projectDir) await cancelStuckRuns(projectDir);
   if (currentRun || startingSend > 0) return { ok: true };
   emit({ kind: 'done', status: 'cancelled' });
   return { ok: true };
+}
+
+export async function summarizeChat(): Promise<ChatSendResult> {
+  const projectDir = appState.projectDir;
+  if (!projectDir) return { ok: false, error: 'No project open.' };
+  if (currentRun || startingSend > 0) return { ok: false, error: 'A run is already in progress.' };
+  let bound: SDKAgent;
+  try {
+    bound = await bindAgent(projectDir);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+  const assistantTurn: ChatTurn = { id: `a-${Date.now()}`, role: 'assistant', text: '', log: [] };
+  transcript.push(assistantTurn);
+  persistTranscript(projectDir);
+  try {
+    const run = await bound.summarize();
+    currentRun = run;
+    void pumpRun(run, projectDir, assistantTurn.id, { text: false, thinking: false, tools: false });
+    return { ok: true, runId: run.id, agentId: bound.agentId };
+  } catch (err) {
+    transcript.pop();
+    persistTranscript(projectDir);
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 export async function sendChat(input: {
@@ -1112,7 +1276,7 @@ export async function sendChat(input: {
           mcpServers: restriction.mcpServers,
           mode: input.mode === 'plan' ? 'plan' : 'agent',
           onDelta: ({ update }) => {
-            applyInteractionDelta(assistantTurn, update as { type: string } & Record<string, unknown>, seen);
+            applyInteractionDelta(assistantTurn, update, seen);
           },
           onStep: () => {
             emit({ kind: 'heartbeat' });

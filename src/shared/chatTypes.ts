@@ -78,7 +78,7 @@ export type ChatLogItem =
   | { kind: 'thinking'; text: string }
   | { kind: 'tool'; id: string; name: string; status: ChatToolChip['status']; detail?: string }
   | { kind: 'status'; text: string }
-  | { kind: 'summary'; phase: 'started' | 'completed' };
+  | { kind: 'summary'; phase: 'started' | 'completed' | 'error'; fallback?: boolean };
 
 export interface ChatTurn {
   id: string;
@@ -96,7 +96,9 @@ export type ChatStreamEvent =
   | { kind: 'thinking'; text: string }
   | { kind: 'tool'; id: string; name: string; status: ChatToolChip['status']; detail?: string }
   | { kind: 'status'; text: string }
-  | { kind: 'summary'; phase: 'started' | 'completed' }
+  | { kind: 'summary'; phase: 'started' | 'completed' | 'error'; fallback?: boolean }
+  | { kind: 'question'; id: string; text: string; options?: string[] }
+  | { kind: 'connection'; state: 'connected' | 'reconnecting'; attempt?: number }
   | { kind: 'heartbeat' }
   | { kind: 'usage'; inputTokens?: number; outputTokens?: number; totalTokens?: number }
   | { kind: 'done'; status: string; error?: string }

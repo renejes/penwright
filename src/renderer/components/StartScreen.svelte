@@ -2,6 +2,12 @@
   import { onMount } from "svelte";
   import { t } from "@shared/i18n/store.svelte";
   import logoSvg from "../assets/penwright-logo.svg";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Star from "@lucide/svelte/icons/star";
+  import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import FileText from "@lucide/svelte/icons/file-text";
+  import CircleCheck from "@lucide/svelte/icons/circle-check";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 
   let {
     onNewProject,
@@ -57,7 +63,7 @@
     <!-- Typst Status -->
     {#if typstInstalled === false}
       <div class="typst-warning">
-        <span class="warning-icon">!</span>
+        <span class="warning-icon"><TriangleAlert size={14} strokeWidth={2.25} /></span>
         <div>
           <strong>{t().startScreen.typstNotFound}</strong>
           <p>
@@ -74,7 +80,7 @@
       </div>
     {:else if typstInstalled === true}
       <div class="typst-ok">
-        <span class="ok-icon">&#10003;</span>
+        <CircleCheck size={16} strokeWidth={2} />
         {t().startScreen.typstInstalled}
       </div>
     {/if}
@@ -82,7 +88,7 @@
     <!-- Actions -->
     <div class="start-actions">
       <button class="action-card action-primary" onclick={onNewProject}>
-        <span class="action-icon">&#43;</span>
+        <span class="action-icon"><Plus size={18} strokeWidth={1.75} /></span>
         <div>
           <strong>{t().startScreen.newProject}</strong>
           <span class="action-desc">{t().startScreen.newProjectDesc}</span>
@@ -90,7 +96,7 @@
       </button>
 
       <button class="action-card" onclick={onOpenSample}>
-        <span class="action-icon">&#9733;</span>
+        <span class="action-icon"><Star size={18} strokeWidth={1.75} /></span>
         <div>
           <strong>{t().startScreen.openSample}</strong>
           <span class="action-desc">{t().startScreen.openSampleDesc}</span>
@@ -98,7 +104,7 @@
       </button>
 
       <button class="action-card" onclick={onOpenProject}>
-        <span class="action-icon">&#9776;</span>
+        <span class="action-icon"><FolderOpen size={18} strokeWidth={1.75} /></span>
         <div>
           <strong>{t().startScreen.openProject}</strong>
           <span class="action-desc">{t().startScreen.openProjectDesc}</span>
@@ -110,13 +116,13 @@
     {#if recentProjects.length > 0}
       <div class="recent-section">
         <h3 class="recent-title">{t().startScreen.recent}</h3>
-        {#each recentProjects.slice(0, 5) as project}
+        {#each recentProjects.slice(0, 5) as project (project.path)}
           <button
             class="recent-item"
             onclick={() => onOpenRecent(project.path)}
             title={project.path}
           >
-            <span class="recent-icon">&#9634;</span>
+            <span class="recent-icon"><FileText size={16} strokeWidth={1.75} /></span>
             <div class="recent-info">
               <span class="recent-name">{project.name}</span>
               <span class="recent-path"
@@ -143,7 +149,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #fafafa;
+    background: var(--desk-bg);
     overflow-y: auto;
     padding: 20px 20px;
   }
@@ -168,7 +174,7 @@
   .subtitle {
     margin: -4px 0 0;
     font-size: 15px;
-    color: #999;
+    color: var(--ink-muted);
   }
 
   /* Typst Status */
@@ -177,12 +183,12 @@
     align-items: flex-start;
     gap: 12px;
     padding: 14px 18px;
-    background: #fff8f0;
-    border: 1px solid #f5dcc0;
-    border-radius: 10px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: var(--radius-md);
     margin-bottom: 24px;
     font-size: 13px;
-    color: #7a5a2e;
+    color: var(--warn);
     line-height: 1.5;
   }
 
@@ -201,7 +207,7 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: #e88a3a;
+    background: var(--warn);
     color: #fff;
     font-size: 14px;
     font-weight: 700;
@@ -217,18 +223,12 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: #f0faf0;
-    border: 1px solid #c8e8c8;
-    border-radius: 10px;
+    background: var(--ok-bg);
+    border: 1px solid var(--ok-border);
+    border-radius: var(--radius-md);
     margin-bottom: 12px;
     font-size: 13px;
-    color: #3a7a3a;
-  }
-
-  .ok-icon {
-    color: #3a9a3a;
-    font-size: 16px;
-    font-weight: 700;
+    color: var(--ok);
   }
 
   /* Action Cards */
@@ -244,9 +244,9 @@
     align-items: center;
     gap: 16px;
     padding: 16px 20px;
-    border: 1px solid #e8e8e8;
-    border-radius: 12px;
-    background: #ffffff;
+    border: 1px solid var(--paper-border);
+    border-radius: var(--radius-md);
+    background: var(--paper-bg);
     cursor: pointer;
     transition: all 0.15s;
     text-align: left;
@@ -254,26 +254,26 @@
   }
 
   .action-card:hover {
-    border-color: #d0d0d0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border-color: var(--sidebar-border);
+    box-shadow: 0 2px 8px rgba(24, 24, 27, 0.04);
   }
 
   .action-card.action-primary {
-    border-color: #4f7df9;
-    background: #f8faff;
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
   }
 
   .action-card.action-primary:hover {
-    background: #eef4ff;
-    box-shadow: 0 2px 12px rgba(79, 125, 249, 0.12);
+    background: var(--accent-soft);
+    box-shadow: 0 2px 12px var(--accent-ring);
   }
 
   .action-icon {
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: #f5f5f5;
-    color: #888;
+    background: var(--wash);
+    color: var(--ink-secondary);
     font-size: 20px;
     display: flex;
     align-items: center;
@@ -282,19 +282,19 @@
   }
 
   .action-primary .action-icon {
-    background: #eef4ff;
-    color: #4f7df9;
+    background: var(--paper-bg);
+    color: var(--accent);
   }
 
   .action-card strong {
     font-size: 14px;
-    color: #1a1a1a;
+    color: var(--ink-primary);
     display: block;
   }
 
   .action-desc {
     font-size: 12px;
-    color: #999;
+    color: var(--ink-muted);
     margin-top: 2px;
     display: block;
   }
@@ -307,7 +307,7 @@
   .recent-title {
     font-size: 12px;
     font-weight: 600;
-    color: #999;
+    color: var(--ink-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin: 0 0 8px 4px;
@@ -329,11 +329,11 @@
   }
 
   .recent-item:hover {
-    background: #f5f5f5;
+    background: var(--wash);
   }
 
   .recent-icon {
-    color: #bbb;
+    color: var(--ink-muted);
     font-size: 16px;
     flex-shrink: 0;
   }
@@ -346,13 +346,13 @@
     display: block;
     font-size: 13px;
     font-weight: 500;
-    color: #333;
+    color: var(--ink-primary);
   }
 
   .recent-path {
     display: block;
     font-size: 11px;
-    color: #aaa;
+    color: var(--ink-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -364,18 +364,18 @@
     justify-content: center;
     gap: 20px;
     font-size: 12px;
-    color: #bbb;
+    color: var(--ink-muted);
   }
 
   .shortcuts-hint kbd {
     display: inline-block;
     padding: 2px 6px;
-    background: #f0f0f0;
-    border: 1px solid #e0e0e0;
+    background: var(--wash);
+    border: 1px solid var(--paper-border);
     border-radius: 4px;
     font-size: 11px;
     font-family: inherit;
-    color: #888;
+    color: var(--ink-secondary);
     margin-right: 4px;
   }
 </style>

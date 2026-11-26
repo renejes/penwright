@@ -105,6 +105,8 @@ export let chatUi = $state({
   status: null as ChatStatus | null,
   lastError: '',
   usageLine: '',
+  connection: '' as string,
+  question: null as null | { id: string; text: string; options: string[] },
   lastActivityAt: 0,
   /** Bumps when a run ends, so a queued follow-up can start the next turn. */
   runEpoch: 0,
@@ -112,6 +114,16 @@ export let chatUi = $state({
 });
 
 export function applyChatEvent(event: ChatStreamEvent): void {
+  if (event.kind === 'question') {
+    chatUi.question = { id: event.id, text: event.text, options: event.options ?? [] };
+    return;
+  }
+  if (event.kind === 'connection') {
+    chatUi.connection = event.state === 'reconnecting'
+      ? `reconnecting:${event.attempt ?? 1}`
+      : 'connected';
+    return;
+  }
   if (event.kind !== 'done' && event.kind !== 'error' && event.kind !== 'heartbeat' && event.kind !== 'usage') {
     chatLive.ingest(event);
     return;

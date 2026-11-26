@@ -272,7 +272,7 @@
     right: 8px;
     top: -1px;
     height: 2px;
-    background: #4f7df9;
+    background: var(--accent);
     border-radius: 1px;
     pointer-events: none;
   }
@@ -320,7 +320,7 @@
     padding: 0;
   }
   .outline-backlinks:hover {
-    color: #4f7df9;
+    color: var(--accent);
     background: rgba(79, 125, 249, 0.08);
   }
 
@@ -351,6 +351,6 @@
   }
 
   .outline-item:hover {
-    border-left-color: #4f7df9;
+    border-left-color: var(--accent);
   }
 </style>

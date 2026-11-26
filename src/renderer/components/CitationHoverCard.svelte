@@ -224,7 +224,7 @@
   }
 
   .citation-card-key {
-    color: #4f7df9;
+    color: var(--accent);
     font-family: 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11px;
     margin-bottom: 10px;
@@ -240,7 +240,7 @@
   }
 
   .citation-card-btn {
-    background: #4f7df9;
+    background: var(--accent);
     color: #fff;
     border: none;
     padding: 5px 10px;

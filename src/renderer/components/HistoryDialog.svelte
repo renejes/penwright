@@ -382,16 +382,16 @@
   .restore-btn, .undo-btn {
     flex-shrink: 0;
     padding: 5px 12px;
-    border: 1px solid #4f7df9;
+    border: 1px solid var(--accent);
     border-radius: 6px;
     background: #fff;
-    color: #4f7df9;
+    color: var(--accent);
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
     font-weight: 500;
   }
-  .restore-btn:hover:not(:disabled), .undo-btn:hover:not(:disabled) { background: #4f7df9; color: #fff; }
+  .restore-btn:hover:not(:disabled), .undo-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
   .restore-btn:disabled, .undo-btn:disabled { opacity: 0.4; cursor: default; }
 
   .icon-btn {
@@ -471,7 +471,7 @@
     font-size: 13px;
     font-family: inherit;
   }
-  .confirm-go { background: #4f7df9 !important; color: #fff !important; border-color: #4f7df9 !important; }
+  .confirm-go { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
   .confirm-actions button:disabled { opacity: 0.4; }
 
   .modal-footer {

@@ -35,6 +35,7 @@ import {
   upsertToolChip,
 } from '../src/shared/chatStream.ts';
 import type { ChatTurn } from '../src/shared/chatTypes.ts';
+import { parseChatMarkdown } from '../src/shared/chatMarkdown.ts';
 import { formatTokenCount, normalizeChatModel, paramsForModel } from '../src/shared/chatModels.ts';
 import {
   activateSession,
@@ -305,5 +306,17 @@ const summaryItem = liveTurn.log?.find(i => i.kind === 'summary');
 assert.equal(summaryItem && summaryItem.kind === 'summary' ? summaryItem.phase : '', 'completed');
 const compacted = groupChatLog(liveTurn.log ?? []);
 assert.deepEqual(compacted.map(g => g.kind), ['activity', 'summary', 'activity']);
+
+const md = parseChatMarkdown('# Titel\n\nEin **Wort** und `code`.\n\n- Punkt\n\n```\nlet x = 1\n```\n\nSiehe [Quelle](https://example.com/a).\n\n<script>alert(1)</script>');
+assert.equal(md[0]?.kind, 'heading');
+assert.equal(md[1]?.kind, 'paragraph');
+if (md[1]?.kind === 'paragraph') {
+  assert.equal(md[1].lines[0]?.some(part => part.kind === 'strong' && part.text === 'Wort'), true);
+}
+assert.equal(md[2]?.kind, 'list');
+assert.equal(md[3]?.kind, 'code');
+assert.equal(md.some(block => block.kind === 'paragraph' && block.lines.some(line => line.some(part => part.kind === 'link' && part.href === 'https://example.com/a'))), true);
+assert.equal(JSON.stringify(md).includes('<script>'), true);
+assert.equal(JSON.stringify(md).includes('kind":"text"'), true);
 
 console.log('chat-agent-options-test: ok');
